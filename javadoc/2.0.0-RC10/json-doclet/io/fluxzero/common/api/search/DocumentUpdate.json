@@ -1,0 +1,68 @@
+{
+  "name" : "DocumentUpdate",
+  "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "builderClassName" : "Builder"
+    }
+  } ],
+  "documentation" : " Represents a single low-level document update operation to be applied to a search collection.\n <p>\n This class is used internally by the Fluxzero Java SDK when performing bulk update operations using\n {@link io.fluxzero.common.api.search.BulkUpdateDocuments}, which is sent to the Fluxzero Runtime to apply\n multiple updates in a single request.\n <p>\n The type of update is specified via {@link #type}, and may be:\n <ul>\n   <li>{@link io.fluxzero.common.api.search.BulkUpdate.Type#index} – to unconditionally index the document</li>\n   <li>{@link io.fluxzero.common.api.search.BulkUpdate.Type#indexIfNotExists} – to index the document only if it does not already exist</li>\n   <li>{@link io.fluxzero.common.api.search.BulkUpdate.Type#delete} – to delete the document</li>\n </ul>\n\n @see io.fluxzero.common.api.search.BulkUpdateDocuments\n @see io.fluxzero.common.api.search.BulkUpdate\n @see io.fluxzero.common.api.search.SerializedDocument\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The name of the collection to which the document belongs.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate.id",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The ID of the document to update.\n",
+    "constantValue" : null
+  }, {
+    "name" : "object",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate.object",
+    "type" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The serialized document to be indexed. May be {@code null} in case of deletions.\n",
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate.type",
+    "type" : "io.fluxzero.common.api.search.BulkUpdate.Type",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The type of update to apply (index, index-if-not-exists, or delete).\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DocumentUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentUpdate#DocumentUpdate",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

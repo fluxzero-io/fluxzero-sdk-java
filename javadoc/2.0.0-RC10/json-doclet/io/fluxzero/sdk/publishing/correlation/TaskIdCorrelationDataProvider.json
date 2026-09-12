@@ -1,0 +1,372 @@
+{
+  "name" : "TaskIdCorrelationDataProvider",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider",
+  "packageName" : "io.fluxzero.sdk.publishing.correlation",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Adds the platform task identity to another correlation data provider.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider.delegate",
+    "type" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "taskId",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider.taskId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TaskIdCorrelationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#TaskIdCorrelationDataProvider",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "taskId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addTaskId",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#addTaskId",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "correlationData",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decorate",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#decorate",
+    "returnType" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Decorates the given provider when {@code FLUXZERO_TASK_ID} is configured. Returns the original provider unchanged\n when the property and its legacy alias are absent or blank.\n\n @param delegate provider that supplies the existing correlation data\n @param propertySource source that may contain the platform task ID\n @return the decorated provider, or {@code delegate} when no task ID is configured\n"
+  }, {
+    "name" : "decoratesDefaultProvider",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#decoratesDefaultProvider",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getApplicationIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getApplicationIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getApplicationVersionKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getApplicationVersionKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getClientIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getClientIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getClientNameKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getClientNameKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getConsumerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getConsumerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getCorrelationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentMessage",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getCorrelationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "currentMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCorrelationIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getCorrelationIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getDelayKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getDelayKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getHandlerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getHandlerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getInvocationKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getInvocationKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTaskIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getTaskIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTraceIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getTraceIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTrackerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getTrackerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTriggerKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getTriggerKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTriggerNamespaceKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getTriggerNamespaceKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getTriggerTypeKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider#getTriggerTypeKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,70 @@
+{
+  "name" : "CookieValueConflictPolicy",
+  "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Determines how {@link WebRequest#getCookie(String, CookieValueConflictPolicy)} handles multiple cookies with the\n same case-sensitive name.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.CookieValueConflictPolicy>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "CookieValueConflictPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy#CookieValueConflictPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy#valueOf",
+    "returnType" : "io.fluxzero.sdk.web.CookieValueConflictPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy#values",
+    "returnType" : "io.fluxzero.sdk.web.CookieValueConflictPolicy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ALLOW_CONFLICTING_VALUES",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy.ALLOW_CONFLICTING_VALUES",
+    "annotations" : [ ],
+    "documentation" : "Returns the first matching cookie, including when later values differ. "
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : "Uses the SDK default, which is {@link #ALLOW_CONFLICTING_VALUES} in this release. "
+  }, {
+    "name" : "REJECT_CONFLICTING_VALUES",
+    "qualifiedName" : "io.fluxzero.sdk.web.CookieValueConflictPolicy.REJECT_CONFLICTING_VALUES",
+    "annotations" : [ ],
+    "documentation" : "Rejects the lookup when matching cookies contain different values. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

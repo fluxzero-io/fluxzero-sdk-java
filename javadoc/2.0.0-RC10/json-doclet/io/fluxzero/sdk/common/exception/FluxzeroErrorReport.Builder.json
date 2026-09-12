@@ -1,0 +1,206 @@
+{
+  "name" : "Builder",
+  "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder",
+  "packageName" : "io.fluxzero.sdk.common.exception",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Builder for {@link FluxzeroErrorReport}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "code",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.code",
+    "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "context",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.context",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documentationUrl",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.documentationUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "howToFix",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.howToFix",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "title",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.title",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "whatHappened",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.whatHappened",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "whyThisHappened",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder.whyThisHappened",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Builder",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#Builder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "code",
+      "type" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "title",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "build",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#build",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Builds the report.\n"
+  }, {
+    "name" : "context",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#context",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds one contextual key/value pair.\n"
+  }, {
+    "name" : "documentationUrl",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#documentationUrl",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentationUrl",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Overrides the default documentation URL. Pass {@code null} to omit the docs section.\n"
+  }, {
+    "name" : "howToFix",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#howToFix",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lines",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds recovery steps for the \"How to fix\" section.\n"
+  }, {
+    "name" : "nonBlankLines",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#nonBlankLines",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lines",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "whatHappened",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#whatHappened",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lines",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds lines for the \"What happened\" section.\n"
+  }, {
+    "name" : "whyThisHappened",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport$Builder#whyThisHappened",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lines",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds lines for the \"Why this happened\" section.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

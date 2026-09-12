@@ -1,0 +1,124 @@
+{
+  "name" : "HttpOutcome",
+  "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "failure",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome.failure",
+    "type" : "java.lang.Throwable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome.response",
+    "type" : "java.net.http.HttpResponse<byte[]>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HttpOutcome",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome#HttpOutcome",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.net.http.HttpResponse<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "failure",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome#failure",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome#response",
+    "returnType" : "java.net.http.HttpResponse<byte[]>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "failure",
+    "type" : "java.lang.Throwable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "response",
+    "type" : "java.net.http.HttpResponse<byte[]>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

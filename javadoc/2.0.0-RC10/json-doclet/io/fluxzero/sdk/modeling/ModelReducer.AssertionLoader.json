@@ -1,0 +1,47 @@
+{
+  "name" : "AssertionLoader",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$AssertionLoader",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "private", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$AssertionLoader#load",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameters",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

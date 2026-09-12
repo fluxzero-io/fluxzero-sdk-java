@@ -1,0 +1,344 @@
+{
+  "name" : "ModelGraphResolver",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Optional repository capability for metadata-only Graph navigation. Queries return complete direct collections for\n the supplied identities at a shared boundary. A repository may additionally return complete ancestor collections\n when its protocol reads an ancestor closure; descendants are loaded one frontier at a time. Returned value\n suppliers must preserve that boundary and never skip replay errors.\n The {@code historical} mode denotes an explicitly historical read, not merely a pinned current boundary: pinning\n must not replace a Model's current document authority with event replay.\n Repositories without this capability retain their existing fully loaded Graph navigation.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "graphStagedValues",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#graphStagedValues",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Captures the current message-batch overlay once for a new navigation view. "
+  }, {
+    "name" : "loadCurrentGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadCurrentGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads deliberately current state with its namespace boundary, ignoring any active handler boundary. "
+  }, {
+    "name" : "loadGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphProjection",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Strictly materializes a full graph at the selected boundary without consulting later batch state. "
+  }, {
+    "name" : "loadGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphProjection",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolvedRoot",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Materializes relationships while retaining a root value whose identity or absence was already resolved.\n A resolver opting into metadata-only identity resolution must implement this operation for absent roots;\n silently resolving the supplied identity again could bind it to a different model.\n"
+  }, {
+    "name" : "loadGraphRelations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphRelations",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Relations",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "direction",
+      "type" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "staged",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads direct relationships and heads without loading values. The supplied staged snapshot takes precedence\n over durable relationships and must also be used by returned value suppliers. No implicit later batch reads.\n"
+  }, {
+    "name" : "loadGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphValue",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Value",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exact",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads a source value and retains the coherent boundary that ordinary single-value APIs do not expose. "
+  }, {
+    "name" : "loadGraphValues",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadGraphValues",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "staged",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reconstructs explicitly requested values together; unrelated metadata nodes must remain unloaded. "
+  }, {
+    "name" : "resolveCurrentGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveCurrentGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Optional metadata-first current root; the default retains the existing current-value route. "
+  }, {
+    "name" : "resolveGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exact",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves an exact persisted key without applying functional-ID affixes a second time. "
+  }, {
+    "name" : "resolveGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves an identity without requiring its value. The returned supplier must retain the resolved identity,\n absence and boundary even if the alias changes later. Returning {@code null} (the default) retains a custom\n repository's existing value-based identity lookup, without opting into metadata-only identity resolution.\n"
+  }, {
+    "name" : "resolveUntypedGraphIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveUntypedGraphIdentity",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Optional untyped root discovery; an implementation supplies its resolved class through {@link HeadValue}. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "HeadValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$HeadValue",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Identity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Identity",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelNode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$ModelNode",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Relations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Value",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

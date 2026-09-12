@@ -1,0 +1,286 @@
+{
+  "name" : "DelegatingEntity",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.ToString",
+    "values" : {}
+  } ],
+  "documentation" : " A base implementation of {@link Entity} that forwards all method calls to a delegated {@code Entity} instance.\n <p>\n {@code DelegatingEntity} is designed to serve as a foundation for wrapper implementations that enrich or modify\n entity behavior without altering the core entity logic. It simplifies the creation of decorator-style entities\n such as {@link ModifiableEntity}, {@link SideEffectFreeEntity}, and {@link ModifiableAggregateRoot}, allowing\n selective method overriding while relying on delegation for the rest.\n <p>\n Subclasses typically override behavior like {@link #update(UnaryOperator)}, {@link #apply(Message)},\n or {@link #assertLegal(Object)} to add custom lifecycle behavior (e.g., interception, queuing, validation)\n while maintaining compatibility with the {@link Entity} interface.\n <p>\n By default, all methods delegate directly to the wrapped {@code Entity} instance, which is exposed via the\n {@code #getDelegate()} accessor.\n\n @param <T> the type of the entity's value\n\n @see Entity\n @see ModifiableEntity\n @see ModifiableAggregateRoot\n @see SideEffectFreeEntity\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.modeling.Entity<T>" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity.delegate",
+    "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.ToString.Include",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Include",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DelegatingEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#DelegatingEntity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#aliases",
+    "returnType" : "java.util.Collection<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "entities",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#entities",
+    "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#get",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#id",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "idProperty",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#idProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "lastEventId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#lastEventId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "lastEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#lastEventIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#parent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "previous",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#previous",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sequenceNumber",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#sequenceNumber",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#timestamp",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#type",
+    "returnType" : "java.lang.Class<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#withEventIndex",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withSequenceNumber",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#withSequenceNumber",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DelegatingEntity#withType",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

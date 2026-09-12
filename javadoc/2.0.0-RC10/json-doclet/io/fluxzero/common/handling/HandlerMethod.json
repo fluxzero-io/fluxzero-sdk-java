@@ -1,0 +1,80 @@
+{
+  "name" : "HandlerMethod",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A reusable, target-bound handler method.\n\n <p>Unlike a {@link HandlerInvoker}, a {@code HandlerMethod} is not resolved for one specific message. It can be\n checked and invoked repeatedly for messages that match the same method and target.</p>\n\n @param <M> the message type\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerDescriptor" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this method can handle the supplied message.\n\n @param message the message to check\n @return {@code true} if this handler method can handle the message\n"
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Invokes this handler method for the supplied message using the default result-combining strategy.\n\n @param message the message to handle\n @return the handler result\n"
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultCombiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Invokes this handler method for the supplied message and combines multiple results using the given combiner.\n\n @param message        the message to handle\n @param resultCombiner function to combine multiple results\n @return the handler result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DelegatingHandlerMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethod$DelegatingHandlerMethod",
+    "kind" : "class",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

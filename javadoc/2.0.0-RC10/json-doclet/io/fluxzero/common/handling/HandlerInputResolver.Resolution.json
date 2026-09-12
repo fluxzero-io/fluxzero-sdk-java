@@ -1,0 +1,162 @@
+{
+  "name" : "Resolution",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Describes what a resolver decided for one handler parameter.\n\n @param matched whether this resolver claims the parameter\n @param resolver function that obtains the argument from each input, or {@code null} for an unmatched or rejected\n                 result\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "matched",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution.matched",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resolver",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution.resolver",
+    "type" : "java.util.function.Function<? super io.fluxzero.common.handling.HandlerInput<M>,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Resolution",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#Resolution",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "matched",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolver",
+      "type" : "java.util.function.Function<? super io.fluxzero.common.handling.HandlerInput<M>,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matched",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#matched",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rejected",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#rejected",
+    "returnType" : "io.fluxzero.common.handling.HandlerInputResolver.Resolution<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a result indicating that this resolver claims the parameter but rejects the representative input.\n No later resolver should be tried for that parameter.\n"
+  }, {
+    "name" : "resolved",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#resolved",
+    "returnType" : "io.fluxzero.common.handling.HandlerInputResolver.Resolution<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "java.util.function.Function<? super io.fluxzero.common.handling.HandlerInput<M>,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a successful result with a function that supplies the argument for each compatible input.\n\n @param resolver the reusable argument-resolution function\n"
+  }, {
+    "name" : "resolver",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#resolver",
+    "returnType" : "java.util.function.Function<? super io.fluxzero.common.handling.HandlerInput<M>,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unmatched",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution#unmatched",
+    "returnType" : "io.fluxzero.common.handling.HandlerInputResolver.Resolution<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a result indicating that this resolver does not handle the parameter. The next resolver may be tried.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "matched",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "resolver",
+    "type" : "java.util.function.Function<? super io.fluxzero.common.handling.HandlerInput<M>,java.lang.Object>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

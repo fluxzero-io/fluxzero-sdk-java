@@ -1,0 +1,124 @@
+{
+  "name" : "InputPlanCacheKey",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey.parent",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resolverKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey.resolverKey",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InputPlanCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey#InputPlanCacheKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parent",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolverKey",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey#parent",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolverKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey#resolverKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector$MethodHandlerMatcher$InputPlanCacheKey#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "parent",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "resolverKey",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

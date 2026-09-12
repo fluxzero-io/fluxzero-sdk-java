@@ -1,0 +1,76 @@
+{
+  "name" : "MethodInvocationValidator",
+  "qualifiedName" : "io.fluxzero.common.handling.MethodInvocationValidator",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Validates method invocation arguments right before a handler method is invoked.\n\n @param <M> the message type\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.common.handling.MethodInvocationValidator.noOp",
+    "type" : "io.fluxzero.common.handling.MethodInvocationValidator<?>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.common.handling.MethodInvocationValidator#noOp",
+    "returnType" : "io.fluxzero.common.handling.MethodInvocationValidator<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validate",
+    "qualifiedName" : "io.fluxzero.common.handling.MethodInvocationValidator#validate",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "arguments",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

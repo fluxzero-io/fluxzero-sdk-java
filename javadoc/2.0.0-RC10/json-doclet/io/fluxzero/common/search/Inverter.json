@@ -1,0 +1,69 @@
+{
+  "name" : "Inverter",
+  "qualifiedName" : "io.fluxzero.common.search.Inverter",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Interface responsible for converting a domain object into a {@link SerializedDocument} for indexing, and vice\n versa—deserializing a {@code byte[]} representation into the original object type.\n <p>\n An {@code Inverter} is a specialized {@link Converter} used in the search module. It bridges the gap between\n serializable objects and searchable document formats. Implementations handle both document creation and\n deserialization from raw data.\n\n @param <T> the type of object that can be inverted and deserialized\n @see SerializedDocument\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.serialization.Converter<byte[],T>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "toDocument",
+    "qualifiedName" : "io.fluxzero.common.search.Inverter#toDocument",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts the given object into a {@link SerializedDocument}, which is suitable for indexing or storage in a\n document store.\n\n @param object     the original object to convert\n @param type       the simple type name of the object\n @param revision   the revision number of the object (e.g., as provided by {@link Revision})\n @param id         the unique ID for this document within the given collection\n @param collection the name of the collection the document belongs to\n @param timestamp  the optional starting timestamp for the document's validity\n @param end        the optional end timestamp of the document's validity\n @param metadata   optional metadata to associate with the document\n @return a fully constructed {@link SerializedDocument}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

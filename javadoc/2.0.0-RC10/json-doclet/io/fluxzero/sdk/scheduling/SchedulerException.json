@@ -1,0 +1,38 @@
+{
+  "name" : "SchedulerException",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulerException",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Exception thrown by a {@link io.fluxzero.sdk.scheduling.MessageScheduler} when scheduling a message fails.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "SchedulerException",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.SchedulerException#SchedulerException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

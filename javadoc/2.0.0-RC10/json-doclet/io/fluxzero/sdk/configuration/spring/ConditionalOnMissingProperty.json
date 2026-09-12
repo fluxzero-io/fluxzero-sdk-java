@@ -1,0 +1,60 @@
+{
+  "name" : "ConditionalOnMissingProperty",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "org.springframework.context.annotation.Conditional",
+    "values" : {
+      "value" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty.Condition.class"
+    }
+  } ],
+  "documentation" : " {@link Conditional} that only matches when the specified property is either unset or blank.\n <p>\n This can be used to register default behavior when configuration is absent.\n\n <h2>Usage</h2>\n <pre>{@code\n @ConditionalOnMissingProperty(\"custom.datasource.url\")\n @Bean\n public DataSource defaultDataSource() {\n     return new H2DataSource();\n }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Condition",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty$Condition",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.core.annotation.Order",
+      "values" : {
+        "value" : "-2147483648"
+      }
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"ConstantConditions\""
+      }
+    } ]
+  } ]
+}

@@ -1,0 +1,167 @@
+{
+  "name" : "SegmentedBatchHandlerQueue",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "additionalCompletions",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.additionalCompletions",
+    "type" : "java.util.List<java.util.concurrent.CompletableFuture<?>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "completedHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.completedHandling",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.currentCompletion",
+    "type" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentSegment",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.currentSegment",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentStart",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.currentStart",
+    "type" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "segmentTails",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.segmentTails",
+    "type" : "java.util.Map<java.lang.Integer,java.util.concurrent.CompletableFuture<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SegmentedBatchHandlerQueue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#SegmentedBatchHandlerQueue",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "beginMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#beginMessage",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "combinedCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#combinedCompletion",
+    "returnType" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "endMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#endMessage",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlingCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#handlingCompletion",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "invocation",
+      "type" : "java.util.concurrent.CompletionStage<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#registerCompletion",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completion",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "submit",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#submit",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executor",
+      "type" : "java.util.concurrent.ExecutorService",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

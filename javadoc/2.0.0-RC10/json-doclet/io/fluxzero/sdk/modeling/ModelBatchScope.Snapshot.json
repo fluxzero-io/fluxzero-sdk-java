@@ -1,0 +1,136 @@
+{
+  "name" : "Snapshot",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Frozen batch overlay. Dependencies are acquired only when the snapshot is inspected. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EMPTY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot.EMPTY",
+    "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pending",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot.pending",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModelBatchScope.PendingValue>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot.values",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Snapshot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot#Snapshot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "pending",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModelBatchScope.PendingValue>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "overlay",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot#overlay",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "durable",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves one exact identity or alias against the snapshot, preserving exact-ID precedence. "
+  }, {
+    "name" : "overlayIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot#overlayIdentity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "durableId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "durablePresent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a pending identity override, or null to retain the durable identity. Presence comes from the head,\n not a fabricated empty value, so an existing exact ID still takes precedence over pending aliases.\n"
+  }, {
+    "name" : "readRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot#readRelationships",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Records the pending writes inspected while composing relationship metadata. "
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Snapshot#values",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns captured exact values without registering reads. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

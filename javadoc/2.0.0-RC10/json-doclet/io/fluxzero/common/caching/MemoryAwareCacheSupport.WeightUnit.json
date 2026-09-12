@@ -1,0 +1,70 @@
+{
+  "name" : "WeightUnit",
+  "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit",
+  "packageName" : "io.fluxzero.common.caching",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Unit represented by a cache weight. Only caches with the same unit can share a JVM-wide pressure budget.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "WeightUnit",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit#WeightUnit",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit#valueOf",
+    "returnType" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit#values",
+    "returnType" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "BYTES",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit.BYTES",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "CUSTOM",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit.CUSTOM",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "ENTRIES",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit.ENTRIES",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

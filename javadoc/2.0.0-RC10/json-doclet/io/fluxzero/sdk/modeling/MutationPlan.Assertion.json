@@ -1,0 +1,211 @@
+{
+  "name" : "Assertion",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "field",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion.field",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.AssertionField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion.handler",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "priority",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion.priority",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "selector",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion.selector",
+    "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "signature",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion.signature",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Assertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#Assertion",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "field",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.AssertionField",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "priority",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "signature",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selector",
+      "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "field",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#field",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.AssertionField",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#handler",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "priority",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#priority",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selector",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#selector",
+    "returnType" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "signature",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#signature",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Assertion#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "field",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.AssertionField",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "handler",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "priority",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "selector",
+    "type" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "signature",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

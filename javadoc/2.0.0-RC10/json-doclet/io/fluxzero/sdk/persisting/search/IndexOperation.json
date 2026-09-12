@@ -1,0 +1,419 @@
+{
+  "name" : "IndexOperation",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Builder-style interface for indexing documents into the {@link DocumentStore}.\n <p>\n This interface allows step-by-step construction of an indexing operation, including setting document identifiers,\n time ranges, collections, metadata, and whether to only index if the document doesn't already exist. Once configured,\n the operation can be triggered using various convenience methods (e.g. {@link #index()}, {@link #indexAndForget()},\n or {@link #indexAndWait()}).\n <p>\n To begin building an index operation, use:\n <pre>\n     Fluxzero.get().documentStore().prepareIndex(myObject)\n         .id(\"myId\")\n         .collection(\"MyCollection\")\n         .timestamp(Instant.now())\n         .addMetadata(\"source\", \"api\")\n         .indexAndWait();\n </pre>\n\n @see DocumentStore#prepareIndex(Object)\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "addMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#addMetadata",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.@lombok.NonNull Metadata",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds metadata to the index operation, merging with any previously set metadata.\n"
+  }, {
+    "name" : "addMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#addMetadata",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a single metadata key-value pair.\n"
+  }, {
+    "name" : "addMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#addMetadata",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.@lombok.NonNull Map<java.lang.String,?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds multiple metadata entries from a map.\n"
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#collection",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured collection for the document.\n"
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#collection",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the collection into which the document should be indexed.\n"
+  }, {
+    "name" : "copy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#copy",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a deep copy of this operation, preserving all configured values.\n"
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#end",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured end timestamp for this operation.\n"
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#end",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the end time for the document (e.g., used in range queries or versioning).\n"
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#id",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured ID of the document.\n"
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#id",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the ID of the document to index.\n"
+  }, {
+    "name" : "ifNotExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#ifNotExists",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether the operation is configured to only index if the document doesn't already exist.\n"
+  }, {
+    "name" : "ifNotExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#ifNotExists",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "toggle",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If set to {@code true}, only index the document if it does not already exist.\n"
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#index",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the indexing operation with a default guarantee of {@link Guarantee#STORED}.\n"
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#index",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the indexing operation with the provided guarantee. If the value is {@code null}, the document will be\n deleted.\n"
+  }, {
+    "name" : "indexAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#indexAndForget",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the indexing operation with a {@link Guarantee#NONE} guarantee and does not wait for completion.\n"
+  }, {
+    "name" : "indexAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#indexAndWait",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the indexing operation with {@link Guarantee#STORED} and blocks until it is completed.\n"
+  }, {
+    "name" : "indexAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#indexAndWait",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes the indexing operation with the specified guarantee and blocks until it is completed.\n"
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#metadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured metadata.\n"
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#metadata",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces all metadata in this operation with the given metadata.\n"
+  }, {
+    "name" : "period",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#period",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "start",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the start and end time using a time range.\n"
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#start",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured start timestamp for this operation.\n"
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#start",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "start",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the start time (timestamp) for the document.\n"
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#timestamp",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets both start and end time to the same instant (convenience method).\n"
+  }, {
+    "name" : "toBulkUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#toBulkUpdate",
+    "returnType" : "io.fluxzero.common.api.search.BulkUpdate",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts the current state of the IndexOperation into a {@link BulkUpdate} instance.\n"
+  }, {
+    "name" : "toDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#toDocument",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts the current state of the IndexOperation into a Document instance.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#value",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured value to be indexed. If the value is {@code null}, the document will be deleted when\n {@link #index()} is invoked.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#value",
+    "returnType" : "io.fluxzero.sdk.persisting.search.IndexOperation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the value to be indexed. If the value is {@code null}, the document will be deleted when {@link #index()} is\n invoked.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

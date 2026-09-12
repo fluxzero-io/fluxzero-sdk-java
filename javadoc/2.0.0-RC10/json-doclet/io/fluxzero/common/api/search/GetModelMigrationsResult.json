@@ -1,0 +1,90 @@
+{
+  "name" : "GetModelMigrationsResult",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "A bounded batch of durable heads from the otherwise invisible Model-migration staging area. ",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "migrations",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult.migrations",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelHeadState>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetModelMigrationsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult#GetModelMigrationsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"migrations\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migrations",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelHeadState>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult#toMetric",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationsResult.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult$Metric",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}
