@@ -1,17 +1,18 @@
-<a href="https://fluxzero.io">
-    <img src="https://fluxzero.io/assets/fluxzero/fluxzero-logo.png" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
-</a>
+<a href="https://fluxzero.io"><img src="https://raw.githubusercontent.com/fluxzero-io/.github/main/assets/brand/2026-09/repository-header.svg" alt="Fluxzero — The European cloud for AI-built apps" width="1280"></a>
 
 # Fluxzero Java SDK
+
+Build product behavior on [Fluxzero](https://fluxzero.io), the European cloud for AI-built apps. The Java SDK gives Java and Kotlin applications one programming model for state, messaging, validation, authorization, scheduling, and web flows, so developers and coding agents can stay focused on the product.
+
+For a short overview of capabilities, see the [cheatsheet](docs/cheatsheet.pdf).
+
+[Get started](https://fluxzero.io/get-started) · [How it works](https://fluxzero.io/how-it-works) · [Docs](https://fluxzero.io/docs)
 
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
 [![Packages](https://img.shields.io/badge/packages-releases-blue)](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/)
 [![Javadoc](https://img.shields.io/badge/javadoc-main-blue)](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/)
 [![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/fluxzero-io/fluxzero-sdk-java/refs/heads/main/docs/cheatsheet.pdf)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-
-This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
-functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 Application-building documentation is available as [human/developer guides](docs/developer) and a
 [versioned agent documentation graph](docs/agents/README.md). The graph contains focused articles, searchable symbols
