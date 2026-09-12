@@ -29,15 +29,7 @@ Build my app with Fluxzero. Start at plugins.fluxzero.io
 
 The [Fluxzero agent plugins](https://plugins.fluxzero.io) guide your agent through creating, running, testing, and extending the application.
 
-Prefer to work directly in the code? [Install the Fluxzero CLI](https://fluxzero.io/docs/getting-started/installation), then create and run a project:
-
-```shell
-fz init --name my-project
-cd my-project
-./gradlew run
-```
-
-Continue with the [first handler](https://fluxzero.io/docs/getting-started/hello-world), browse the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts), or use the installation guide for manual Maven and Gradle setup.
+Prefer to work directly in the code? [Install the Fluxzero CLI](https://fluxzero.io/docs/getting-started/installation) and use it to create projects, start the development server, run builds, and deploy applications.
 
 ## Work on the SDK
 
