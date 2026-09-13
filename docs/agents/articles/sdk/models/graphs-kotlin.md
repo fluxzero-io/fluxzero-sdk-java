@@ -2,6 +2,40 @@
 
 ## Relationships
 
+Choose which relationships belong in the Graph first, then choose the deletion policy for each relationship.
+A meaningful Graph relation without ownership is a normal use of `@Parent`, not an exception to the model.
+
+| Intent | Modeling |
+| --- | --- |
+| Store an ID without registering a Graph relation | A plain typed ID, without `@Parent` |
+| Register a Graph relation with cascade deletion | `@Parent` (the default `deleteOnParentDeletion = true`) |
+| Register a Graph relation without cascade deletion | `@Parent(deleteOnParentDeletion = false)` |
+
+A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relation available to Graph navigation;
+`pathInParent` separately chooses whether to include it at a named document/serialization path.
+
+For example, one Model can have two parents with different meanings:
+
+```kotlin
+@Model
+data class LineItem(
+    @EntityId val lineItemId: LineItemId,
+    @Parent(pathInParent = "lines") val orderId: OrderId,
+    @Parent(deleteOnParentDeletion = false) val productId: ProductId,
+    val quantity: Int
+)
+```
+
+Here `LineItemId`, `OrderId` and `ProductId` are typed `Id<T>` values for their respective Models.
+The same line belongs to its order and has a non-owning Graph relation to its product. Deleting the order cascades
+to the line; deleting the product does not. Both relations support typed Graph navigation. The product edge has no
+`pathInParent`, so it is not automatically included in a product's composed document. Leave off `@Parent` on
+`productId` instead when only the reference value is needed, without Graph navigation.
+
+`deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Enforce a domain
+rule separately when deletion must be refused while references exist. `@Parent` is not an unrestricted foreign-key
+annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
+
 ```kotlin
 @Model
 data class Task(
@@ -13,8 +47,8 @@ data class Task(
 )
 ```
 
-The child remains an independent Model because its lifecycle is independent; `@Parent` expresses graph placement and
-default cascade ownership. Being displayed below or deleted with the parent does not make it a `@Member`.
+The child remains an independent Model with its own lifecycle boundary. This task's `@Parent` expresses both a
+Graph relation and cascade ownership. Being displayed below or deleted with the parent does not make it a `@Member`.
 
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
@@ -25,7 +59,7 @@ default cascade ownership. Being displayed below or deleted with the parent does
 - `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
-  `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
+  `deleteOnParentDeletion = false` for a non-owning relation, including shared or independently retained children.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 - Same-type recursion is supported. A `Folder` may hold
   `@Parent(pathInParent = "folders") val parentFolderId: FolderId?`; Fluxzero accepts an arbitrarily deep tree and atomically

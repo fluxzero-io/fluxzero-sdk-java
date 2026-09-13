@@ -6771,7 +6771,7 @@
     {
       "path": "/docs/sdk/models/graphs-java",
       "title": "Model relationships and lazy Graphs (Java)",
-      "summary": "Relationships, Loading and event parameters, Complete graph-change handlers, Search and graph composition for SDK v2 java applications.",
+      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Java.",
       "source": "articles/sdk/models/graphs-java.md",
       "symbols": [
         "@Parent",
@@ -6790,7 +6790,11 @@
         "previous()",
         "EVENT_SOURCED",
         "dynamic write targets",
-        "cascade deletion"
+        "cascade deletion",
+        "deleteOnParentDeletion",
+        "non-owning relationships",
+        "multiple parents",
+        "Graph cycles"
       ],
       "links": [
         {
@@ -6959,7 +6963,7 @@
     {
       "path": "/docs/sdk/models/graphs-kotlin",
       "title": "Model relationships and lazy Graphs (Kotlin)",
-      "summary": "Relationships, Loading and event parameters, Complete graph-change handlers, Search and graph composition for SDK v2 kotlin applications.",
+      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Kotlin.",
       "source": "articles/sdk/models/graphs-kotlin.md",
       "symbols": [
         "@Parent",
@@ -6978,7 +6982,11 @@
         "previous()",
         "EVENT_SOURCED",
         "dynamic write targets",
-        "cascade deletion"
+        "cascade deletion",
+        "deleteOnParentDeletion",
+        "non-owning relationships",
+        "multiple parents",
+        "Graph cycles"
       ],
       "links": [
         {
