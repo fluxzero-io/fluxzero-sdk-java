@@ -61,6 +61,11 @@ is insufficient):
 
 ## Event-sourced models
 
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
+replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
+substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
+
 Event sourcing is the default:
 
 ```java
@@ -332,8 +337,10 @@ Models use a shared current-state cache and an action-local cache:
 Use `FluxzeroBuilder.withModelCache(cache)` for a dedicated model cache, or
 `FluxzeroBuilder.disableAutomaticModelCaching()` to disable both shared model caching and its update tracker.
 
-The default `cachingDepth` retains the previous revision needed by common event-handler comparison logic. Configure a
-larger depth only when the application actively uses deeper `Graph.previous()` chains.
+The default `cachingDepth` keeps a previous revision cheaply available. It is a performance setting, not the source
+or retention limit of historical truth: `EVENT_SOURCED` can reconstruct earlier values after cache eviction. Increase
+the depth only when measured historical reads warrant it. `DOCUMENT` alone has no durable previous versions; do not
+make `previous()`-based business logic depend on a coincidentally warm cache.
 
 Disable shared caching with `cached = false`; action-local consistency remains available while evaluating one model
 action.

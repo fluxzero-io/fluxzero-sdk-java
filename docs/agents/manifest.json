@@ -2458,7 +2458,7 @@
           "path": "/docs/sdk/testing/verification-boundaries"
         },
         {
-          "description": "reconcile tracked scheduled effects from current aggregate state during replay",
+          "description": "reconcile tracked scheduled effects from current Model intent during replay",
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
         },
         {
@@ -2474,7 +2474,7 @@
     {
       "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
       "title": "Replay-Safe Tracked Schedule Reconciliation",
-      "summary": "Treat historical events as reconciliation triggers, derive the complete desired active-schedule set from current aggregate state, and prove replay cannot resurrect cancelled work.",
+      "summary": "Reconcile delayed work from current Model intent, guard stale commands, and clean up cascaded children without restoring obsolete schedules during replay.",
       "source": "articles/sdk/scheduling/tracked-effect-reconciliation.md",
       "symbols": [
         "replay safe schedule",
@@ -2486,7 +2486,15 @@
         "redelivery terminal no schedules",
         "duplicate timer delivery",
         "schedule cancellation stale delivery",
-        "replay rebuild deadline reconciliation"
+        "replay rebuild deadline reconciliation",
+        "loadCurrentGraph",
+        "Graph<Reminder>",
+        "@Parent",
+        "cascade deletion",
+        "singleTracker",
+        "expectedDeadline",
+        "previous()",
+        "EVENT_SOURCED"
       ],
       "links": [
         {
@@ -2516,6 +2524,10 @@
         {
           "description": "Use exact schedule constructors and active-set assertions",
           "path": "/docs/sdk/reference/test-fixture-signatures"
+        },
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model lifecycle, history and Graph reads"
         }
       ]
     },
@@ -6637,7 +6649,11 @@
         "Fluxzero.assertAndApply",
         "Fluxzero.commit",
         "automaticHandling",
-        "java"
+        "java",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
       ],
       "links": [
         {
@@ -6655,6 +6671,10 @@
         {
           "description": "Model relationships and lazy Graphs",
           "path": "/docs/sdk/models/graphs-java"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },
@@ -6676,7 +6696,11 @@
         "whereAncestor",
         "whereParent",
         "loadCurrentGraph",
-        "java"
+        "java",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
       ],
       "links": [
         {
@@ -6698,6 +6722,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },
@@ -6801,7 +6829,11 @@
         "Fluxzero.assertAndApply",
         "Fluxzero.commit",
         "automaticHandling",
-        "kotlin"
+        "kotlin",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
       ],
       "links": [
         {
@@ -6819,6 +6851,10 @@
         {
           "description": "Model relationships and lazy Graphs",
           "path": "/docs/sdk/models/graphs-kotlin"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },
@@ -6840,7 +6876,11 @@
         "whereAncestor",
         "whereParent",
         "loadCurrentGraph",
-        "kotlin"
+        "kotlin",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
       ],
       "links": [
         {
@@ -6862,6 +6902,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },

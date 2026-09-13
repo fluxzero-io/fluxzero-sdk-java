@@ -28,7 +28,7 @@ An update that has enough information to identify its target models can be handl
         @AssertLegal
         void assertName(Product product) {
             if (name.isBlank()) {
-                throw new IllegalArgumentException("Name is required");
+                throw new IllegalCommandException("Name is required");
             }
         }
 
@@ -44,7 +44,7 @@ An update that has enough information to identify its target models can be handl
     data class RenameProduct(val productId: ProductId, val name: String) {
         @AssertLegal
         fun assertName(product: Product) {
-            require(name.isNotBlank()) { "Name is required" }
+            if (name.isBlank()) throw IllegalCommandException("Name is required")
         }
 
         @Apply
@@ -58,6 +58,11 @@ Publishing `RenameProduct` as a command automatically executes the model commit.
 `ProductId`, loads only that product, runs the assertions and applies, and commits the returned model.
 
 No `loadAggregate`, command-to-event translation handler or marker interface is required.
+
+Expected business refusals must be `FunctionalException` subclasses, not `IllegalStateException`,
+`IllegalArgumentException` or Kotlin `require`/`check`. Use `IllegalCommandException` for an invalid domain action,
+`UnauthorizedException` for an authorization refusal, and Bean Validation for malformed input. These distinguish
+expected refusals from technical failures.
 
 Automatic handling can also be declared on the model:
 
@@ -126,6 +131,13 @@ record CreateProduct(@NotNull ProductId productId, @NotNull @Valid ProductDetail
 }
 ```
 
+A create-only factory requires absence; a non-null current-Model parameter requires presence. Violations reject the
+whole action with the functional already-exists/not-found error, rather than silently succeeding. Use a nullable
+current-state parameter for an intentional upsert. `disableCompatibilityCheck = true` suppresses rejection but does
+not turn a factory into an overwrite. The existing `fluxzero.assert.apply-compatibility` property and its
+`.exception.already-exists` / `.exception.not-found` overrides also apply to Models. Already accepted historical
+events retain their replay behavior.
+
 Returning `null` from a model apply logically deletes the target:
 
 ```java
@@ -157,7 +169,7 @@ record PlaceOrder(
     @AssertLegal
     void assertAvailable(Inventory inventory) {
         if (inventory.available() < quantity) {
-            throw new IllegalStateException("Insufficient inventory");
+            throw new IllegalCommandException("Insufficient inventory");
         }
     }
 
@@ -187,8 +199,9 @@ Account credit(@Association("destinationId") Account destination) {
 
 ## Parents and ancestors
 
-If no direct payload property identifies an injected model, Fluxzero treats it as a read-only ancestor dependency. It
-follows the stored relations at the action's pinned state boundary:
+If no direct payload property identifies an injected model, Fluxzero follows stored ancestor relations at the
+action's pinned state boundary. Injection is a read; returning that ancestor from a singular Model-returning
+`@Apply` also makes it a write target, without requiring its ID to be duplicated in the command:
 
 ```java
 @AssertLegal
@@ -202,6 +215,14 @@ void assertOwner(
 Parents, grandparents and further ancestors are loaded only when explicitly requested. Use
 `@Association("billingLines")` when multiple ancestor edges of the same type are reachable; the qualifier then matches
 the `@Parent(pathInParent = "...")` edge.
+
+A direct write ID has precedence. A command may remove a child and return an updated parent from another apply in
+the same atomic commit; ancestor selection uses the pre-apply graph, so removing the child does not lose its parent.
+Ambiguous ancestors must be qualified rather than selected arbitrarily.
+
+A nullable read-only value parameter also permits a null identifying property (for example an optional enclosing
+folder ID). A non-null ID pointing to no Model and a null ID both inject null there. This does not permit null write
+identities: a create/update target must still have a valid ID. Non-nullable parameters require an existing value.
 
 ## One action, multiple models
 
@@ -336,3 +357,45 @@ Existing persisted applications may continue to use `@Aggregate` and
 `Fluxzero.loadAggregate(...).assertAndApply(...)`. New code should use Model commits; the aggregate API remains the
 compatibility boundary for existing aggregate state.
 </Aside>
+
+## Dynamic write targets
+
+A variable set of existing children can be updated by returning Models read from an injected Graph. For a `Child`
+with `childId`, `@Parent RootId rootId` and an integer `value`:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+record IncrementChildren(RootId rootId) {
+    @Apply List<Child> apply(Graph<Root> root) {
+        return root.childModels(Child.class).stream()
+                .map(child -> new Child(child.childId(), child.rootId(), child.value() + 1)).toList();
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+data class IncrementChildren(val rootId: RootId) {
+    @Apply
+    fun apply(root: Graph<Root>): List<Child> =
+        root.childModels(Child::class.java).map { it.copy(value = it.value + 1) }
+}
+```
+
+</TabItem>
+</Tabs>
+
+The SDK retains each inspected Model's own revision; the children need not share a revision or sequence number.
+The values must come from this evaluation's tracked Graph, not a detached search result or arbitrary current-state read.
+An identity not read in the evaluation remains a new create-if-absent target, never a blind overwrite.
+
+Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
+Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
+of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
+changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
+RETRY rereads the selected graph and reevaluates the operation on a conflict. Do not add manual `previousValues` fields
+to compensate for lost revisions; historical inspection through `previous()` requires `EVENT_SOURCED`.

@@ -73,8 +73,10 @@ model value and omits repository affixes or parent scope. `stateIndex()` pins th
 `revisionStateIndex()` reports when the selected node revision became current.
 
 Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
-`loadCurrentGraph(...)` only after a synchronous nested command when later handler logic deliberately needs that
-command's newer state. Do not use it as the default loading route.
+`loadCurrentGraph(...)` when deliberately reconciling against current intent: for example after a synchronous nested
+command, or when a tracked scheduling consumer must decide which deadlines still belong to a Model despite handling
+an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
+before/after processing on injected Models/Graphs; do not use current loading as the default route.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.
@@ -202,6 +204,22 @@ Creation has no previous graph; deletion supplies an empty current graph and the
 `previous()`; moving a child invokes both old and new roots. The previous graph is commit-exact and does not depend on
 cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
 payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
+
+Cascade deletions use the same contract: a sole `Graph<Task>` handler sees an empty Task and its previous value even
+when a Project deletion caused it. No parent-specific cleanup handler or extra public technical event is required.
+The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
+boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving
+shared ancestors also observe removal; an already deleted ancestor is not notified twice for the same deletion.
+This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
+physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
+
+Historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with `DOCUMENT`),
+previous values can be replayed after a cache clear; cache depth and snapshots do not automatically prune Model events.
+`DOCUMENT` alone maintains current state, not document versions: a normal loaded Model has no durable `previous()`,
+and an event-boundary read cannot recover an overwritten document. Historical Graph values must be available for
+every node you actually inspect. Use event sourcing when before/after processing is required, not duplicated
+`previous...` fields as a general workaround. Explicit physical erasure or intentionally incomplete history remains
+a separate limit; there is no general automatic event-retention policy implied here.
 
 ## Search and graph composition
 

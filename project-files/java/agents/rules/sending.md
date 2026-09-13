@@ -326,3 +326,18 @@ public class CorrelationInterceptor implements DispatchInterceptor {
     }
 }
 ```
+
+## Reconcile Model schedules from current intent
+
+A registered tracked post-commit `@HandleEvent` method whose only parameter is `Graph<Reminder>` receives direct and
+cascaded reminder changes. Read `Fluxzero.loadCurrentGraph(change.id(), Reminder.class)` (Kotlin:
+`Reminder::class.java`) to inspect current intent rather than the triggering event's older state. Use one stable
+`ScheduleId.of("reminder", change.id())`: cancel when absent/completed; otherwise replace with the current deadline.
+Use `@Consumer(singleTracker = true, ...)` for this reconciler and keep all writes to those schedule IDs there, so a
+parent-routed cascade and a child-routed update do not race. Let failures reach tracked retry.
+
+`ifAbsent = true` keeps an existing deadline; it does not replace stale work and is not a once-only marker after
+cancellation. Guard the delivered command with the expected deadline/generation and current state as well: cancellation
+cannot recall already delivered work. Use `@InterceptApply` to suppress stale/early work, keep replayed `@Apply`
+deterministic, and use `Fluxzero.currentTime()` for evaluation. Scheduling is an eventual post-commit effect, not part of
+the Model transaction. For historical `previous()` values, event sourcing is required; `DOCUMENT` alone has no versions.

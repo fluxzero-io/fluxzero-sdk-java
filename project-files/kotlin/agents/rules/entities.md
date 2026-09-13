@@ -94,6 +94,11 @@ silently renaming fields in an existing application's history.
 
 ## Storage is a separate choice
 
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
+replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
+substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
+
 The default above is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
 read requirement. Use [the central Model query matrix](model-queries.md).
 Relationship-scoped search can use an internal component without `DOCUMENT`; ordinary `search(T.class)` lists cannot.
@@ -170,6 +175,11 @@ Compatibility checks are inferred:
 - A nullable model parameter allows either state.
 - Use `disableCompatibilityCheck = true` only for deliberate advanced behavior.
 
+An incompatible create/update rejects the action with the functional already-exists/not-found error, not silent
+success. A nullable current-state parameter expresses an explicit upsert. Disabling compatibility checks suppresses
+the refusal but does not turn a create-only factory into an overwrite. The existing
+`fluxzero.assert.apply-compatibility` property and its exception overrides also apply to Models.
+
 Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
 Use an explicit handler only for real orchestration and call `Fluxzero.assertAndApply(command)` once.
 
@@ -184,6 +194,10 @@ call or wait on it inside `@Apply`; the apply has not returned its change yet.
 
 ## Assertions and interceptors
 
+Use `FunctionalException` subclasses for expected business refusals: `IllegalCommandException` for an invalid action,
+`UnauthorizedException` for authorization, and Bean Validation for malformed input. Do not use technical exceptions
+such as `IllegalStateException`, `IllegalArgumentException`, or Kotlin `require`/`check` for expected domain failures.
+
 ```kotlin
 data class RenameProject(
     val projectId: ProjectId,
@@ -192,7 +206,7 @@ data class RenameProject(
     @AssertLegal
     fun assertOwner(project: Project, sender: Sender) {
         if (project.ownerId != sender.userId()) {
-            throw ProjectErrors.unauthorized
+            throw UnauthorizedException("Not allowed to rename this project")
         }
     }
 
@@ -210,6 +224,12 @@ data class RenameProject(
 
 Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
 direct target and related ancestor resolved for the action. They must not perform nested model writes.
+
+Returning an injected parent/ancestor from a singular Model-returning `@Apply` makes it a write target. When no direct
+write ID is supplied, the existing `@Parent` relation supplies it at the pinned pre-apply boundary, even when another
+apply removes the child. Direct IDs retain precedence; qualify ambiguous ancestors with `@Association`.
+A nullable read-only Model parameter also accepts a null identifying property, such as an optional enclosing folder
+ID. Write identities must remain non-null. Merely injecting an ancestor does not update it.
 
 Interception selects the payloads to which assertions apply:
 
@@ -265,7 +285,7 @@ data class ReserveStock(
     @AssertLegal
     fun assertAvailable(inventory: Inventory) {
         if (inventory.available < quantity) {
-            throw InventoryErrors.insufficientStock
+            throw IllegalCommandException("Insufficient stock")
         }
     }
 
@@ -289,6 +309,30 @@ fun debit(
     @Association("sourceId") source: Account
 ) = source.debit(amount)
 ```
+
+## Dynamic write targets
+
+A variable set of existing children can be updated by returning Models read from an injected Graph. For a `Child`
+with `childId`, `@Parent RootId rootId` and an integer `value`:
+
+```kotlin
+data class IncrementChildren(val rootId: RootId) {
+    @Apply
+    fun apply(root: Graph<Root>): List<Child> =
+        root.childModels(Child::class.java).map { it.copy(value = it.value + 1) }
+}
+```
+
+The SDK retains each inspected Model's own revision; the children need not share a revision or sequence number.
+The values must come from this evaluation's tracked Graph, not a detached search result or arbitrary current-state read.
+An identity not read in the evaluation remains a new create-if-absent target, never a blind overwrite.
+
+Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
+Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
+of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
+changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
+RETRY rereads the selected graph and reevaluates the operation on a conflict. Do not add manual `previousValues` fields
+to compensate for lost revisions; historical inspection through `previous()` requires `EVENT_SOURCED`.
 
 ## Batch-local command consistency
 
@@ -397,8 +441,10 @@ model value and omits repository affixes or parent scope. `stateIndex()` pins th
 `revisionStateIndex()` reports when the selected node revision became current.
 
 Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
-`loadCurrentGraph(...)` only after a synchronous nested command when later handler logic deliberately needs that
-command's newer state. Do not use it as the default loading route.
+`loadCurrentGraph(...)` when deliberately reconciling against current intent: for example after a synchronous nested
+command, or when a tracked scheduling consumer must decide which deadlines still belong to a Model despite handling
+an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
+before/after processing on injected Models/Graphs; do not use current loading as the default route.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.
@@ -503,6 +549,22 @@ Creation has no previous graph; deletion supplies an empty current graph and the
 `previous()`; moving a child invokes both old and new roots. The previous graph is commit-exact and does not depend on
 cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
 payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
+
+Cascade deletions use the same contract: a sole `Graph<Task>` handler sees an empty Task and its previous value even
+when a Project deletion caused it. No parent-specific cleanup handler or extra public technical event is required.
+The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
+boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving
+shared ancestors also observe removal; an already deleted ancestor is not notified twice for the same deletion.
+This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
+physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
+
+Historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with `DOCUMENT`),
+previous values can be replayed after a cache clear; cache depth and snapshots do not automatically prune Model events.
+`DOCUMENT` alone maintains current state, not document versions: a normal loaded Model has no durable `previous()`,
+and an event-boundary read cannot recover an overwritten document. Historical Graph values must be available for
+every node you actually inspect. Use event sourcing when before/after processing is required, not duplicated
+`previous...` fields as a general workaround. Explicit physical erasure or intentionally incomplete history remains
+a separate limit; there is no general automatic event-retention policy implied here.
 
 ## Search and graph composition
 

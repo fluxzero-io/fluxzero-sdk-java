@@ -105,6 +105,11 @@ silently renaming fields in an existing application's history.
 
 ## Storage is a separate choice
 
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
+replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
+substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
+
 The default above is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
 read requirement. Use the central matrix at `/docs/sdk/entities/graph-search`.
 Relationship-scoped search can use an internal component without `DOCUMENT`; ordinary `search(T.class)` lists cannot.

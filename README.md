@@ -21,6 +21,9 @@ Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concep
 
 For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
 
+For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
+See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
+
 ## Start building
 
 Building with a coding agent? Give it this:
