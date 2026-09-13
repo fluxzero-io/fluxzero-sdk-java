@@ -1,0 +1,50 @@
+name: Bug report
+description: Tell us what happened so we can look into it
+title: ""
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. Share whatever you know; the report does not need to be complete.
+
+        If this may be a security vulnerability, please use [private vulnerability reporting](https://github.com/fluxzero-io/fluxzero-sdk-java/security/advisories/new) instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Tell us what you expected and what happened instead.
+      placeholder: I expected… but instead…
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: SDK version
+      description: If you know it, which version are you using?
+      placeholder: For example, 1.42.0
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - Java
+        - Kotlin
+        - Both
+        - Not sure or not applicable
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How can we reproduce it?
+      description: A small example or a few steps are helpful, but not required.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Add logs, screenshots, or environment details if they help. Please remove secrets and personal data.

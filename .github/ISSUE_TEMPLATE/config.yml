@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: SDK documentation
+    url: https://fluxzero.io/docs
+    about: Learn how to build applications with the Fluxzero SDK
+  - name: Security report
+    url: https://github.com/fluxzero-io/fluxzero-sdk-java/security/advisories/new
+    about: Report a suspected vulnerability privately
