@@ -128,8 +128,11 @@ public @interface HandleDocument {
      * A non-passive handler may return the injected complete {@code Graph<RootModel>} to persist ordinary serializer
      * upcasting of its root and descendants into the materialized projection. Every node retains its own serialized
      * type and revision and uses the ordinary {@link io.fluxzero.sdk.common.serialization.casting.Upcast @Upcast}
-     * chain; there is no Graph-wide upcaster. An upcaster may return a {@code Data<T>} envelope to evolve a node's type
-     * and content together without a separate typecaster. This is a projection-only migration: the graph must retain
+     * chain; there is no Graph-wide upcaster. Register a type alias as well when a node's Java type name changes,
+     * even if its content upcaster returns a {@code Data<T>} envelope with the new name: the replacement guard needs
+     * a content-independent type mapping. Root upcasting must yield exactly one state; split/drop upcasters remain
+     * available to ordinary document handlers, but cannot split or silently remove a materialized Graph.
+     * This is a projection-only migration: the graph must retain
      * the handled root, state boundary, nodes and placements, and direct Models, relationships and projection progress
      * are never changed. The Runtime replaces the document only if its original manifest is still current, so a
      * delayed handler cannot overwrite a newer projection. Returning a Graph whose node schemas are already current

@@ -21,9 +21,13 @@ import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.persisting.search.DocumentMessageReader;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.experimental.Delegate;
 
@@ -39,14 +43,20 @@ import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
  * @see InMemorySearchStore
  * @see HandlerRegistry
  */
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHandlers> implements HasLocalHandlers {
     private final Client client;
     @Delegate
     private final HandlerRegistry handlerRegistry;
     private final DispatchInterceptor dispatchInterceptor;
     private final Serializer serializer;
+    private final DocumentMessageReader documentReader;
     private final AtomicBoolean initialized = new AtomicBoolean();
+
+    public LocalDocumentHandlerRegistry(Client client, HandlerRegistry handlerRegistry,
+                                         DispatchInterceptor dispatchInterceptor, Serializer serializer) {
+        this(client, handlerRegistry, dispatchInterceptor, serializer, new DocumentMessageReader());
+    }
 
     @Override
     protected HasLocalHandlers createForNamespace(String namespace) {
@@ -55,7 +65,7 @@ public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHan
             return this;
         }
         LocalDocumentHandlerRegistry result = new LocalDocumentHandlerRegistry(
-                namespacedClient, handlerRegistry, dispatchInterceptor, serializer);
+                namespacedClient, handlerRegistry, dispatchInterceptor, serializer, documentReader);
         result.initializeMonitor();
         return result;
     }
@@ -63,14 +73,24 @@ public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHan
     @Override
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
         initializeMonitor();
-        return handlerRegistry.registerHandler(target, handlerFilter);
+        // Custom factories/registries own their method selection and must keep their original input contract.
+        if (!(handlerRegistry instanceof LocalHandlerRegistry local)
+                || !(local.getHandlerFactory() instanceof DefaultHandlerFactory)) {
+            return handlerRegistry.registerHandler(target, handlerFilter);
+        }
+        Registration readRegistration = documentReader.register(target, handlerFilter);
+        try {
+            return handlerRegistry.registerHandler(target, handlerFilter).merge(readRegistration);
+        } catch (RuntimeException | Error e) {
+            readRegistration.cancel();
+            throw e;
+        }
     }
 
     private void initializeMonitor() {
         if (initialized.compareAndSet(false, true)) {
             ((InMemorySearchStore) client.getSearchClient()).registerMonitor(
-                    (collection, messages) -> serializer.deserializeMessages(
-                            messages.stream(), MessageType.DOCUMENT, collection).forEach(message -> {
+                    (collection, messages) -> documentReader.read(messages, collection, serializer).forEach(message -> {
                         message = setConsumerNamespace(
                                 message, isApplicationNamespace(client) ? null : client.namespace());
                         dispatchInterceptor.monitorDispatch(

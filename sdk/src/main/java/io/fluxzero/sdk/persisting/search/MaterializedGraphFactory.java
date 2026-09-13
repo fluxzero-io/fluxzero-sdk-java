@@ -22,10 +22,11 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
-import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelNames;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
@@ -38,6 +39,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** Adapts a composed search-document manifest directly into the canonical indexed Graph state. */
@@ -78,6 +80,25 @@ final class MaterializedGraphFactory {
                 registeredModelTypes, pathOverrides, manifest, previousStateIndex, () -> document), rootType);
     }
 
+    static <T> Graph<T> create(
+            SerializedDocument document, ModelGraphDocumentManifest manifest, DeserializingMessage message,
+            Class<T> rootType, DocumentSerializer documentSerializer, Supplier<ModelRepository> repositorySupplier,
+            Collection<Class<?>> registeredModelTypes, Map<String, String> pathOverrides, Long previousStateIndex) {
+        Source source = new Source(document.getId(), document.getCollection(), document.getTimestamp(), document.getEnd(),
+                documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, manifest,
+                previousStateIndex, () -> Source.rawJson(document, documentSerializer));
+        var root = manifest.nodes().getFirst();
+        if (DocumentMessageReader.usesSerializer(message, documentSerializer)
+                && manifest.type(root).equals(document.getDocument().getType())
+                && root.revision() == document.getDocument().getRevision()) {
+            // The message reader already applied this root's caster chain. Reuse that logical root, but never its
+            // altered composition JSON to locate or upcast descendants using the original manifest.
+            source.rootValue = type -> type.isAssignableFrom(message.getPayloadClass())
+                    ? message.getPayload() : message.getPayloadAs(type);
+        }
+        return create(source, rootType);
+    }
+
     private static <T> Graph<T> create(Source source, Class<T> rootType) {
         if (source.repository instanceof ModelTypeResolver resolver) {
             resolver.modelName(rootType);
@@ -109,6 +130,7 @@ final class MaterializedGraphFactory {
         private final List<Class<?>> registeredModelTypes;
         private final Map<Class<?>, List<String>> declaredPaths;
         private volatile JsonNode json;
+        private Function<Class<?>, Object> rootValue;
 
         private Source(
                 String documentId, String collection, Long timestamp, Long end,
@@ -163,6 +185,9 @@ final class MaterializedGraphFactory {
         }
 
         private Object convert(ModelGraphDocumentManifest.Node node, Class<?> type, String documentPath) {
+            if (documentPath.isEmpty() && rootValue != null) {
+                return rootValue.apply(type);
+            }
             JsonNode value = json(documentPath);
             if (value.isMissingNode() || value.isNull()) {
                 return null;

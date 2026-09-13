@@ -36,6 +36,7 @@ import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.persisting.search.DocumentMessageReader;
 import io.fluxzero.sdk.publishing.DefaultResultGateway;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
@@ -149,6 +150,7 @@ public class DefaultTracking implements Tracking {
     private final Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> startedHandlers =
             new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
+    private final Map<ConsumerConfiguration, DocumentMessageReader> documentReaders = new ConcurrentHashMap<>();
     private final Set<CompletableFuture<?>> outstandingRequests = ConcurrentHashMap.newKeySet();
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final ThreadLocal<SegmentedBatchHandlerQueue> batchHandlerQueue = new ThreadLocal<>();
@@ -228,6 +230,28 @@ public class DefaultTracking implements Tracking {
     private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
         Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
         assignedHandlers = enableDocumentTombstones(assignedHandlers);
+        Registration documentReads = Registration.noOp();
+        try {
+            if (messageType == MessageType.DOCUMENT && handlerFactory instanceof DefaultHandlerFactory) {
+                for (var entry : assignedHandlers.entrySet()) {
+                    var reader = documentReaders.computeIfAbsent(entry.getKey(), ignored -> new DocumentMessageReader());
+                    for (Object target : entry.getValue()) {
+                        documentReads = documentReads.merge(reader.register(target, handlerFilter));
+                    }
+                }
+            }
+            Registration registration = startPreparedHandlers(fluxzero, handlerTypes, assignedHandlers).merge(documentReads);
+            shutdownFunction.updateAndGet(r -> r.merge(registration));
+            return registration;
+        } catch (RuntimeException | Error e) {
+            documentReads.cancel();
+            throw e;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Registration startPreparedHandlers(Fluxzero fluxzero, Set<Class<?>> handlerTypes,
+                                                Map<ConsumerConfiguration, List<Object>> assignedHandlers) {
         assignedHandlers.forEach((configuration, targets) ->
                 targets.forEach(target -> handlerInitializer.accept(target, configuration)));
         Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
@@ -254,7 +278,6 @@ public class DefaultTracking implements Tracking {
                 .map(e -> registerConsumerHandlers(e.getKey(), e.getValue(), fluxzero))
                 .reduce(Registration::merge).orElse(Registration.noOp());
         Registration registration = registrationWithHandlerTypes(handlerRegistration, handlerTypes);
-        shutdownFunction.updateAndGet(r -> r.merge(registration));
         return registration;
     }
 
@@ -676,19 +699,26 @@ public class DefaultTracking implements Tracking {
             TrackingClient trackingClient = Fluxzero.get().client().forNamespace(config.getNamespace())
                     .getTrackingClient(messageType, topic);
             try {
-                handleBatch(deserializeMessageList(
-                        serializedMessages, topic, trackingClient, activeChunkedMessages, config.getMaxFetchSize()),
-                            handlers, config, true);
+                handleBatch(readConsumerMessages(serializedMessages, topic, trackingClient, activeChunkedMessages,
+                                                 config), handlers, config, true);
             } catch (BatchProcessingException e) {
                 throw e;
             } catch (Throwable e) {
                 config.getErrorHandler().handleError(
                         e, format("Failed to handle batch of consumer %s", config.getName()),
-                        () -> handleBatch(deserializeMessageList(
-                                serializedMessages, topic, trackingClient, activeChunkedMessages,
-                                config.getMaxFetchSize()), handlers, config, false));
+                        () -> handleBatch(readConsumerMessages(serializedMessages, topic, trackingClient,
+                                                              activeChunkedMessages, config), handlers, config, false));
             }
         };
+    }
+
+    private List<DeserializingMessage> readConsumerMessages(
+            List<SerializedMessage> messages, String topic, TrackingClient trackingClient,
+            Map<String, ChunkedDeserializingMessage> activeChunks, ConsumerConfiguration config) {
+        DocumentMessageReader reader = messageType == MessageType.DOCUMENT ? documentReaders.get(config) : null;
+        return reader != null && reader.readsGraphs(topic)
+                ? deserializeMessageList(messages, topic, trackingClient, activeChunks, config.getMaxFetchSize(), reader)
+                : deserializeMessageList(messages, topic, trackingClient, activeChunks, config.getMaxFetchSize());
     }
 
     void handleBatch(Iterable<DeserializingMessage> messages, List<Handler<DeserializingMessage>> handlers,
@@ -757,6 +787,14 @@ public class DefaultTracking implements Tracking {
     protected List<DeserializingMessage> deserializeMessageList(
             List<SerializedMessage> serializedMessages, String topic, TrackingClient trackingClient,
             Map<String, ChunkedDeserializingMessage> activeChunkedMessages, int recoveryMaxFetchSize) {
+        return deserializeMessageList(serializedMessages, topic, trackingClient, activeChunkedMessages,
+                                      recoveryMaxFetchSize, null);
+    }
+
+    private List<DeserializingMessage> deserializeMessageList(
+            List<SerializedMessage> serializedMessages, String topic, TrackingClient trackingClient,
+            Map<String, ChunkedDeserializingMessage> activeChunkedMessages, int recoveryMaxFetchSize,
+            DocumentMessageReader documentReader) {
         boolean hasChunkedMessages = false;
         for (SerializedMessage message : serializedMessages) {
             if (message.chunked()) {
@@ -765,7 +803,7 @@ public class DefaultTracking implements Tracking {
             }
         }
         if (!hasChunkedMessages) {
-            return deserializeNonChunkedMessages(serializedMessages, topic);
+            return deserializeNonChunkedMessages(serializedMessages, topic, documentReader);
         }
         List<DeserializingMessage> result = new ArrayList<>(serializedMessages.size());
         List<SerializedMessage> pendingNonChunkedMessages = new ArrayList<>();
@@ -775,7 +813,7 @@ public class DefaultTracking implements Tracking {
                 pendingNonChunkedMessages.add(message);
                 continue;
             }
-            flushNonChunkedMessages(pendingNonChunkedMessages, topic, result);
+            flushNonChunkedMessages(pendingNonChunkedMessages, topic, result, documentReader);
             if (!message.firstChunk()) {
                 String key = chunkKey(topic, message);
                 ChunkedDeserializingMessage chunkedMessage = activeChunkedMessages.get(key);
@@ -805,20 +843,21 @@ public class DefaultTracking implements Tracking {
             trackActiveChunkedMessage(activeChunkedMessages, chunkKey, chunkedMessage);
             result.add(chunkedMessage);
         }
-        flushNonChunkedMessages(pendingNonChunkedMessages, topic, result);
+        flushNonChunkedMessages(pendingNonChunkedMessages, topic, result, documentReader);
         pendingContinuations.values().stream().flatMap(Collection::stream).forEach(this::logSkippedContinuation);
         return result;
     }
 
     private List<DeserializingMessage> deserializeNonChunkedMessages(List<SerializedMessage> serializedMessages,
-                                                                     String topic) {
-        return serializer.deserializeMessages(serializedMessages.stream(), messageType, topic).toList();
+                                                                     String topic, DocumentMessageReader reader) {
+        return reader == null ? serializer.deserializeMessages(serializedMessages.stream(), messageType, topic).toList()
+                : reader.read(serializedMessages, topic, serializer).toList();
     }
 
     private void flushNonChunkedMessages(List<SerializedMessage> messages, String topic,
-                                         List<DeserializingMessage> result) {
+                                         List<DeserializingMessage> result, DocumentMessageReader reader) {
         if (!messages.isEmpty()) {
-            result.addAll(deserializeNonChunkedMessages(messages, topic));
+            result.addAll(deserializeNonChunkedMessages(messages, topic, reader));
             messages.clear();
         }
     }
