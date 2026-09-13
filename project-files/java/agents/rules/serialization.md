@@ -272,9 +272,15 @@ Moving `name` into `details.name` must preserve its value, not replace it with a
 
 Read-time upcasting does not change search indexes: an old stored `name` path remains the selector even when a returned
 object exposes `details.name`. Check both paths before and after deliberate migration. A complete-Graph
-`@HandleDocument(modelGraph = Project.class)` return migrates only the derived materialized Graph, not direct/component
-Model documents. Ordinary document writes must not replace head-verified Model state; use Model commits for those
-documents. Separate application-owned search projections can use ordinary revision-aware document migration.
+`@HandleDocument(modelGraph = Project.class)` return migrates only the derived materialized Graph.
+For the internal source use `@HandleDocument(modelState = Project.class)` and return the upcast value unchanged
+(Kotlin: `Project::class`). This schema-only route rejects changed identity/state, null and split/drop upcasters;
+a higher schema revision is required. Full-head/body/proof compare-and-set skips stale rewrites after update,
+deletion or recreation. It advances neither Model history nor business state.
+The independent public DOCUMENT projection uses ordinary
+`@HandleDocument(documentClass = Project.class)` revision-aware handling; its writes cannot replace internal state.
+It remains parent/ancestor-queryable. Migrate sources before rebuilding Graphs and qualify each query path separately.
+See `/docs/sdk/models/migration-testing` for complete examples, custom serializer support and storage-upgrade limits.
 Keep `EVENT_SOURCED` and reconstructible history to prove `previous()` still retains historical business values.
 
 You can verify upcasters in a `TestFixture` by providing the old serialized form.

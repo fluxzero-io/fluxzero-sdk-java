@@ -47,9 +47,12 @@ This makes `@HandleDocument` ideal for **live processing**, **projecting the lat
 
 ## Transforming stored documents
 
-This ordinary document-return contract is for application-owned documents/projections, not for rewriting
-head-verified Model state outside its Model commit path. For Model schema evolution and the distinct complete-Graph
-return contract, follow [Testing Model migrations](../model-migration-tests).
+This ordinary return contract includes a Model's independent public DOCUMENT projection; it does not rewrite the
+internal Model source. For guarded schema-only source rewriting use `@HandleDocument(modelState = Project.class)`
+and return the upcast Project unchanged. A complete `Graph<Project>` returned from
+`@HandleDocument(modelGraph = Project.class)` rewrites only the materialized Graph. These three routes update different
+query paths; see [Testing Model migrations](../model-migration-tests). Ordinary projection writes do not acquire the
+source handler's version/body compare-and-set guarantee.
 
 `@HandleDocument` can also be used to **update documents in place**.
 

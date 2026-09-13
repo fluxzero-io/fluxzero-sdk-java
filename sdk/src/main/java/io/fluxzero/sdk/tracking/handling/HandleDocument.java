@@ -144,6 +144,20 @@ public @interface HandleDocument {
     Class<?> modelGraph() default Void.class;
 
     /**
+     * Selects the verified internal current-state source of a Model, rather than its independent DOCUMENT projection.
+     * Return the injected upcast Model value unchanged to persist a schema migration. The source must already be
+     * maintained (DOCUMENT persistence, an explicit composition path, or a materialized Graph). A schema rewrite
+     * preserves identity, Model head, relationships and event history; null or business-state changes are rejected.
+     * Upcasting must produce exactly one state, and rewriting requires a higher serialized revision. A custom
+     * {@link io.fluxzero.sdk.persisting.search.DocumentSerializer} must support its logical-state snapshot operation.
+     * Concurrent state changes, deletion, erasure or another schema rewrite make an old rewrite a no-op.
+     * Public document and materialized Graph projections are reindexed independently. Use normal Model commands for
+     * business changes. A void handler only observes. This selector cannot be combined with an explicit collection,
+     * {@link #documentClass()} or {@link #modelGraph()}.
+     */
+    Class<?> modelState() default Void.class;
+
+    /**
      * If {@code true}, disables this handler during discovery.
      */
     boolean disabled() default false;

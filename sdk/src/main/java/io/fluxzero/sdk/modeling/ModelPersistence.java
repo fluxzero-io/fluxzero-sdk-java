@@ -29,7 +29,9 @@ public enum ModelPersistence {
     EVENT_SOURCED,
 
     /**
-     * Persist the current model state as a document, without retaining previous document versions.
+     * Persist an internal current-state source plus an independent public document projection.
+     * Document-only Model loads use the internal source, never an independently rewritten projection.
+     * Neither representation retains previous document versions.
      * Include {@link #EVENT_SOURCED} when {@link Graph#previous()} or historical value comparison is required.
      */
     DOCUMENT

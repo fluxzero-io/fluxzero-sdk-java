@@ -222,8 +222,9 @@ public @interface Model {
      * <p>
      * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Every direct
      * document uses the configured collection, which defaults to the resolved logical Model name. A reference-only
-     * document is excluded from unrestricted typed Model search while remaining available to Model loads, aliases,
-     * relationships and Graph composition. Timestamps default to the applied event timestamp when no paths are
+     * document is excluded from unrestricted typed Model search while remaining retrievable via relationships.
+     * Model loads, verified state and Graph composition use the separate internal source, unaffected by ordinary
+     * public document rewrites. Timestamps default to the applied event timestamp when no paths are
      * configured.
      */
     DocumentProjection document() default @DocumentProjection;
@@ -231,9 +232,8 @@ public @interface Model {
     /**
      * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
      * <p>
-     * Fluxzero retains the root's current document in its resolved direct collection when it has a document projection,
-     * irrespective of that document's public search visibility. A root without a direct document uses the same
-     * type-isolated private storage as other Graph-only Models. Only the separately named graph collection is allowed
+     * Fluxzero retains the root's current source in type-isolated internal storage, independently of any public
+     * document projection. Only the separately named whole-graph collection is allowed
      * to lag; its high-watermark is exposed through the model repository. The collection defaults to the resolved
      * direct-model collection plus {@code -graphs} when present, or to {@code <logical Model name>-graphs} otherwise.
      */

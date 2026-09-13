@@ -23,6 +23,7 @@ import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsWithRelationships;
+import io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
@@ -491,7 +492,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             + persistedId));
         }
         return client.getSearchClient().adoptModelMigration(
-                new AdoptModelMigration(
+                metadata.rootConfiguration().orElseThrow().directDocument()
+                ? new io.fluxzero.common.api.search.AdoptModelMigrationWithSource(
+                        persistedId, collection, migration.getProductionDocumentIndex(),
+                        migratedHead.getStateIndex(), STORED,
+                        metadata.modelSourceDocumentCollection(modelNamePrefix).orElseThrow())
+                : new AdoptModelMigration(
                         persistedId, collection,
                         migration.getProductionDocumentIndex(),
                         migratedHead.getStateIndex(), STORED));
@@ -1495,7 +1501,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public <T> ModelState<T> loadCurrentState(@NonNull String modelId, @NonNull Class<T> modelType) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         modelName(modelType);
-        if (metadata.modelDocumentCollection(modelNamePrefix).isEmpty()) {
+        if (metadata.modelSourceDocumentCollection(modelNamePrefix).isEmpty()) {
             throw new EventSourcingException(
                     "Current-state read for Model '%s' (%s) requires a maintained Model document; enable DOCUMENT "
                     .formatted(modelId, modelType.getName()) + "on the writer or use ordinary model replay");
@@ -1551,7 +1557,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
             boolean migration, boolean verifyState) {
-        String collection = metadata.modelDocumentReadCollection(modelNamePrefix);
+        String collection = metadata.modelSourceDocumentCollection(modelNamePrefix)
+                .orElseGet(() -> metadata.modelDocumentReadCollection(modelNamePrefix));
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
                 new GetDocument(
                         modelId,
@@ -1947,6 +1954,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
 
             List<ModelCommitStep> protocolSteps = new ArrayList<>();
+            boolean hasDocumentProjections = false;
             Map<ModelCommitTarget, Change> preparedChanges = new IdentityHashMap<>();
             Map<String, Long> nextSequences = new LinkedHashMap<>();
             Set<String> cascadeRoots = evaluation.cascadeRootIds();
@@ -2012,6 +2020,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             cascadeRoots.contains(transition.modelId()),
                             migration);
                     targets.add(target);
+                    hasDocumentProjections |= target.getDocumentProjection() != null;
                     preparedChanges.put(target, transition);
                 }
                 int protocolIndex = protocolSteps.size();
@@ -2055,6 +2064,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (!relationshipReads.isEmpty()) {
                 commit = new CommitModelsWithRelationships(commit, relationshipReads);
             }
+            if (hasDocumentProjections) {
+                commit = new CommitModelsWithDocumentProjections(commit);
+            }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
@@ -2080,6 +2092,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (!candidate.getReadRelationships().isEmpty()) {
                 commit = new CommitModelsWithRelationships(
                         commit, candidate.getReadRelationships());
+            }
+            if (candidate instanceof CommitModelsWithDocumentProjections) {
+                commit = new CommitModelsWithDocumentProjections(commit);
             }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }
@@ -2143,8 +2158,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         || migration)
                     ? directDocument(
                             transition,
-                            message.getTimestamp(), message.getMetadata())
+                            message.getTimestamp(), message.getMetadata(), false)
                     : null;
+            ModelDocumentMutation projection = document != null && !migration && transition.configuration().directDocument()
+                    ? directDocument(transition, message.getTimestamp(), message.getMetadata(), true) : null;
             RelationshipUpdate relationships = transition.updateState()
                     ? relationshipUpdate(transition)
                     : RelationshipUpdate.UNCHANGED;
@@ -2166,6 +2183,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     && transition.updateState()
                     && transition.after() == null,
                     document,
+                    projection,
                     snapshot,
                     relationships.update(),
                     relationships.relationships(),
@@ -2351,9 +2369,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private ModelDocumentMutation directDocument(
                 Change transition,
                 Instant eventTimestamp,
-                Metadata metadata) {
+                Metadata metadata,
+                boolean projection) {
             EntityMetadata.RootConfiguration model = transition.configuration();
-            String collection = documentCollection(transition);
+            String collection = projection
+                    ? transition.metadata().configuredModelDocumentCollection(modelNamePrefix)
+                    : documentCollection(transition);
             if (collection == null) {
                 return null;
             }
@@ -2368,10 +2389,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             SerializedDocument document = documentSerializer.toDocument(
                     value, transition.modelId(), collection,
                     begin, end, metadata);
-            if (model.directDocument()
-                && !model.publicDocument()
-                && !transition.metadata()
-                        .maintainsGraphComponentDocument()) {
+            if (!model.publicDocument() && (projection || !transition.metadata().maintainsGraphComponentDocument())) {
                 document = document.withoutSearchIndexes();
             }
             return new ModelDocumentMutation(collection, document);
@@ -2384,7 +2402,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private String documentCollection(Change transition) {
             return documentCollections.computeIfAbsent(
                     transition.metadata().type(),
-                    ignored -> transition.metadata().modelDocumentCollection(modelNamePrefix))
+                    ignored -> transition.metadata().modelSourceDocumentCollection(modelNamePrefix))
                     .orElse(null);
         }
 

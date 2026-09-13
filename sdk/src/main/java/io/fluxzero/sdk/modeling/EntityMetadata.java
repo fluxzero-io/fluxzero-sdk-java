@@ -555,7 +555,15 @@ public final class EntityMetadata {
         if (rootConfiguration.directDocument()) {
             return Optional.of(configuredModelDocumentCollection(modelNamePrefix));
         }
-        return maintainsGraphComponentDocument()
+        return modelSourceDocumentCollection(modelNamePrefix);
+    }
+
+    /**
+     * Returns the internal source used for current Model state and Graph composition. A separate public
+     * {@link ModelPersistence#DOCUMENT} projection never owns this source, including for document-only Models.
+     */
+    public Optional<String> modelSourceDocumentCollection(String modelNamePrefix) {
+        return model != null && (rootConfiguration.directDocument() || maintainsGraphComponentDocument())
                 ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
                         ModelNames.name(type, modelNamePrefix)))
                 : Optional.empty();
@@ -576,7 +584,8 @@ public final class EntityMetadata {
                 .orElseGet(() -> configuredModelDocumentCollection(modelNamePrefix));
     }
 
-    private String configuredModelDocumentCollection(String modelNamePrefix) {
+    /** Returns the independent document projection's configured collection. */
+    public String configuredModelDocumentCollection(String modelNamePrefix) {
         return rootConfiguration.resolvedCollection(type, modelNamePrefix);
     }
 
@@ -604,19 +613,20 @@ public final class EntityMetadata {
             return Optional.empty();
         }
         GraphProjection projection = model.graphProjection();
-        String rootCollection = modelDocumentCollection(modelNamePrefix).orElseThrow(
+        String rootCollection = modelSourceDocumentCollection(modelNamePrefix).orElseThrow(
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
         String graphCollectionBase = rootConfiguration.directDocument()
-                ? rootCollection : ModelNames.name(type, modelNamePrefix);
+                ? configuredModelDocumentCollection(modelNamePrefix) : ModelNames.name(type, modelNamePrefix);
         String collection = projection.collection().isEmpty()
                 ? graphCollectionBase + "-graphs"
                 : ApplicationProperties.substituteProperties(projection.collection());
-        if (rootCollection.equals(collection)) {
+        if (rootCollection.equals(collection) || rootConfiguration.directDocument()
+                && configuredModelDocumentCollection(modelNamePrefix).equals(collection)) {
             throw new IllegalStateException(
-                    "Graph projection collection on %s must differ from its current-document collection '%s'"
-                            .formatted(type.getName(), rootCollection));
+                    "Graph projection collection on %s must differ from its internal source and direct document collection"
+                            .formatted(type.getName()));
         }
         return Optional.of(new ModelGraphProjectionConfiguration(
                 ModelNames.name(type, modelNamePrefix), rootCollection, collection,

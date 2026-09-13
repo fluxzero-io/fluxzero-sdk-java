@@ -75,11 +75,11 @@ public record ExternalDocument(...) {}
 ```
 [//]: # (@formatter:on)
 
-`DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
-separate Graph role it stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
+`DocumentProjection.searchable = false` keeps a Model's public projection out of unrestricted typed Model search.
+It stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
 configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
 adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
-same Model participates in Graph composition, its current component document retains the independently required
+same Model participates in Graph composition, its **separate internal** component retains the independently required
 indexes without becoming publicly searchable; shape those with `@SearchExclude`, `@Facet` and `@Sortable`.
 
 <a name="facets-sorting"></a>
@@ -167,8 +167,8 @@ The ID overload starts from durable relationships and does not require a documen
 parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
 
 Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
-Model's own public document or independently maintained internal Graph-component document; an explicit composition
-path or `materializeGraph = true` supplies the latter. A reference-only `DOCUMENT` projection without such a Graph role
+Model's internal source, never its independent public projection or whole Graph. `DOCUMENT`, an explicit composition
+path or `materializeGraph = true` maintains that source. A reference-only `DOCUMENT` without a Graph role
 supplies no content, facet or sortable indexes. The whole materialized Graph projection is not searched as the Model
 itself. The returned target
 also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target

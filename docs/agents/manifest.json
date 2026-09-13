@@ -20,7 +20,12 @@
         "previous()",
         "searchGraph",
         "loadCurrentModelState",
-        "Model document proof"
+        "Model document proof",
+        "modelState",
+        "@HandleDocument(modelState)",
+        "internal Model source",
+        "independent DOCUMENT projection",
+        "schema reindexing"
       ],
       "links": [
         {
@@ -2518,10 +2523,22 @@
       "title": "Parent-Owned Schedules",
       "summary": "Bind delayed work to committed Model lifetimes, cancel on direct or cascade deletion, and understand retries, in-flight execution and metrics.",
       "source": "articles/sdk/scheduling/parent-owned-schedules.md",
-      "symbols": ["@Parent", "Schedule.withParents(...)", "ScheduleAutoCancelled", "parent-owned schedules", "Apply null cancels schedules"],
+      "symbols": [
+        "@Parent",
+        "Schedule.withParents(...)",
+        "ScheduleAutoCancelled",
+        "parent-owned schedules",
+        "Apply null cancels schedules"
+      ],
       "links": [
-        {"description": "Scheduling overview", "path": "/docs/sdk/scheduling"},
-        {"description": "Reconcile status and deadline changes", "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"}
+        {
+          "description": "Scheduling overview",
+          "path": "/docs/sdk/scheduling"
+        },
+        {
+          "description": "Reconcile status and deadline changes",
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
+        }
       ]
     },
     {

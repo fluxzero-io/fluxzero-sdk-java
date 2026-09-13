@@ -117,6 +117,30 @@ class DocumentGraphUpcastingTest {
     }
 
     @ParameterizedTest
+    @ValueSource(ints = {0, 2})
+    void sourceHandlersRejectSplitOrDroppedStatesWithoutChangingOrdinaryReaders(int outputs) {
+        var serializer = new JacksonSerializer(List.of(new SplitRoot(outputs)));
+        var reader = new DocumentMessageReader();
+        var document = legacyGraph(serializer);
+        var source = new SerializedMessage(document.getDocument(), Metadata.empty(), "root", 0L);
+        String topic = "$modelGraphComponents/UpcastRoot";
+        Object handler = new Object() {
+            @HandleDocument(modelState = Root.class)
+            Root rewrite(Root root) { return root; }
+        };
+        var first = reader.register(handler, HandlerFilter.ALWAYS_HANDLE);
+        var second = reader.register(handler, HandlerFilter.ALWAYS_HANDLE);
+        assertThrows(DeserializationException.class, () -> reader.read(List.of(source), topic, serializer).toList());
+        first.cancel();
+        first.cancel();
+        assertThrows(DeserializationException.class, () -> reader.read(List.of(source), topic, serializer).toList());
+        second.cancel();
+        assertEquals(outputs, reader.read(List.of(source), topic, serializer).count());
+        reader.register(handler, (type, method) -> false);
+        assertEquals(outputs, reader.read(List.of(source), topic, serializer).count());
+    }
+
+    @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void graphHandlerRetainsAdditionalLogicalPayloadAndMessageParameters(boolean async) {
         fixture(async).registerCasters(new MoveName()).registerHandlers(new Object() {

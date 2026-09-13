@@ -22,7 +22,7 @@ import lombok.Value;
 import java.util.Objects;
 
 /**
- * Optional direct current-document consequence of one model target transition.
+ * Optional current-source or independent public-projection consequence of one Model target transition.
  * <p>
  * A {@code null} document represents deletion from {@link #collection}. The runtime attaches the target transition's
  * assigned {@code stateIndex} and applies the mutation through a monotone write fence.
@@ -30,7 +30,7 @@ import java.util.Objects;
 @Value
 public class ModelDocumentMutation {
 
-    /** Prefix for type-isolated internal Graph-component collections. */
+    /** Prefix for type-isolated internal Model sources, including Graph components. */
     public static final String PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX =
             "$modelGraphComponents/";
 
@@ -64,8 +64,8 @@ public class ModelDocumentMutation {
             "$modelMigrationDocuments";
 
     /**
-     * Current-document collection. A direct Model document uses its configured collection; a Model that only supplies
-     * a Graph component uses an internal, type-isolated collection.
+     * Current-document collection. Internal sources use type-isolated storage; public DOCUMENT projections use
+     * their independently configured collection. The owning target field identifies the role.
      */
     String collection;
 

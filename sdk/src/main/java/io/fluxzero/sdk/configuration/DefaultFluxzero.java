@@ -1067,7 +1067,8 @@ public class DefaultFluxzero implements Fluxzero {
                     DOCUMENT, (t, i) -> new DocumentHandlerDecorator(
                             documentStoreSupplier,
                             migration -> client.getSearchClient().rewriteModelGraphDocument(
-                                    migration.replacement(), migration.expectedManifest(), Guarantee.STORED))
+                                    migration.replacement(), migration.expectedManifest(), Guarantee.STORED),
+                            message -> client.forNamespace(ClientUtils.getConsumerNamespace(message)).getSearchClient())
                             .andThen(i));
 
             if (!disableWebResponseCompression) {

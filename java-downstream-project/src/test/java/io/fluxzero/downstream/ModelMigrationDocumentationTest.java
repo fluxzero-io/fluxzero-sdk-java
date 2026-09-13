@@ -51,7 +51,7 @@ class ModelMigrationDocumentationTest {
     @TempDir Path temporary;
 
     @Test
-    void readsLegacyStorageAndRematerializesOnlyTheDerivedGraph() throws Exception {
+    void readsLegacyStorageAndReindexesEachRepresentationIndependently() throws Exception {
         var server = TestServer.startServer(0);
         String url = "ws://localhost:" + server.getURI().getPort();
         String namespace = "migration-" + UUID.randomUUID();
@@ -62,6 +62,10 @@ class ModelMigrationDocumentationTest {
                     .runtimeBaseUrl(url).namespace(namespace).name("migration-log-initializer").build());
             try {
                 observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "migration-project-graphs")
+                        .readFromIndex(0, 1);
+                observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "$modelGraphComponents/migration-project")
+                        .readFromIndex(0, 1);
+                observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "migration-projects")
                         .readFromIndex(0, 1);
             } finally {
                 observer.shutDown();
@@ -78,6 +82,8 @@ class ModelMigrationDocumentationTest {
                     .runtimeBaseUrl(url).namespace(namespace).name("migration-reader").build());
             var originalGraph = client.getSearchClient().fetch(new io.fluxzero.common.api.search.GetDocument(
                     "project-1", "migration-project-graphs")).orElseThrow();
+            var originalHead = client.getSearchClient().fetchModelDocument(new io.fluxzero.common.api.search.GetDocument(
+                    "project-1", "$modelGraphComponents/migration-project", true, true)).getModelHead();
             var fixture = TestFixture.createAsync(builder, client).consumerTimeout(Duration.ofSeconds(10));
             try (var reader = fixture.getFluxzero()) {
                 fixture.whenExecuting(fc -> {
@@ -128,6 +134,32 @@ class ModelMigrationDocumentationTest {
                                     io.fluxzero.common.Guarantee.STORED).get(5, TimeUnit.SECONDS));
                             assertEquals(1L, Fluxzero.searchGraph(Project.class).match("Renamed", "details/name").count());
                         });
+                fixture.whenExecuting(fc -> fc.registerHandlers(new ReindexProjectSources(), new ReindexProjectDocuments()))
+                        .expectNoErrors().expectThat(fc -> {
+                            TimingUtils.retryOnFailure(() -> {
+                                if (Fluxzero.search(Project.class).match("Renamed", "details/name").count() != 1
+                                    || Fluxzero.searchGraph(Project.class, true).match("Renamed", "details/name").fetchAll().size() != 1) {
+                                    throw new IllegalStateException("Independent source/projection migration has not caught up");
+                                }
+                                return null;
+                            }, RetryConfiguration.builder().delay(Duration.ofMillis(25)).maxRetries(200)
+                                    .exceptionLogger(status -> {}).build());
+                            assertEquals(originalHead, Fluxzero.loadCurrentModelState("project-1", Project.class).head());
+                            fc.cache().clear();
+                            assertEquals("Legacy name", Fluxzero.loadModel("project-1", Project.class).previous().get().details().name());
+                        });
+            }
+            var freshClient = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                    .runtimeBaseUrl(url).namespace(namespace).name("post-migration-reader").build());
+            try (var fresh = DefaultFluxzero.builder().replaceSerializer(builder.serializer()).build(freshClient)) {
+                fresh.apply(fc -> {
+                    assertEquals(originalHead, Fluxzero.loadCurrentModelState("project-1", Project.class).head());
+                    assertEquals("Renamed", Fluxzero.loadCurrentModelState("project-1", Project.class).get().details().name());
+                    assertEquals("Legacy name", Fluxzero.loadModel("project-1", Project.class).previous().get().details().name());
+                    assertEquals(1L, Fluxzero.search(Project.class).match("Renamed", "details/name").count());
+                    assertEquals(1, Fluxzero.searchGraph(Project.class, true).match("Renamed", "details/name").fetchAll().size());
+                    return null;
+                });
             }
         } finally {
             server.stop();
@@ -196,5 +228,17 @@ class ModelMigrationDocumentationTest {
     static class RematerializeProjects {
         @HandleDocument(modelGraph = Project.class)
         Graph<Project> migrate(Graph<Project> graph) { return graph; }
+    }
+
+    @Consumer(name = "migration-project-source-revision-2", minIndex = 0)
+    static class ReindexProjectSources {
+        @HandleDocument(modelState = Project.class)
+        Project migrate(Project project) { return project; }
+    }
+
+    @Consumer(name = "migration-project-document-revision-2", minIndex = 0)
+    static class ReindexProjectDocuments {
+        @HandleDocument(documentClass = Project.class)
+        Project migrate(Project project) { return project; }
     }
 }

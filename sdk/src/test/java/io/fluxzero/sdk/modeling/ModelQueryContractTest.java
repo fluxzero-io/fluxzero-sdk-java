@@ -38,6 +38,25 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
+    void publicDocumentUpdatesDoNotChangeModelSourcesOrRelatedPredicates(boolean async) {
+        fixture(async).whenExecuting(ignored -> {
+            Fluxzero.index(new DirectChild("direct-child", "document-root", "projected"), "direct-child", DirectChild.class).join();
+            Fluxzero.index(new DocumentOnly("document-only", "projected"), "document-only", DocumentOnly.class).join();
+            assertEquals("open", Fluxzero.loadCurrentModelState("direct-child", DirectChild.class).value().status());
+            assertEquals("open", Fluxzero.loadModel("document-only", DocumentOnly.class).get().status());
+            assertEquals("open", Fluxzero.loadCurrentModelState("document-only", DocumentOnly.class).value().status());
+            assertEquals(List.of(new DirectChild("direct-child", "document-root", "projected")),
+                         Fluxzero.search(DirectChild.class).whereAncestor("document-root", DocumentRoot.class)
+                                 .match("projected", "status").fetchAll());
+            assertEquals(1, Fluxzero.search(DocumentRoot.class)
+                    .whereChild(DirectChild.class, match("open", "status")).fetchAll().size());
+            assertTrue(Fluxzero.search(DocumentRoot.class)
+                               .whereChild(DirectChild.class, match("projected", "status")).fetchAll().isEmpty());
+        }).expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void pathlessRelationshipsAllowNavigationButDoNotCreateSearchDocuments(boolean async) {
         fixture(async).whenExecuting(ignored -> {
             assertEquals(new PlainChild("plain-child", "plain-root", "open"),
@@ -115,11 +134,13 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void graphParticipationRetainsContentIndexesForReferenceOnlyDocuments(boolean async) {
+    void graphParticipationIndexesOnlyTheInternalSourceOfReferenceOnlyDocuments(boolean async) {
         fixture(async).whenExecuting(ignored -> {
             assertTrue(Fluxzero.search(ReferenceComponent.class).fetchAll().isEmpty());
-            assertEquals(1, Fluxzero.search(ReferenceComponent.class)
+            assertEquals(0, Fluxzero.search(ReferenceComponent.class)
                     .whereParent("document-root", DocumentRoot.class).match("open", "status").fetchAll().size());
+            assertEquals(1, Fluxzero.search(ReferenceComponent.class)
+                    .whereParent("document-root", DocumentRoot.class).fetchAll().size());
             assertEquals(1, Fluxzero.search(DocumentRoot.class)
                     .whereChild(ReferenceComponent.class, match("open", "status")).fetchAll().size());
             assertEquals(1, Fluxzero.searchGraph(DocumentRoot.class)

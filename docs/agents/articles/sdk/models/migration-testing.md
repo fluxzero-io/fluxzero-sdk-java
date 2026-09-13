@@ -99,11 +99,71 @@ delayed rewrite from overwriting a newer Graph. A projection rebuild from unchan
 substitute for running node upcasters and rewriting the result. Keep the migration consumer for the required rollout
 window so old components cannot reintroduce old paths unnoticed on subsequent projections.
 
-Do **not** copy that handler as `@HandleDocument Project migrate(Project p) { return p; }` for head-verified Model state.
-Ordinary document writes do not preserve its trusted body/head proof. Direct/component Model documents are refreshed
-through the Model commit path; this recipe does not supply a blanket in-place reindex API for them. An ordinary
-application-owned search projection in a separate collection can use the normal document migration contract. Treat
-these as distinct owners, and verify direct and whole-Graph searches separately.
+## Reindex the three representations independently
+
+A Model commit maintains an internal current source and, when `DOCUMENT` is enabled, a **separate public projection**.
+Graph materialization adds a third representation. None of their reindexers advances Model history.
+
+| Handler selection | Reads/writes | Query paths it updates |
+| --- | --- | --- |
+| `@HandleDocument(documentClass = Project.class)` | Public DOCUMENT projection | `search(Project.class)`, including results selected by parent/ancestor ID |
+| `@HandleDocument(modelState = Project.class)` | Verified internal current source | Live Graph composition and related-content predicates such as `whereChild(Project.class, ...)` |
+| `@HandleDocument(modelGraph = Project.class)` | Complete materialized Graph | Stored `searchGraph(Project.class)` root/nested paths |
+
+After registering the value-preserving upcasters above and raising the Model schema revision, use explicit consumers:
+
+```java
+@Consumer(name = "project-source-schema-2", minIndex = 0)
+class ReindexProjectSources {
+    @HandleDocument(modelState = Project.class)
+    Project migrate(Project project) { return project; }
+}
+
+@Consumer(name = "project-public-schema-2", minIndex = 0)
+class ReindexProjectDocuments {
+    @HandleDocument(documentClass = Project.class)
+    Project migrate(Project project) { return project; }
+}
+```
+
+Kotlin has the same contract:
+
+```kotlin
+@Consumer(name = "project-source-schema-2", minIndex = 0)
+class ReindexProjectSources {
+    @HandleDocument(modelState = Project::class)
+    fun migrate(project: Project): Project = project
+}
+```
+
+The source handler receives the upcast value. Return it unchanged: identity, type and logical serialized state must
+remain equal, including for mutable objects. Returning `null`, splitting/dropping the upcast state or changing business
+data is rejected; use commands/`@Apply` for state changes or deletion. A higher schema revision is required for a
+rewrite. The built-in Jackson serializer captures an immutable logical snapshot; a custom `DocumentSerializer` must
+explicitly implement `modelStateSnapshot` to support this new route. Existing ordinary document handling is unaffected.
+
+Before invoking the handler the SDK inspects the verified current source. A delayed message whose upcast state no
+longer matches that source is not written. The eventual compare-and-set checks the full durable head, old proof and
+actual stored body atomically with the source/index/proof replacement. A concurrent update, deletion, recreation,
+untrusted document overwrite or prior schema rewrite makes the old request a successful no-op. No new Model version
+or domain event is produced. This guards the materialized source boundary; it is not a cross-database atomic snapshot
+of all Models. A void handler observes only and performs no rewrite.
+
+Ordinary public document handlers keep their normal revision-aware return/deletion semantics: they do **not** gain
+the Model-source compare-and-set contract. A stale ordinary projection writer may still need application-level
+coordination. Its writes cannot replace the internal source or certify Model state. Never index internal collections
+through ordinary `DocumentStore.index`.
+
+Migrate internal sources before rebuilding Graph projections, observe consumer catch-up, and test old/new paths
+separately for all three roles. Reindex each affected child's source too: rewriting only the root does not migrate
+child predicates. Verify a fresh reader can still load current state and historical `previous()` values afterward.
+
+Storage/configuration changes are separate migrations: this does not automatically backfill internal sources from
+older shared DOCUMENT storage, retire renamed collections, or migrate changes to persistence/name/path settings.
+The retained-storage example qualifies an old **schema** written in the separate-role format; it is not a blanket
+upgrade guarantee for older 2.0 candidates. Keep legacy data backed up and qualify its explicit migration/rebuild
+before upgrading. Do not infer that a new schema upcaster creates missing source documents.
+
 
 ## Preserve historical meaning and name the remaining limits
 

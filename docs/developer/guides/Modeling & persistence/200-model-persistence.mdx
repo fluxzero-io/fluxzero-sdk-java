@@ -87,8 +87,8 @@ The set supports exactly the meaningful combinations:
 
 - `{EVENT_SOURCED}` reconstructs from events without a direct document; a separate Graph role may still maintain an
   internal current component document;
-- `{DOCUMENT}` loads from its authoritative current document;
-- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also maintains a current document.
+- `{DOCUMENT}` loads from its authoritative internal source and additionally maintains a public document projection;
+- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and maintains both the internal source and public projection.
 
 An empty set or duplicate representation is rejected during Model discovery.
 
@@ -114,7 +114,8 @@ configuration and value schema (including nested value types and upcasters).
 Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
 fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
 ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
-this fingerprint; maintaining a direct Model document does. Existing documents with no proof are not retroactively
+this fingerprint; maintaining an internal Model source does. Public DOCUMENT projections do not own that proof.
+Existing documents with no proof are not retroactively
 certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
 an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.
 
@@ -303,9 +304,18 @@ record LineItem(
 }
 ```
 
-The public document serves direct search, but event replay remains authoritative for loading the Model. With
-document-only persistence, the same current document is authoritative for loading. It is never the asynchronously
-stitched root Graph. Set `document.searchable = false` when the document should remain reference-only instead.
+The public document serves direct search; the separate internal source serves verified current-state reads, related
+content predicates and Graph composition. With document-only persistence, that **internal source** is authoritative
+for loading, not the public projection. With event sourcing, replay remains authoritative. Neither is the asynchronously
+stitched whole-Graph projection. Model commits maintain both roles; ordinary document indexing or
+`@HandleDocument(documentClass = LineItem.class)` affects only the public projection.
+Set `document.searchable = false` to keep the public projection retrieval-only, even if the internal Graph component
+requires indexes. Both remain current representations, not historical document archives.
+
+`search(LineItem.class).whereAncestor(orderId)` still returns the public LineItem projection when DOCUMENT is enabled.
+By contrast, the content inside `whereChild(LineItem.class, ...)` is tested against LineItem's internal source.
+For source schema migrations use `@HandleDocument(modelState = LineItem.class)`; see
+[Model migration tests](../model-migration-tests). Never write internal collections through ordinary indexing.
 
 Plain `EVENT_SOURCED` omits only this independent collection. A child with an explicit
 `@Parent(pathInParent = "...")` still supplies a private current document to virtual and materialized Graph composition.

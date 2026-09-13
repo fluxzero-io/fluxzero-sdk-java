@@ -470,6 +470,11 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     }
 
     @Override
+    public Object modelStateSnapshot(Object value) {
+        return objectMapper.valueToTree(value).deepCopy();
+    }
+
+    @Override
     public <T> T fromDocument(SerializedDocument document, Class<T> type) {
         return deserialize(document.getDocument(), type);
     }

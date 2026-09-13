@@ -68,6 +68,11 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    CompletableFuture<Void> handle(io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return store.rewriteModelSourceDocument(request);
+    }
+
+    @Handle
     CompletableFuture<Void> handle(BulkUpdateDocuments request) {
         Map<BulkUpdate.Type, List<DocumentUpdate>> updatesByType =
                 request.getUpdates().stream().filter(Objects::nonNull)

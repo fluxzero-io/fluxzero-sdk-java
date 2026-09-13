@@ -107,6 +107,12 @@ class DocumentTrackingSearchClient implements SearchClient {
         return delegate.rewriteModelGraphDocument(document, expectedManifest, guarantee);
     }
 
+    @Override
+    public CompletableFuture<Void> rewriteModelSourceDocument(
+            io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return delegate.rewriteModelSourceDocument(request);
+    }
+
     private void monitorDocumentUpdates(List<SerializedDocument> documents) {
         documents.forEach(interceptor::monitorDocumentDispatch);
     }

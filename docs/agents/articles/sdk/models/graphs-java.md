@@ -261,6 +261,10 @@ documents and materialized Graphs, with executable Java/Kotlin query examples an
 
 Start with `@Model`. An explicit `@Parent(pathInParent = "...")` maintains an indexed internal component and supports
 relationship-scoped search without `DOCUMENT`. Use a direct public document for unrestricted typed Model lists.
+With DOCUMENT, that public projection is separate: parent/ancestor queries return it, while related-content
+predicates and live Graph composition use the internal Model source. Public reindexing never rewrites that source.
+Reindex internal schemas with `@HandleDocument(modelState = T.class)` (Kotlin: `T::class`), public projections with
+`documentClass`, and whole-Graph projections with `modelGraph`; see `/docs/sdk/models/migration-testing`.
 Identity-based Graph navigation needs neither document nor composition path. Search Graphs include explicit paths
 only and are document-backed; they do not inherit an event handler's historical boundary or transaction readset.
 Materialized Graphs may lag, whereas live composition can require broad candidate work before filtering/pagination.

@@ -123,12 +123,15 @@ Important settings:
   transition.
 - `persistence`: selects a non-empty set of durable representations:
   - `[EVENT_SOURCED]` (default): reconstruct from Model events, without a direct document.
-  - `[EVENT_SOURCED, DOCUMENT]`: reconstruct from events and also maintain a current document.
-  - `[DOCUMENT]`: load authoritative current state from the current document.
+  - `[EVENT_SOURCED, DOCUMENT]`: reconstruct from events; maintain an internal source and separate public DOCUMENT projection.
+  - `[DOCUMENT]`: load authoritative state from the internal source, not an independently rewritten public projection.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
 - `document`: optional `DocumentProjection` configuration for the direct collection, timestamp paths, and public
   searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
-  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
+  remains parent/ancestor-queryable but has no public content indexes. The separate internal source supports Model
+  loads, verified state and Graph composition; a Graph role retains its own internal indexes. Public rewrites cannot
+  change that source. Use `@HandleDocument(modelState = T.class)` (Kotlin: `T::class`) for schema-only source reindexing;
+  `documentClass` selects the public projection and `modelGraph` the materialized Graph. See the migration guide.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.

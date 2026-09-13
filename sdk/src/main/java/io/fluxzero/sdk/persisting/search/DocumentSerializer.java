@@ -46,6 +46,16 @@ import java.time.Instant;
 public interface DocumentSerializer {
 
     /**
+     * Captures an immutable, equality-comparable representation of the complete logical Model state for schema-only
+     * source handlers. This must not depend on storage envelopes (for example random encryption IVs), and subsequent
+     * mutation of the input must not change the snapshot. Custom serializers may implement this opt-in capability;
+     * other document operations do not require it.
+     */
+    default Object modelStateSnapshot(Object value) {
+        throw new UnsupportedOperationException("This DocumentSerializer does not support logical Model-state snapshots for schema migration");
+    }
+
+    /**
      * Serializes a given value into a {@link SerializedDocument}, using the specified identifiers and timestamps.
      * <p>
      * This is a convenience method that uses empty {@link Metadata}.

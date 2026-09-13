@@ -492,8 +492,10 @@ class DefaultModelRepositoryCommitTest {
                 target.getDocument().getDocument();
         assertEquals(after, serializer.fromDocument(document, Order.class));
         assertEquals(
-                "orders",
+                "$modelGraphComponents/Order",
                 target.getDocument().getCollection());
+        assertEquals("orders", target.getDocumentProjection().getCollection());
+        assertEquals(after, serializer.fromDocument(target.getDocumentProjection().getDocument(), Order.class));
         assertEquals(after.changedAt().toEpochMilli(), document.getTimestamp());
         assertEquals(after.changedAt().toEpochMilli(), document.getEnd());
         assertEquals(7, document.getDocument().getRevision());
@@ -1228,9 +1230,11 @@ class DefaultModelRepositoryCommitTest {
         assertNull(substep.getTargets().getFirst().getDocument().getDocument());
         assertTrue(substep.getTargets().getFirst().getRelationships().isEmpty());
         assertEquals(
-                "orders",
+                "$modelGraphComponents/Order",
                 substep.getTargets().getFirst()
                         .getDocument().getCollection());
+        assertEquals("orders", substep.getTargets().getFirst().getDocumentProjection().getCollection());
+        assertNull(substep.getTargets().getFirst().getDocumentProjection().getDocument());
         assertNull(
                 substep.getTargets().getFirst()
                         .getDocument().getDocument());
@@ -1336,7 +1340,8 @@ class DefaultModelRepositoryCommitTest {
         }
         assertEquals(2, attempts.get());
         for (String phase : List.of("event", "document", "snapshot")) {
-            assertEquals(2L, contextChecks.stream().filter(phase::equals).count(), phase);
+            assertEquals(phase.equals("document") ? 4L : 2L,
+                         contextChecks.stream().filter(phase::equals).count(), phase);
         }
     }
 
@@ -1375,7 +1380,8 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(after, serializer.fromDocument(
                 update.getDocument(),
                 PrivateDocument.class));
-        assertEquals("privateDocuments", update.getCollection());
+        assertEquals("$modelGraphComponents/PrivateDocument", update.getCollection());
+        assertEquals("privateDocuments", substep.getTargets().getFirst().getDocumentProjection().getCollection());
         assertNull(update.getDocument().getSummary());
         assertTrue(update.getDocument().getFacets().isEmpty());
         assertTrue(update.getDocument().getIndexes().isEmpty());

@@ -29,6 +29,7 @@ import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -463,7 +464,8 @@ public class ClientUtils {
     }
 
     /**
-     * Resolves the direct current-document collection used to select related models.
+     * Resolves the internal current-source collection used to select related models by their own contents.
+     * Public DOCUMENT projections remain the result collection, not the related-predicate source.
      * <p>
      * Ordinary document classes keep their public search collection. Models use the same collection owner as their
      * commit and load paths, including private type-isolated collections for graph components that are not
@@ -478,7 +480,8 @@ public class ClientUtils {
         if (!metadata.isModel()) {
             return determineSearchCollection(type);
         }
-        return metadata.modelDocumentCollection()
+        return metadata.modelSourceDocumentCollection(ApplicationProperties.getProperty(
+                        ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "%s has no current document for relationship search"
                                 .formatted(type.getName())));

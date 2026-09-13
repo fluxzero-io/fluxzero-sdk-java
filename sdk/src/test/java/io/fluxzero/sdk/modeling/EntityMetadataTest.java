@@ -157,7 +157,7 @@ class EntityMetadataTest {
                         .orElseThrow();
 
         assertEquals(
-                "projected-models",
+                "$modelGraphComponents/ProjectedModel",
                 configuration.getRootCollection());
         assertEquals(
                 "projected-graphs",
@@ -189,7 +189,7 @@ class EntityMetadataTest {
         var referenceOnlyConfiguration =
                 EntityMetadata.validate(ReferenceOnlyProjectedModel.class)
                         .graphProjectionConfiguration().orElseThrow();
-        assertEquals("reference-only-projected-models",
+        assertEquals("$modelGraphComponents/ReferenceOnlyProjectedModel",
                      referenceOnlyConfiguration.getRootCollection());
         assertEquals("reference-only-projected-models-graphs",
                      referenceOnlyConfiguration.getCollection());
@@ -227,10 +227,10 @@ class EntityMetadataTest {
     @Test
     void keepsApplicationResolvedGraphConfigurationOutOfTheClassCache() {
         assertEquals(
-                List.of("first-models", "first-graphs"),
+                List.of("$modelGraphComponents/ConfiguredProjectionCollections", "first-models", "first-graphs"),
                 projectionCollections("first"));
         assertEquals(
-                List.of("second-models", "second-graphs"),
+                List.of("$modelGraphComponents/ConfiguredProjectionCollections", "second-models", "second-graphs"),
                 projectionCollections("second"));
     }
 
@@ -263,7 +263,9 @@ class EntityMetadataTest {
                 var configuration = EntityMetadata.validate(ConfiguredProjectionCollections.class)
                         .graphProjectionConfiguration()
                         .orElseThrow();
-                return List.of(configuration.getRootCollection(), configuration.getCollection());
+                return List.of(configuration.getRootCollection(),
+                               EntityMetadata.validate(ConfiguredProjectionCollections.class).modelDocumentCollection().orElseThrow(),
+                               configuration.getCollection());
             });
         }
     }
