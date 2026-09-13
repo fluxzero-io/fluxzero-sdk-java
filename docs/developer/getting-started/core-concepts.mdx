@@ -101,7 +101,7 @@ Use an explicit `@HandleCommand` when the action needs orchestration around the 
   <TabItem label="Java">
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 public record Project(@EntityId ProjectId projectId,
                       ProjectDetails details,
                       UserId ownerId) {
@@ -112,7 +112,7 @@ public record Project(@EntityId ProjectId projectId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
+@Model
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -128,7 +128,9 @@ value-type definitions are omitted here so the example stays focused on Model be
 
 Each model ID is its own persistence and lifecycle boundary. Its event stream, cache, snapshots and direct search
 document are enabled independently through `@Model` settings. The exact
-`Id.toString()` value is its persisted identity.
+`Id.toString()` value is its persisted identity. Start with plain `@Model`: event sourcing without a direct document
+or periodic snapshots. Choose extra storage only for a concrete query or replay-cost requirement using
+[the Model and Graph query guide](/docs/guides/modeling-and-persistence/model-query-guide).
 
 Models are event-sourced by default. Select `DOCUMENT` when the current document should be the durable representation
 and authoritative load source. Updates are still stored and published as Model events according to
@@ -217,7 +219,7 @@ Account debit(@Association("sourceId") Account source) { ... }
 Use `@Parent` when independently stored models form a navigable graph:
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 public record Task(@EntityId TaskId taskId,
                    @Parent(pathInParent = "tasks") ProjectId projectId,
                    TaskDetails details,
@@ -242,8 +244,9 @@ void assertProjectOpen(Task task,
 }
 ```
 
-Search can follow current relationships in either direction. It can, for example, find `Task` documents whose project
-matches a project constraint, without first materializing a whole-project read model.
+Search can follow current relationships in either direction. This Task's explicit composition path supplies an indexed
+component for `search(Task.class).whereParent(projectId)` without `DOCUMENT`. Selecting projects by their contents
+would additionally require a current document for Project; a known project ID does not.
 
 ## Embedded members
 
@@ -251,7 +254,7 @@ Not every value needs an independent lifecycle. Use `@Member` inside a model for
 searches and disappears with that model:
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 public record Invoice(@EntityId InvoiceId invoiceId,
                       @Member List<InvoiceLine> lines) {
 }
@@ -292,7 +295,10 @@ lazy, so injecting it does not load parents or descendants unless the handler re
 
 ## Queries and search
 
-Queries are plain request objects handled with `@HandleQuery`:
+Queries are plain request objects handled with `@HandleQuery`. This particular query searches across all projects,
+so first add a public direct document to Project with
+`@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`. That extra representation serves
+this list screen; it was unnecessary for the identity-based examples above.
 
 ```java
 public record FindProjects(String term) {

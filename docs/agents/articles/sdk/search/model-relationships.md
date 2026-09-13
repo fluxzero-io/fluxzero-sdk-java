@@ -1,5 +1,9 @@
 # Search Through Model Relationships
 
+Use the central capability/freshness matrix at `/docs/sdk/entities/graph-search` before configuring storage. Start at
+plain `@Model`; an explicit composition path already maintains the indexed component needed for relationship search.
+Relation queries do not support the statistics-based `count()` terminal and do not join a transaction readset.
+
 Search current relationships without a precomputed tree document:
 
 ```java
@@ -31,7 +35,7 @@ Model's own public document or independently maintained internal Graph-component
 path or `materializeGraph = true` supplies the latter. A reference-only `DOCUMENT` projection without such a Graph role
 supplies no content, facet or sortable indexes. The whole materialized Graph projection is not searched as the Model
 itself. The returned target
-also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target
+also needs a direct document (public or reference-only) or internal Graph-component document. A standalone event-sourced target
 without either is loaded by ID rather than searched.
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for content-based traversal. Prefer
