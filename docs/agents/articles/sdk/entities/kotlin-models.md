@@ -12,7 +12,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply
 
 class ProjectId(value: String) : Id<Project>(value, "project-")
 
-@Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
+@Model
 data class Project(@EntityId val projectId: ProjectId, val name: String)
 
 data class CreateProject(val projectId: ProjectId, val name: String) {

@@ -59,10 +59,7 @@ import java.lang.annotation.Target;
  *
  * <h2>Example</h2>
  * <pre>{@code
- * @Model(persistence = {
- *         ModelPersistence.EVENT_SOURCED,
- *         ModelPersistence.DOCUMENT
- * })
+ * @Model
  * public record Product(@EntityId ProductId productId, String name) {
  *     @Apply
  *     Product rename(RenameProduct command) {
@@ -73,6 +70,14 @@ import java.lang.annotation.Target;
  * An update may instead create or update the model from a payload-side {@code @Apply}. When both sides define an
  * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
  * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.
+ * <p>
+ * Start with this default: event sourcing without a direct document or periodic snapshots. Add {@code DOCUMENT} for
+ * an application-wide {@code Fluxzero.search(Product.class)} list, or to make the current document authoritative when
+ * event sourcing is omitted. Relationship-scoped search may already use an internal component document supplied by
+ * an explicit {@link Parent#pathInParent()} or {@link #materializeGraph()}; it does not by itself require DOCUMENT.
+ * A pathless parent reference supplies navigation but no component document. See the
+ * <a href="https://fluxzero.io/docs/guides/modeling-and-persistence/model-query-guide">Model and Graph query guide</a>
+ * for the capability matrix and current versus event-bound result semantics.
  *
  * Model declarations are indexed at compilation by {@link ModelTypeProcessor}. Enable SDK annotation processing
  * (Kotlin: kapt) in each contract module and preserve {@link ModelTypes#INDEX} when packaging. This index discovers
@@ -143,7 +148,8 @@ public @interface Model {
     boolean ignoreUnknownEvents() default false;
 
     /**
-     * Number of stored model events between snapshots. {@code 0} disables periodic snapshots.
+     * Number of stored model events between snapshots. The default {@code 0} disables periodic snapshots.
+     * Enable only to bound measured replay work; snapshots do not create a searchable current document.
      */
     int snapshotPeriod() default 0;
 

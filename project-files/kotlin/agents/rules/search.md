@@ -1,5 +1,9 @@
 # Search & Documents
 
+For Model storage/query choices, read [Choosing Model and Graph queries](model-queries.md) first. Plain `@Model` is the
+default; relationship-scoped component search does not require a public `DOCUMENT` projection. That guide also defines
+Graph result state, count limitations and current versus event-bound reads.
+
 Fluxzero features a built-in search engine that eliminates the need for external databases or SQL. Applications manage
 data through a unified document store, leveraging automatic indexing and a rich set of search constraints.
 

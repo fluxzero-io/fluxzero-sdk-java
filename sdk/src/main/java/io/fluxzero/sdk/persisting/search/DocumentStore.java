@@ -371,6 +371,10 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
 
     /**
      * Prepares a typed search for the collection represented by the given document class.
+     * <p>
+     * For independent Models, unrestricted search requires a public direct document. Adding a relationship selector
+     * can instead use a direct reference-only or internal Graph-component document. Neither route replays Models or
+     * inherits a handler's historical boundary. See {@link Search} for capabilities and consistency limits.
      */
     default <T> Search<T> search(@NonNull Class<T> collection) {
         return this.<T>search((Object) collection);
@@ -386,6 +390,16 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * <p>
      * A configured materialized graph collection is used by default. If the root has no materialized projection, the
      * current graph is composed live from its public or private current document and explicit parent paths.
+     * A root without any current document is rejected; having children alone does not supply that root document.
+     * <p>
+     * Results contain complete composed documents, not pathless relationships. Graph predicates select roots without
+     * pruning their nonmatching children. {@link Graph#get()} returns only the root Model value; navigate children
+     * through the Graph. Use raw JSON results when configuring output field selection.
+     * <p>
+     * Live composition applies root and nested field predicates, ordering and pagination after composition; related
+     * selectors can narrow candidate roots first. It reads current documents, not an atomic historical snapshot.
+     * Materialized projections may lag commits. Related predicates still select current related documents even when
+     * the returned projection is older. These searches do not inherit an event boundary or a transaction readset.
      */
     default <T> Search<Graph<T>> searchGraph(
             @NonNull Class<T> rootModelType) {

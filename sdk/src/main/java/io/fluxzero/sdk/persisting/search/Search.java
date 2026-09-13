@@ -68,6 +68,16 @@ import static java.util.stream.Collectors.toList;
  * <p>
  * The search is only executed when a terminal operation like {@code fetch(...)} or {@code stream()} is invoked.
  * <p>
+ * Model queries read current documents, not authoritative replay or the current handler's event-bound state, and do
+ * not register transaction read dependencies. A relationship query requires a current document for its result type;
+ * an exact related ID needs no related document, whereas a related content predicate does. Internal Graph-component
+ * documents can satisfy these requirements without {@code ModelPersistence.DOCUMENT} or unrestricted typed search.
+ * <p>
+ * Relationship selectors and live Graph composition support fetch/stream operations but not statistics (including
+ * {@link #count()}), histograms, bulk deletion or bulk move. Ordinary materialized Graph searches without relationship
+ * selectors use the regular document-search path. See the
+ * <a href="https://fluxzero.io/docs/guides/modeling-and-persistence/model-query-guide">Model and Graph query guide</a>.
+ * <p>
  * Supported operations include:
  * <ul>
  *   <li>Time-based filtering (e.g. {@link #since(Instant)}, {@link #inLast(Duration)})</li>
@@ -314,6 +324,8 @@ public interface Search<R> {
      * <p>
      * Unlike the related-document overload, this selector starts directly from the parent's durable Model identity and
      * therefore does not require the parent to maintain a current-state document.
+     * The queried target still needs a direct or internal component document. This uses exact Model identity, not an
+     * alias lookup, and selects current relationships even inside an event handler.
      */
     default Search<R> whereParent(Id<?> parentId) {
         Objects.requireNonNull(parentId, "Parent ID");
@@ -475,6 +487,8 @@ public interface Search<R> {
 
     /**
      * Requires a directly related child document to match the supplied document constraints.
+     * All supplied constraints must match one child document; separate calls may match different children. This
+     * selects targets and does not prune the children included in a returned Graph.
      */
     default Search<R> whereChild(
             Object collection, Constraint... constraints) {
@@ -811,6 +825,7 @@ public interface Search<R> {
 
     /**
      * Returns the number of matching documents.
+     * This is a statistics operation and is not supported for relationship queries or live Graph composition.
      */
     default Long count() {
         return aggregate().values().stream().findFirst().map(FieldStats::getCount).orElse(0L);

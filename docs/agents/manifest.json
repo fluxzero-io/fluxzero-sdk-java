@@ -6552,7 +6552,7 @@
         },
         {
           "path": "/docs/sdk/entities/graph-search",
-          "description": "Model Search And Graph Composition — supplementary examples"
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
         },
         {
           "path": "/docs/sdk/entities/legacy-migration",
@@ -6602,6 +6602,10 @@
         {
           "description": "Model relationships and lazy Graphs",
           "path": "/docs/sdk/models/graphs-java"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
         }
       ]
     },
@@ -6674,6 +6678,10 @@
         {
           "description": "Model commands and atomic commits",
           "path": "/docs/sdk/models/actions-java"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
         }
       ]
     },
@@ -6752,6 +6760,10 @@
         {
           "description": "Model relationships and lazy Graphs",
           "path": "/docs/sdk/models/graphs-kotlin"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
         }
       ]
     },
@@ -6824,6 +6836,10 @@
         {
           "description": "Model commands and atomic commits",
           "path": "/docs/sdk/models/actions-kotlin"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
         }
       ]
     },
@@ -6893,6 +6909,19 @@
       "path": "/docs/sdk/entities/graph-search",
       "source": "articles/sdk/entities/graph-search.md",
       "symbols": [
+        "@Model",
+        "ModelPersistence",
+        "DocumentProjection.searchable",
+        "Parent.pathInParent",
+        "whereParent",
+        "whereAncestor",
+        "whereChild",
+        "whereDescendant",
+        "Search.count",
+        "loadCurrentModelState",
+        "loadCurrentGraph",
+        "capability matrix",
+        "current versus event-bound Graph",
         "GraphProjection",
         "Fluxzero.searchGraph"
       ],
@@ -6904,10 +6933,14 @@
         {
           "path": "/docs/sdk/models/graphs-java",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Kotlin relationships, lazy Graphs and temporal reads"
         }
       ],
-      "title": "Model Search And Graph Composition",
-      "summary": "Model Search And Graph Composition for this SDK version."
+      "title": "Choosing Model and Graph queries",
+      "summary": "Central Java/Kotlin decision guide: default @Model, document/index requirements, direct and relationship queries, live/materialized Graphs, count limits and result freshness."
     },
     {
       "path": "/docs/sdk/entities/legacy-migration",
@@ -6964,6 +6997,10 @@
         {
           "path": "/docs/sdk/models/graphs-java",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
         }
       ],
       "title": "Search Through Model Relationships",

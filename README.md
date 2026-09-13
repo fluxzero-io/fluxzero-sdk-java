@@ -19,6 +19,8 @@ Fluxzero handles delivery, routing, persistence, retries, and observability arou
 
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 
+For SDK v2 Models, start with plain `@Model`; use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
+
 ## Start building
 
 Building with a coding agent? Give it this:
