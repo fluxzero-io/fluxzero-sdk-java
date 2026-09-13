@@ -628,6 +628,28 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void ownedSchedulingBindsAndCancelsThroughWebsocket() throws Exception {
+        WebSocketClient client = client("owned-scheduling");
+        try {
+            var events = client.getEventStoreClient();
+            var target = ModelCommitTarget.builder().modelId("parent").modelType("Parent")
+                    .storeEvent(true).updateState(true).build();
+            var created = await(events.commitModels(modelCommit("create-parent", -1, target)));
+            var scheduling = client.getSchedulingClient();
+            var schedule = new SerializedSchedule("owned", Instant.now().plusSeconds(60).toEpochMilli(),
+                                                  message("tick"), false);
+            await(scheduling.scheduleWithParents(STORED, List.of("parent"), schedule));
+            assertEquals(schedule.getMessage().getMessageId(), scheduling.getSchedule("owned").getMessage().getMessageId());
+            var deleted = await(events.commitModels(modelCommit("delete-parent", created.getUpdates().getFirst().getStateIndex(),
+                    target.toBuilder().delete(true).updateRelationships(true).relationships(List.of()).build())));
+            assertTrue(deleted.getConflicts().isEmpty());
+            assertNull(scheduling.getSchedule("owned"));
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
     void searchRequestsRoundTripOverFullServer() throws Exception {
         WebSocketClient client = client("search");
         try {

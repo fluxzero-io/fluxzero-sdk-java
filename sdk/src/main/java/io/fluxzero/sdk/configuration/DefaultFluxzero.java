@@ -967,11 +967,15 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             UnaryOperator<DeserializingMessage> modelReplayRestoration = UnaryOperator.identity();
+            UnaryOperator<DeserializingMessage> scheduleParentRestoration = ignored -> {
+                throw new IllegalStateException("Protected schedule parent restoration is not configured");
+            };
             //enable data protection
             if (!disableDataProtection) {
                 DataProtectionInterceptor interceptor = new DataProtectionInterceptor(
                         keyValueStore, serializer, onMissingProtectedData(), !disableTrackingMetrics);
                 modelReplayRestoration = interceptor::restoreForReplay;
+                scheduleParentRestoration = interceptor::restoreScheduleParents;
                 Stream.of(CUSTOM, COMMAND, EVENT, QUERY, RESULT, SCHEDULE).forEach(type -> {
                     dispatchChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
                     handlerChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
@@ -1294,6 +1298,7 @@ public class DefaultFluxzero implements Fluxzero {
                                                                             serializer,
                                                                             dispatchChains.get(SCHEDULE),
                                                                             dispatchChains.get(COMMAND),
+                                                                            scheduleParentRestoration,
                                                                             taskScheduler,
                                                                             localHandlerRegistry(SCHEDULE,
                                                                                                  handlerChains,

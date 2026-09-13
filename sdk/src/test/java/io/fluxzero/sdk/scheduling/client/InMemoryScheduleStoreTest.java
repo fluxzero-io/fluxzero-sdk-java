@@ -27,6 +27,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.List;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -38,6 +42,31 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InMemoryScheduleStoreTest {
 
     private static final Instant NOW = Instant.parse("2026-08-24T12:00:00Z");
+
+    @Test
+    void asynchronousParentBindingPreservesCallerContext() throws Exception {
+        ThreadLocal<String> context = io.fluxzero.sdk.common.ThreadLocalContext.create();
+        var bound = new CompletableFuture<Map<String, Long>>();
+        var store = new InMemoryScheduleStore() {
+            @Override public CompletableFuture<Map<String, Long>> bindScheduleParents(List<String> ids) {
+                return bound;
+            }
+            @Override public CompletableFuture<Void> scheduleBoundToParents(
+                    io.fluxzero.common.Guarantee guarantee, Map<String, Long> parents, SerializedSchedule... messages) {
+                assertEquals("caller", context.get());
+                return CompletableFuture.completedFuture(null);
+            }
+        };
+        context.set("caller");
+        var completion = store.scheduleWithParents(STORED, List.of("parent"), schedule("s", "m", false));
+        context.remove();
+        Thread worker = Thread.ofVirtual().start(() -> {
+            bound.complete(Map.of("token", -1L));
+            assertNull(context.get(), "Caller context must not leak onto the result worker");
+        });
+        completion.get(2, TimeUnit.SECONDS);
+        worker.join();
+    }
 
     @Test
     void invokesMonitorsAfterAtomicallyStoringScheduleAndReleasingStoreLock() {

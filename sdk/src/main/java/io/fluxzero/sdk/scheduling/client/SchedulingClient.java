@@ -18,6 +18,8 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.List;
+import java.util.Map;
 
 /**
  * A lower-level client interface for scheduling and cancelling deferred messages (i.e., schedules) in Fluxzero.
@@ -63,6 +65,36 @@ public interface SchedulingClient extends AutoCloseable {
      * @return A future that completes when the scheduling is acknowledged.
      */
     CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules);
+
+    /**
+     * Schedules messages owned by the current lifetime of each committed Model parent.
+     * Any parent deletion triggers asynchronous cancellation. Empty parents use ordinary scheduling.
+     * Custom clients must explicitly implement ownership; it is never silently ignored.
+     *
+     * @param guarantee acknowledgement guarantee
+     * @param parentIds canonical Model IDs in this client's namespace
+     * @param schedules messages to register
+     * @return acknowledgement of scheduling, or an unsupported-operation failure
+     */
+    default CompletableFuture<Void> scheduleWithParents(Guarantee guarantee, List<String> parentIds,
+                                                        SerializedSchedule... schedules) {
+        return parentIds.isEmpty() ? schedule(guarantee, schedules)
+                : bindScheduleParents(parentIds).thenCompose(io.fluxzero.sdk.common.ThreadLocalContext.capture().wrap(
+                        parents -> scheduleBoundToParents(guarantee, parents, schedules)));
+    }
+
+    /** Acquires opaque namespace-local lifetime bindings to existing parents. */
+    default CompletableFuture<Map<String, Long>> bindScheduleParents(List<String> parentIds) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This scheduling client does not support Model-owned schedules"));
+    }
+
+    /** Stores schedules with previously acquired bindings, without rebinding recreated parents. */
+    default CompletableFuture<Void> scheduleBoundToParents(Guarantee guarantee, Map<String, Long> parents,
+                                                          SerializedSchedule... schedules) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This scheduling client does not support Model-owned schedules"));
+    }
 
     /**
      * Cancel a scheduled message using {@link Guarantee#SENT} as the default guarantee.

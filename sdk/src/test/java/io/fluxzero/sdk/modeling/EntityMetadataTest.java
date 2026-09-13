@@ -506,7 +506,8 @@ class EntityMetadataTest {
 
     @Test
     void rejectsInvalidParentDeclarations() {
-        assertMessage(ParentOnNonModel.class, "@Parent is only supported on @Model");
+        assertFalse(EntityMetadata.of(ParentOnNonModel.class).isModel());
+        assertEquals(1, EntityMetadata.scheduleParentReferences(ParentOnNonModel.class).size());
         assertMessage(CollectionParentModel.class, "must contain one scalar ID");
         assertMessage(PaddedPathModel.class, "must not be blank or have surrounding whitespace");
         assertMessage(InvalidPathModel.class, "relative path without empty segments");

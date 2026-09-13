@@ -9,6 +9,11 @@ sidebar:
 Use this when a tracked event consumer creates or cancels delayed work after a Model transition. An old event is a
 trigger to inspect **current intent**, not proof that its original deadline still belongs in the active set.
 
+For deletion-only cleanup, [parent-owned schedules](./086-parent-owned-schedules.mdx) offer a simpler contract:
+`@Parent` on the scheduled payload cancels it when that committed Model is deleted, including an applicable
+`@Apply` returning `null` or a cascade. Reconciliation below remains useful for status and deadline changes,
+and delivered commands still need guards.
+
 ## Persist intent, then reconcile the current Model
 
 Start with ordinary event-sourced Models. A reminder has its own lifecycle and belongs to a project through `@Parent`;

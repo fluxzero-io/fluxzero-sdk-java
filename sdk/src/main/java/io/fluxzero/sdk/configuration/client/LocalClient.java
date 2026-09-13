@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
@@ -135,6 +136,14 @@ public class LocalClient extends AbstractClient {
         this.clock = clock;
         this.namespace = namespace;
         this.applicationClient = applicationClient;
+        this.scheduleStore.getMessageStore().configureParents(eventStore.getMessageStore(), metric ->
+                getGatewayClient(MessageType.METRICS).append(Guarantee.NONE,
+                        new io.fluxzero.common.api.SerializedMessage(
+                                new io.fluxzero.common.api.Data<>(
+                                        io.fluxzero.common.serialization.JsonUtils.asBytes(metric),
+                                        metric.getClass().getName(), 0),
+                                io.fluxzero.common.api.Metadata.empty(), java.util.UUID.randomUUID().toString(),
+                                this.clock == null ? System.currentTimeMillis() : this.clock.millis())));
     }
 
     /**

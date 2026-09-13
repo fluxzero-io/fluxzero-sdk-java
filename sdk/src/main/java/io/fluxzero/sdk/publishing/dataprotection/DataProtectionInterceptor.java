@@ -358,6 +358,19 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
      */
     @SuppressWarnings("unchecked")
     public DeserializingMessage restoreForReplay(DeserializingMessage message) {
+        return restoreStoredValues(message, false);
+    }
+
+    /**
+     * Restores a temporary schedule-ownership read view. The caller selects the protected parent paths in
+     * {@link #METADATA_KEY}; missing values fail before payload conversion, rather than silently dropping ownership.
+     * The result must never replace the redacted outbound message.
+     */
+    public DeserializingMessage restoreScheduleParents(DeserializingMessage message) {
+        return restoreStoredValues(message, true);
+    }
+
+    private DeserializingMessage restoreStoredValues(DeserializingMessage message, boolean required) {
         if (!message.containsMetadata(METADATA_KEY) || message.getPayload() == null) {
             return message;
         }
@@ -367,7 +380,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         KeyValueStore store = keyValueStore.forNamespace(getProtectedDataNamespace(message));
         Map<String, String> fields = message.getMetadata().get(METADATA_KEY, Map.class);
         // A missing key is erased data; a failed read must not become a cacheable, incomplete Model revision.
-        fields.forEach((field, reference) -> writeProtectedProperty(payload, restored, field, store.get(reference)));
+        fields.forEach((field, reference) -> {
+            Object value = store.get(reference);
+            if (required && value == null) {
+                throw new IllegalStateException("Protected schedule parent data is unavailable; ownership cannot be established");
+            }
+            writeProtectedProperty(payload, restored, field, value);
+        });
         Object logical = payload.getClass().isRecord() ? serializer.convert(restored, payload.getClass()) : restored;
         return message.withRestoredPayload(logical);
     }

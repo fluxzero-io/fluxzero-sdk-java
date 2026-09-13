@@ -197,8 +197,8 @@ public final class EntityMetadata {
                 .toList();
 
         this.parentReferences = inspectParentReferences(typeMetadata);
-        if (model == null && !parentReferences.isEmpty()) {
-            throw invalid("@Parent is only supported on @Model types, but was found on %s".formatted(type.getName()));
+        if (aggregate != null && !parentReferences.isEmpty()) {
+            throw invalid("@Parent is not supported on @Aggregate types: %s".formatted(type.getName()));
         }
         if (parentScopedEntityId) {
             if (model == null) {
@@ -743,7 +743,22 @@ public final class EntityMetadata {
         return handlerMethods.stream().filter(method -> method.kind() == HandlerKind.APPLY).toList();
     }
 
-    private List<ParentReference> inspectParentReferences(ReflectionUtils.TypeMetadata typeMetadata) {
+    /**
+     * Returns cached parent declarations for a schedule payload without treating that payload as a Model.
+     * Composition settings do not add schedules to Graphs. Identity conversion uses the same contract as Models.
+     */
+    public static List<ParentReference> scheduleParentReferences(Class<?> payloadType) {
+        return ReflectionUtils.getTypeMetadata(payloadType)
+                .specializedMetadata(ScheduleParentReferences.class,
+                                     type -> new ScheduleParentReferences(inspectParentReferences(
+                                             ReflectionUtils.getTypeMetadata(type))))
+                .references();
+    }
+
+    private record ScheduleParentReferences(List<ParentReference> references) {}
+
+    private static List<ParentReference> inspectParentReferences(ReflectionUtils.TypeMetadata typeMetadata) {
+        Class<?> type = typeMetadata.type();
         LinkedHashMap<String, ParentProperty> properties = new LinkedHashMap<>();
         for (AccessibleObject candidate : parentCandidates(typeMetadata)) {
             Parent annotation = parentAnnotation(typeMetadata, candidate);
@@ -763,7 +778,7 @@ public final class EntityMetadata {
             validateScalarId(parentProperty.property(), "@Parent");
             Parent annotation = parentProperty.annotation();
             String pathInParent = validatePathInParent(
-                    parentProperty.property(), annotation.pathInParent());
+                    type, parentProperty.property(), annotation.pathInParent());
             Class<?> inferredType = inferIdTarget(
                     parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
@@ -825,7 +840,7 @@ public final class EntityMetadata {
         };
     }
 
-    private String validatePathInParent(Property property, String pathInParent) {
+    private static String validatePathInParent(Class<?> type, Property property, String pathInParent) {
         if (pathInParent.isEmpty()) {
             return pathInParent;
         }

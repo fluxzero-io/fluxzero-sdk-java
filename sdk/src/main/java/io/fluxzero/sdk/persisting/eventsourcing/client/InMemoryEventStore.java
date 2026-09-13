@@ -86,6 +86,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -104,6 +105,70 @@ import static java.util.Collections.synchronizedMap;
 public class InMemoryEventStore extends InMemoryMessageStore implements EventStoreClient {
 
     private boolean deferModelCommitNotification;
+
+    private final ConcurrentHashMap<String, Long> scheduleParentEpochs = new ConcurrentHashMap<>();
+    private final String scheduleParentTokenPrefix = java.util.UUID.randomUUID().toString();
+    private final ConcurrentHashMap<String, Long> pendingScheduleParentDeletions = new ConcurrentHashMap<>();
+    private volatile Consumer<Map<String, Long>> scheduleDeletionMonitor = ignored -> {};
+
+    /** Links the namespace-local scheduler; callbacks run outside the Model commit lock. */
+    public void setScheduleDeletionMonitor(Consumer<Map<String, Long>> monitor) {
+        scheduleDeletionMonitor = Objects.requireNonNull(monitor);
+    }
+
+    /** Binds schedules to committed, canonical Model identities, never to an uncommitted batch overlay. */
+    public synchronized Map<String, Long> bindScheduleParents(List<String> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            throw new IllegalArgumentException("Schedule parents must contain canonical Model IDs");
+        }
+        for (String id : parentIds) {
+            var head = id == null ? null : modelHeads.get(id);
+            if (id == null || id.isBlank() || head == null || head.deleted()
+                || erasedModelTokens.contains(protectedToken(id))) {
+                throw new IllegalStateException("Schedule parent must be an existing committed Model: " + id);
+            }
+        }
+        Map<String, Long> result = new LinkedHashMap<>();
+        parentIds.forEach(id -> {
+            String token = protectedToken(scheduleParentTokenPrefix + id);
+            result.put(token, scheduleParentEpochs.computeIfAbsent(token, ignored -> -1L));
+        });
+        return Map.copyOf(result);
+    }
+
+    /** Lock-free lifetime lookup used while the schedule store holds its own lock. */
+    public long scheduleParentEpoch(String id) {
+        return scheduleParentEpochs.getOrDefault(id, -1L);
+    }
+
+    /** Validates already acquired bindings without acquiring the Model lock from the schedule lock. */
+    public boolean validScheduleParentBindings(Map<String, Long> bindings) {
+        return !bindings.isEmpty() && bindings.entrySet().stream()
+                .allMatch(entry -> Objects.equals(scheduleParentEpochs.get(entry.getKey()), entry.getValue()));
+    }
+
+    private void invalidateScheduleParent(String id, long stateIndex) {
+        if (scheduleParentEpochs.isEmpty()) {
+            return;
+        }
+        scheduleParentEpochs.computeIfPresent(protectedToken(scheduleParentTokenPrefix + id), (key, previous) -> {
+            pendingScheduleParentDeletions.merge(key, stateIndex, Math::max);
+            return stateIndex;
+        });
+    }
+
+    private void notifyScheduleParentDeletions() {
+        if (pendingScheduleParentDeletions.isEmpty()) {
+            return;
+        }
+        Map<String, Long> changes = new LinkedHashMap<>();
+        pendingScheduleParentDeletions.forEach((id, index) -> {
+            if (pendingScheduleParentDeletions.remove(id, index)) {
+                changes.put(id, index);
+            }
+        });
+        scheduleDeletionMonitor.accept(changes);
+    }
 
     private final Map<String, List<SerializedMessage>> appliedEvents = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> relationships = new ConcurrentHashMap<>();
@@ -232,6 +297,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             synchronized (monitorNotificationLock()) {
                 outcome = commitModelsSynchronized(commit);
             }
+            notifyScheduleParentDeletions();
             completeModelCommitMaterialization(
                     commit.getCommitId());
             if (!outcome.publishedEvents().isEmpty()) {
@@ -362,6 +428,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 for (ModelCommitTarget target : substep.getTargets()) {
                     ModelStreamHead head = assignedHeads.get(headIndex++);
                     modelHeads.put(target.getModelId(), head);
+                    if (target.isDelete()) {
+                        invalidateScheduleParent(target.getModelId(), stateIndex);
+                    }
                     modelHeadHistory.computeIfAbsent(
                             target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(head);
                     if (target.isStoreEvent()) {
@@ -866,8 +935,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized CompletableFuture<ModelDeletionResult>
-            deleteModel(DeleteModel request) {
+    public CompletableFuture<ModelDeletionResult> deleteModel(DeleteModel request) {
+        var result = deleteModelSynchronized(request);
+        notifyScheduleParentDeletions();
+        return result;
+    }
+
+    private synchronized CompletableFuture<ModelDeletionResult> deleteModelSynchronized(DeleteModel request) {
         try {
             ModelCommitValidator.validate(request);
             ModelDeletionResult duplicate =
@@ -1009,6 +1083,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelStateIndex =
                             nextModelStateIndex();
             lastModelErasureIndex = deletionStateIndex;
+            selected.forEach(id -> invalidateScheduleParent(id, deletionStateIndex));
             relationshipReadPositions.keySet().removeIf(read -> selected.contains(read.modelId()));
             ModelDeletionResult result =
                     new ModelDeletionResult(

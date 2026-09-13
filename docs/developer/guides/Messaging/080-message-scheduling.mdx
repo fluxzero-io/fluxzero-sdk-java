@@ -104,6 +104,11 @@ class UserLifecycleHandler {
 
 ## Scheduling commands
 
+When the payload declares `@Parent`, the schedule belongs to that already committed Model's lifetime. Direct
+`@Apply → null`, cascade deletion and hard erasure asynchronously cancel it. See
+[parent-owned schedules](./086-parent-owned-schedules.mdx) for explicit `Schedule.withParents(...)`, replacement
+and periodic-continuation semantics. Cancellation cannot recall delivered commands.
+
 You can also schedule commands directly using `scheduleCommand(...)`.
 
 <Tabs>

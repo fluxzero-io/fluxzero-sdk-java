@@ -25,7 +25,14 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declares that a model property contains the ID of a parent model.
+ * Declares that a property contains the ID of a parent Model.
+ * <p>
+ * On a scheduled message or command payload, this also declares schedule ownership: deletion of any referenced,
+ * already committed Model asynchronously cancels the schedule. Applicable {@code @Apply} returns of {@code null},
+ * cascaded deletion and hard erasure all invalidate ownership. Null references and
+ * {@code deleteOnParentDeletion = false} do not own the schedule. The schedule is not a Model or Graph node;
+ * {@code pathInParent} and {@code apiDoc} do not compose it. Already delivered work cannot be recalled.
+ * Explicit {@link io.fluxzero.sdk.scheduling.Schedule#withParents(Object...)} selections override these declarations.
  * <p>
  * Both sides remain independent model and persistence boundaries. Use a parent relationship when the child has its own
  * creation, update history, retention, or deletion lifecycle but belongs in the parent's domain graph. Being rendered

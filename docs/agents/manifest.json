@@ -2464,6 +2464,10 @@
       ],
       "links": [
         {
+          "description": "Automatically cancel schedules on committed Model parent deletion",
+          "path": "/docs/sdk/scheduling/parent-owned-schedules"
+        },
+        {
           "description": "Choose the relevant SDK implementation topic",
           "path": "/docs/sdk"
         },
@@ -2507,6 +2511,17 @@
           "description": "Control periodic start continuation errors cancellation and fixture time",
           "path": "/docs/sdk/scheduling/periodic-controls"
         }
+      ]
+    },
+    {
+      "path": "/docs/sdk/scheduling/parent-owned-schedules",
+      "title": "Parent-Owned Schedules",
+      "summary": "Bind delayed work to committed Model lifetimes, cancel on direct or cascade deletion, and understand retries, in-flight execution and metrics.",
+      "source": "articles/sdk/scheduling/parent-owned-schedules.md",
+      "symbols": ["@Parent", "Schedule.withParents(...)", "ScheduleAutoCancelled", "parent-owned schedules", "Apply null cancels schedules"],
+      "links": [
+        {"description": "Scheduling overview", "path": "/docs/sdk/scheduling"},
+        {"description": "Reconcile status and deadline changes", "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"}
       ]
     },
     {
