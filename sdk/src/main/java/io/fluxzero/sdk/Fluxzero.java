@@ -1142,8 +1142,10 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or
      * notification handler's historical read boundary.
-     * The default repository pins the current head during this call and defers authoritative value reconstruction
-     * until needed. This is not the document-only {@link #loadCurrentModelState(String, Class)} read contract.
+     * The default repository pins a fresh storage boundary with a head-only read during this call, even when the
+     * root is cached: its relationships may have changed after the cache's observation boundary. Authoritative
+     * values remain lazy and may reuse an exact matching cached revision. This is not the document-only
+     * {@link #loadCurrentModelState(String, Class)} read contract.
      * <p>
      * Use this after a synchronous nested command when the remainder of the handler deliberately needs that command's
      * updated Model state. Ordinary {@link #loadGraph(Object, Class)} reads remain coherent with the message being

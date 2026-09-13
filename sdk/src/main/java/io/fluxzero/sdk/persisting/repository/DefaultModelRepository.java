@@ -861,14 +861,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
         PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
         ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
-        ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected);
+        ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected, true);
         pin(handlerBoundary, result.boundary().stateIndex());
         return result;
     }
 
     @Override
     public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, Class<?> modelType) {
-        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest());
+        // A cached root may be valid only through an older tracker cursor. Relationships can have changed since
+        // that cursor without changing the root. Pin an explicitly current Graph at storage, not at the cache.
+        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest(), false);
     }
 
     @Override
@@ -877,13 +879,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private ModelGraphResolver.Identity graphIdentity(
-            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected) {
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected, boolean allowCachedBoundary) {
         if (modelType != Object.class) {
             modelName(modelType);
         }
         EntityMetadata metadata = EntityMetadata.of(modelType);
         String primary = exact || modelType == Object.class ? modelId.toString() : metadata.repositoryId(modelId);
-        if (!selected.historical() && !selected.before() && modelCacheTracker != null
+        if (allowCachedBoundary && !selected.historical() && !selected.before() && modelCacheTracker != null
             && metadata.rootConfiguration().filter(c -> c.cached() && c.eventSourced()).isPresent()) {
             modelCacheTracker.prepare();
             ModelCacheTracker.CurrentModel current = modelCacheTracker.peekCurrentVersion(primary, modelType);

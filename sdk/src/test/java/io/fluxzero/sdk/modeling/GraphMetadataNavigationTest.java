@@ -172,11 +172,11 @@ class GraphMetadataNavigationTest {
             commit(writer, new CreateRoot("root", 1));
             Graph<Root> cold = Graphs.lazyCurrent("root", Root.class, reader.modelRepository());
             assertEquals(new Root("root", 1), cold.get());
-            // Tracking bootstrap is asynchronous. Once it has validated this load, new roots need no storage request.
+            // Each current factory pins a fresh head; once bootstrap validates the value, get() needs no replay.
             Graph<Root> cached = assertTimeoutPreemptively(java.time.Duration.ofSeconds(5), () -> {
                 while (!Thread.currentThread().isInterrupted()) {
-                    int requests = client.eventQueries.size();
                     Graph<Root> candidate = Graphs.lazyCurrent("root", Root.class, reader.modelRepository());
+                    int requests = client.eventQueries.size();
                     assertEquals(new Root("root", 1), candidate.get());
                     if (client.eventQueries.size() == requests) {
                         return candidate;
