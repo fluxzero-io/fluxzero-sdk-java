@@ -136,7 +136,9 @@ public @interface Model {
      * <p>
      * The set must contain at least one unique value. When {@link ModelPersistence#EVENT_SOURCED EVENT_SOURCED} is
      * present, the event stream is authoritative. Otherwise {@link ModelPersistence#DOCUMENT DOCUMENT} is
-     * authoritative.
+     * authoritative. To use {@link Graph#previous()} for historical values, keep {@code EVENT_SOURCED} enabled:
+     * {@code DOCUMENT} alone stores current state, not previous versions. Adding {@code DOCUMENT} to event sourcing
+     * preserves history; replacing event sourcing with {@code DOCUMENT} does not.
      * <p>
      * This setting does not suppress storing or publishing events produced by {@link Apply} methods. A state-changing
      * event-sourced Model apply must store its reconstructing event; a {@code PUBLISH_ONLY} or

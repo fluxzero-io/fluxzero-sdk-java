@@ -54,6 +54,9 @@ import java.lang.annotation.Target;
  * model commit. A typed collection is validated against its declared element type. {@code Collection<Object>} is
  * supported when heterogeneous model types are useful and validates every returned value as a model at runtime.
  * Collection elements must be non-null and each persisted model identity may occur only once. Use
+ * values read through an injected Graph to retain their expected revisions when promoting dynamic reads to writes;
+ * previously unseen returned identities remain create-if-absent, not blind upserts. Later substeps see earlier
+ * dynamic writes in the same atomic commit. Use
  * {@link io.fluxzero.sdk.modeling.Graph#delete()} for deletion instead of a null collection element. A {@code void}
  * apply is invalid for a model. Legacy mutable entities inside aggregates may continue to use {@code void}, although
  * immutable return values are strongly preferred.
@@ -93,6 +96,12 @@ import java.lang.annotation.Target;
  * <p>
  * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter
  * is annotated with {@code @Nullable}.
+ * A nullable read-only Model parameter also permits a null identifying property; write identities remain required.
+ * A factory returning a non-null value without accepting current state requires absence. Incompatible creation or
+ * a required missing current Model rejects a new action with the existing already-exists/not-found functional error.
+ * Accept nullable current state for an explicit upsert. {@link #disableCompatibilityCheck()} suppresses incompatibility
+ * rejection; it does not make a create-only factory overwrite an existing Model. Historical replay is not rejected
+ * merely because a factory event was already accepted under earlier rules.
  *
  * <h2>Examples</h2>
  *

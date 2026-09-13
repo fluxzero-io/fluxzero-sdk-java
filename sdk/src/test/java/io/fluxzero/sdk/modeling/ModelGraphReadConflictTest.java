@@ -64,6 +64,35 @@ class ModelGraphReadConflictTest {
     }
 
     @Test
+    void dynamicWritesRetryUsingFreshChildRevisions() throws Exception {
+        GateClient client = new GateClient();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(fluxzero, new CreateParent("parent", 10));
+            commit(fluxzero, new CreateChild("child", "parent"));
+            commit(fluxzero, new SeedLeaf("first-leaf", "child"));
+            commit(fluxzero, new SeedLeaf("second-leaf", "child"));
+            client.armed.set(true);
+            CompletableFuture<?> first = CompletableFuture.supplyAsync(() -> commit(fluxzero, new IncrementLeaves("child")),
+                    task -> Thread.ofVirtual().name("dynamic-write-contender").start(task));
+            first.whenComplete((result, failure) -> {
+                if (failure != null) { client.entered.completeExceptionally(failure); }
+            });
+            try {
+                client.entered.get(10, TimeUnit.SECONDS);
+                commit(fluxzero, new SetLeaf("first-leaf", 10));
+            } finally {
+                client.release.complete(null);
+            }
+            first.get(10, TimeUnit.SECONDS);
+            fluxzero.cache().clear();
+            assertEquals(11, fluxzero.apply(fc -> fc.modelRepository().load("first-leaf", Leaf.class).get().version()).intValue());
+            assertEquals(1, fluxzero.apply(fc -> fc.modelRepository().load("second-leaf", Leaf.class).get().version()).intValue());
+        } finally {
+            client.release.complete(null);
+        }
+    }
+
+    @Test
     void valueOnlyGraphReadsRetryErasureAndAllowFreshAbsence() {
         GateClient client = new GateClient();
         try (Fluxzero fluxzero = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
@@ -284,7 +313,7 @@ class ModelGraphReadConflictTest {
 
     record CreateParent(String parentId, int capacity) {
         @Apply
-        ParentModel apply() {
+        ParentModel apply(@jakarta.annotation.Nullable ParentModel existing) {
             return new ParentModel(parentId, capacity);
         }
     }
@@ -313,7 +342,7 @@ class ModelGraphReadConflictTest {
         }
 
         @Apply(conflictPolicy = ModelConflictPolicy.FAIL)
-        Child apply() {
+        Child apply(@jakarta.annotation.Nullable Child existing) {
             return new Child(childId, parentId);
         }
     }
@@ -325,7 +354,7 @@ class ModelGraphReadConflictTest {
         }
 
         @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT)
-        Child apply() {
+        Child apply(@jakarta.annotation.Nullable Child existing) {
             return new Child(childId, parentId);
         }
     }
@@ -336,21 +365,21 @@ class ModelGraphReadConflictTest {
 
     record AcceptGraphRead(String receiptId, String parentId) {
         @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT)
-        Receipt apply(Graph<ParentModel> parent) {
+        Receipt apply(Graph<ParentModel> parent, @jakarta.annotation.Nullable Receipt existing) {
             return new Receipt(receiptId, parent.children("children", Child.class).size());
         }
     }
 
     record ObserveParentValue(String receiptId, String parentId) {
         @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
-        Receipt apply(Graph<ParentModel> parent) {
+        Receipt apply(Graph<ParentModel> parent, @jakarta.annotation.Nullable Receipt existing) {
             return new Receipt(receiptId, parent.get() == null ? 0 : 1);
         }
     }
 
     record IgnoreParentGraph(String receiptId, String parentId) {
         @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
-        Receipt apply(Graph<ParentModel> parent) {
+        Receipt apply(Graph<ParentModel> parent, @jakarta.annotation.Nullable Receipt existing) {
             return new Receipt(receiptId, 0);
         }
     }
@@ -381,9 +410,21 @@ class ModelGraphReadConflictTest {
         }
     }
 
+    record SetLeaf(String leafId, int version) {
+        @Apply Leaf apply(Leaf current) { return new Leaf(leafId, current.childId(), version); }
+    }
+
+    record IncrementLeaves(String childId) {
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+        List<Leaf> apply(Graph<Child> child) {
+            return child.childModels(Leaf.class).stream()
+                    .map(leaf -> new Leaf(leaf.leafId(), leaf.childId(), leaf.version() + 1)).toList();
+        }
+    }
+
     record MoveChild(String childId, String parentId) {
         @Apply
-        Child apply() {
+        Child apply(@jakarta.annotation.Nullable Child existing) {
             return new Child(childId, parentId);
         }
     }
@@ -424,7 +465,7 @@ class ModelGraphReadConflictTest {
 
     record RetryReceipt(String receiptId, int observed) {
         @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
-        Receipt apply() {
+        Receipt apply(@jakarta.annotation.Nullable Receipt existing) {
             return new Receipt(receiptId, observed);
         }
     }

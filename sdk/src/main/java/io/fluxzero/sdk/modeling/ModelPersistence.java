@@ -28,6 +28,9 @@ public enum ModelPersistence {
     /** Persist reconstructing events in the model event stream. */
     EVENT_SOURCED,
 
-    /** Persist the current model state as a document. */
+    /**
+     * Persist the current model state as a document, without retaining previous document versions.
+     * Include {@link #EVENT_SOURCED} when {@link Graph#previous()} or historical value comparison is required.
+     */
     DOCUMENT
 }

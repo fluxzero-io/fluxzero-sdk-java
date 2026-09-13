@@ -610,12 +610,12 @@ class ModelParentWriteTest {
 
     record MoveReservation(ReservationId reservationId, TicketId ticketId) {
         @Apply
-        Reservation apply() { return new Reservation(reservationId, ticketId); }
+        Reservation apply(@jakarta.annotation.Nullable Reservation existing) { return new Reservation(reservationId, ticketId); }
     }
 
     record SetTicket(TicketId ticketId, boolean reserved) {
         @Apply
-        Ticket apply() { return new Ticket(ticketId, reserved); }
+        Ticket apply(@jakarta.annotation.Nullable Ticket existing) { return new Ticket(ticketId, reserved); }
     }
 
     @Model

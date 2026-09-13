@@ -16,8 +16,11 @@
 
 package io.fluxzero.common.api.modeling;
 
-import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Reserved metadata keys identifying events emitted by an independent-model commit.
@@ -33,6 +36,35 @@ public final class ModelEventMetadata {
      * Ordered substep within the model commit.
      */
     public static final String SUBSTEP = "$modelCommitSubstep";
+
+    /**
+     * Comma-separated internal cascade substeps caused by this event. Complete Graph-change handlers observe their
+     * targets at those substeps' own boundaries; ordinary payload handlers retain {@link #SUBSTEP}.
+     */
+    public static final String CASCADE_SUBSTEPS = "$modelCascadeSubsteps";
+
+    /** Returns the bounded, ordered cascade references, rejecting malformed or backward references. */
+    public static List<Integer> cascadeSubsteps(Metadata metadata) {
+        String value = metadata == null ? null : metadata.get(CASCADE_SUBSTEPS);
+        if (value == null) {
+            return List.of();
+        }
+        ModelReadBoundary boundary = readBoundary(metadata);
+        if (boundary == null || value.length() > 60_000) {
+            throw new IllegalArgumentException("Invalid Model cascade references");
+        }
+        List<Integer> result = new ArrayList<>();
+        int preceding = boundary.substep();
+        for (String field : value.split(",", -1)) {
+            int substep = Integer.parseInt(field);
+            if (substep <= preceding) {
+                throw new IllegalArgumentException("Invalid Model cascade substep " + substep);
+            }
+            result.add(substep);
+            preceding = substep;
+        }
+        return List.copyOf(result);
+    }
 
     /** Returns the commit boundary carried by {@code metadata}, or {@code null} when it is not a Model event. */
     public static ModelReadBoundary readBoundary(Metadata metadata) {

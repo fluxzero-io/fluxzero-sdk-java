@@ -217,7 +217,7 @@ class ModelCurrentStateTest {
     @Model record ReplayOnly(@EntityId String id) {}
 
     record Create(String id, String value) {
-        @Apply Account apply() { return new Account(id, value); }
+        @Apply Account apply(@jakarta.annotation.Nullable Account existing) { return new Account(id, value); }
     }
 
     record Delete(String id) {

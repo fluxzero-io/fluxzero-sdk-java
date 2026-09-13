@@ -793,7 +793,7 @@ final class ModelPipeline {
     }
 
     /**
-     * Adds one internal, non-published delete substep for descendants owned through {@link Parent} relationships.
+     * Adds internal, non-published delete substeps grouped by the ordinary change that caused each cascade.
      * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
      * actual logical deletions.
      */
@@ -857,17 +857,47 @@ final class ModelPipeline {
                         node.sequenceNumber(), node.lastEventIndex(),
                         node.value(), null, null, null, true))
                 .toList();
-        DeserializingMessage source =
-                evaluation.steps().getFirst().message();
-        DeserializingMessage cascadeMessage = source.withMessage(
-                new Message(
-                        new CascadedModelDeletion(
-                                List.copyOf(explicitlyDeleted)),
-                        source.getMetadata(), null,
-                        source.getTimestamp()));
         List<CommitAttempt.Step> steps =
                 new ArrayList<>(evaluation.steps());
-        steps.add(new CommitAttempt.Step(cascadeMessage, transitions));
+        Map<String, Integer> causes = new LinkedHashMap<>();
+        for (int index = 0; index < steps.size(); index++) {
+            for (Change change : steps.get(index).changes()) {
+                if (explicitlyDeleted.contains(change.modelId()) && change.after() == null) {
+                    causes.put(change.modelId(), index);
+                }
+            }
+        }
+        Map<String, List<String>> children = new LinkedHashMap<>();
+        edges.stream().filter(ModelGraphEdge::isDeleteOnParentDeletion)
+                .forEach(edge -> children.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>())
+                .add(edge.getChildId()));
+        // The last owning deletion wins. Visit later causes first so a shared subtree is claimed
+        // once instead of repeatedly relabelling it for every longer path through a DAG.
+        for (String root : explicitlyDeleted.stream().sorted(java.util.Comparator.comparingInt(causes::get).reversed()).toList()) {
+            java.util.ArrayDeque<String> frontier = new java.util.ArrayDeque<>(List.of(root));
+            while (!frontier.isEmpty()) {
+                String parent = frontier.removeFirst();
+                int cause = causes.get(parent);
+                for (String child : children.getOrDefault(parent, List.of())) {
+                    if (cascaded.contains(child) && !causes.containsKey(child)) {
+                        causes.put(child, cause);
+                        frontier.addLast(child);
+                    }
+                }
+            }
+        }
+        Map<Integer, List<Change>> groups = new java.util.TreeMap<>();
+        Map<Integer, List<String>> rootsByCause = new LinkedHashMap<>();
+        explicitlyDeleted.forEach(id -> rootsByCause.computeIfAbsent(causes.get(id), ignored -> new ArrayList<>()).add(id));
+        transitions.forEach(change -> groups.computeIfAbsent(
+                Objects.requireNonNull(causes.get(change.modelId()), "Cascade cause"), ignored -> new ArrayList<>()).add(change));
+        groups.forEach((cause, changes) -> {
+            DeserializingMessage source = evaluation.steps().get(cause).message();
+            List<String> roots = List.copyOf(rootsByCause.get(cause));
+            DeserializingMessage cascadeMessage = source.withMessage(new Message(
+                    new CascadedModelDeletion(roots), source.getMetadata(), null, source.getTimestamp()));
+            steps.add(new CommitAttempt.Step(cascadeMessage, List.copyOf(changes)));
+        });
         LinkedHashSet<String> readModelIds =
                 new LinkedHashSet<>(evaluation.readModelIds());
         LinkedHashSet<String> applyReadModelIds =

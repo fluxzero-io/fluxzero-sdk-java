@@ -638,7 +638,7 @@ class GraphMetadataNavigationTest {
                 Graph<Aliased> graph = Graphs.lazy("new", Aliased.class, fc.modelRepository());
                 assertEquals("new", graph.id());
                 assertThrows(IllegalCommandException.class, () -> graph.assertLegal(new RejectAlias()));
-                assertEquals(new Aliased("new", "alias", 1), graph.apply(new CreateAliased("new", "alias", 1)).get());
+                assertEquals(new Aliased("new", "alias", 1), graph.apply(new CreateAliasedOnly("new", "alias", 1)).get());
                 return null;
             });
         }
@@ -1107,15 +1107,18 @@ class GraphMetadataNavigationTest {
     @Model(persistence = ModelPersistence.DOCUMENT)
     record AliasedDocument(@EntityId String documentId, @Alias String alias) {}
     record CreateAliasedDocument(String documentId, String alias) {
-        @Apply AliasedDocument apply() { return new AliasedDocument(documentId, alias); }
+        @Apply AliasedDocument apply(@jakarta.annotation.Nullable AliasedDocument existing) { return new AliasedDocument(documentId, alias); }
     }
     @Model record AliasChild(@EntityId String childId, @Parent(Aliased.class) String rootId) {}
     @Model(persistence = ModelPersistence.DOCUMENT)
     record Document(@EntityId String documentId, @Parent(Document.class) String parentId) {}
     record CreateDocument(String documentId, String parentId) {
-        @Apply Document apply() { return new Document(documentId, parentId); }
+        @Apply Document apply(@jakarta.annotation.Nullable Document existing) { return new Document(documentId, parentId); }
     }
     record CreateAliased(String rootId, String alias, int version) {
+        @Apply Aliased apply(@jakarta.annotation.Nullable Aliased existing) { return new Aliased(rootId, alias, version); }
+    }
+    record CreateAliasedOnly(String rootId, String alias, int version) {
         @Apply Aliased apply() { return new Aliased(rootId, alias, version); }
     }
     record CreateAliasChild(String childId, String rootId) {
@@ -1128,15 +1131,15 @@ class GraphMetadataNavigationTest {
     @Model(name = "foreign") record ForeignView(@EntityId String childId, String incompatibleField) {}
     @Model(name = "leaf") record Leaf(@EntityId String leafId,
             @Parent(value = Foreign.class, pathInParent = "leaves") String childId) {}
-    record CreateRoot(String rootId, int version) { @Apply Root apply() { return new Root(rootId, version); } }
+    record CreateRoot(String rootId, int version) { @Apply Root apply(@jakarta.annotation.Nullable Root existing) { return new Root(rootId, version); } }
     record CreateKnown(String childId, String rootId) { @Apply KnownChild apply() { return new KnownChild(childId, rootId); } }
-    record CreateForeign(String childId, String rootId) { @Apply Foreign apply() { return new Foreign(childId, rootId); } }
+    record CreateForeign(String childId, String rootId) { @Apply Foreign apply(@jakarta.annotation.Nullable Foreign existing) { return new Foreign(childId, rootId); } }
     record CreateLeaf(String leafId, String childId) { @Apply Leaf apply() { return new Leaf(leafId, childId); } }
     record DeleteForeign(String childId) { @Apply Foreign apply() { return null; } }
     @Model record Receipt(@EntityId String receiptId, int count) {}
     @Model record RevisionChild(@EntityId String childId, @Parent(Root.class) String rootId, int version) {}
     record PutRevisionChild(String childId, String rootId, int version) {
-        @Apply RevisionChild apply() { return new RevisionChild(childId, rootId, version); }
+        @Apply RevisionChild apply(@jakarta.annotation.Nullable RevisionChild existing) { return new RevisionChild(childId, rootId, version); }
     }
     record CheckRevision(String receiptId, String rootId) {
         @AssertLegal void check(Graph<Root> root) {

@@ -98,9 +98,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Loads the latest model state without inheriting an event or notification handler's historical read boundary.
      * <p>
-     * This is intended for flows that synchronously perform another Model write and then deliberately need its updated
-     * state. Ordinary handler reads should use {@link #load(Object, Class)} so they remain coherent with the message
-     * being handled.
+     * Use this when deliberately inspecting current intent, for example after a synchronous nested Model write or
+     * when reconciling schedules triggered by an older event. Ordinary event-bound reads should use
+     * {@link #load(Object, Class)} so they remain coherent with the message being handled.
      */
     default <T> Entity<T> loadCurrent(@NonNull Object modelId, @NonNull Class<T> modelType) {
         String functionalId = modelId.toString();

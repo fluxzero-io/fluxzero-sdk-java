@@ -21,6 +21,8 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.modeling.ModelRelationshipQueries;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -29,6 +31,22 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelReadBoundaryTest {
+
+    @Test
+    void validatesOptionalCascadeReferencesWithoutAssumingAnEvaluationStepLimit() {
+        assertEquals(List.of(), ModelEventMetadata.cascadeSubsteps(null));
+        assertEquals(List.of(), ModelEventMetadata.cascadeSubsteps(Metadata.empty()));
+        Metadata boundary = Metadata.of(ModelEventMetadata.COMMIT_ID, "cascade", ModelEventMetadata.SUBSTEP, 3);
+        assertEquals(List.of(4, 20_001), ModelEventMetadata.cascadeSubsteps(
+                boundary.with(ModelEventMetadata.CASCADE_SUBSTEPS, "4,20001")));
+        for (String invalid : List.of("", "3", "2", "4,4", "5,4", "4,", "other", "2147483648",
+                                      "4,".repeat(30_001))) {
+            assertThrows(IllegalArgumentException.class, () -> ModelEventMetadata.cascadeSubsteps(
+                    boundary.with(ModelEventMetadata.CASCADE_SUBSTEPS, invalid)), invalid);
+        }
+        assertThrows(IllegalArgumentException.class, () -> ModelEventMetadata.cascadeSubsteps(
+                Metadata.of(ModelEventMetadata.CASCADE_SUBSTEPS, "4")));
+    }
 
     @Test
     void readsOneValidatedCommitBoundaryFromEventMetadata() {

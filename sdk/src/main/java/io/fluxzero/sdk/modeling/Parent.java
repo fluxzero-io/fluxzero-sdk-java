@@ -62,6 +62,9 @@ import java.lang.annotation.Target;
  * its likewise owned descendants in the same atomic model commit. Set {@link #deleteOnParentDeletion()} to
  * {@code false} for a shared or independently retained child. This lifecycle rule does not require a graph path and
  * moving a child by changing its parent ID does not count as parent deletion.
+ * Sole-Graph event/notification handlers for a cascaded child observe its empty current value and historical
+ * before-state through the original published event, just as for a direct logical deletion. Reading that before-state
+ * requires stored history; DOCUMENT-only persistence does not retain previous document versions.
  * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
  * A one-to-one companion model may annotate the same property with {@link EntityId}; entity-ID affixes affect only

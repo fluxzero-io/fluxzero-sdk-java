@@ -1950,6 +1950,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Map<ModelCommitTarget, Change> preparedChanges = new IdentityHashMap<>();
             Map<String, Long> nextSequences = new LinkedHashMap<>();
             Set<String> cascadeRoots = evaluation.cascadeRootIds();
+            Map<String, Integer> deletionSteps = cascadeRoots.isEmpty() ? Map.of() : new LinkedHashMap<>();
+            Map<String, String> deletionSources = cascadeRoots.isEmpty() ? Map.of() : new LinkedHashMap<>();
+            Map<String, Integer> publicationSteps = cascadeRoots.isEmpty() ? Map.of() : new LinkedHashMap<>();
             for (CommitAttempt.Step step : evaluation.steps()) {
                 DeserializingMessage message = step.message();
                 List<Change> transitions = step.changes().stream()
@@ -1978,6 +1981,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             .toBuilder().expectedSequenceNumber(null).build();
                     protocolSteps.add(new ModelCommitStep(
                             publication, true, List.of(publicationTarget)));
+                    if (!cascadeRoots.isEmpty()) {
+                        publicationSteps.put(message.getMessageId(), protocolSteps.size() - 1);
+                    }
                 }
                 Long existingEventIndex = existingEventIndex(message);
                 boolean publishEvent = !direct
@@ -2008,7 +2014,34 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     targets.add(target);
                     preparedChanges.put(target, transition);
                 }
+                int protocolIndex = protocolSteps.size();
                 protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
+                if (!cascadeRoots.isEmpty()) {
+                    if (!direct && !(message.getPayload() instanceof io.fluxzero.sdk.modeling.CascadedModelDeletion)) {
+                        publicationSteps.put(message.getMessageId(), protocolIndex);
+                    }
+                    if (message.getPayload() instanceof io.fluxzero.sdk.modeling.CascadedModelDeletion cascade) {
+                        int cause = cascade.parentIds().stream().map(id -> publicationSteps.getOrDefault(
+                                        deletionSources.get(id), deletionSteps.get(id)))
+                                .filter(Objects::nonNull).mapToInt(Integer::intValue).max().orElseThrow();
+                        ModelCommitStep original = protocolSteps.get(cause);
+                        if (original.getEvent() != null && original.getEvent().getIndex() == null) {
+                            Metadata metadata = original.getEvent().getMetadata();
+                            String previous = metadata.get(ModelEventMetadata.CASCADE_SUBSTEPS);
+                            metadata = metadata.with(ModelEventMetadata.CASCADE_SUBSTEPS,
+                                    previous == null ? Integer.toString(protocolIndex) : previous + "," + protocolIndex);
+                            protocolSteps.set(cause, original.toBuilder().event(BinaryWire.prepareEnvelope(
+                                    original.getEvent().withMetadata(metadata))).build());
+                        }
+                    } else {
+                        for (Change change : transitions) {
+                            if (cascadeRoots.contains(change.modelId()) && change.after() == null) {
+                                deletionSteps.put(change.modelId(), protocolIndex);
+                                deletionSources.put(change.modelId(), message.getMessageId());
+                            }
+                        }
+                    }
+                }
             }
             boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
@@ -2179,7 +2212,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 && !MessageRoutingInterceptor.hasExplicitRouting(logicalMessage)) {
                 serialized.setSegment(ConsistentHashing.computeSegment(routingTarget));
             }
-            serialized.setMetadata(serialized.getMetadata().with(
+            Metadata eventMetadata = serialized.getMetadata();
+            if (eventMetadata.containsKey(ModelEventMetadata.CASCADE_SUBSTEPS)) {
+                eventMetadata = eventMetadata.without(ModelEventMetadata.CASCADE_SUBSTEPS);
+            }
+            serialized.setMetadata(eventMetadata.with(
                     ModelEventMetadata.COMMIT_ID, commitId,
                     ModelEventMetadata.SUBSTEP, substep));
             return serialized;

@@ -65,10 +65,12 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * implementations fail explicitly on that path; ordinary non-transactional reads remain supported.
  * <p>
  * As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and
- * any descendant. The handler runs once per affected root. {@link #previous()} then returns the complete graph directly
+ * any descendant. The handler runs once per affected root and change boundary. {@link #previous()} returns the graph directly
  * before the change; a child move therefore invokes the handler once for the old root and once for the new root. One
  * handler object may declare separate sole-parameter methods for different {@code Graph<T>} root types; each changed
- * root is routed to its matching typed method.
+ * root is routed to its matching typed method. Cascaded deletions also reach a sole child-Graph handler, with an empty
+ * current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
+ * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions.
  * <p>
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
  * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or
@@ -726,10 +728,13 @@ public interface Graph<T> {
     }
 
     /**
-     * Returns the preceding model revision as a lazy graph, or {@code null} when none is retained.
+     * Returns the preceding model revision as a lazy graph, or {@code null} when none is available.
      * Surrounding models and relationships are resolved immediately before the current revision became effective.
      * This keeps children added after the preceding root revision visible while excluding changes made by the update
      * whose before-state is being observed.
+     * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
+     * stores current state, not document versions: it does not provide durable prior values after overwrite. A
+     * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.</p>
      */
     @Nullable
     Graph<T> previous();

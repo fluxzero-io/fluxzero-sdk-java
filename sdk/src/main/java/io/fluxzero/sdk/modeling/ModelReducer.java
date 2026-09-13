@@ -20,6 +20,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
@@ -38,6 +39,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import static io.fluxzero.common.ObjectUtils.asStream;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
 import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.preserveRestoredDataContext;
 
 /**
@@ -173,10 +176,19 @@ public final class ModelReducer {
             Object receiver = directApply.receiver()
                     ? invocationTarget(handler, message, beginState) : null;
             if (receiver == MissingTarget.INSTANCE) {
+                if (assertions) {
+                    IncompatibleApply mismatch = incompatibleState(compiledHandler, message, beginState);
+                    if (mismatch != null) { mismatch.reject(); }
+                }
                 return List.of();
             }
             Object result = message.apply(ignored -> directApply.invoker().invoke(
                     receiver, (Object) message.getPayload()));
+            IncompatibleApply mismatch = factoryConflict(compiledHandler, beginState, result);
+            if (mismatch != null) {
+                if (assertions) { mismatch.reject(); }
+                return List.of();
+            }
             return finishApply(
                     message, beginState,
                     List.of(directTransition(
@@ -210,14 +222,23 @@ public final class ModelReducer {
             return List.of();
         }
 
+        List<IncompatibleApply> mismatches = new ArrayList<>();
         Map<String, AppliedValue> payloadValues = applyPhase(
-                handlers.payload().applies(), message, beginState, null, applyReads);
+                handlers.payload().applies(), message, beginState, null, applyReads, mismatches);
         Map<String, AppliedValue> modelValues = null;
         if (!handlers.model().applies().isEmpty()) {
             CommitAttempt modelState = payloadValues == null
                     ? beginState : withValues(beginState, payloadValues);
             modelValues = applyPhase(
-                    handlers.model().applies(), message, modelState, payloadValues, applyReads);
+                    handlers.model().applies(), message, modelState, payloadValues, applyReads, mismatches);
+        }
+        if (assertions) {
+            for (IncompatibleApply mismatch : mismatches) {
+                if ((payloadValues == null || !payloadValues.containsKey(mismatch.modelId()))
+                    && (modelValues == null || !modelValues.containsKey(mismatch.modelId()))) {
+                    mismatch.reject();
+                }
+            }
         }
         if (payloadValues == null && modelValues == null) {
             return List.of();
@@ -235,7 +256,7 @@ public final class ModelReducer {
             finalValues = composed;
         }
         List<Change> transitions = finalValues.values().stream()
-                .map(value -> transition(value, beginState.entity(value.modelId())))
+                .map(value -> transition(value, resultTarget(value.handler().method(), beginState, value.modelId())))
                 .toList();
         return finishApply(message, beginState, transitions, assertions, assertionLoader);
     }
@@ -245,10 +266,11 @@ public final class ModelReducer {
             DeserializingMessage message,
             CommitAttempt context,
             Map<String, AppliedValue> previousPhase,
-            Set<String> applyReads) {
+            Set<String> applyReads,
+            List<IncompatibleApply> mismatches) {
         Set<String> previous = context.collectReads(applyReads);
         try {
-            return CommitAttempt.withGraphReads(context, () -> applyPhase(applies, message, context, previousPhase));
+            return CommitAttempt.withGraphReads(context, () -> applyPhase(applies, message, context, previousPhase, mismatches));
         } finally {
             context.collectReads(previous);
         }
@@ -258,7 +280,8 @@ public final class ModelReducer {
             List<MutationPlan.CompiledHandler> applies,
             DeserializingMessage message,
             CommitAttempt context,
-            Map<String, AppliedValue> previousPhase) {
+            Map<String, AppliedValue> previousPhase,
+            List<IncompatibleApply> mismatches) {
         LinkedHashMap<String, AppliedValue> results = null;
         for (MutationPlan.CompiledHandler compiledHandler : applies) {
             EntityMetadata.HandlerMethod handler = compiledHandler.method();
@@ -281,9 +304,16 @@ public final class ModelReducer {
             HandlerInvoker invoker = invoker(
                     compiledHandler, message, context);
             if (invoker == null) {
+                IncompatibleApply mismatch = incompatibleState(compiledHandler, message, context);
+                if (mismatch != null) { mismatches.add(mismatch); }
                 continue;
             }
             Object result = invoker.invoke();
+            IncompatibleApply mismatch = factoryConflict(compiledHandler, context, result);
+            if (mismatch != null) {
+                mismatches.add(mismatch);
+                continue;
+            }
             List<?> values = MutationPlan.applyResults(handler, result);
             for (int resultIndex = 0; resultIndex < values.size(); resultIndex++) {
                 results = addApplyResult(
@@ -292,6 +322,59 @@ public final class ModelReducer {
             }
         }
         return results;
+    }
+
+    private static IncompatibleApply incompatibleState(MutationPlan.CompiledHandler compiled,
+                                                      DeserializingMessage message, CommitAttempt context) {
+        EntityMetadata.HandlerMethod handler = compiled.method();
+        ModelPipeline.ExplicitModelTarget explicit = message.getContext(ModelPipeline.ExplicitModelTarget.class).orElse(null);
+        if (explicit != null && !MutationPlan.acceptsExplicitTarget(handler, explicit.modelType())) {
+            return null;
+        }
+        MutationPlan.ApplyCompatibility compatibility = compiled.compatibility();
+        Entity<?> incompatible = null;
+        if (incompatible == null && handler.receiverModelType() != null) {
+            Entity<?> target = context.resolve(handler.receiverModelType(), null);
+            if (target != null && target.isEmpty()) {
+                incompatible = target;
+            }
+        }
+        if (incompatible == null) {
+            for (EntityMetadata.ModelParameter parameter : compatibility.required()) {
+                Entity<?> target = context.resolve(parameter.modelType(), parameter.associationProperty());
+                if (target != null && target.isEmpty()) {
+                    incompatible = target;
+                    break;
+                }
+            }
+        }
+        if (incompatible == null || !compiled.compatibilityMatcher().canHandle(message)) {
+            return null;
+        }
+        return new IncompatibleApply(incompatible.id().toString(), false, compatibility.check());
+    }
+
+    private static IncompatibleApply factoryConflict(MutationPlan.CompiledHandler handler,
+                                                     CommitAttempt context, Object result) {
+        Class<?> type = handler.compatibility().factoryType();
+        // Null is an explicit deletion, not a creation. Persisted events keep their replay logic;
+        // compatibility protects new decisions, not already accepted historical transitions.
+        if (type == null || result == null || Entity.isLoading()) {
+            return null;
+        }
+        Entity<?> target = context.resolve(type, null);
+        return target != null && target.isPresent()
+                ? new IncompatibleApply(target.id().toString(), true, handler.compatibility().check()) : null;
+    }
+
+    private record IncompatibleApply(String modelId, boolean exists, boolean check) {
+        void reject() {
+            if (check && getBooleanProperty("fluxzero.assert.apply-compatibility", true)) {
+                throw mapProperty("fluxzero.assert.apply-compatibility.exception." + (exists ? "already-exists" : "not-found"),
+                                  IllegalCommandException::new,
+                                  () -> exists ? Entity.ALREADY_EXISTS_EXCEPTION : Entity.NOT_FOUND_EXCEPTION);
+            }
+        }
     }
 
     private static boolean skipIndependentModelWriter(
@@ -593,9 +676,9 @@ public final class ModelReducer {
         EntityMetadata.HandlerMethod handler = compiledHandler.method();
         String targetId = validatedTargetId(
                 compiledHandler, value, resultIndex, beginState);
-        Entity<?> target = beginState.entity(targetId);
+        Entity<?> target = resultTarget(handler, beginState, targetId);
         Class<?> resolvedTargetType = target == null
-                ? value.getClass() : beginState.target(targetId).modelType();
+                ? value.getClass() : target.type();
         return new AppliedValue(
                 targetId, resolvedTargetType, value,
                 compiledHandler, compiledHandler.effect());
@@ -624,16 +707,24 @@ public final class ModelReducer {
         EntityMetadata.HandlerMethod handler = compiledHandler.method();
         Class<?> targetType = MutationPlan.applyTargetType(handler, value, resultIndex);
         String targetId = resolveWriteTarget(handler, targetType, value, beginState);
-        Entity<?> target = beginState.entity(targetId);
+        Entity<?> target = resultTarget(handler, beginState, targetId);
         boolean creation = target == null && value != null
                            && (handler.collectionApplyResult() || handler.dynamicApplyResult());
-        if (!creation && (target == null || !beginState.mayWrite(
+        boolean graphWrite = (handler.collectionApplyResult() || handler.dynamicApplyResult())
+                             && target != null && target == beginState.graphReadEntity(targetId);
+        if (!creation && !graphWrite && (target == null || !beginState.mayWrite(
                 targetId, targetType, handler.executable()))) {
             throw new IllegalStateException(
                     "Apply %s returned model '%s', which is not a resolved write target"
                             .formatted(handler.executable().toGenericString(), targetId));
         }
         return targetId;
+    }
+
+    private static Entity<?> resultTarget(EntityMetadata.HandlerMethod handler, CommitAttempt context, String modelId) {
+        Entity<?> target = context.entity(modelId);
+        return target == null && (handler.collectionApplyResult() || handler.dynamicApplyResult())
+                ? context.graphReadEntity(modelId) : target;
     }
 
     private static Change transition(
@@ -857,8 +948,8 @@ public final class ModelReducer {
                             "Substep loaded at state index %d while commit is pinned at %d"
                                     .formatted(resolved.context().readStateIndex(), readStateIndex));
                 }
+                resolved.context().bindGraphReads(attempt);
                 CommitAttempt context = resolved.context().withValues(stagedValues);
-                context.bindGraphReads(attempt);
                 resolved.context().targets().forEach(target -> {
                     readModelIds.add(target.modelId());
                     readModelTypes.putIfAbsent(
@@ -874,6 +965,7 @@ public final class ModelReducer {
                             change.modelId(), change.after());
                     applyReadModelIds.add(change.modelId());
                     mergeDirectMutation(steps, current.message(), change);
+                    if (!pending.isEmpty()) { context.retainWriteOrigins(List.of(change)); }
                     continue;
                 }
                 InterceptionPhase interceptionPhase =
@@ -917,6 +1009,7 @@ public final class ModelReducer {
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
                         applyReadModelIds, assertionLoader);
+                if (!pending.isEmpty()) { context.retainWriteOrigins(transitions); }
                 for (Change transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
                     applyReadModelIds.add(transition.modelId());

@@ -162,12 +162,38 @@ public final class Graphs {
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
     static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
         return context.trackGraph(GraphState.entity(
-                entity, context.readStateIndex(), repository, context.entities(), false, true,
+                entity, context.readStateIndex(), repository, context.graphEntities(), false, true,
                 handlerBoundary(context.readStateIndex()), Map.of()).root(), repository);
+    }
+
+    /** Keeps complete-change views lazy at their exact boundary, including unknown descendants. */
+    static <T> Graph<T> changedGraph(String id, Class<T> type, long stateIndex, ModelRepository repository) {
+        if (!(repository instanceof ModelGraphResolver resolver)) {
+            return repository.loadGraphAt(id, type, stateIndex, Graph.Options.DEFAULT);
+        }
+        ModelReadBoundary boundary = ModelReadBoundary.state(stateIndex, false);
+        ModelGraphResolver.Identity identity = resolver.resolveGraphIdentity(id, true, type, boundary);
+        if (identity != null) {
+            return GraphState.identity(id, id, true, type, repository).retainIdentity(identity)
+                    .valueHistory(identity.historical()).root();
+        }
+        ModelGraphResolver.Value value = resolver.loadGraphValue(id, true, type, boundary);
+        return GraphState.entity(value.entity(), value.boundary().stateIndex(), repository,
+                Map.of(id, value.entity()), true, true, value.boundary(), Map.of())
+                .valueHistory(value.historical()).root();
     }
 
     private static ModelReadBoundary handlerBoundary(long stateIndex) {
         DeserializingMessage message = DeserializingMessage.getCurrent();
+        if (Entity.isLoading()) {
+            // Replay injects the pre-apply context. Its event envelope identifies the later
+            // committed state and must not replace that context's already resolved boundary.
+            ModelReadBoundary event = message == null ? null : ModelEventMetadata.readBoundary(message.getMetadata());
+            if (event != null && event.substep() > 0) {
+                return ModelReadBoundary.commit(event.commitId(), event.substep() - 1);
+            }
+            return ModelReadBoundary.state(stateIndex, false);
+        }
         if (message != null && (message.getMessageType() == MessageType.EVENT
                                 || message.getMessageType() == MessageType.NOTIFICATION)) {
             ModelReadBoundary boundary = ModelEventMetadata.readBoundary(
