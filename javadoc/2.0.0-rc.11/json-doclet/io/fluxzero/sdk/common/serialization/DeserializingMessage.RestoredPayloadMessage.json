@@ -1,0 +1,62 @@
+{
+  "name" : "RestoredPayloadMessage",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "RestoredPayloadMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage#RestoredPayloadMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serialized",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "withMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage#withMetadata",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

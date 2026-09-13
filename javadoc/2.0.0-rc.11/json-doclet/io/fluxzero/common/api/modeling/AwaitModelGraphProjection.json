@@ -1,0 +1,156 @@
+{
+  "name" : "AwaitModelGraphProjection",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Waits until one materialized graph projection has completed every root update originating at or before a committed\n model state.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Materialized graph collection identifying the projection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "firstStateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection.firstStateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " First state boundary occupied by the model commit. The runtime uses the graph immediately before this boundary\n to include the old side of moves that occurred before the commit's final substep.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection.modelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Models changed by the commit. The runtime resolves their old and new projection roots before applying the fence.\n Empty retains the collection-wide barrier used by direct administrative callers.\n",
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Committed model-commit boundary that must be visible in all affected roots.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AwaitModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection#AwaitModelGraphProjection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a collection-wide projection barrier.\n"
+  }, {
+    "name" : "AwaitModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection#AwaitModelGraphProjection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "collection"
+        }
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "stateIndex"
+        }
+      } ]
+    }, {
+      "name" : "firstStateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "firstStateIndex"
+        }
+      } ]
+    }, {
+      "name" : "modelIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "modelIds"
+        }
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "AwaitModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection#AwaitModelGraphProjection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a projection barrier for the supplied affected models when the commit consists of one state transition.\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

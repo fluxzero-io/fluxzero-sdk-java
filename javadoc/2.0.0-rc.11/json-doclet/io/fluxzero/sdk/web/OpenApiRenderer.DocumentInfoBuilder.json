@@ -1,0 +1,449 @@
+{
+  "name" : "DocumentInfoBuilder",
+  "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "components",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.components",
+    "type" : "java.util.Map<java.lang.String,com.fasterxml.jackson.databind.JsonNode>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "contactEmail",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.contactEmail",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "contactName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.contactName",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "contactUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.contactUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.description",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "extensions",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.extensions",
+    "type" : "java.util.Map<java.lang.String,com.fasterxml.jackson.databind.JsonNode>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "licenseName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.licenseName",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "licenseUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.licenseUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "logoAltText",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.logoAltText",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "logoUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.logoUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "openApiVersion",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.openApiVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "security",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.security",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "servers",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.servers",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.web.OpenApiRenderer.ServerInfo>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "termsOfService",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.termsOfService",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "title",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.title",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder.version",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DocumentInfoBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#DocumentInfoBuilder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#apply",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "info",
+      "type" : "io.fluxzero.sdk.web.ApiDocInfo",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#apply",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.web.OpenApiOptions",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "build",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#build",
+    "returnType" : "io.fluxzero.sdk.web.OpenApiRenderer.DocumentInfo",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "component",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#component",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "contactEmail",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#contactEmail",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "contactName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#contactName",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "contactUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#contactUrl",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#description",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "extension",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#extension",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "extension",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "licenseName",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#licenseName",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "licenseUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#licenseUrl",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logoAltText",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#logoAltText",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "logoUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#logoUrl",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "openApiVersion",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#openApiVersion",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "server",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#server",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "url",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "description",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "termsOfService",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#termsOfService",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "title",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#title",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder#version",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

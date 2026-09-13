@@ -1,0 +1,47 @@
+{
+  "name" : "ChunkReader",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$ChunkReader",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Reads serialized messages from a bounded index range while recovering chunked messages.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "readRange",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$ChunkReader#readRange",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "minIndexInclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxIndexExclusive",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads a page of messages from the given index range.\n\n @param minIndexInclusive the starting index (inclusive)\n @param maxIndexExclusive the maximum index (exclusive)\n @param maxSize           the maximum number of messages to retrieve\n @return messages in the requested range, ordered by index\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

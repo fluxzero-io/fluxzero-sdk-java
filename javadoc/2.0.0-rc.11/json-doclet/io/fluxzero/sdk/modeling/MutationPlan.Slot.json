@@ -1,0 +1,151 @@
+{
+  "name" : "Slot",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "access",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.access",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Access",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.apply",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.collection",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.handler",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.metadata",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.modelType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.parameter",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "property",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.property",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Property",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "receiver",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot.receiver",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Slot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot#Slot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Property",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "access",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Access",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "receiver",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "apply",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "write",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot#write",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

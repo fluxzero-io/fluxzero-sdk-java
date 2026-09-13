@@ -1,0 +1,153 @@
+{
+  "name" : "EventPage",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "remaining",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage.remaining",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage.result",
+    "type" : "io.fluxzero.common.api.eventsourcing.GetEventsResult",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "terminal",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage.terminal",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "EventPage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#EventPage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.eventsourcing.GetEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "remaining",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "terminal",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remaining",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#remaining",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#result",
+    "returnType" : "io.fluxzero.common.api.eventsourcing.GetEventsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "terminal",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#terminal",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "remaining",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "type" : "io.fluxzero.common.api.eventsourcing.GetEventsResult",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "terminal",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

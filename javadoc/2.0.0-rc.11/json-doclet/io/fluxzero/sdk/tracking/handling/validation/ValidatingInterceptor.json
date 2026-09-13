@@ -1,0 +1,195 @@
+{
+  "name" : "ValidatingInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link HandlerInterceptor} that validates the payload of messages before they are handled. When the supplied\n validator supports contextual method constraints, the current message context can be used to resolve constrained\n method parameters.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerInterceptor" ],
+  "fields" : [ {
+    "name" : "validatePayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor.validatePayload",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "validator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor.validator",
+    "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#ValidatingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor backed by the default validator.\n"
+  }, {
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#ValidatingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor backed by the supplied validator.\n\n @param validator the validator to use for payload and return value validation\n"
+  }, {
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#ValidatingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "validator",
+      "type" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "validatePayload",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an interceptor backed by the supplied validator.\n\n @param validator       the validator to use for validation\n @param validatePayload whether incoming message payloads should be validated before handler invocation\n"
+  } ],
+  "methods" : [ {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#interceptHandling",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Wraps handler invocation with payload validation before invocation. Non-passive request handlers with a method\n annotation also get return value validation when the handler method declares return constraints.\n\n @param function handler invocation function\n @param invoker  handler metadata and invocation context\n @return a validating handler invocation function\n"
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#prepare",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#prepareInput",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#prepareInput",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "preparedInput",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shouldValidateReturnValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#shouldValidateReturnValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsPreparation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor#supportsPreparation",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

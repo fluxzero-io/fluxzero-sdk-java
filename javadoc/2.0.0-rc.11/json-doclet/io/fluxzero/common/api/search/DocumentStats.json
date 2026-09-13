@@ -1,0 +1,106 @@
+{
+  "name" : "DocumentStats",
+  "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents aggregate statistics for a group of documents, including values for specified fields.\n <p>\n Grouping is defined by a {@link Group} key (based on document field values), and statistics are\n computed per requested field path.\n\n @see FieldStats\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "fieldStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats.fieldStats",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.DocumentStats.FieldStats>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Computed statistics per field path.\n",
+    "constantValue" : null
+  }, {
+    "name" : "group",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats.group",
+    "type" : "io.fluxzero.common.api.search.Group",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The group (combination of field values) this statistics entry represents.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DocumentStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats#DocumentStats",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asGroup",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats#asGroup",
+    "returnType" : "io.fluxzero.common.api.search.Group",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "groupBy",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "values",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compute",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats#compute",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.DocumentStats>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documents",
+      "type" : "java.util.stream.Stream<io.fluxzero.common.search.Document>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fields",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groupBy",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes document statistics from a stream of documents.\n\n @param documents Stream of input documents\n @param fields    Fields to compute statistics for\n @param groupBy   Paths to group by\n @return A list of {@link DocumentStats}, one per group\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "FieldStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.DocumentStats$FieldStats",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.AllArgsConstructor",
+      "values" : {}
+    } ]
+  } ]
+}

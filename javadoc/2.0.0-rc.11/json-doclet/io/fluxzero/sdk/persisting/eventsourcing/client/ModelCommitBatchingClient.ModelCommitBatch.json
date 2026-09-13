@@ -1,0 +1,108 @@
+{
+  "name" : "ModelCommitBatch",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#add",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#add",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "completion",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitCompletion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a commit whose post-commit work may be combined with other results in the same transport response.\n Implementations without grouped result support retain correct per-result completion.\n"
+  }, {
+    "name" : "fail",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#fail",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "flush",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#flush",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "skip",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#skip",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Marks a reserved slot as intentionally empty. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

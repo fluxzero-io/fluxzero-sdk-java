@@ -1,0 +1,159 @@
+{
+  "name" : "WebsocketCloseReason",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " WebSocket close information used by the low-level Fluxzero runtime clients.\n\n @param code   the numeric WebSocket close status code\n @param reason the optional close reason, normalized to an empty string when {@code null}\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "GOING_AWAY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason.GOING_AWAY",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Standard close code used when an endpoint is going away.\n",
+    "constantValue" : 1001
+  }, {
+    "name" : "NORMAL_CLOSURE",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason.NORMAL_CLOSURE",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Standard close code for a normal, intentional shutdown.\n",
+    "constantValue" : 1000
+  }, {
+    "name" : "NO_STATUS_CODE",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason.NO_STATUS_CODE",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Synthetic close code used when no status code was received from the peer.\n",
+    "constantValue" : 1005
+  }, {
+    "name" : "UNEXPECTED_CONDITION",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason.UNEXPECTED_CONDITION",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Standard close code used when the client aborts because an unexpected condition occurred.\n",
+    "constantValue" : 1011
+  }, {
+    "name" : "code",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason.code",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reason",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason.reason",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebsocketCloseReason",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason#WebsocketCloseReason",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "code",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reason",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "code",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason#code",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reason",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason#reason",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketCloseReason#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "code",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "reason",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,124 @@
+{
+  "name" : "EntityUpdate",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " A single child entity replacement within an {@link AnnotatedEntityHolder}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "after",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate.after",
+    "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "before",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate.before",
+    "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "EntityUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate#EntityUpdate",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "before",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "after",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "after",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate#after",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "before",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate#before",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder$EntityUpdate#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "after",
+    "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "before",
+    "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

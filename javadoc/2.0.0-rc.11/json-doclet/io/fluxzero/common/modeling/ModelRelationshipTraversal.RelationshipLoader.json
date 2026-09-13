@@ -1,0 +1,37 @@
+{
+  "name" : "RelationshipLoader",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$RelationshipLoader",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : "Supplies the relationships for one breadth-first frontier without requiring materialization. ",
+  "typeParameters" : [ "R" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$RelationshipLoader#load",
+    "returnType" : "java.lang.Iterable<R>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "frontier",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

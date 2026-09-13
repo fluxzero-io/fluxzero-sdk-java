@@ -1,0 +1,86 @@
+{
+  "name" : "ModelEventMetadata",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Reserved metadata keys identifying events emitted by an independent-model commit.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "COMMIT_ID",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata.COMMIT_ID",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Durable idempotency identity of the model commit that emitted an event.\n",
+    "constantValue" : "$modelCommitId"
+  }, {
+    "name" : "SUBSTEP",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata.SUBSTEP",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Ordered substep within the model commit.\n",
+    "constantValue" : "$modelCommitSubstep"
+  } ],
+  "constructors" : [ {
+    "name" : "ModelEventMetadata",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata#ModelEventMetadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "readBoundary",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata#readBoundary",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the commit boundary carried by {@code metadata}, or {@code null} when it is not a Model event. "
+  }, {
+    "name" : "readBoundary",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata#readBoundary",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the Model boundary carried by a Model event, or falls back to an existing global event index.\n\n <p>The fallback lets events that predate Model metadata address state reconstructed from that same published\n event. Without migration coordination, an event without a Model mapping retains ordinary current-state behavior.\n A repository configured with {@code followPublishedEventMigration} may instead wait for the mapping or reject a\n processed event that produced none. An event index is never interpreted as a Model state index.</p>\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
