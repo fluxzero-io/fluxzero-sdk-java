@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.search.client;
 
+import io.fluxzero.common.SearchUtils;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
@@ -28,14 +29,21 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.search.AdoptModelMigration;
+import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.ModelGraphComposition;
+import io.fluxzero.common.api.search.SearchDocuments;
+import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.common.search.ModelGraphDocumentStitcher;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.List;
@@ -44,8 +52,14 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.api.search.constraints.ContainsConstraint.contains;
+import static io.fluxzero.common.api.search.constraints.ExistsConstraint.exists;
+import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
+import static io.fluxzero.common.api.search.constraints.NotConstraint.not;
+import static io.fluxzero.common.api.search.constraints.QueryConstraint.query;
 import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -57,6 +71,78 @@ class InMemorySearchStoreModelMaterializationTest {
 
     private final InMemorySearchStore subject =
             new InMemorySearchStore(Duration.ofDays(1));
+
+    @ParameterizedTest
+    @MethodSource("referenceOnlyQueries")
+    void referenceOnlyModelsRespectNecessarySummaryPredicatesButKeepEntryScanFallbacks(
+            Constraint constraint, boolean requiresSummary) {
+        SerializedDocument original = structuredDocument("model-1", "models", "open");
+        SerializedDocument reference = original.withoutSearchIndexes();
+        materialize(10, reference);
+        SearchDocuments search = SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("models").constraint(constraint).build()).build();
+        boolean entriesMatch = constraint.matches(reference.deserializeDocument());
+        assertEquals(!requiresSummary && entriesMatch ? 1L : 0L, subject.search(search, 10).count());
+
+        // The correction must not alter stored payloads, retrieval, or indexed Model matching.
+        assertEquals(original.deserializeDocument().getEntries(),
+                     subject.fetch(new GetDocument("model-1", "models")).orElseThrow()
+                             .deserializeDocument().getEntries());
+        materialize(11, original);
+        assertEquals(entriesMatch ? 1L : 0L, subject.search(search, 10).count());
+    }
+
+    static Stream<Arguments> referenceOnlyQueries() {
+        return Stream.of(
+                Arguments.of(match("open", "name"), true),
+                Arguments.of(match("open"), true),
+                Arguments.of(contains("open", "name"), true),
+                Arguments.of(contains("ope", false, true, "name"), true),
+                Arguments.of(contains("pen", true, false, "name"), true),
+                Arguments.of(query("open", "name"), true),
+                Arguments.of(match("open", "name").and(exists("name")), true),
+                Arguments.of(match("open", "name").or(match("closed", "name")), true),
+                Arguments.of(match("open", "name").or(exists("name")), false),
+                Arguments.of(match("closed", "name").or(exists("name")), false),
+                Arguments.of(contains("pe", true, true, "name"), false),
+                Arguments.of(contains("op", false, true, "name"), false),
+                Arguments.of(not(match("closed", "name")), false),
+                Arguments.of(match("\u0301", "name"), false),
+                Arguments.of(exists("name"), false));
+    }
+
+    @Test
+    void ordinarySummarylessDocumentsRetainTheirEntryScanContract() {
+        subject.index(List.of(structuredDocument("ordinary", "models", "open").withoutSearchIndexes()),
+                      STORED, false).join();
+        assertEquals(1L, subject.search(SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("models").constraint(match("open", "name")).build())
+                .build(), 10).count());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "\u0301", "é", "中", "open", "!\u0301", "0", "\u2003"})
+    void summaryRequirementPreservesNormalizedBlankAndUnicodeTerms(String term) {
+        SerializedDocument reference = structuredDocument("model-1", "models", term).withoutSearchIndexes();
+        materialize(10, reference);
+        Constraint constraint = match(term, "name");
+        boolean entriesMatch = constraint.matches(reference.deserializeDocument());
+        boolean needsSummary = !SearchUtils.normalize(term).isBlank();
+        assertEquals(entriesMatch && !needsSummary ? 1L : 0L, subject.search(SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("models").constraint(constraint).build()).build(), 10).count());
+    }
+
+    @Test
+    void textQueryStatisticsAndMutationsUseTheSameModelSummaryRequirement() {
+        materialize(10, structuredDocument("model-1", "models", "open").withoutSearchIndexes());
+        SearchQuery query = SearchQuery.builder().collection("models").constraint(match("open", "name")).build();
+        assertTrue(subject.fetchStatistics(query, List.of(), List.of()).isEmpty());
+        assertTrue(subject.fetchFacetStats(query).isEmpty());
+        subject.move(query, "moved", STORED).join();
+        subject.delete(query, STORED, 10).join();
+        assertTrue(subject.fetch(new GetDocument("model-1", "models")).isPresent());
+        assertTrue(subject.fetch(new GetDocument("model-1", "moved")).isEmpty());
+    }
 
     @Test
     void documentMonitorCallbacksRunOutsideTheStoreLock() {
