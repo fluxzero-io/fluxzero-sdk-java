@@ -1,0 +1,30 @@
+name: Idea or improvement
+description: Share something you would like to build or improve
+title: ""
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas from builders, developers, and coding agents are welcome. An early thought is enough to start the conversation.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to build or improve?
+      placeholder: It would be useful if…
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefit
+    attributes:
+      label: How would this help?
+      description: Tell us about the product, workflow, or problem behind the idea if you can.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else?
+      description: Examples, sketches, links, and partial ideas are all welcome.

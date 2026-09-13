@@ -43,7 +43,7 @@ public @interface DocumentProjection {
      */
     boolean searchable() default true;
 
-    /** Collection receiving current Model documents. Blank defaults to the Model's simple class name. */
+    /** Collection receiving current Model documents. Blank defaults to the resolved logical Model name. */
     String collection() default "";
 
     /** Optional property path used as the document's start timestamp. */

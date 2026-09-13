@@ -51,6 +51,10 @@ import java.lang.annotation.Target;
  * explicit path is retained in a type-isolated private current-document collection for composition and indexed
  * relationship selection, but is not exposed through its own collection. Parent and Graph searches can therefore
  * select matching children first and traverse their current relationship edges without composing unrelated roots.
+ * This enables scoped {@code search(Child.class).whereParent(parentId)} without {@code DOCUMENT} on the child.
+ * The parent does not acquire a document simply by being referenced: a related parent-content predicate or
+ * {@code searchGraph(Parent.class)} still needs the parent's own current document. Identity-based Graph navigation
+ * needs neither document nor explicit composition path.
  * {@link #apiDoc()} optionally describes the list-valued property created at that path when the graph is used as a
  * documented web response. It has no effect unless {@link #pathInParent()} is set.
  * <p>

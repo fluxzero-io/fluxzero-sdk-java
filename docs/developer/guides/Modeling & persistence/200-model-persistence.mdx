@@ -8,13 +8,11 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every `@Model` has an independent persisted identity. Its non-empty `ModelPersistence[]` set makes the durable representations and
-authoritative load path explicit:
+Every `@Model` has an independent persisted identity. Start with the default: event sourcing, without a direct
+document or periodic snapshots.
 
 ```java
-@Model(
-    persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-    snapshotPeriod = 1000)
+@Model
 record Account(
         @EntityId AccountId accountId,
         Money balance) {
@@ -22,6 +20,11 @@ record Account(
 ```
 
 The persisted key is exactly `accountId.toString()`. A model name or Java type is not concatenated into the identity.
+
+Before adding storage, use [Choosing Model and Graph queries](../model-query-guide). Its capability matrix separates
+identity loads, direct search, relationship-scoped search, live composition and materialized Graphs, including result
+types and consistency. A child with an explicit composition path already has an internal indexed current document;
+using `search(...).whereParent(...)` does not by itself justify `DOCUMENT`.
 
 ## Model discovery and contract packaging
 
@@ -72,7 +75,8 @@ Runtimes predating this optional request field ignore it and continue to return 
 
 The set supports exactly the meaningful combinations:
 
-- `{EVENT_SOURCED}` reconstructs from events without a current document;
+- `{EVENT_SOURCED}` reconstructs from events without a direct document; a separate Graph role may still maintain an
+  internal current component document;
 - `{DOCUMENT}` loads from its authoritative current document;
 - `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also maintains a current document.
 
@@ -270,7 +274,8 @@ does not split one multi-Model action into separate commits.
 
 ## Direct Model documents
 
-Combining `EVENT_SOURCED` and `DOCUMENT` keeps event replay authoritative while also maintaining a current document:
+For an application-wide list of line items—not just lines under a known order—combine `EVENT_SOURCED` and `DOCUMENT`.
+This keeps event replay authoritative while maintaining a directly searchable current document:
 
 ```java
 @Model(
@@ -290,7 +295,8 @@ stitched root Graph. Set `document.searchable = false` when the document should 
 
 Plain `EVENT_SOURCED` omits only this independent collection. A child with an explicit
 `@Parent(pathInParent = "...")` still supplies a private current document to virtual and materialized Graph composition.
-Without an explicit path, Fluxzero stores no Graph-component document and performs no extra document write.
+Without an explicit path, `DOCUMENT`, or `materializeGraph = true`, Fluxzero stores no current component document and
+performs no extra document write. A root does not gain a component merely because children point at it.
 
 You can additionally:
 
@@ -325,7 +331,9 @@ action.
 
 ## Snapshots and checkpoints
 
-Event-sourced models can bound reconstruction work:
+Only introduce periodic snapshots when a Model's measured replay cost/history size warrants them. They are disabled
+by default (`snapshotPeriod = 0`) and do not enable search. For an account with a long, frequently replayed history,
+the following is an illustrative tuning choice, not a standard Model configuration:
 
 ```java
 @Model(

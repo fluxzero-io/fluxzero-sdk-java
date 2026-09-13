@@ -1542,6 +1542,11 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Searches complete graph views for an independent model root. A configured materialized view is preferred;
      * otherwise the graph is composed live.
+     * <p>
+     * The root needs a current direct/component document. Only explicit composition paths enter the search Graph;
+     * pathless relationships remain available through {@link #loadGraph(Id)}. Results represent current documents or
+     * a possibly lagging projection, not this handler's historical event boundary or transaction read dependencies.
+     * See {@link DocumentStore#searchGraph(Class)} for filtering, result and consistency semantics.
      */
     static <T> Search<Graph<T>> searchGraph(
             Class<T> rootModelType) {

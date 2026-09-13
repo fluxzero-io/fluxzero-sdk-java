@@ -18,7 +18,7 @@
 ## Define a model
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 public record Project(
         @EntityId ProjectId projectId,
         ProjectDetails details,
@@ -28,6 +28,10 @@ public record Project(
 
 Assume conventional typed `ProjectId` and `ProjectDetails` value types; do not expand obvious ID or details
 definitions unless the user asks for them.
+
+The default above is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
+read requirement. Use the central matrix at `/docs/sdk/entities/graph-search`.
+Relationship-scoped search can use an internal component without `DOCUMENT`; ordinary `search(T.class)` lists cannot.
 
 Important settings:
 

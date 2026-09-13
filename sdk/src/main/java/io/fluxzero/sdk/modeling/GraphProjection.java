@@ -24,7 +24,7 @@ import java.lang.annotation.Target;
  * <p>
  * Configure this through {@link Model#graphProjection()} and enable it with {@link Model#materializeGraph()}. Without
  * an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model collection when the
- * root has a direct document, or to the simple Model name otherwise. An explicit collection remains available when
+ * root has a direct document, or to the resolved logical Model name otherwise. An explicit collection remains available when
  * that durable public search contract needs a custom name.
  */
 @Documented
@@ -39,7 +39,7 @@ public @interface GraphProjection {
 
     /**
      * Distinct collection receiving materialized graph documents. Blank derives from the public direct-model collection
-     * when enabled, or from the simple root-model name otherwise.
+     * when enabled, or from the resolved logical root-model name otherwise.
      */
     String collection() default "";
 

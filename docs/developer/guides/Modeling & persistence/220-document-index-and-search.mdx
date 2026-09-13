@@ -63,8 +63,12 @@ You can also specify the collection in which the object should be stored directl
 
 ## Model documents and searchable values
 
-Models choose whether to maintain a current document through their `ModelPersistence[]` set. Other values use the document-store
-annotations that own automatic indexing:
+Start ordinary domain state at `@Model`. The examples below add a public direct document specifically for a list of
+user accounts across the application. Relationship-scoped search can instead use internal component documents from
+explicit composition paths; it does not always need `DOCUMENT`. See the central
+[Model and Graph query matrix](../model-query-guide) for required configuration, available predicates and actual state.
+
+Other values use the document-store annotations that own automatic indexing:
 
 - `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`
 - `@Stateful` (implicitly `@Searchable`)
@@ -92,7 +96,8 @@ annotations that own automatic indexing:
   </TabItem>
 </Tabs>
 
-By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`). Configure
+For Models, the default collection is the resolved logical Model name (simple class name unless `@Model.name` or
+`fluxzero.model.namePrefix` changes it). Other document types default to their simple class name. Configure
 a Model's direct document through its `document`; `@Stateful` and directly searchable values expose the `@Searchable`
 settings themselves:
 

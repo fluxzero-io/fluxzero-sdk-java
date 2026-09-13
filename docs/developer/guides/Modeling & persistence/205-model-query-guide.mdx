@@ -1,4 +1,10 @@
-# Choosing Model and Graph queries
+---
+title: Choosing Model and Graph queries
+slug: docs/guides/modeling-and-persistence/model-query-guide
+description: Which Model and Graph query to use, what storage it needs, and which state it returns
+sidebar:
+   order: 205
+---
 
 Start with plain `@Model`. It stores events and loads state through replay, with caching enabled and periodic
 snapshots disabled. Add another representation only for a specific read requirement—not because the application
@@ -18,7 +24,7 @@ uses the word “search”.
    projection; it does not become historical just because the caller is handling an old event.
 
 Persistence is also independent of event publication. `DOCUMENT` alone does not suppress emitted/stored events.
-See [Model persistence](https://fluxzero.io/docs/guides/modeling-and-persistence/model-persistence) for publication, caching, snapshots and commit configuration.
+See [Model persistence](../model-persistence) for publication, caching, snapshots and commit configuration.
 
 ## Capability matrix
 
@@ -72,7 +78,7 @@ int count = graph.namedChildren("LineItem", false).size();
 
 Here `false` includes unknown types; it is **not** the `forceLive` flag used by `searchGraph`. Names include any
 configured Model-name prefix. Class-based queries select locally known assignable types only. See
-[selective navigation](https://fluxzero.io/docs/guides/modeling-and-persistence/model-persistence#selective-graph-navigation-across-applications) before using known-only counts
+[selective navigation](../model-persistence#selective-graph-navigation-across-applications) before using known-only counts
 for cross-application invariants.
 
 ### I know the parent; I need to filter its children
@@ -259,7 +265,7 @@ writes or one atomic view across all search results. The application-wide proper
 `configureGraphProjectionCompletion(...)`. Repository projection status/wait APIs expose progress.
 
 Use injected Models/Graphs and their conflict policy for invariants, not search counts. Use
-[verified current-state reads](https://fluxzero.io/docs/guides/modeling-and-persistence/model-persistence#current-state-without-replay) when sharing state contracts without
+[verified current-state reads](../model-persistence#current-state-without-replay) when sharing state contracts without
 historical event contracts; missing/stale/unproven live documents fail explicitly rather than falling back to replay.
 
 ## Kotlin: the same choices

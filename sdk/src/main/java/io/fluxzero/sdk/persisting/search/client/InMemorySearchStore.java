@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.SearchUtils;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -29,6 +30,7 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.AdoptModelMigration;
+import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -52,6 +54,10 @@ import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchModelDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.search.constraints.AllConstraint;
+import io.fluxzero.common.api.search.constraints.AnyConstraint;
+import io.fluxzero.common.api.search.constraints.ContainsConstraint;
+import io.fluxzero.common.api.search.constraints.MatchConstraint;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.common.search.ModelGraphDocumentSearch;
 import io.fluxzero.common.search.ModelGraphDocumentStitcher;
@@ -210,7 +216,7 @@ public class InMemorySearchStore implements SearchClient {
             documentStream = documentStream.filter(
                     document -> ids.contains(document.getId()));
         }
-        documentStream = documentStream.filter(query::matches);
+        documentStream = documentStream.filter(searchPredicate(query));
         documentStream = documentStream.sorted(
                 comparing(SerializedDocument::deserializeDocument, Document.createComparator(searchDocuments)));
         if (!searchDocuments.getPathFilters().isEmpty()) {
@@ -272,6 +278,48 @@ public class InMemorySearchStore implements SearchClient {
                         .documentIds(List.copyOf(candidates))
                         .build(),
                 fetchSize);
+    }
+
+    private Predicate<SerializedDocument> searchPredicate(SearchQuery query) {
+        if (!requiresTextSummary(query.decomposeConstraints())) {
+            return query::matches;
+        }
+        return document -> query.matches(document)
+                           && (document.getSummary() != null && !document.getSummary().isBlank()
+                               || !modelDocumentVersions.containsKey(identifier.apply(document)));
+    }
+
+    /*
+     * Retrieval-only Model documents keep their entries for value loading but deliberately omit search indexes.
+     * JDBC cannot select them through a required positive summary predicate. Apply that necessary condition here,
+     * without changing ordinary/custom document scans or live Graph entry filtering. This is not a SQL planner:
+     * NOT, ranges, existence and substring fallbacks retain their existing entry semantics. In particular an OR
+     * with a scan-only alternative must not require a summary for the entire expression.
+     */
+    private static boolean requiresTextSummary(Constraint constraint) {
+        return switch (constraint) {
+            case MatchConstraint c -> hasNormalizedText(c.getMatch());
+            case ContainsConstraint c -> !c.getContains().isBlank()
+                                         && !(c.isPrefixSearch() && c.isPostfixSearch())
+                                         && !(c.getContains().length() < 3
+                                              && (c.isPrefixSearch() || c.isPostfixSearch()));
+            case AllConstraint c -> c.getAll().stream().anyMatch(InMemorySearchStore::requiresTextSummary);
+            case AnyConstraint c -> !c.getAny().isEmpty()
+                                    && c.getAny().stream().allMatch(InMemorySearchStore::requiresTextSummary);
+            default -> false;
+        };
+    }
+
+    private static boolean hasNormalizedText(String text) {
+        // Printable ASCII survives normalization. Avoid duplicating its allocations for ordinary query terms;
+        // combining marks and other Unicode-only terms still need the normalizer before deciding this condition.
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c > ' ' && c < 127) {
+                return true;
+            }
+        }
+        return !SearchUtils.normalize(text).isBlank();
     }
 
     private List<String> searchRelatedModelIds(
@@ -651,8 +699,9 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize) {
+        Predicate<SerializedDocument> predicate = searchPredicate(query);
         documents.entrySet().removeIf(entry -> {
-            if (!query.matches(entry.getValue())) {
+            if (!predicate.test(entry.getValue())) {
                 return false;
             }
             documentIndices.remove(entry.getKey());
@@ -663,7 +712,7 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public CompletableFuture<Void> move(SearchQuery query, String targetCollection, Guarantee guarantee) {
-        var matches = documents.values().stream().filter(query::matches).toList();
+        var matches = documents.values().stream().filter(searchPredicate(query)).toList();
         matches.forEach(document -> {
             String key = identifier.apply(document);
             documents.remove(key);
@@ -744,7 +793,7 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public List<DocumentStats> fetchStatistics(SearchQuery query, List<String> fields, List<String> groupBy) {
-        return DocumentStats.compute(documents.values().stream().filter(query::matches)
+        return DocumentStats.compute(documents.values().stream().filter(searchPredicate(query))
                                              .map(SerializedDocument::deserializeDocument), fields, groupBy);
     }
 
@@ -771,7 +820,7 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public List<FacetStats> fetchFacetStats(SearchQuery query) {
-        return documents.values().stream().filter(query::matches).flatMap(d -> d.getFacets().stream())
+        return documents.values().stream().filter(searchPredicate(query)).flatMap(d -> d.getFacets().stream())
                 .collect(groupingBy(identity(), TreeMap::new, toList())).values().stream().map(group -> {
                     FacetEntry first = group.getFirst();
                     return new FacetStats(first.getName(), first.getValue(), group.size());
