@@ -182,6 +182,10 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
+An explicit `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root is
+cached. A root cache's older observation boundary cannot prove that its relationships are still current. Values
+remain lazy and may reuse an exact matching cached revision; ordinary Model and Graph cache paths are unchanged.
+
 ## Complete graph-change handlers
 
 Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one
