@@ -475,6 +475,20 @@ inspect or persist the object as it would appear in an earlier revision.
 
 ## Registration
 
+In standalone tests, register casters before the first conversion or historical Given step:
+
+```java
+TestFixture.create().registerCasters(new CreateUserUpcaster())
+        .whenUpcasting("/users/create-user-rev0.json")
+        .expectResult(expectedCurrentCommand);
+```
+
+The resource's type and revision must match that caster; `expectedCurrentCommand` must retain the old ID and business
+values. `TestFixture.create(caster)` registers a handler, not a caster. Kotlin uses
+`TestFixture.create().registerCasters(CreateUserUpcaster()).whenUpcasting<CreateUser>(resource)`.
+For a complete value-preserving `name` → `details.name` example, Model event reconstruction and an old-writer/new-reader
+storage test, use [Testing Model migrations](../../modeling-and-persistence/model-migration-tests).
+
 When using Spring, any bean containing `@Upcast` or `@Downcast` methods is automatically registered with the
 serializer.
 

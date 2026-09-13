@@ -160,6 +160,8 @@ that accepts details; simply annotating a field inside `ProjectDetails` does not
 This is a modeling convention, not a new SDK restriction. For already stored Models, moving `name` to `details.name`
 changes serialized shape and query paths: plan the appropriate event/document upcasting or migration rather than
 silently renaming fields in an existing application's history.
+Use [Model migration tests](../model-migration-tests) to preserve old values and check replay, retained storage and
+queries before/after index migration.
 
 Continue with [Model persistence](../model-persistence) and
 [the Model/Graph query matrix](../model-query-guide) for independent storage and read choices.

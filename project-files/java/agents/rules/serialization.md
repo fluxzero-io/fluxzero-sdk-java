@@ -78,9 +78,11 @@ renaming a field).
 public class ProjectUpcaster {
     @Upcast(type = "io.fluxzero.app.api.model.Project", revision = 1)
     public JsonNode upcastRev1(ObjectNode payload) {
-        if (!payload.has("details")) {
-            payload.putObject("details").put("name", "Untitled Project");
+        JsonNode name = payload.remove("name");
+        if (name == null || !name.isTextual()) {
+            throw new IllegalArgumentException("Revision 1 requires a textual name");
         }
+        payload.putObject("details").set("name", name);
         return payload;
     }
 }
@@ -263,14 +265,26 @@ public class LegacyProjectEndpoint {
 
 ## Testing Upcasters
 
+There are three distinct checks: conversion with `whenUpcasting`, current Model reconstruction with
+`givenModelEvents`, and a fresh application reading retained storage written by the actual old SDK/application.
+The last one must not use Given reseeding or hand-built storage requests. See [testing](testing.md).
+Moving `name` into `details.name` must preserve its value, not replace it with a default.
+
+Read-time upcasting does not change search indexes: an old stored `name` path remains the selector even when a returned
+object exposes `details.name`. Check both paths before and after deliberate migration. A complete-Graph
+`@HandleDocument(modelGraph = Project.class)` return migrates only the derived materialized Graph, not direct/component
+Model documents. Ordinary document writes must not replace head-verified Model state; use Model commits for those
+documents. Separate application-owned search projections can use ordinary revision-aware document migration.
+Keep `EVENT_SOURCED` and reconstructible history to prove `previous()` still retains historical business values.
+
 You can verify upcasters in a `TestFixture` by providing the old serialized form.
 
-**Sample: old-project-rev0.json**
+**Sample: old-project-rev1.json**
 
 ```json
 {
   "@class": "io.fluxzero.app.api.model.Project",
-  "@revision": 0,
+  "@revision": 1,
   "projectId": "PRJ-1",
   "name": "Legacy Name"
 }
@@ -293,9 +307,9 @@ one record; array failures report the zero-based element index and NDJSON failur
 ```java
 @Test
 void testProjectUpcasting() {
-    fixture.whenUpcasting("/projects/old-project-rev0.json")
-           .expectResult(Project.class)
-           .expectResult(project -> project.details().name().equals("Untitled Project"));
+    TestFixture.create().registerCasters(new ProjectUpcaster())
+           .whenUpcasting("/projects/old-project-rev1.json")
+           .expectResult(new Project(new ProjectId("PRJ-1"), new ProjectDetails("Legacy Name")));
 }
 ```
 [//]: # (@formatter:on)
@@ -306,8 +320,10 @@ void testProjectUpcasting() {
 
 ## Implementation Rules
 
-- **Registration**: All upcaster classes must be registered with Fluxzero or must be annotated with `@Component` when
-  Spring is used. The SDK auto-detects them during startup.
+- **Registration**: Spring registers caster beans automatically. Otherwise call `serializer.registerCasters(...)`;
+  in tests use `TestFixture.create().registerCasters(...)` before Given. `create(caster)` registers a handler, not a caster.
+- **Value preservation**: Moving `name` into `details` must retain its value and the Model ID. The resource and
+  caster above both use revision 1, leading to revision 2. Reject malformed required data instead of inventing a name.
 - **Placement**: Upcasters can be placed inside the class they transform (as a static inner class with `@Component`) or
   in a separate package. For shared logic, a separate upcaster component is often cleaner.
 - **Chain of Responsibility**: Fluxzero automatically chains upcasters. To move from Revision 0 to 2, the SDK will look
@@ -322,5 +338,6 @@ void testProjectUpcasting() {
   `TestFixture.whenUpcasting` before production deployment. If deployment status is unclear, ask the user whether the app
   is already deployed before enforcing this check. Since historical messages are immutable, a faulty upcaster can be
   "fixed" with a new deployment without losing data.
-- **Idempotency**: Upcasters are called during deserialization. Ensure your logic is safe to run multiple times,
-  although the SDK typically handles the orchestration.
+- **Repeatability**: The same old data may be deserialized repeatedly. Keep upcasters deterministic and free of
+  external side effects. Each step consumes its declared input revision; it need not accept its own newer output
+  as if that output still had the old schema.

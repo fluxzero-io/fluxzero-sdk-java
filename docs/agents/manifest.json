@@ -4,6 +4,44 @@
   "root": "/docs",
   "articles": [
     {
+      "path": "/docs/sdk/models/migration-testing",
+      "title": "Testing Model migrations and retained storage",
+      "summary": "Preserve old fields while moving name into details; distinguish caster tests, givenModelEvents and an old writer/new reader, then verify search paths before and after Graph rematerialization.",
+      "source": "articles/sdk/models/migration-testing.md",
+      "symbols": [
+        "givenModelEvents",
+        "registerCasters",
+        "whenUpcasting",
+        "Model migration",
+        "old SDK writer",
+        "retained storage",
+        "name to details.name",
+        "reindexing",
+        "previous()",
+        "searchGraph",
+        "loadCurrentModelState",
+        "Model document proof"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model lifecycle, state and Graph APIs"
+        },
+        {
+          "path": "/docs/sdk/testing/reconstruction",
+          "description": "Run complete givenModelEvents reconstruction examples"
+        },
+        {
+          "path": "/docs/sdk/serialization",
+          "description": "Register value-preserving casters with matching source revisions"
+        },
+        {
+          "path": "/docs/sdk/reference/test-fixture-signatures",
+          "description": "Check synthetic setup and complete active schedule assertions"
+        }
+      ]
+    },
+    {
       "path": "/docs",
       "title": "Fluxzero Agent Docs",
       "summary": "Start here when a coding agent needs compact Fluxzero SDK, testing, and cloud deployment guidance.",
@@ -2494,7 +2532,11 @@
         "singleTracker",
         "expectedDeadline",
         "previous()",
-        "EVENT_SOURCED"
+        "EVENT_SOURCED",
+        "expectOnlyActiveScheduledCommands",
+        "Predicate<Schedule>",
+        "all active scheduled commands",
+        "schedule ID deadline payload"
       ],
       "links": [
         {
@@ -3403,7 +3445,9 @@
         "whenUpcasting",
         "createAsync",
         "@class",
-        "@extends"
+        "@extends",
+        "givenModelEvents",
+        "registerCasters"
       ],
       "links": [
         {
@@ -3497,6 +3541,10 @@
         {
           "description": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
           "path": "/docs/sdk/testing/revisioned-json"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -3657,7 +3705,9 @@
         "durable scheduling fixture reconstruction",
         "active schedules after fresh application restart",
         "restore retained store without reseeding",
-        "supplied events documents schedules do not prove persistence"
+        "supplied events documents schedules do not prove persistence",
+        "givenModelEvents",
+        "registerCasters"
       ],
       "links": [
         {
@@ -3711,6 +3761,10 @@
         {
           "description": "symmetric correlated workflow scenarios",
           "path": "/docs/sdk/testing/correlated-workflows"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -4322,6 +4376,10 @@
         {
           "description": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
           "path": "/docs/sdk/testing/revisioned-json"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -4381,7 +4439,8 @@
         "legacy event envelope",
         "Data.JSON_FORMAT",
         "registerCasters",
-        "whenUpcasting narrower"
+        "whenUpcasting narrower",
+        "givenModelEvents"
       ],
       "links": [
         {
@@ -4403,6 +4462,10 @@
         {
           "description": "Test behavior across fixture message and HTTP flows",
           "path": "/docs/sdk/testing"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -5534,7 +5597,11 @@
         "expectWebResult getPayloadAs Type explicit method witness",
         "response getPayloadAs class domain accessor Object",
         "WebRequest WebResponse getPayloadAs Type",
-        "fixture generic result compile error"
+        "fixture generic result compile error",
+        "expectOnlyActiveScheduledCommands",
+        "Predicate<Schedule>",
+        "all active scheduled commands",
+        "schedule ID deadline payload"
       ],
       "links": [
         {
@@ -6591,6 +6658,10 @@
         {
           "path": "/docs/sdk/entities/kotlin-models",
           "description": "Kotlin Models And Updates — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -6634,6 +6705,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -6771,6 +6846,10 @@
         {
           "description": "Choose a Model topic and language",
           "path": "/docs/sdk/models"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -6814,6 +6893,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },

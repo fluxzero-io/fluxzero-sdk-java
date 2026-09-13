@@ -116,7 +116,46 @@ an existing active schedule with an obsolete deadline. It is useful only when an
 and is not a historical once-only marker. After cancellation, an old event could create the ID again unless current
 state prevents creation.
 
-## Prove convergence and absence
+## Assert the complete active command set
+
+`expectOnlyScheduledCommands(...)` checks only commands **scheduled during When**. It can pass while an older
+schedule is still active. The local fixture's `expectOnlyActiveScheduledCommands(...)` checks all active scheduled
+commands and unwraps their payloads. Use a `Predicate<Schedule>` to include ID, deadline **and** command contents:
+
+```java
+record RunTask(String taskId, Instant expectedDeadline) {}
+
+@Test
+void replacementLeavesExactlyOneActiveCommand() {
+    Instant start = Instant.parse("2026-01-01T00:00:00Z");
+    Instant oldDeadline = start.plusSeconds(3600);
+    Instant deadline = oldDeadline.plusSeconds(600);
+    RunTask command = new RunTask("task-1", deadline);
+
+    TestFixture.create().atFixedTime(start)
+            .givenScheduledCommands(new Schedule(new RunTask("task-1", oldDeadline), "task-1", oldDeadline))
+            .whenExecuting(fc -> Fluxzero.scheduleCommand(command, "task-1", deadline))
+            .expectOnlyActiveScheduledCommands((Predicate<Schedule>) s ->
+                    s.getScheduleId().equals("task-1")
+                    && s.getDeadline().equals(deadline)
+                    && s.getPayload().equals(command))
+            .andThen().whenExecuting(fc -> Fluxzero.cancelSchedule("task-1"))
+            .expectOnlyActiveScheduledCommands().expectNoSchedules();
+}
+```
+
+If replacement accidentally uses another ID, the assertion fails because both commands remain active.
+In an application test, replace `whenExecuting` with the real reschedule/delete command and register its reconciliation
+handler; the assertion stays the same. Run the scenario asynchronously too when tracked handlers own reconciliation.
+
+Kotlin uses `Predicate<Schedule> { it.scheduleId == "task-1" && it.deadline == deadline &&
+it.getPayload<Any>() == command }`. A plain `Schedule` expectation does **not** compare ID; the predicate does.
+This new assertion excludes ordinary `@HandleSchedule` payloads. Use `expectNoSchedules()` for absence of both kinds.
+It requires a local scheduling client and fails explicitly for remote clients: observing remote writes is not a
+complete inventory. For a retained remote store, verify known IDs through `messageScheduler().getSchedule(id)`
+and do not claim that checks of known IDs discover every unknown stale ID.
+
+## Lifecycle test matrix
 
 Test creation, deadline replacement, completion, direct deletion and cascade deletion. Reconcile an old change against
 newer current state: it must not restore obsolete work. Exercise stale and early delivered commands, and retry after a

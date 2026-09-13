@@ -24,6 +24,8 @@ For SDK v2 Models, start with plain `@Model`: [design cohesive details and state
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
 See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
 
+Changing existing state? Use [Model migration tests](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) to distinguish value-preserving upcasts, event reconstruction, retained storage and search reindexing.
+
 ## Start building
 
 Building with a coding agent? Give it this:

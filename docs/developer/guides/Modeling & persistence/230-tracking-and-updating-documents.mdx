@@ -47,6 +47,10 @@ This makes `@HandleDocument` ideal for **live processing**, **projecting the lat
 
 ## Transforming stored documents
 
+This ordinary document-return contract is for application-owned documents/projections, not for rewriting
+head-verified Model state outside its Model commit path. For Model schema evolution and the distinct complete-Graph
+return contract, follow [Testing Model migrations](../model-migration-tests).
+
 `@HandleDocument` can also be used to **update documents in place**.
 
 If the handler returns a **newer revision** of the document, Fluxzero will reindex and persist the result:

@@ -247,6 +247,23 @@ public interface Then<R> {
     Then<R> expectOnlyScheduledCommands(Object... commands);
 
     /**
+     * Asserts the complete set of active scheduled commands after the {@code when} phase, including commands
+     * scheduled during Given or an earlier phase. Uses the same matching rules as
+     * {@link #expectScheduledCommands(Object...)}; a predicate over the reconstructed {@link Schedule} can check
+     * its identifier, deadline, and unwrapped command payload together.
+     * <p>
+     * Regular {@code @HandleSchedule} payloads are not included. Use {@link #expectOnlySchedules(Object...)} or
+     * {@link #expectNoSchedules()} when the assertion must also cover those schedules. This assertion requires
+     * a local scheduling client that exposes the active set; a remote fixture cannot infer it from observed writes.
+     * With no arguments, asserts that no active scheduled commands remain, not merely that none were added.
+     *
+     * @throws UnsupportedOperationException if this validator or its scheduling client cannot inspect active schedules
+     */
+    default Then<R> expectOnlyActiveScheduledCommands(Object... commands) {
+        throw new UnsupportedOperationException("This validator cannot inspect active scheduled commands");
+    }
+
+    /**
      * Asserts that none of the specified commands were scheduled during the {@code when} phase.
      *
      * @see #expectScheduledCommands(Object...)

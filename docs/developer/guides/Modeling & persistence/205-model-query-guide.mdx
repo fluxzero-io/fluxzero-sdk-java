@@ -12,6 +12,10 @@ uses the word “search”.
 
 ## Five independent choices
 
+Changing stored fields? [Model migration tests](../model-migration-tests) connects value-preserving upcasts,
+old-writer/new-reader reconstruction and queries before/after reindexing. A new read-time shape alone does not
+change the server's stored query paths.
+
 1. **Load source:** `EVENT_SOURCED` makes events authoritative; `DOCUMENT` alone makes the current Model document
    authoritative. With both, events remain authoritative for `loadModel` and identity-based Graph values.
 2. **Current Model document:** explicit `DOCUMENT` maintains one. An explicit child composition path or
