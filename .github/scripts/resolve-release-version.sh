@@ -56,8 +56,9 @@ case "$branch" in
       echo "Branch next/2.0 must declare release major 2" >&2
       exit 1
     fi
-    if [[ ! "$requested_version" =~ ^2\.0\.0-(M|RC)[1-9][0-9]*$ ]]; then
-      echo "Branch next/2.0 requires an explicit 2.0.0-Mn or 2.0.0-RCn version" >&2
+    # Keep historical spellings accepted for existing release reruns. New RCs use rc.<number>.
+    if [[ ! "$requested_version" =~ ^2\.0\.0-((M|RC)[1-9][0-9]*|rc\.[1-9][0-9]*)$ ]]; then
+      echo "Branch next/2.0 requires an explicit 2.0.0-Mn, legacy 2.0.0-RCn or 2.0.0-rc.n version" >&2
       exit 1
     fi
     printf '%s\n' "$requested_version"

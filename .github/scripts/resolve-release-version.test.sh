@@ -37,12 +37,25 @@ assert_version "2.0.0" main "" 2 $'1.244.0\n2.0.0-M1\n2.0.0-RC1'
 assert_version "2.1.0" main "" 2 $'2.0.0\n2.0.1\n2.0.0-RC1'
 assert_version "2.0.0-M1" next/2.0 "2.0.0-M1" 2
 assert_version "2.0.0-RC2" next/2.0 "2.0.0-RC2" 2
+assert_version "2.0.0-rc.11" next/2.0 "2.0.0-rc.11" 2
+assert_version "2.0.0-rc.12" next/2.0 "2.0.0-rc.12" 2
+assert_version "2.0.0" main "" 2 $'1.274.0\n2.0.0-RC10\n2.0.0-rc.11'
 assert_version "1.247.1" 1.x "1.247.1" 1
 
 assert_rejected next/2.0 "" 2
 assert_rejected next/2.0 "2.0.0" 2
 assert_rejected next/2.0 "2.1.0-M1" 2
 assert_rejected next/2.0 "2.0.0-M1" 1
+assert_rejected next/2.0 "2.0.0-rc.11" 1
+assert_rejected next/2.0 "2.1.0-rc.11" 2
+assert_rejected next/2.0 "2.0.0-rc.0" 2
+assert_rejected next/2.0 "2.0.0-rc.01" 2
+assert_rejected next/2.0 "2.0.0-rc." 2
+assert_rejected next/2.0 "2.0.0-rc.11.extra" 2
+assert_rejected next/2.0 "2.0.0-RC.11" 2
+assert_rejected main "2.0.0-rc.11" 2
+assert_rejected 1.x "2.0.0-rc.11" 1
+assert_rejected feature/example "2.0.0-rc.11" 2
 assert_rejected 1.x "1.248.0" 1
 assert_rejected 1.x "2.0.1" 1
 assert_rejected main "2.0.0-M1" 2
