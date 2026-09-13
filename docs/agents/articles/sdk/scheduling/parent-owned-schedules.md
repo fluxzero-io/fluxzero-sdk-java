@@ -80,5 +80,7 @@ fixture.givenCommands(new CreateReminder(reminderId))
 ```
 
 Test in-flight/stale commands separately. A persistence-backed integration test must await eventual cancellation.
+The asynchronous local fixture waits for accepted schedules, not rejected old-lifetime attempts or ignored `ifAbsent`
+requests. Dispatch assertions still report attempts made during When; active-schedule assertions check stored work.
 Ordinary schedules use the existing protocol. Ownership requires a supporting scheduling service; older or custom
 clients/services that do not implement it fail explicitly, never silently drop ownership.

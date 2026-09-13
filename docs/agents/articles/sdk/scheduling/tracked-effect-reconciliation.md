@@ -118,7 +118,7 @@ state prevents creation.
 
 ## Assert the complete active command set
 
-`expectOnlyScheduledCommands(...)` checks only commands **scheduled during When**. It can pass while an older
+`expectOnlyScheduledCommands(...)` checks only commands **dispatched for scheduling during When**. It can pass while an older
 schedule is still active. The local fixture's `expectOnlyActiveScheduledCommands(...)` checks all active scheduled
 commands and unwraps their payloads. Use a `Predicate<Schedule>` to include ID, deadline **and** command contents:
 

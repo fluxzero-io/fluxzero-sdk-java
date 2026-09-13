@@ -62,8 +62,10 @@ For generated OpenAPI or other discoverable contracts, request the served docume
 
 For schema evolution, read serialization. Increment `@Revision` on changed top-level payloads/documents and verify
 upcasters with `TestFixture.create().registerCasters(...).whenUpcasting(...)`. Preserve existing values when moving fields.
-For cleanup, `expectOnlyScheduledCommands` checks When-phase writes, not the whole active set; use
+For cleanup, `expectOnlyScheduledCommands` checks When-phase dispatch attempts, not the whole active set; use
 `expectOnlyActiveScheduledCommands` for active command payloads and `expectNoSchedules` for absence of both schedule kinds.
+The asynchronous local fixture waits only for accepted schedule work: a rejected old parent lifetime or ignored
+`ifAbsent` attempt neither replaces accepted pending work nor creates an additional consumer wait.
 
 For tracked handler failures that require compensation or a correction, use an asynchronous fixture and the error-corrections article. Assert the original `expectError(...)`, the triggered follow-up message, and its final observable result separately.
 

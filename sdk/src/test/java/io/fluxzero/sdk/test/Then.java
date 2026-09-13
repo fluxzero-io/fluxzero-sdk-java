@@ -207,6 +207,9 @@ public interface Then<R> {
      * or the corresponding {@link Fluxzero#scheduleCommand(Schedule)} helpers are considered; regular schedules
      * created with {@code schedule(...)} are ignored.
      * <p>
+     * These assertions observe dispatch attempts, including attempts later rejected or ignored by storage.
+     * Use {@link #expectOnlyActiveScheduledCommands(Object...)} to assert the accepted active set.
+     * <p>
      * Supported values for each command include:
      * <ul>
      *   <li>{@link Schedule} instances — matched against the original command payload and metadata, and the scheduled

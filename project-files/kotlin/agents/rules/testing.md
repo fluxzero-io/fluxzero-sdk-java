@@ -168,13 +168,15 @@ fixture.whenQuery(GetProject(projectId))
 
 ### Then Phase (Assertion)
 
-Schedule assertions have two independent dimensions: new writes versus active state, and ordinary schedules versus
-scheduled commands. `expectOnlyScheduledCommands(...)` unwraps commands **written during When only**.
+Schedule assertions have two independent dimensions: dispatch attempts versus active state, and ordinary schedules versus
+scheduled commands. `expectOnlyScheduledCommands(...)` unwraps commands **dispatched during When only**.
 `expectOnlyActiveScheduledCommands(...)` unwraps **all active commands**, including Given/earlier phases, and checks
 that none are left over. No arguments assert zero active commands; `expectNoSchedules()` checks both schedule kinds.
 For ID/deadline/payload together, pass a `java.util.function.Predicate<Schedule>`; a plain Schedule expectation
 does not compare its ID. The complete-active command helper requires a local scheduling client and explicitly
 rejects remote clients rather than asserting an unknown inventory is empty.
+The asynchronous local fixture waits for accepted schedule work, not rejected old-lifetime attempts or ignored
+`ifAbsent` requests. Those attempts remain observable in dispatch assertions but cannot replace accepted pending work.
 
 Assert and validate the outcomes of the `When` phase. Use **Error Interfaces** for clean exception assertions.
 

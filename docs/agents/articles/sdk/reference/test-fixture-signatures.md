@@ -143,9 +143,9 @@ expectOnlyScheduledCommands(Object... expected)
 expectOnlyActiveScheduledCommands(Object... expected)
 ```
 
-`expectOnlyNewSchedules` checks When-phase writes. `expectOnlySchedules` checks all active schedules, but scheduled
+`expectOnlyNewSchedules` checks When-phase dispatch attempts. `expectOnlySchedules` checks all active schedules, but scheduled
 commands are still wrapped in `ScheduledCommand`. `expectOnlyScheduledCommands` unwraps commands from **When-phase
-writes only**. `expectOnlyActiveScheduledCommands` unwraps commands from **all active schedules**, including Given and
+dispatch attempts only**. `expectOnlyActiveScheduledCommands` unwraps commands from **all active schedules**, including Given and
 earlier phases. It excludes ordinary `@HandleSchedule` payloads; `expectNoSchedules()` checks absence of both kinds.
 Complete-active assertions use the local fixture store. The new command assertion fails explicitly with a non-local
 scheduling client rather than treating observed remote writes as a complete inventory.

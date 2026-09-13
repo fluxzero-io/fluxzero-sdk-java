@@ -167,6 +167,9 @@ import static java.util.stream.Stream.empty;
  *   <li>Non-local handlers are scheduled and dispatched asynchronously</li>
  *   <li>Handlers annotated with {@code @LocalHandler} still execute locally (on the calling thread)</li>
  * </ul>
+ * With local scheduling, consumer waiting follows accepted stored schedules, not rejected or ignored scheduling
+ * attempts. Dispatch assertions still observe attempts; use active-schedule assertions to verify stored work.
+ * <p>
  * Outbound web requests always use the fixture's in-memory request route, even when their
  * {@link io.fluxzero.sdk.web.WebRequestSettings} select native HTTP execution. This keeps registered mock endpoints
  * active. Native redirect policies are ignored rather than simulated. Configured retry counts and retryable response
@@ -430,7 +433,7 @@ public class TestFixture implements Given<TestFixture>, When {
         this.interceptor = new GivenWhenThenInterceptor(this);
         var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
         client = trackRemoteDocumentUpdates(client);
-        client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
+        monitorClientDispatch(client, dispatchInterceptor);
         Clock fixtureClock = Clock.fixed(Instant.now().truncatedTo(ChronoUnit.MILLIS), ZoneId.systemDefault());
         fluxzeroBuilder = fluxzeroBuilder.disableShutdownHook()
                 .disableApplicationLifecycleMetrics()
@@ -497,7 +500,7 @@ public class TestFixture implements Given<TestFixture>, When {
         var newClient = currentClient instanceof LocalClient
                 ? LocalClient.newInstance(null) : currentClient;
         newClient = trackRemoteDocumentUpdates(newClient);
-        newClient.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
+        monitorClientDispatch(newClient, dispatchInterceptor);
         this.handlerFluxzero = new FixtureFluxzero(fluxzeroBuilder.build(
                 spying ? new SpyingClient(newClient) : newClient));
         this.fluxzero = spying ? new SpyingFluxzero(handlerFluxzero) : handlerFluxzero;
@@ -510,6 +513,28 @@ public class TestFixture implements Given<TestFixture>, When {
     /*
         Modifications
      */
+
+    private void monitorClientDispatch(Client client, LowPriorityDispatchInterceptor dispatchInterceptor) {
+        if (client.getSchedulingClient() instanceof LocalSchedulingClient local) {
+            // Register directly: a caller-supplied client may already have created its scheduling gateway.
+            // Client-wide monitors only attach while a gateway is first initialized.
+            client.monitorDispatch(dispatchInterceptor::interceptClientDispatch,
+                                   Arrays.stream(MessageType.values()).filter(t -> t != SCHEDULE)
+                                           .toArray(MessageType[]::new));
+            interceptor.schedulingMonitors.computeIfAbsent(local, schedulingClient -> {
+                Registration schedules = schedulingClient.registerMonitor(
+                        messages -> dispatchInterceptor.interceptClientDispatch(
+                                SCHEDULE, null, client.namespace(), messages));
+                client.beforeShutdown(() -> {
+                    schedules.cancel();
+                    interceptor.schedulingMonitors.remove(schedulingClient, schedules);
+                });
+                return schedules;
+            });
+        } else {
+            client.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
+        }
+    }
 
     private Client trackRemoteDocumentUpdates(Client client) {
         return client.unwrap() instanceof LocalClient ? client : new DocumentTrackingClient(client, interceptor);
@@ -2217,6 +2242,7 @@ public class TestFixture implements Given<TestFixture>, When {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
+        private final Map<LocalSchedulingClient, Registration> schedulingMonitors = new ConcurrentHashMap<>();
         private final Map<InterceptedMessage, DispatchOrigin> dispatchOrigins = new ConcurrentHashMap<>();
         private final ConcurrentLinkedQueue<Message> storedEvents = new ConcurrentLinkedQueue<>();
 
@@ -2227,13 +2253,25 @@ public class TestFixture implements Given<TestFixture>, When {
             for (SerializedMessage serializedMessage : messages) {
                 InterceptedMessage key = new InterceptedMessage(
                         messageType, topic, serializedMessage.getMessageId());
-                if (dispatchOrigins.remove(key, DispatchOrigin.SDK)) {
-                    recordStoredPosition(messageType, topic, serializedMessage);
-                    continue;
-                }
                 try {
-                    DeserializingMessage message = testFixture.fluxzero.serializer()
-                            .deserializeMessages(Stream.of(serializedMessage), messageType).findFirst().orElseThrow();
+                    DeserializingMessage message = null;
+                    if (tracksStoredSchedules(messageType, namespace)) {
+                        message = testFixture.fluxzero.serializer().deserializeMessage(serializedMessage, messageType);
+                        // Local schedule monitors report only accepted writes, unlike SDK dispatch attempts.
+                        // A rejected lifetime or ignored ifAbsent must not replace accepted pending work.
+                        registerPendingMessage(message.toMessage(), messageType, topic, namespace,
+                                               serializedMessage.getSegment(), serializedMessage.getIndex());
+                    }
+                    if (dispatchOrigins.remove(key, DispatchOrigin.SDK)) {
+                        if (message == null) {
+                            recordStoredPosition(messageType, topic, serializedMessage);
+                        }
+                        continue;
+                    }
+                    if (message == null) {
+                        message = testFixture.fluxzero.serializer()
+                                .deserializeMessages(Stream.of(serializedMessage), messageType).findFirst().orElseThrow();
+                    }
                     if (dispatchStoredEvent) {
                         storedEvents.add(message.toMessage());
                         continue;
@@ -2296,6 +2334,32 @@ public class TestFixture implements Given<TestFixture>, When {
                 testFixture.requestDispatches.add(message.getMessageId());
             }
 
+            if (!tracksStoredSchedules(messageType, namespace)) {
+                registerPendingMessage(message, messageType, topic, namespace, segment, index);
+            }
+
+            if (captureMessage(message, messageType, topic)) {
+                switch (messageType) {
+                    case COMMAND -> testFixture.registerCommand(message);
+                    case QUERY -> testFixture.registerQuery(message);
+                    case EVENT -> testFixture.registerEvent(message);
+                    case SCHEDULE -> testFixture.registerSchedule((Schedule) message);
+                    case WEBREQUEST -> testFixture.registerWebRequest(message);
+                    case WEBRESPONSE -> testFixture.registerWebResponse((WebResponse) message);
+                    case METRICS -> testFixture.registerMetric(message);
+                    case CUSTOM -> testFixture.registerCustom(topic, message);
+                }
+            }
+        }
+
+        private boolean tracksStoredSchedules(MessageType messageType, String namespace) {
+            return messageType == SCHEDULE
+                   && Objects.equals(namespace, testFixture.fluxzero.client().namespace())
+                   && testFixture.fluxzero.client().getSchedulingClient() instanceof LocalSchedulingClient;
+        }
+
+        private void registerPendingMessage(Message message, MessageType messageType, String topic, String namespace,
+                                            Integer segment, Long index) {
             if (messageType == SCHEDULE) {
                 addMessage(publishedSchedules, (Schedule) message);
             }
@@ -2323,19 +2387,6 @@ public class TestFixture implements Given<TestFixture>, When {
 
                             );
                         }).forEach(e -> e.getValue().add(message, segment, index));
-            }
-
-            if (captureMessage(message, messageType, topic)) {
-                switch (messageType) {
-                    case COMMAND -> testFixture.registerCommand(message);
-                    case QUERY -> testFixture.registerQuery(message);
-                    case EVENT -> testFixture.registerEvent(message);
-                    case SCHEDULE -> testFixture.registerSchedule((Schedule) message);
-                    case WEBREQUEST -> testFixture.registerWebRequest(message);
-                    case WEBRESPONSE -> testFixture.registerWebResponse((WebResponse) message);
-                    case METRICS -> testFixture.registerMetric(message);
-                    case CUSTOM -> testFixture.registerCustom(topic, message);
-                }
             }
         }
 
