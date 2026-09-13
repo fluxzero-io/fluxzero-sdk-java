@@ -148,7 +148,7 @@
     {
       "path": "/docs/sdk/principles",
       "title": "SDK Principles",
-      "summary": "The defaults that keep Fluxzero applications deterministic, testable, and easy for agents to extend.",
+      "summary": "Core SDK principles, including cohesive details value objects versus configuration, identity, status and execution state.",
       "source": "articles/sdk/principles.md",
       "symbols": [
         "@Apply",
@@ -156,7 +156,9 @@
         "Fluxzero.currentTime()",
         "Fluxzero.search(...)",
         "Request<T>",
-        "Fluxzero.publishEvent(...)"
+        "Fluxzero.publishEvent(...)",
+        "details value object",
+        "RenameProject"
       ],
       "links": [
         {
@@ -174,6 +176,14 @@
         {
           "description": "create a first app",
           "path": "/docs/recipes/create-app"
+        },
+        {
+          "description": "Choose details and state fields, with validated Java creation and rename",
+          "path": "/docs/sdk/models/state-java"
+        },
+        {
+          "description": "Choose details and state fields, with validated Kotlin creation and rename",
+          "path": "/docs/sdk/models/state-kotlin"
         }
       ]
     },
@@ -6488,7 +6498,7 @@
     {
       "path": "/docs/sdk/models",
       "title": "Models and Graphs in SDK v2",
-      "summary": "Start new Java/Kotlin domain state with Models: lifecycle, automatic commands, atomic commits, lazy Graphs and scoped conflict detection.",
+      "summary": "Start new Java/Kotlin state with Models: details and status, lifecycle, validated commands, atomic commits and lazy Graphs.",
       "source": "articles/sdk/models/index.md",
       "symbols": [
         "@Model",
@@ -6575,7 +6585,7 @@
     {
       "path": "/docs/sdk/models/state-java",
       "title": "Model state and lifecycle (Java)",
-      "summary": "Core rules, Define a model, Embedded members for SDK v2 java applications.",
+      "summary": "Choose cohesive details and settings versus identity, relationships, status and execution bookkeeping; validate creation and targeted changes without a separate Model or Member.",
       "source": "articles/sdk/models/state-java.md",
       "symbols": [
         "@Model",
@@ -6584,7 +6594,13 @@
         "@EntityId",
         "@DocumentProjection",
         "parentScoped",
-        "java"
+        "java",
+        "ProjectDetails",
+        "RenameProject",
+        "@Valid",
+        "details value object",
+        "configuration",
+        "execution bookkeeping"
       ],
       "links": [
         {
@@ -6733,7 +6749,7 @@
     {
       "path": "/docs/sdk/models/state-kotlin",
       "title": "Model state and lifecycle (Kotlin)",
-      "summary": "Core rules, Define a model, Embedded members for SDK v2 kotlin applications.",
+      "summary": "Choose cohesive details and settings versus identity, relationships, status and execution bookkeeping; validate creation and targeted changes without a separate Model or Member.",
       "source": "articles/sdk/models/state-kotlin.md",
       "symbols": [
         "@Model",
@@ -6742,7 +6758,13 @@
         "@EntityId",
         "@DocumentProjection",
         "parentScoped",
-        "kotlin"
+        "kotlin",
+        "ProjectDetails",
+        "RenameProject",
+        "@Valid",
+        "details value object",
+        "configuration",
+        "execution bookkeeping"
       ],
       "links": [
         {

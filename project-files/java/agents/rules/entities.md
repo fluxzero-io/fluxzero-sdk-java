@@ -33,19 +33,64 @@ compatibility boundary for already persisted aggregate state.
    independently living state a member.
 8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
 
+## Choose details, configuration and state
+
+Business details copied into Model state belong in a cohesive immutable value object, even if it initially contains
+only `name`. Choose the group by domain meaning and shared validation, not by field count or Java/Kotlin type.
+
+| Kind of field | Put it where | Examples and boundary |
+| --- | --- | --- |
+| Descriptive business data | A details value object | `ProjectDetails(name, description)`; start with `ProjectDetails(name)` if that is all the product needs. |
+| Configuration / desired policy | A focused settings value object | `NotificationSettings` groups related choices; do not mix unrelated settings into descriptive details. |
+| Identity | On the Model, with a typed ID | `@EntityId ProjectId projectId` is not an editable detail. |
+| Relationships | An explicit typed reference on the Model | `ownerId` or `@Parent workspaceId`; a reference is not the related Model's details. |
+| Current status / control | A simple Model field, or a focused state value when several fields form one invariant | `archived`, `status`, `completedAt`; a business date such as a requested delivery date belongs with its business details instead. |
+| Execution bookkeeping | Separate from editable details | `attemptCount`, `lastAttemptAt`, `nextRunAt`; group as execution state if cohesive, or use a separate Model if it has its own lifecycle. |
+
+A boolean can be a user preference or observed state; a timestamp can be business input or execution bookkeeping.
+Their meaning decides placement. A details object is not a bag for every field left over after the ID.
+Use multiple small named values when the concepts differ. It has no independently addressable lifecycle:
+plain `ProjectDetails` needs neither `@Model`, `@EntityId` nor `@Member`. Replacing that value is a change to
+its owning Model, not a separate entity update. The Model/Member lifecycle rules still apply to actual entities.
+
 ## Define a model
 
 ```java
 @Model
+@With
 public record Project(
         @EntityId ProjectId projectId,
         ProjectDetails details,
         UserId ownerId) {
 }
+
+@With
+public record ProjectDetails(
+        @NotBlank String name,
+        @Size(max = 500) String description) {
+}
 ```
 
-Assume conventional typed `ProjectId` and `ProjectDetails` value types; do not expand obvious ID or details
-definitions unless the user asks for them.
+Java uses Lombok `@With` and Jakarta Validation constraints.
+`ProjectId` and `UserId` are application-owned typed IDs; `Sender` is the application's `User` implementation.
+
+The creation command carries the whole details value and uses `@Valid` to cascade into its constraints.
+A focused `RenameProject(id, name)` is still the right contract for renaming: command shape expresses intent,
+not the stored object's shape. Validate its new name and replace only that field of the existing details.
+Keep the description, identity and owner unchanged; do not construct an otherwise empty replacement details object.
+Reserve whole-details replacement for an operation that intentionally edits the whole group.
+
+Bean constraints validate incoming values; `@AssertLegal` protects state-dependent rules such as ownership.
+`@Apply` only constructs the new immutable state. For a rule involving both the changed field and retained fields,
+validate that combined candidate in `@AssertLegal` as well; a field constraint alone cannot express that rule.
+The SDK does not automatically validate every returned Model. Enable cascaded bean validation at each input boundary
+that accepts details; simply annotating a field inside `ProjectDetails` does not cascade from an unannotated command.
+
+This is a modeling convention, not a new SDK restriction. For already stored Models, moving `name` to `details.name`
+changes serialized shape and query paths: plan the appropriate event/document upcasting or migration rather than
+silently renaming fields in an existing application's history.
+
+## Storage is a separate choice
 
 The default above is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
 read requirement. Use [the central Model query matrix](model-queries.md).
@@ -88,8 +133,8 @@ make an `EVENT_SOURCED` Model directly searchable nor change its load path. Even
 Creation:
 
 ```java
-public record CreateProject(ProjectId projectId,
-                            ProjectDetails details) {
+public record CreateProject(@NotNull ProjectId projectId,
+                            @NotNull @Valid ProjectDetails details) {
     @Apply
     Project apply(Sender sender) {
         return new Project(
@@ -101,8 +146,8 @@ public record CreateProject(ProjectId projectId,
 Update:
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
+public record RenameProject(@NotNull ProjectId projectId,
+                            @NotBlank String name) {
     @Apply
     Project apply(Project project) {
         return new Project(
@@ -154,8 +199,8 @@ on it inside `@Apply`; the apply has not returned its change yet.
 ## Assertions and interceptors
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
+public record RenameProject(@NotNull ProjectId projectId,
+                            @NotBlank String name) {
     @AssertLegal
     void assertOwner(Project project, Sender sender) {
         if (!project.ownerId().equals(sender.userId())) {

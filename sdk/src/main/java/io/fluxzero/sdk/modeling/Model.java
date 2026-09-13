@@ -60,13 +60,17 @@ import java.lang.annotation.Target;
  * <h2>Example</h2>
  * <pre>{@code
  * @Model
- * public record Product(@EntityId ProductId productId, String name) {
+ * public record Product(@EntityId ProductId productId, ProductDetails details) {
  *     @Apply
  *     Product rename(RenameProduct command) {
- *         return new Product(productId, command.name());
+ *         return new Product(productId, details.withName(command.name()));
  *     }
  * }
  * }</pre>
+ * Here {@code ProductDetails} is an immutable business value with a copy method such as Lombok's generated
+ * {@code withName}. Use a cohesive details value even when the only descriptive field is a name; keep identity,
+ * relationships and simple status distinct. A plain details value needs neither {@code @Model} nor {@link Member}.
+ * A focused rename command may carry a scalar while replacing only that field in the existing details.
  * An update may instead create or update the model from a payload-side {@code @Apply}. When both sides define an
  * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
  * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.

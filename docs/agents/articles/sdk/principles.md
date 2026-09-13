@@ -4,6 +4,11 @@ Core rules for agents:
 
 - Put commands, queries, and typed IDs in an `api` package; put Models and value objects in `api.model`; keep handlers and endpoints near the domain package.
 - Keep Model state immutable. Choose independent lifecycle boundaries with `@Model` plus `@Parent`; reserve `@Member` for root-owned state. Use Java records for payloads and value objects where possible.
+- Put descriptive business data copied into Model state in a cohesive details value object, even for just `name`.
+  Group related configuration separately as settings. Keep typed identity, relationships, simple current status and
+  execution bookkeeping distinct; do not make details a catch-all. A plain value needs neither `@Model` nor `@Member`.
+  Creation can accept validated details, while `RenameProject(id, name)` updates only `details.name` and preserves
+  other fields. The Java/Kotlin Model-state articles give selection criteria and a complete validated example.
 - Keep `@Apply` methods pure. They create, update, or delete state and are replayed during event sourcing, so they must not load data, search, call services, generate IDs, call `User.getCurrent()`, or use wall-clock time. Inject persisted message context such as `Sender` or timestamp explicitly.
 - Put business invariants and state-dependent authorization in `@AssertLegal`, not in controllers or UI code.
 - Prefer typed payloads. Commands are imperative, queries implement `Request<T>`, and present-tense command payloads usually become the event stream.

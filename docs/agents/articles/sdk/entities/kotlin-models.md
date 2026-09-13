@@ -1,28 +1,33 @@
 # Kotlin Models And Updates
 
 The Model lifecycle and commit rules are the same in Java and Kotlin. Use immutable data classes, typed IDs and
-`copy(...)` for state changes. This example keeps both events and a direct current document:
+`copy(...)` for state changes. This example uses plain event-sourced `@Model`, without a direct current document.
+Descriptive data belongs in a details value even for one field; identity stays on the Model. See
+`/docs/sdk/models/state-kotlin` for selection criteria and a full example with ownership and retained details.
 
 ```kotlin
 import io.fluxzero.sdk.modeling.EntityId
 import io.fluxzero.sdk.modeling.Id
 import io.fluxzero.sdk.modeling.Model
-import io.fluxzero.sdk.modeling.ModelPersistence
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
 
 class ProjectId(value: String) : Id<Project>(value, "project-")
 
 @Model
-data class Project(@EntityId val projectId: ProjectId, val name: String)
+data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
-data class CreateProject(val projectId: ProjectId, val name: String) {
+data class ProjectDetails(@field:NotBlank val name: String)
+
+data class CreateProject(val projectId: ProjectId, @field:Valid val details: ProjectDetails) {
     @Apply
-    fun apply() = Project(projectId, name)
+    fun apply() = Project(projectId, details)
 }
 
-data class RenameProject(val projectId: ProjectId, val name: String) {
+data class RenameProject(val projectId: ProjectId, @field:NotBlank val name: String) {
     @Apply
-    fun apply(project: Project) = project.copy(name = name)
+    fun apply(project: Project) = project.copy(details = project.details.copy(name = name))
 }
 
 data class DeleteProject(val projectId: ProjectId) {

@@ -78,7 +78,7 @@ Use `@Alias` when an independently stored model must also be addressable by a cu
 record Customer(
         @EntityId CustomerId customerId,
         @Alias(prefix = "email:") String email,
-        String name) {
+        CustomerDetails details) {
 }
 
 Customer customer = Fluxzero.loadModel(
@@ -149,7 +149,7 @@ Select document persistence to load the current model directly from its synchron
 
 ```java
 @Model(persistence = ModelPersistence.DOCUMENT)
-record Country(@EntityId CountryId countryId, String name) {
+record Country(@EntityId CountryId countryId, CountryDetails details) {
 }
 ```
 

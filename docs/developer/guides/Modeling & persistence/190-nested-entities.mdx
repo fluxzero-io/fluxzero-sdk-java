@@ -43,7 +43,7 @@ The relation may point to the same Model type, which makes recursive domains suc
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
-        String name) {
+        FolderDetails details) {
 }
 ```
 

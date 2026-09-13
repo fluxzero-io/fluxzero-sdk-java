@@ -5,7 +5,7 @@
 ```kotlin
 data class CreateProject(
     val projectId: ProjectId,
-    val details: ProjectDetails
+    @field:Valid val details: ProjectDetails
 ) {
     @Apply
     fun apply(sender: Sender) =
@@ -14,12 +14,12 @@ data class CreateProject(
 
 data class RenameProject(
     val projectId: ProjectId,
-    val name: String
+    @field:NotBlank val name: String
 ) {
     @Apply
     fun apply(project: Project) =
         project.copy(
-            details = project.details.withName(name)
+            details = project.details.copy(name = name)
         )
 }
 
@@ -56,7 +56,7 @@ call or wait on it inside `@Apply`; the apply has not returned its change yet.
 ```kotlin
 data class RenameProject(
     val projectId: ProjectId,
-    val name: String
+    @field:NotBlank val name: String
 ) {
     @AssertLegal
     fun assertOwner(project: Project, sender: Sender) {
@@ -72,7 +72,7 @@ data class RenameProject(
     @Apply
     fun apply(project: Project) =
         project.copy(
-            details = project.details.withName(name)
+            details = project.details.copy(name = name)
         )
 }
 ```

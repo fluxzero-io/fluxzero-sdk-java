@@ -1,0 +1,167 @@
+---
+title: Designing Model state
+slug: docs/guides/modeling-and-persistence/model-state
+description: Choose details, settings, identity and status fields, and validate focused Model commands
+sidebar:
+   order: 195
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+# Design the state before choosing storage
+
+Start with plain `@Model`. Decide which state has an independent lifecycle, then which values belong together
+inside that Model. These are domain choices, independent of event sourcing, documents or Graph materialization.
+
+## Choose details, configuration and state
+
+Business details copied into Model state belong in a cohesive immutable value object, even if it initially contains
+only `name`. Choose the group by domain meaning and shared validation, not by field count or Java/Kotlin type.
+
+| Kind of field | Put it where | Examples and boundary |
+| --- | --- | --- |
+| Descriptive business data | A details value object | `ProjectDetails(name, description)`; start with `ProjectDetails(name)` if that is all the product needs. |
+| Configuration / desired policy | A focused settings value object | `NotificationSettings` groups related choices; do not mix unrelated settings into descriptive details. |
+| Identity | On the Model, with a typed ID | `@EntityId ProjectId projectId` is not an editable detail. |
+| Relationships | An explicit typed reference on the Model | `ownerId` or `@Parent workspaceId`; a reference is not the related Model's details. |
+| Current status / control | A simple Model field, or a focused state value when several fields form one invariant | `archived`, `status`, `completedAt`; a business date such as a requested delivery date belongs with its business details instead. |
+| Execution bookkeeping | Separate from editable details | `attemptCount`, `lastAttemptAt`, `nextRunAt`; group as execution state if cohesive, or use a separate Model if it has its own lifecycle. |
+
+A boolean can be a user preference or observed state; a timestamp can be business input or execution bookkeeping.
+Their meaning decides placement. A details object is not a bag for every field left over after the ID.
+Use multiple small named values when the concepts differ. It has no independently addressable lifecycle:
+plain `ProjectDetails` needs neither `@Model`, `@EntityId` nor `@Member`. Replacing that value is a change to
+its owning Model, not a separate entity update. The Model/Member lifecycle rules still apply to actual entities.
+
+## One Project, from creation to rename
+
+This example starts with a name and an optional description. If only a name is needed initially, keep the same
+`ProjectDetails` boundary with just that field; do not add speculative fields. `ProjectId` and `UserId` are
+application-owned typed IDs. `Sender` is the application's authenticated `User` implementation exposing
+`userId()`, not another user ID sent in a command.
+
+The creation command carries the whole details value and uses `@Valid` to cascade into its constraints.
+A focused `RenameProject(id, name)` is still the right contract for renaming: command shape expresses intent,
+not the stored object's shape. Validate its new name and replace only that field of the existing details.
+Keep the description, identity and owner unchanged; do not construct an otherwise empty replacement details object.
+Reserve whole-details replacement for an operation that intentionally edits the whole group.
+
+<Tabs>
+  <TabItem label="Java">
+
+Java uses Lombok `@With` and Jakarta Validation's `@NotBlank`, `@NotNull`, `@Size` and `@Valid`.
+Put public records in their own source files.
+
+```java
+@Model
+@With
+public record Project(
+        @EntityId ProjectId projectId,
+        ProjectDetails details,
+        UserId ownerId) {
+}
+
+@With
+public record ProjectDetails(
+        @NotBlank String name,
+        @Size(max = 500) String description) {
+}
+```
+
+```java
+public record CreateProject(@NotNull ProjectId projectId,
+                            @NotNull @Valid ProjectDetails details) {
+    @Apply
+    Project apply(Sender sender) {
+        return new Project(projectId, details, sender.userId());
+    }
+}
+
+public record RenameProject(@NotNull ProjectId projectId,
+                            @NotBlank String name) {
+    @AssertLegal
+    void assertOwner(Project project, Sender sender) {
+        if (!project.ownerId().equals(sender.userId())) {
+            throw new UnauthorizedException("Not allowed to rename project");
+        }
+    }
+
+    @Apply
+    Project apply(Project project) {
+        return project.withDetails(project.details().withName(name));
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+Kotlin uses `copy` and Jakarta Validation's explicit `@field:` use-site targets. Required constructor values
+are non-null.
+
+The payload must first deserialize. Default blank-string normalization produces null, so a serialized blank for
+the non-null `name` fails during deserialization before bean validation; its exception type differs from local
+bean-validation rejection. Both prevent the Model write.
+
+```kotlin
+@Model
+data class Project(
+    @EntityId val projectId: ProjectId,
+    val details: ProjectDetails,
+    val ownerId: UserId
+)
+
+data class ProjectDetails(
+    @field:NotBlank val name: String,
+    @field:Size(max = 500) val description: String?
+)
+```
+
+```kotlin
+data class CreateProject(
+    val projectId: ProjectId,
+    @field:Valid val details: ProjectDetails
+) {
+    @Apply
+    fun apply(sender: Sender) = Project(projectId, details, sender.userId())
+}
+
+data class RenameProject(
+    val projectId: ProjectId,
+    @field:NotBlank val name: String
+) {
+    @AssertLegal
+    fun assertOwner(project: Project, sender: Sender) {
+        if (project.ownerId != sender.userId()) {
+            throw UnauthorizedException("Not allowed to rename project")
+        }
+    }
+
+    @Apply
+    fun apply(project: Project) =
+        project.copy(details = project.details.copy(name = name))
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Creating `ProjectDetails("Launch", "Keep this description")` and then sending `RenameProject(id, "Release")`
+must leave the description and owner unchanged. A blank create/rename name is rejected; creation also rejects a
+description longer than 500 characters. A different owner cannot rename the Project. No pass-through command
+handler is necessary: the applicable Model `@Apply` methods provide automatic handling.
+
+Bean constraints validate incoming values; `@AssertLegal` protects state-dependent rules such as ownership.
+`@Apply` only constructs the new immutable state. For a rule involving both the changed field and retained fields,
+validate that combined candidate in `@AssertLegal` as well; a field constraint alone cannot express that rule.
+The SDK does not automatically validate every returned Model. Enable cascaded bean validation at each input boundary
+that accepts details; simply annotating a field inside `ProjectDetails` does not cascade from an unannotated command.
+
+This is a modeling convention, not a new SDK restriction. For already stored Models, moving `name` to `details.name`
+changes serialized shape and query paths: plan the appropriate event/document upcasting or migration rather than
+silently renaming fields in an existing application's history.
+
+Continue with [Model persistence](../model-persistence) and
+[the Model/Graph query matrix](../model-query-guide) for independent storage and read choices.
+See [updating entities](../updating-entities) for action phases and
+[payload validation](/docs/guides/messaging/payload-validation) for additional validation patterns.

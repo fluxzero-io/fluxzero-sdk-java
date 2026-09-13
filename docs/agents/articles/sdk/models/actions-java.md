@@ -5,8 +5,8 @@
 Creation:
 
 ```java
-public record CreateProject(ProjectId projectId,
-                            ProjectDetails details) {
+public record CreateProject(@NotNull ProjectId projectId,
+                            @NotNull @Valid ProjectDetails details) {
     @Apply
     Project apply(Sender sender) {
         return new Project(
@@ -18,8 +18,8 @@ public record CreateProject(ProjectId projectId,
 Update:
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
+public record RenameProject(@NotNull ProjectId projectId,
+                            @NotBlank String name) {
     @Apply
     Project apply(Project project) {
         return new Project(
@@ -71,8 +71,8 @@ on it inside `@Apply`; the apply has not returned its change yet.
 ## Assertions and interceptors
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
+public record RenameProject(@NotNull ProjectId projectId,
+                            @NotBlank String name) {
     @AssertLegal
     void assertOwner(Project project, Sender sender) {
         if (!project.ownerId().equals(sender.userId())) {
