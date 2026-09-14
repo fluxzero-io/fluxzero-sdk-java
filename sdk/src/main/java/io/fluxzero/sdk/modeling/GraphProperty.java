@@ -30,6 +30,10 @@ import java.lang.annotation.Target;
  * serialized by itself, and resolving its parameters reuses the graph that is already being serialized. Response-wide
  * values attached through {@link Graph#withContext(Object...)} are available through
  * {@link Graph#context(Class)} and never become persisted model state.</p>
+ * <p>For example, store a selected child ID once on a parent and derive a child's {@code primary} flag from the
+ * injected ancestor Graph. Use that pinned Graph, not {@link Graph#current()}, to avoid mixing revisions. This
+ * annotation adds a serialized view; it does not enforce selection integrity or clear references on move/deletion.
+ * Express those rules with {@link AssertLegal} and the normal atomic Model actions.</p>
  */
 @Documented
 @Target(ElementType.METHOD)

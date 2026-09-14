@@ -1,5 +1,7 @@
 # Models and state
 
+For complete companion, derived-preference and execution examples, read [Model recipes](model-recipes.md).
+
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
 (Kotlin: kapt) in every Model contract module; Model declarations contribute
 `META-INF/io.fluxzero.sdk.modeling.Model`. Rebuild older contract JARs to generate this index. A classic shaded JAR
@@ -518,6 +520,22 @@ Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or
 command, or when a tracked scheduling consumer must decide which deadlines still belong to a Model despite handling
 an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
 before/after processing on injected Models/Graphs; do not use current loading as the default route.
+
+A newly evaluated Model operation with injected Graph dependencies establishes its initial read boundary at storage,
+even when the root Model is already cached. A root's cached revision alone cannot prove that no child was added,
+removed or moved. Relationships remain lazy, and once selected the boundary stays pinned through the evaluation;
+RETRY reevaluates at a new boundary, while historical event handling keeps its event boundary. Nested assertions
+and interceptor replacements conservatively establish this boundary too because they can introduce Graph parameters.
+Plain Model operations without these dependencies retain their cache fast path. Pending writes and cache entries
+belong to the owning repository family and namespace, never to another application sharing a cache or active batch.
+
+Open `graph.current()` for the same Model at a new current boundary without replacing the historical Graph.
+It retains the exact repository ID and owning repository/namespace, including affixes and parent scope. The result
+pins its new boundary during the call, stays lazy and captures the current message-batch overlay; it is not a live view.
+A moved node gets current parents; a deleted Model is empty. Filters, mapped values, staged Graph edits and response
+context are not copied. Reapply presentation/content filters to the new view. Unknown nodes and custom repositories
+without exact-current support fail explicitly. Keep invariant checks on injected Graphs: the fresh view does not inherit
+their transactional read provenance.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.

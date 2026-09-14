@@ -128,8 +128,16 @@ public final class Graphs {
 
     private static <T> Graph<T> resolvedRoot(Object requested, Class<T> expected, ModelRepository repository,
                                             ModelBatchScope.Snapshot snapshot, ModelGraphResolver.Identity identity) {
-        String primary = expected == Object.class ? requested.toString() : EntityMetadata.validate(expected).repositoryId(requested);
-        Entity<?> overlay = snapshot.overlayIdentity(primary, expected, identity.modelId(), identity.present());
+        return resolvedRoot(requested, expected, repository, snapshot, identity, false);
+    }
+
+    private static <T> Graph<T> resolvedRoot(Object requested, Class<T> expected, ModelRepository repository,
+                                            ModelBatchScope.Snapshot snapshot, ModelGraphResolver.Identity identity,
+                                            boolean exact) {
+        String primary = exact || expected == Object.class ? requested.toString()
+                : EntityMetadata.validate(expected).repositoryId(requested);
+        Entity<?> overlay = exact ? snapshot.overlayExactIdentity(primary, expected)
+                : snapshot.overlayIdentity(primary, expected, identity.modelId(), identity.present());
         if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(requested.toString())) {
             Entity<?> alias = snapshot.overlayIdentity(requested.toString(), expected, identity.modelId(), identity.present());
             if (alias != null && alias.isPresent()) {
@@ -150,6 +158,17 @@ public final class Graphs {
     public static <T> Graph<T> lazyRepositoryId(
             String repositoryId, Class<T> modelType, ModelRepository repository) {
         return GraphState.identity(repositoryId, repositoryId, true, modelType, repository).root();
+    }
+
+    static <T> Graph<T> current(String repositoryId, Class<T> modelType, ModelRepository repository) {
+        if (repository instanceof ModelGraphResolver resolver && EntityMetadata.of(modelType).isModel()) {
+            ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
+            ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(repositoryId, true, modelType);
+            if (identity != null) {
+                return resolvedRoot(repositoryId, modelType, repository, snapshot, identity, true);
+            }
+        }
+        throw new UnsupportedOperationException("Graph.current() requires repository support for exact current Model reads");
     }
 
     /** Creates a detached graph for a parent-scoped model. */
@@ -214,6 +233,15 @@ public final class Graphs {
                 ModelReadBoundary.state(stateIndex, false));
     }
 
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Entity<?> overlayStaged(Entity<?> durable, Entity<?> staged) {
+        // Use the already captured, repository-owned values; do not consult an ambient batch a second time.
+        return durable instanceof ImmutableEntity<?> immutable
+                ? immutable.toBuilder().id(staged.id()).type((Class) staged.type())
+                        .idProperty(EntityMetadata.of(staged.type()).entityIdName()).value(staged.get()).build()
+                : staged;
+    }
+
     /** Creates a complete graph while retaining its exact repository boundary for lazy relationship loads. */
     public static <T> Graph<T> compose(
             String rootId, long stateIndex, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
@@ -243,9 +271,7 @@ public final class Graphs {
                         rootId, (Class) stagedRoot.type(),
                         EntityMetadata.validate(stagedRoot.type()).entityId().orElseThrow().name(), null);
             }
-            Entity<?> deleted = ModelBatchScope.overlayCurrent(
-                    namespace, rootId, (Class) stagedRoot.type(),
-                    durableRoot);
+            Entity<?> deleted = overlayStaged(durableRoot, stagedRoot);
             return GraphState.composed(
                     rootId, stateIndex, Map.of(rootId, deleted), List.of(),
                     repository, historical, boundary, Map.of()).root();
@@ -284,8 +310,7 @@ public final class Graphs {
                             modelId, (Class) candidate.type(),
                             EntityMetadata.validate(candidate.type()).entityId().orElseThrow().name(), null);
                 }
-                entity = ModelBatchScope.overlayCurrent(
-                        namespace, modelId, (Class) candidate.type(), entity);
+                entity = overlayStaged(entity, candidate);
             }
             if (entity == null) {
                 throw new IllegalArgumentException(
@@ -1474,6 +1499,10 @@ final class GraphState {
         }
 
         String id() {
+            return id(false);
+        }
+
+        String id(boolean metadataOnly) {
             if (resolveId && !entityResolved) {
                 synchronized (this) {
                     if (!entityResolved) {
@@ -1482,6 +1511,10 @@ final class GraphState {
                             if (identity != null) {
                                 return identity.modelId();
                             }
+                        }
+                        if (metadataOnly) {
+                            throw new UnsupportedOperationException(
+                                    "Graph.current() requires metadata-only source identity resolution");
                         }
                         entity();
                     }
@@ -2515,6 +2548,17 @@ final class GraphView<T> implements Graph<T> {
                                                    : entity.assertAndApply(update, metadata));
         }
         return Graphs.cast(context.decorate(result));
+    }
+
+    @Override
+    public Graph<T> current() {
+        if (node.data().type() == null) {
+            throw node.data().unknownType();
+        }
+        if (!(state.repository() instanceof ModelGraphResolver)) {
+            throw new UnsupportedOperationException("Graph.current() requires a current-read-capable Model repository");
+        }
+        return Graphs.current(node.data().id(true), knownType().orElseThrow(), state.repository());
     }
 
     @Override

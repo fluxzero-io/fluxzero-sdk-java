@@ -39,7 +39,10 @@ import java.util.function.Supplier;
  * Repositories without this capability retain their existing fully loaded Graph navigation.
  */
 public interface ModelGraphResolver {
-    /** Captures the current message-batch overlay once for a new navigation view. */
+    /**
+     * Captures this repository's message-batch overlay once for a new navigation view. Another application's pending
+     * writes must never enter this snapshot, even when its batch is active on the calling thread.
+     */
     ModelBatchScope.Snapshot graphStagedValues(ModelReadBoundary boundary);
 
     /** Loads deliberately current state with its namespace boundary, ignoring any active handler boundary. */
@@ -79,6 +82,15 @@ public interface ModelGraphResolver {
     /** Optional metadata-first current root; the default retains the existing current-value route. */
     default Identity resolveCurrentGraphIdentity(Object modelId, Class<?> modelType) {
         return null;
+    }
+
+    /**
+     * Resolves a deliberately current root, optionally using an exact repository key without functional-ID affixes
+     * or alias fallback. Must ignore the active handler boundary and pin a fresh storage boundary without requiring
+     * value reconstruction. Returning {@code null} declares this optional capability unsupported.
+     */
+    default Identity resolveCurrentGraphIdentity(Object modelId, boolean exact, Class<?> modelType) {
+        return exact ? null : resolveCurrentGraphIdentity(modelId, modelType);
     }
 
     /** Optional untyped root discovery; an implementation supplies its resolved class through {@link HeadValue}. */

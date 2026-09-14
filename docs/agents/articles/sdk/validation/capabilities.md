@@ -20,6 +20,19 @@ Constrained payload methods can receive parameters from Fluxzero's handler `Para
 unresolved for that validation run, that constrained method is skipped. Put mandatory rules on fields or no-argument
 methods; use injected contextual validation only when absence is intentionally allowed.
 
+## Field and method ordering
+
+The default payload-validation route (`assertValid`, `checkValidity`, `isValid`) checks field constraints and their
+cascades before the containing object's method constraints. Pure methods need not repeat null guards for values
+required by active field or container-element constraints. `@Valid` alone does not require a value.
+Optional/conditional values still need an appropriate rule; groups and cascades must activate the prerequisites.
+An earlier group-sequence stage cannot rely on a later stage's constraints.
+
+This is a validation-result guarantee, not an invocation-count guarantee: a diagnostic second pass can still try
+methods after field failures, retaining the field rejection if a method throws. Raw `getConstraintViolations` and
+Jakarta `validate` do not suppress those exceptions. Replacement validators own their ordering. See the main
+validation article for a complete example; keep all constraint methods free of side effects.
+
 ## Intentional limitations
 
 Do not design an application around:

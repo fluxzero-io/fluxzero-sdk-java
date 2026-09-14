@@ -57,6 +57,8 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -85,11 +87,146 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ModelReplayCursorTest {
 
     private static final ThreadLocal<String> replayContextMarker = ThreadLocalContext.create();
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 64, 129})
+    void unchangedCachedSuffixPinsFreshBoundaryWithoutReplay(int count) {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        JacksonSerializer serializer = mock(JacksonSerializer.class);
+        EntityHelper helper = mock(EntityHelper.class);
+        List<GetModelEvents> requests = new ArrayList<>();
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            requests.add(request);
+            assertTrue(request.getBoundary().stateIndex() == null || request.getBoundary().stateIndex() == 42L);
+            return new GetModelEventsResult(request.getRequestId(), 42L, List.of(),
+                    request.getRequests().stream().map(stream -> {
+                        assertEquals(0L, stream.getLastSequenceNumber());
+                        return new ModelEventStream(stream.getModelId(), new ModelHeadState(stream.getModelId(),
+                                CachedReplayModel.class.getSimpleName(), 0L, 0L, true, false), List.of());
+                    }).toList());
+        });
+        try (DefaultCache cache = new DefaultCache()) {
+            var targets = IntStream.range(0, count).mapToObj(i -> new MutationPlan.ResolvedModel(
+                    "cached-" + i, CachedReplayModel.class, MutationPlan.Access.READ_ONLY, List.of("id"))).toList();
+            for (var target : targets) {
+                cache.put(target.modelId(), ImmutableModelRoot.<CachedReplayModel>builder()
+                        .id(target.modelId()).type(CachedReplayModel.class)
+                        .value(new CachedReplayModel(target.modelId())).stateIndex(0L).sequenceNumber(0L).build());
+            }
+            ModelReplayCursor cursor = new ModelReplayCursor(client, serializer, helper,
+                    new MutationPlan.Compiler(List.of()), cache, null, null, null);
+
+            var loaded = cursor.session().reconstruct(targets, ModelReadBoundary.current());
+
+            assertEquals(42L, loaded.stateIndex());
+            assertEquals(count, loaded.entities().size());
+            for (var target : targets) {
+                assertSame(cache.get(target.modelId()), loaded.entities().get(target.modelId()));
+            }
+            assertEquals(1, requests.size());
+            verifyNoInteractions(serializer, helper);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"incomplete", "deleted", "future", "behind", "wrong-stream", "wrong-boundary"})
+    void emptyCachedSuffixStillRejectsInvalidStorageEvidence(String mode) {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            var head = new ModelHeadState("cached", CachedReplayModel.class.getSimpleName(),
+                    mode.equals("behind") ? -1L : 0L, mode.equals("future") ? 43L : 0L,
+                    !mode.equals("incomplete"), mode.equals("deleted"));
+            return new GetModelEventsResult(request.getRequestId(), mode.equals("wrong-boundary") ? 41L : 42L,
+                    List.of(), List.of(new ModelEventStream(mode.equals("wrong-stream") ? "other" : "cached",
+                                                            head, List.of())));
+        });
+        try (DefaultCache cache = new DefaultCache()) {
+            var original = ImmutableModelRoot.<CachedReplayModel>builder().id("cached").type(CachedReplayModel.class)
+                    .value(new CachedReplayModel("cached")).stateIndex(0L).sequenceNumber(0L).build();
+            cache.put("cached", original);
+            ModelReplayCursor cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class),
+                    mock(EntityHelper.class), new MutationPlan.Compiler(List.of()), cache, null, null, null);
+
+            assertThrows(EventSourcingException.class, () -> cursor.session().reconstruct(List.of(
+                    new MutationPlan.ResolvedModel("cached", CachedReplayModel.class,
+                                                  MutationPlan.Access.READ_ONLY, List.of("id"))),
+                    ModelReadBoundary.state(42L, false)));
+            assertSame(original, cache.get("cached"));
+        }
+    }
+
+    @Test
+    void suffixPagingDoesNotMutateCallerCursorsOrPublishedHeads() {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        ModelHeadState head = new ModelHeadState("a", "example.A", 1L, 1L, true, false);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            assertThrows(UnsupportedOperationException.class, () -> request.getRequests().clear());
+            return pageResponse(request, head);
+        });
+        ModelReplayCursor cursor = new ModelReplayCursor(client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
+        Map<String, Long> input = new LinkedHashMap<>(Map.of("a", -1L));
+        var result = cursor.load(input, ModelReadBoundary.current(), ignored -> assertEquals(Map.of("a", -1L), input));
+
+        assertEquals(Map.of("a", -1L), input);
+        assertEquals(Map.of("a", head), result.heads());
+        assertThrows(UnsupportedOperationException.class, () -> result.heads().clear());
+        verify(client, times(2)).getModelEvents(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {2, 64})
+    void mixedCachedAndNewStreamsOnlyReplayNewMemberships(int count) {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        JacksonSerializer serializer = new JacksonSerializer();
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            assertEquals(0L, request.getRequests().getFirst().getLastSequenceNumber());
+            assertEquals(-1L, request.getRequests().getLast().getLastSequenceNumber());
+            List<ModelEventPayload> payloads = new ArrayList<>();
+            List<ModelEventStream> streams = new ArrayList<>();
+            streams.add(new ModelEventStream("cached", new ModelHeadState("cached",
+                    CachedReplayModel.class.getSimpleName(), 0L, 0L, true, false), List.of()));
+            for (int i = 1; i < count; i++) {
+                String id = "new-" + i;
+                payloads.add(new ModelEventPayload(i, new Message(new CachedCreated(id)).serialize(serializer)));
+                streams.add(new ModelEventStream(id, new ModelHeadState(id,
+                        CachedReplayModel.class.getSimpleName(), 0L, i, true, false),
+                        List.of(new ModelEventMembership(0L, i, i - 1L, "create-" + i, 0))));
+            }
+            return new GetModelEventsResult(request.getRequestId(), 128L, payloads, streams);
+        });
+        try (DefaultCache cache = new DefaultCache()) {
+            var original = ImmutableModelRoot.<CachedReplayModel>builder().id("cached").type(CachedReplayModel.class)
+                    .value(new CachedReplayModel("cached")).stateIndex(0L).sequenceNumber(0L).build();
+            cache.put("cached", original);
+            ModelReplayCursor cursor = new ModelReplayCursor(client, serializer, mock(EntityHelper.class),
+                    new MutationPlan.Compiler(List.of()), cache, null, null, null);
+            AtomicInteger replayed = new AtomicInteger();
+            cursor.configureReplayRestoration(message -> { replayed.incrementAndGet(); return message; });
+            var targets = IntStream.range(0, count).mapToObj(i -> new MutationPlan.ResolvedModel(
+                    i == 0 ? "cached" : "new-" + i, CachedReplayModel.class,
+                    MutationPlan.Access.READ_ONLY, List.of("id"))).toList();
+
+            var loaded = cursor.session().reconstruct(targets, ModelReadBoundary.current());
+
+            assertEquals(128L, loaded.stateIndex());
+            assertSame(original, loaded.entities().get("cached"));
+            for (int i = 1; i < count; i++) {
+                assertEquals(new CachedReplayModel("new-" + i), loaded.entities().get("new-" + i).get());
+            }
+            assertEquals(count - 1, replayed.get());
+            verify(client).getModelEvents(any());
+        }
+    }
 
     @Test
     void parallelReplayPreservesApplicationAndParticipatingContext() {

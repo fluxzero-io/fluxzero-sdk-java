@@ -242,9 +242,9 @@ class ModelCacheTest {
     void sharedPhysicalCacheAndNamespaceHaveOnePublicationOwner() {
         SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
         try {
-            ModelCache first = ModelCache.shared(physical, "a");
-            ModelCache second = ModelCache.shared(physical, "a");
-            ModelCache other = ModelCache.shared(physical, "b");
+            ModelCache first = ModelCache.shared(physical, physical, "a");
+            ModelCache second = ModelCache.shared(physical, physical, "a");
+            ModelCache other = ModelCache.shared(physical, physical, "b");
             assertSame(first, second);
             assertNotSame(first, other);
             try (var oldRead = first.beginRead("id")) {
@@ -344,18 +344,18 @@ class ModelCacheTest {
     void lastRepositoryReleaseInvalidatesReadsAndDoesNotRetainIdleMetadata() throws Exception {
         SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
         try {
-            ModelCache first = ModelCache.shared(physical, "namespace");
+            ModelCache first = ModelCache.shared(physical, physical, "namespace");
             first.put("id", "old");
             try (var oldRead = first.beginRead("id")) {
                 first.releaseShared();
-                ModelCache replacement = ModelCache.shared(physical, "namespace");
+                ModelCache replacement = ModelCache.shared(physical, physical, "namespace");
                 assertNull(first.publish(oldRead, "obsolete", 10));
                 replacement.put("id", "replacement");
                 assertEquals("replacement", replacement.get("id"));
                 replacement.releaseShared();
             }
             assertEquals(0, trackedKeys(first));
-            ModelCache next = ModelCache.shared(physical, "namespace");
+            ModelCache next = ModelCache.shared(physical, physical, "namespace");
             assertNotSame(first, next);
             assertNull(next.get("id"));
             next.releaseShared();
@@ -434,11 +434,11 @@ class ModelCacheTest {
         };
         SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
         try {
-            ModelCache first = ModelCache.shared(physical, "namespace");
+            ModelCache first = ModelCache.shared(physical, physical, "namespace");
             CompletableFuture<ModelCache.ReadToken> registration = async(() -> first.beginRead(id));
             await(beforeRegistration);
             first.releaseShared();
-            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            ModelCache replacement = ModelCache.shared(physical, physical, "namespace");
             assertSame(first, replacement, "An admitted operation must retain the shared generation owner");
             register.countDown();
             registration.get(5, TimeUnit.SECONDS).close();
@@ -476,11 +476,11 @@ class ModelCacheTest {
     void failedBulkReadRegistrationReleasesAlreadyAcquiredTokens() throws Exception {
         SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
         try {
-            ModelCache first = ModelCache.shared(physical, "namespace");
+            ModelCache first = ModelCache.shared(physical, physical, "namespace");
             assertThrows(NullPointerException.class, () -> first.beginReads(Arrays.asList("first", null, "last")));
             assertEquals(0, trackedKeys(first));
             first.releaseShared();
-            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            ModelCache replacement = ModelCache.shared(physical, physical, "namespace");
             try {
                 assertNotSame(first, replacement);
             } finally {
@@ -496,7 +496,7 @@ class ModelCacheTest {
         CountDownLatch entered = new CountDownLatch(1), register = new CountDownLatch(1);
         SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
         try {
-            ModelCache first = ModelCache.shared(physical, "namespace");
+            ModelCache first = ModelCache.shared(physical, physical, "namespace");
             List<String> ids = new AbstractList<>() {
                 @Override
                 public String get(int index) {
@@ -512,7 +512,7 @@ class ModelCacheTest {
             var pending = async(() -> first.beginReads(ids));
             await(entered);
             first.releaseShared();
-            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            ModelCache replacement = ModelCache.shared(physical, physical, "namespace");
             try {
                 assertSame(first, replacement);
                 register.countDown();
@@ -560,9 +560,9 @@ class ModelCacheTest {
     void retiredViewCannotPublishWithBulkReadTokens() throws Exception {
         SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
         try {
-            ModelCache retired = ModelCache.shared(physical, "namespace");
+            ModelCache retired = ModelCache.shared(physical, physical, "namespace");
             retired.releaseShared();
-            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            ModelCache replacement = ModelCache.shared(physical, physical, "namespace");
             try {
                 replacement.put("id", "current");
                 var tokens = retired.beginReads(List.of("id"));
@@ -599,7 +599,7 @@ class ModelCacheTest {
             }
         };
         try {
-            ModelCache cache = ModelCache.shared(physical, "namespace");
+            ModelCache cache = ModelCache.shared(physical, physical, "namespace");
             List<String> ids = new AbstractList<>() {
                 @Override
                 public String get(int index) {
@@ -618,7 +618,7 @@ class ModelCacheTest {
             assertSame(original, assertThrows(IllegalStateException.class, () -> cache.beginReads(ids)));
             assertArrayEquals(new Throwable[]{cleanup}, original.getSuppressed());
             assertEquals(0, trackedKeys(cache));
-            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            ModelCache replacement = ModelCache.shared(physical, physical, "namespace");
             try {
                 assertNotSame(cache, replacement);
             } finally {

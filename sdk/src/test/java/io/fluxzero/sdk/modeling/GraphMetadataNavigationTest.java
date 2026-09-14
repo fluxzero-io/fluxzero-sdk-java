@@ -812,6 +812,142 @@ class GraphMetadataNavigationTest {
     }
 
     @Test
+    void currentKeepsMissingCanonicalIdentityDespiteNewDurableOrPendingAliases() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            Graph<Aliased> missing = Graphs.lazyCurrent("missing", Aliased.class, app.modelRepository());
+            commit(app, new CreateAliased("other", "missing", 1));
+            assertEquals("missing", missing.current().id());
+            assertTrue(missing.current().isEmpty());
+            assertEquals("other", Graphs.lazyCurrent("missing", Aliased.class, app.modelRepository()).id());
+
+            Graph<Aliased> pendingAlias = Graphs.lazyCurrent("pending-alias", Aliased.class, app.modelRepository());
+            inPendingBatch(app, client, new CreateAliased("pending", "pending-alias", 2), () -> {
+                assertEquals("pending-alias", pendingAlias.current().id());
+                assertTrue(pendingAlias.current().isEmpty());
+                assertEquals("pending", Graphs.lazyCurrent("pending-alias", Aliased.class, app.modelRepository()).id());
+            });
+            Graph<Aliased> canonical = Graphs.lazyCurrent("pending", Aliased.class, app.modelRepository());
+            Graph<Aliased> sameNamespace = Graphs.lazyCurrent(
+                    "pending", Aliased.class, app.modelRepository().forNamespace(null));
+            inPendingBatch(app, client, new CreateAliased("pending", "changed-alias", 3), () -> {
+                assertEquals(new Aliased("pending", "changed-alias", 3), canonical.current().get());
+                assertEquals(new Aliased("pending", "changed-alias", 3), sameNamespace.current().get());
+                assertEquals(new Aliased("pending", "pending-alias", 2), canonical.get());
+            });
+        }
+    }
+
+    @Test
+    void automaticPrefetchIncludesTheEarlierPendingIncrementBeforeBatchCompletion() {
+        var client = new ObservedClient();
+        var serializer = new JacksonSerializer();
+        try (Fluxzero app = app(client, serializer)) {
+            commit(app, new CreateRoot("root", 1));
+            var repository = (DefaultModelRepository) app.modelRepository();
+            repository.load("root", Root.class);
+            try (var registry = new ModelCommitHandlerRegistry(repository, client.getEventStoreClient(),
+                    serializer, serializer, serializer, io.fluxzero.sdk.publishing.DispatchInterceptor.noOp,
+                    io.fluxzero.sdk.publishing.DispatchInterceptor.noOp, "prefetch-test", List.of(),
+                    io.fluxzero.sdk.tracking.handling.HandlerDecorator.noOp,
+                    io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY,
+                    io.fluxzero.common.api.modeling.ModelConflictPolicy.FAIL, ModelConflictResolver.retryIfAllowed(),
+                    3, AutomaticModelHandling.ENABLED, GraphProjectionCompletion.ASYNC)) {
+                var handler = registry.createHandler(IncrementRoot.class,
+                        io.fluxzero.common.handling.HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+                inPendingBatch(app, client, new IncrementRoot("root"), () -> {
+                    try {
+                        assertEquals(new Root("root", 2), repository.load("root", Root.class).get());
+                        var message = new DeserializingMessage(new Message(new IncrementRoot("root")),
+                                io.fluxzero.common.MessageType.COMMAND, serializer);
+                        message.getSerializedObject().setSegment(17);
+                        handler.getInvokerOrNull(message).invoke();
+                        assertEquals(new Root("root", 3), repository.load("root", Root.class).get(),
+                                     "The pending result must be correct before conflict retry or batch completion");
+                    } finally {
+                        // The automatic handler releases completion at batch end; unblock transport before that wait.
+                        client.commitGate.complete(null);
+                    }
+                });
+            }
+            assertEquals(new Root("root", 3), repository.load("root", Root.class).get());
+        }
+    }
+
+    record IncrementRoot(String rootId) {
+        @Apply Root apply(Root root) { return new Root(rootId, root.version() + 1); }
+    }
+
+    @Test
+    void mutationDoesNotBorrowAnotherApplicationsPendingRevision() {
+        var firstClient = new ObservedClient();
+        var otherClient = new ObservedClient();
+        try (Fluxzero first = app(firstClient, new JacksonSerializer());
+             Fluxzero other = app(otherClient, new JacksonSerializer())) {
+            commit(first, new CreateRoot("same", 1));
+            commit(other, new CreateRoot("same", 9));
+            var result = new java.util.concurrent.atomic.AtomicReference<CompletableFuture<?>>();
+            inPendingBatch(other, otherClient, new UpdateRootAndChild("same", 10, "foreign"), () ->
+                    result.set(first.apply(fc -> fc.executeModelCommit(new Message(new IncrementOwnedRoot("same", 1))))));
+            result.get().join();
+            assertEquals(new Root("same", 2), first.modelRepository().load("same", Root.class).get());
+            assertEquals(new Root("same", 10), other.modelRepository().load("same", Root.class).get());
+        }
+    }
+
+    record IncrementOwnedRoot(String rootId, int expected) {
+        @Apply Root apply(Root root) {
+            assertEquals(expected, root.version());
+            return new Root(rootId, root.version() + 1);
+        }
+    }
+
+    @Test
+    void currentDoesNotBorrowAnotherApplicationsPendingValuesOrRelationships() {
+        var firstClient = new ObservedClient();
+        var otherClient = new ObservedClient();
+        try (Fluxzero first = app(firstClient, new JacksonSerializer());
+             Fluxzero other = app(otherClient, new JacksonSerializer())) {
+            commit(first, new CreateRoot("same", 1));
+            commit(other, new CreateRoot("same", 9));
+            Graph<Root> original = Graphs.lazyCurrent("same", Root.class, first.modelRepository());
+            Graph<Root> otherOriginal = Graphs.lazyCurrent("same", Root.class, other.modelRepository());
+            inPendingBatch(other, otherClient, new UpdateRootAndChild("same", 10, "foreign"), () -> {
+                assertEquals(new Root("same", 1), first.modelRepository().load("same", Root.class).get());
+                assertEquals(new Root("same", 1), first.modelRepository().loadCurrent("same", Root.class).get());
+                assertEquals(List.of(new Root("same", 1)), first.modelRepository().loadAll(List.of("same"), Root.class)
+                        .stream().map(Entity::get).toList());
+                assertEquals(new Root("same", 1), Graphs.lazy("same", Root.class, first.modelRepository()).get());
+                Graph<Root> current = original.current();
+                assertEquals(new Root("same", 1), current.get());
+                assertTrue(current.children(KnownChild.class).isEmpty());
+                // Rebinding the ambient application does not change the owner of the active batch.
+                first.apply(fc -> {
+                    Graph<Root> rebound = original.current();
+                    assertEquals(new Root("same", 1), rebound.get());
+                    assertTrue(rebound.children(KnownChild.class).isEmpty());
+                    Graph<Root> owned = otherOriginal.current();
+                    assertEquals(new Root("same", 10), owned.get());
+                    assertEquals(List.of("foreign"), ids(owned.children(KnownChild.class)));
+                    return null;
+                });
+                assertEquals(new Root("same", 1), original.get());
+            });
+            assertEquals(new Root("same", 1), original.current().get());
+
+            commit(first, new CreateAliased("canonical", "alias", 1));
+            Graph<Aliased> unresolved = Graphs.lazy("alias", Aliased.class, first.modelRepository());
+            inPendingBatch(other, otherClient, new CreateAliased("different", "alias", 9), () -> {
+                assertEquals(new Aliased("canonical", "alias", 1),
+                             first.modelRepository().load("alias", Aliased.class).get());
+                assertEquals("canonical", unresolved.current().id());
+                assertEquals(new Aliased("canonical", "alias", 1), unresolved.current().get());
+                assertEquals("canonical", unresolved.id());
+            });
+        }
+    }
+
+    @Test
     void pendingAliasChangesStayVisibleInLazyAndDeliberatelyCurrentGraphs() {
         var client = new ObservedClient();
         try (Fluxzero app = app(client, new JacksonSerializer())) {
@@ -984,6 +1120,7 @@ class GraphMetadataNavigationTest {
             Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
             Graph<?> child = graph.namedChildren("known", false).getFirst();
             assertTrue(child.knownType().isEmpty());
+            assertThrows(IllegalStateException.class, child::current);
             assertSame(child, graph.children(KnownChild.class).getFirst());
             assertEquals(Optional.of(KnownChild.class), child.knownType());
             assertEquals(new KnownChild("known", "root"), child.get());
@@ -1191,6 +1328,10 @@ class GraphMetadataNavigationTest {
     @Model(name = "leaf") record Leaf(@EntityId String leafId,
             @Parent(value = Foreign.class, pathInParent = "leaves") String childId) {}
     record CreateRoot(String rootId, int version) { @Apply Root apply(@jakarta.annotation.Nullable Root existing) { return new Root(rootId, version); } }
+    record UpdateRootAndChild(String rootId, int version, String childId) {
+        @Apply Root root(@jakarta.annotation.Nullable Root existing) { return new Root(rootId, version); }
+        @Apply KnownChild child() { return new KnownChild(childId, rootId); }
+    }
     record CreateKnown(String childId, String rootId) { @Apply KnownChild apply() { return new KnownChild(childId, rootId); } }
     record CreateForeign(String childId, String rootId) { @Apply Foreign apply(@jakarta.annotation.Nullable Foreign existing) { return new Foreign(childId, rootId); } }
     record CreateLeaf(String leafId, String childId) { @Apply Leaf apply() { return new Leaf(leafId, childId); } }

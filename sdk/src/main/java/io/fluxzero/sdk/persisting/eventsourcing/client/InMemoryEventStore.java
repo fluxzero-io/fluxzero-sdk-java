@@ -684,13 +684,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private synchronized TrackModelUpdatesResult modelUpdates(
             TrackModelUpdates request) {
-        List<ModelUpdate> updates =
-                modelUpdates.stream()
-                        .filter(update ->
-                                        update.getStateIndex()
-                                        > request.getLastStateIndex())
-                        .limit(request.getMaxSize())
-                        .toList();
+        // Updates are appended in state-index order under this monitor. Start at the requested suffix instead of
+        // rescanning all preceding commits while holding the same lock needed by current reads and writes.
+        int first = 0, end = modelUpdates.size();
+        while (first < end) {
+            int middle = (first + end) >>> 1;
+            if (modelUpdates.get(middle).getStateIndex() <= request.getLastStateIndex()) {
+                first = middle + 1;
+            } else {
+                end = middle;
+            }
+        }
+        List<ModelUpdate> updates = List.copyOf(modelUpdates.subList(
+                first, first + Math.min(request.getMaxSize(), modelUpdates.size() - first)));
         if (request.getMaxBytes() > 0L
             && !updates.isEmpty()) {
             long bytes = 0L;
@@ -1648,9 +1654,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         for (var streamRequest : request.getRequests()) {
             String resolvedModelId = resolvedModelIds.get(
                     streamRequest.getModelId());
-            List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0
+            List<ModelStreamMembership> history = modelStreams.getOrDefault(resolvedModelId, List.of());
+            // A cached revision usually already reaches the tail. Checking that must not scan its whole history.
+            List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0 || history.isEmpty()
+                                                    || history.getLast().sequenceNumber() <= streamRequest.getLastSequenceNumber()
                     ? List.of()
-                    : modelStreams.getOrDefault(resolvedModelId, List.of()).stream()
+                    : history.stream()
                             .filter(entry -> entry.sequenceNumber() > streamRequest.getLastSequenceNumber())
                             .filter(entry -> entry.stateIndex() <= stateIndex)
                             .limit((long) streamRequest.getMaxSize() + 1L)
@@ -1682,10 +1691,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         for (var streamRequest : request.getRequests()) {
             String resolvedModelId = resolvedModelIds.get(
                     streamRequest.getModelId());
-            ModelStreamHead head = modelHeadHistory.getOrDefault(
-                            resolvedModelId, List.of()).stream()
-                    .filter(candidate -> candidate.stateIndex() <= stateIndex)
-                    .reduce((first, second) -> second).orElse(null);
+            ModelStreamHead head = stateIndex == modelStateIndex ? modelHeads.get(resolvedModelId)
+                    : modelHeadHistory.getOrDefault(resolvedModelId, List.of()).stream()
+                            .filter(candidate -> candidate.stateIndex() <= stateIndex)
+                            .reduce((first, second) -> second).orElse(null);
             streams.add(new ModelEventStream(
                     streamRequest.getModelId(),
                     head == null ? null : new ModelHeadState(

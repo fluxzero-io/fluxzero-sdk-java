@@ -51,6 +51,7 @@ List<LineItem> lines = graph.childModels("lines", LineItem.class);
 - `functionalId()` exposes the public ID from the current or last present model value, without repository prefixes,
   postfixes or parent scope;
 - `previous()` returns the preceding revision; durable historical values require `EVENT_SOURCED`, not `DOCUMENT` alone;
+- `current()` opens the same Model on a new current boundary without modifying the historical Graph;
 - `stateIndex()` pins the whole graph read, while `revisionStateIndex()` says when this concrete node revision became
   current;
 - `sequenceNumber()` is the position within this model's own stream;
@@ -117,6 +118,16 @@ Graph<Line> line = Fluxzero.loadGraph(
 All non-null parents must resolve to one unambiguous nearest parent. Parent-scoped identity is unsuitable for a model
 that moves while retaining its identity, because changing the parent changes the persisted identity.
 
+Open `graph.current()` for the same Model at a new current boundary without replacing the historical Graph.
+It retains the exact repository ID and owning repository/namespace, including affixes and parent scope. The result
+pins its new boundary during the call, stays lazy and captures the current message-batch overlay; it is not a live view.
+A moved node gets current parents; a deleted Model is empty. Filters, mapped values, staged Graph edits and response
+context are not copied. Reapply presentation/content filters to the new view. Unknown nodes and custom repositories
+without exact-current support fail explicitly. Keep invariant checks on injected Graphs: the fresh view does not inherit
+their transactional read provenance.
+
+See [Model recipes](./197-model-recipes.mdx) for examples, including direct companion loads by parent ID and Model type.
+
 ## Event-sourced loading
 
 Event sourcing is the default:
@@ -142,6 +153,16 @@ flowchart LR
 
 Each independently stored child has a short stream of its own. Updating one line item does not replay the lifetime
 history of the order, inventory model or its siblings.
+
+A newly evaluated Model operation with injected Graph dependencies establishes its initial read boundary at storage,
+even when the root Model is already cached. A root's cached revision alone cannot prove that no child was added,
+removed or moved. Relationships remain lazy, and once selected the boundary stays pinned through the evaluation;
+RETRY reevaluates at a new boundary, while historical event handling keeps its event boundary. Nested assertions
+and interceptor replacements conservatively establish this boundary too because they can introduce Graph parameters.
+Plain Model operations without these dependencies retain their cache fast path. Pending writes and cache entries
+belong to the owning repository family and namespace, never to another application sharing a cache or active batch.
+
+Background cache replay runs in that repository's configured application context, not the context of its first caller.
 
 ## Document-based loading
 

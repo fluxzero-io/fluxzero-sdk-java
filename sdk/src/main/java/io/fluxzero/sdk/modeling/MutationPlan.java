@@ -1486,6 +1486,7 @@ public final class MutationPlan {
                     .filter(field -> !Modifier.isStatic(field.getModifiers()))
                     .forEach(field -> members.putIfAbsent(field.getName(), field));
             metadata.methods().stream().filter(method -> !method.isSynthetic() && !method.isBridge())
+                    .filter(method -> !ReflectionUtils.isKotlinDataClassComponent(method))
                     .filter(method -> !Object.class.equals(method.getDeclaringClass()))
                     .filter(method -> !Modifier.isStatic(method.getModifiers())
                                       && method.getParameterCount() == 0

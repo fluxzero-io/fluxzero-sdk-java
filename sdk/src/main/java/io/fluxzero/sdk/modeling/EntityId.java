@@ -41,6 +41,10 @@ import java.lang.annotation.Target;
  * A one-to-one companion model may use the same property as both its {@code @EntityId} and a {@link Parent}. The
  * functional property value then identifies the parent relationship, while these affixes still give the companion
  * its own globally unique repository identity.
+ * Load that companion with the parent ID plus the companion class, e.g.
+ * {@code Fluxzero.loadGraph(projectId, ProjectStatus.class)}. A nullable current-state parameter on its
+ * {@code @Apply} method expresses upsert; a factory without it requires absence. A named parent path remains a
+ * child collection, even when the deterministic identity limits it to one element.
  * <p>
  * A model whose functional identifier is unique only below its parent can set {@link #parentScoped()} to
  * {@code true}. Its persisted identity then combines the one non-null declared {@link Parent} with the functional

@@ -249,6 +249,47 @@ class InMemoryEventStoreModelCommitTest {
     }
 
     @Test
+    void modelUpdateSuffixPreservesExclusiveCursorAndPageBoundaries() {
+        InMemoryEventStore store = denseStore();
+        for (int i = 0; i < 7; i++) {
+            store.commitModels(commit("commit-" + i, ModelCommitStep.builder()
+                    .event(event("event-" + i)).targets(List.of(storedTarget("model-" + i))).build())).join();
+        }
+        for (long cursor = -1; cursor <= 8; cursor++) {
+            for (int size : List.of(1, 3, 10)) {
+                var page = store.trackModelUpdates(new TrackModelUpdates(cursor, size, 0L)).join();
+                var expected = java.util.stream.LongStream.range(Math.min(cursor + 1L, 7L), 7L)
+                        .limit(size).boxed().toList();
+                assertEquals(expected, page.getUpdates().stream().map(
+                        io.fluxzero.common.api.modeling.ModelUpdate::getStateIndex).toList());
+                assertEquals(expected.isEmpty() ? cursor : expected.getLast(), page.getLastStateIndex());
+                assertEquals(6L, page.getCurrentStateIndex());
+                assertEquals(6L, page.getMaterializedStateIndex());
+            }
+        }
+    }
+
+    @Test
+    void modelUpdateSuffixHandlesIndexGapsAndByteLimits() {
+        AtomicInteger index = new AtomicInteger();
+        InMemoryEventStore store = new InMemoryEventStore(Duration.ofMinutes(2), () -> index.getAndAdd(10));
+        for (int i = 0; i < 3; i++) {
+            store.commitModels(commit("commit-" + i, ModelCommitStep.builder()
+                    .event(event("event-" + i)).targets(List.of(storedTarget("model-" + i))).build())).join();
+        }
+        var first = store.trackModelUpdates(new TrackModelUpdates(5L, 10, 0L, 1L)).join();
+        assertEquals(List.of(10L), first.getUpdates().stream().map(
+                io.fluxzero.common.api.modeling.ModelUpdate::getStateIndex).toList());
+        assertEquals(10L, first.getLastStateIndex());
+        var next = store.trackModelUpdates(new TrackModelUpdates(first.getLastStateIndex(), 10, 0L, 1L)).join();
+        assertEquals(List.of(20L), next.getUpdates().stream().map(
+                io.fluxzero.common.api.modeling.ModelUpdate::getStateIndex).toList());
+        var beyondTail = store.trackModelUpdates(new TrackModelUpdates(Long.MAX_VALUE, 10, 0L)).join();
+        assertTrue(beyondTail.getUpdates().isEmpty());
+        assertEquals(Long.MAX_VALUE, beyondTail.getLastStateIndex());
+    }
+
+    @Test
     void emptyModelUpdateHeartbeatKeepsTheClientCursor() {
         InMemoryEventStore store =
                 denseStore();
@@ -875,6 +916,24 @@ class InMemoryEventStoreModelCommitTest {
         assertEquals(1L, current.getStreams().getFirst().getHead().getSequenceNumber());
         assertTrue(historical.getPayloads().isEmpty());
         assertTrue(current.getPayloads().isEmpty());
+
+        for (long cursor : new long[]{1L, 99L}) {
+            var tail = store.getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest("order-1", cursor, 10)),
+                    ModelReadBoundary.current(), 0L));
+            assertTrue(tail.getPayloads().isEmpty());
+            assertTrue(tail.getStreams().getFirst().getMemberships().isEmpty());
+            assertEquals(current.getStreams().getFirst().getHead(), tail.getStreams().getFirst().getHead());
+            var oldTail = store.getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest("order-1", cursor, 10)),
+                    ModelReadBoundary.state(0L, false), 0L));
+            assertTrue(oldTail.getPayloads().isEmpty());
+            assertEquals(historical.getStreams().getFirst().getHead(), oldTail.getStreams().getFirst().getHead());
+        }
+        var suffix = store.getModelEvents(new GetModelEvents(
+                List.of(new ModelEventStreamRequest("order-1", 0L, 10)),
+                ModelReadBoundary.current(), 0L));
+        assertEquals(List.of(1L), suffix.getPayloads().stream().map(payload -> payload.getStateIndex()).toList());
     }
 
     @Test

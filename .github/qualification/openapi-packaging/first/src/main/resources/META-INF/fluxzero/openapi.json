@@ -1,0 +1,19 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Shared API",
+    "version": "1"
+  },
+  "paths": {
+    "/first": {
+      "get": {
+        "operationId": "first",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  }
+}

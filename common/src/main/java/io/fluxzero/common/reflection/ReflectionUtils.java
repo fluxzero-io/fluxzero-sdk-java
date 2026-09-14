@@ -247,6 +247,16 @@ public class ReflectionUtils {
     }
 
     /**
+     * Whether a no-argument method is a compiler-generated Kotlin data-class component accessor.
+     * These duplicate constructor properties and should not be inferred as additional domain properties.
+     * Handwritten component methods and ordinary Java methods are not excluded.
+     */
+    public static boolean isKotlinDataClassComponent(Method method) {
+        return method.getName().startsWith("component") && method.getParameterCount() == 0
+               && isKotlinReflectionSupported() && KotlinReflectionUtils.isDataClassComponent(method);
+    }
+
+    /**
      * Determines and returns the {@link Class} of the provided object if it is either
      * an instance of {@link Class} or a Kotlin class that can be converted using Kotlin reflection utilities.
      * If the object does not satisfy these conditions or Kotlin reflection is not supported, returns {@code null}.

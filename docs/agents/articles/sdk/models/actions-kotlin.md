@@ -2,6 +2,10 @@
 
 ## Apply actions
 
+Typed-ID fallback uses real payload properties, not the duplicate `componentN()` accessors generated for Kotlin
+data-class constructor parameters. Multiple distinct IDs for one Model type still require an explicit
+`@Association("payloadProperty")`; handwritten computed ID accessors remain supported.
+
 ```kotlin
 data class CreateProject(
     val projectId: ProjectId,

@@ -190,6 +190,30 @@ class GraphReadTrackingTest {
     }
 
     @Test
+    void currentViewDoesNotInheritTheOriginalAttemptReadProvenance() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        ModelReadBoundary currentBoundary = ModelReadBoundary.state(42L, false);
+        when(source.graphStagedValues(ModelReadBoundary.current())).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        when(source.resolveCurrentGraphIdentity("parent", true, Node.class))
+                .thenReturn(new ModelGraphResolver.Identity("parent", true, currentBoundary, false, () -> parent));
+        when(source.loadGraphRelations(eq(List.of("parent")), eq(CHILDREN), eq(currentBoundary), any(), eq(false)))
+                .thenReturn(new ModelGraphResolver.Relations(currentBoundary, Map.of(), List.of(), Set.of("parent"), false));
+        attempt.bindGraphReads(attempt);
+        Graph<Node> original = attempt.trackGraph(Graphs.lazy(parent, 42L, source), source);
+
+        read(() -> {
+            Graph<Node> current = original.current();
+            assertEquals(parent.get(), current.get());
+            assertTrue(current.namedChildren("empty", false).isEmpty());
+            return null;
+        });
+        assertTrue(values().isEmpty());
+        assertTrue(relationships().isEmpty());
+        read(original::get);
+        assertEquals(List.of("parent"), values());
+    }
+
+    @Test
     void explicitHistoryAtTheSameNumericBoundaryIsNotALiveRead() {
         Graph<Node> graph = graph();
         Graph<Node> historical = Graphs.compose("parent", 42L, Map.of("parent", parent), List.of(), repository, true);

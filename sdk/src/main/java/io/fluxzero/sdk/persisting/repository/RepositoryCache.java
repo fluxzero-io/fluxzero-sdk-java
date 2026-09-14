@@ -31,7 +31,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
 /**
- * A namespace-specific view of a shared cache used by aggregate repositories.
+ * A component- and namespace-specific view of a shared repository cache.
  */
 final class RepositoryCache implements Cache {
 
@@ -39,7 +39,7 @@ final class RepositoryCache implements Cache {
             ThreadLocal.withInitial(LookupKeyPool::new);
 
     private final Cache delegate;
-    private final String component;
+    private final Object component;
     private final String namespace;
     private boolean populated;
     private boolean writeStarted;
@@ -47,7 +47,7 @@ final class RepositoryCache implements Cache {
     private LongSupplier replayMinIndexSupplier;
     private LongConsumer firstWriteListener;
 
-    RepositoryCache(Cache delegate, String component, String namespace) {
+    RepositoryCache(Cache delegate, Object component, String namespace) {
         this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.component = Objects.requireNonNull(component, "component");
         this.namespace = namespace;
@@ -333,16 +333,16 @@ final class RepositoryCache implements Cache {
     }
 
     private static final class CacheKey {
-        private String component;
+        private Object component;
         private String namespace;
         private Object id;
         private int hashCode;
 
-        private CacheKey(String component, String namespace, Object id) {
+        private CacheKey(Object component, String namespace, Object id) {
             forLookup(component, namespace, id);
         }
 
-        private CacheKey forLookup(String component, String namespace, Object id) {
+        private CacheKey forLookup(Object component, String namespace, Object id) {
             this.component = component;
             this.namespace = namespace;
             return forId(id);
@@ -356,7 +356,7 @@ final class RepositoryCache implements Cache {
             return this;
         }
 
-        private String component() {
+        private Object component() {
             return component;
         }
 
@@ -406,7 +406,7 @@ final class RepositoryCache implements Cache {
         private CacheKey[] keys = new CacheKey[1];
         private int depth;
 
-        private CacheKey acquire(String component, String namespace, Object id) {
+        private CacheKey acquire(Object component, String namespace, Object id) {
             if (depth == keys.length) {
                 CacheKey[] expanded = new CacheKey[keys.length << 1];
                 System.arraycopy(keys, 0, expanded, 0, keys.length);

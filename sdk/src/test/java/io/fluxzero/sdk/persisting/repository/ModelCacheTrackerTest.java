@@ -35,9 +35,12 @@ import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Duration;
 import java.util.AbstractList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -63,6 +66,63 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void lateAdmissionCannotMissAnUpdateOrRefreshBeforeItsAdmissionBoundary(
+            boolean hardDelete, boolean finishPageBeforePublication) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        var polls = polls(eventStore);
+        // Isolate tracker admission from a delegate's later conservative CLEAR notification.
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null));
+        CountDownLatch processing = new CountDownLatch(1), proceed = new CountDownLatch(1);
+        AtomicInteger refreshes = new AtomicInteger();
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            refreshes.incrementAndGet();
+            return new ModelCacheTracker.RefreshedBatch(boundary, Map.of("document-1", documentEntity(10L, "old")));
+        })) {
+            assertTrue(tracker.readiness().get(5, TimeUnit.SECONDS));
+            var page = awaitNext(polls);
+            long boundary = tracker.safeDocumentBoundary();
+            assertEquals(10L, boundary);
+            List<ModelCommitTargetResult> blockingTargets = new AbstractList<>() {
+                @Override public int size() { return 1; }
+                @Override public ModelCommitTargetResult get(int index) {
+                    processing.countDown();
+                    awaitLatch(proceed);
+                    return new ModelCommitTargetResult("unrelated", 0L, true);
+                }
+            };
+            page.complete(new TrackModelUpdatesResult(1L, 12L, 12L, 10L, List.of(
+                    new ModelUpdate(hardDelete ? ModelUpdateKind.HARD_DELETE : ModelUpdateKind.COMMIT,
+                                    "change", 0, 11L, null,
+                                    List.of(new ModelCommitTargetResult("document-1", 1L, false))),
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "other", 0, 12L, null, blockingTargets))));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+            if (finishPageBeforePublication) {
+                proceed.countDown();
+                awaitNext(polls);
+            }
+            // The document boundary was obtained before the page; this token was admitted after its target/clear.
+            try (var token = cache.beginRead("document-1")) {
+                var stamp = cache.publish(token, documentEntity(10L, "old"), boundary);
+                tracker.loaded("document-1", TrackedDocument.class, boundary, stamp);
+            }
+            if (!finishPageBeforePublication) {
+                proceed.countDown();
+                awaitNext(polls);
+            }
+            assertNull(tracker.safeDocumentBoundary());
+            assertNull(tracker.current("document-1", TrackedDocument.class));
+            assertEquals(0, refreshes.get(), "A lagging document cannot repair a missed update or erasure");
+            cache.put("document-1", documentEntity(12L, "verified"));
+            tracker.loaded("document-1", TrackedDocument.class, 12L);
+            assertNotNull(tracker.current("document-1", TrackedDocument.class));
+        } finally {
+            proceed.countDown();
+            cache.close();
+        }
+    }
 
     @Test
     void restoresHealthOnlyAfterAValidRecoveryPageHasBeenProcessed() throws Exception {
@@ -761,7 +821,7 @@ class ModelCacheTrackerTest {
                                  refreshed.countDown();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(11L, Map.of("sample-1", after));
-                             })) {
+                             }, () -> application)) {
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -1210,6 +1270,92 @@ class ModelCacheTrackerTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({"false,false,false", "true,false,false", "false,true,false", "false,false,true"})
+    void localCommitCanRestoreItsKnownEntryBeforeTheTrackedPageFinishes(
+            boolean newerUpdate, boolean hardDelete, boolean forget) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        var polls = polls(eventStore);
+        ModelCache cache = new ModelCache(new DefaultCache());
+        Entity<?> initial = modelEntity(10L);
+        Entity<?> committed = modelEntity(11L);
+        cache.put("sample-1", initial);
+        AtomicInteger refreshCount = new AtomicInteger();
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        List<ModelCommitTargetResult> blockingTargets = new AbstractList<>() {
+            @Override
+            public int size() {
+                return 1;
+            }
+
+            @Override
+            public ModelCommitTargetResult get(int index) {
+                processing.countDown();
+                awaitLatch(proceed);
+                return new ModelCommitTargetResult("unrelated", 0L, true);
+            }
+        };
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            refreshCount.incrementAndGet();
+            return new ModelCacheTracker.RefreshedBatch(boundary, Map.of("sample-1", modelEntity(boundary)));
+        })) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            var page = awaitNext(polls);
+            assertSame(initial, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            Runnable completeLocalCommit = tracker.beginLocalCommit(List.of("sample-1"));
+            List<ModelUpdate> updates = new ArrayList<>(List.of(
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "local", 0, 11L, null,
+                                    List.of(new ModelCommitTargetResult("sample-1", 1L, true))),
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "unrelated", 0, 12L, null, blockingTargets)));
+            if (newerUpdate || hardDelete) {
+                updates.add(new ModelUpdate(hardDelete ? ModelUpdateKind.HARD_DELETE : ModelUpdateKind.COMMIT,
+                                            "later", 0, 13L, null,
+                                            hardDelete ? List.of()
+                                                    : List.of(new ModelCommitTargetResult("sample-1", 2L, true))));
+            }
+            long pageBoundary = newerUpdate || hardDelete ? 13L : 12L;
+            page.complete(new TrackModelUpdatesResult(1L, pageBoundary, pageBoundary, pageBoundary, updates));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+
+            // The tracker already marked this local target stale, but has not finished the unrelated target.
+            cache.put("sample-1", committed);
+            if (forget) {
+                tracker.forget("sample-1");
+            }
+            tracker.committed("sample-1", SampleModel.class, 11L);
+            completeLocalCommit.run();
+            if (hardDelete || forget) {
+                assertNull(tracker.currentVersion("sample-1", SampleModel.class));
+            } else {
+                var current = tracker.currentVersion("sample-1", SampleModel.class);
+                assertNotNull(current, "An authoritative local revision must not wait for an unrelated page suffix");
+                assertSame(committed, current.entity());
+                assertEquals(11L, current.modelStateIndex());
+            }
+            assertEquals(0, refreshCount.get());
+
+            proceed.countDown();
+            awaitNext(polls);
+            if (hardDelete || forget) {
+                assertNull(tracker.currentVersion("sample-1", SampleModel.class));
+                if (hardDelete) {
+                    assertNull(cache.get("sample-1"));
+                }
+            } else if (newerUpdate) {
+                assertEquals(13L, ((io.fluxzero.sdk.modeling.ModelRoot<?>)
+                        awaitCurrent(tracker, "sample-1", SampleModel.class)).stateIndex());
+                assertTrue(refreshCount.get() > 0);
+            } else {
+                assertSame(committed, tracker.current("sample-1", SampleModel.class));
+                assertEquals(0, refreshCount.get());
+            }
+        } finally {
+            proceed.countDown();
+            cache.close();
+        }
+    }
+
     @Test
     void localCommitAdvancesItsBoundaryWhileATrackedPageIsBeingProcessed()
             throws Exception {
@@ -1620,8 +1766,12 @@ class ModelCacheTrackerTest {
                 polls = polls(eventStore);
         ConcurrentLinkedQueue<Runnable> evictionNotifications =
                 new ConcurrentLinkedQueue<>();
+        CountDownLatch evictionQueued = new CountDownLatch(1);
         ModelCache cache = new ModelCache(new SoftReferenceCache(
-                100, evictionNotifications::add, null));
+                100, notification -> {
+                    evictionNotifications.add(notification);
+                    evictionQueued.countDown();
+                }, null));
         cache.put("sample-1", entity(SampleModel.class));
         CountDownLatch refreshStarted = new CountDownLatch(1);
         CountDownLatch continueRefresh = new CountDownLatch(1);
@@ -1688,6 +1838,7 @@ class ModelCacheTrackerTest {
             assertTimeoutPreemptively(
                     Duration.ofSeconds(1L),
                     () -> assertNull(lookup.join()));
+            assertTrue(evictionQueued.await(5L, TimeUnit.SECONDS));
             assertFalse(evictionNotifications.isEmpty());
         } finally {
             continueRefresh.countDown();

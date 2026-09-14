@@ -56,6 +56,7 @@ import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -142,6 +143,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final MutationPlan.Compiler modelDefinitionCompiler;
     private final ModelReplayCursor replayCursor;
     private final Cache cacheSource;
+    // Opaque family token: shared namespace views, but no cached key retains the application or compiler.
+    private final Object cacheOwner;
+    private final AtomicReference<Fluxzero> owningApplication;
     private final Cache modelCache;
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
@@ -181,7 +185,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
              new MutationPlan.Compiler(Objects.requireNonNull(
                      parameterResolvers, "parameterResolvers")),
-             new AtomicReference<>(), modelNamePrefix, new ConcurrentHashMap<>());
+             new AtomicReference<>(), modelNamePrefix, new ConcurrentHashMap<>(), new Object(), new AtomicReference<>());
     }
 
     private DefaultModelRepository(
@@ -195,7 +199,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             AtomicReference<MigrationReadBarrierConfiguration>
                     migrationReadBarrierConfiguration,
             String modelNamePrefix,
-            ConcurrentHashMap<String, Class<?>> modelTypesByName) {
+            ConcurrentHashMap<String, Class<?>> modelTypesByName, Object cacheOwner, AtomicReference<Fluxzero> owningApplication) {
         this.client = Objects.requireNonNull(client, "client");
         this.publicationNamespace = ClientUtils.isApplicationNamespace(client) ? null : client.namespace();
         this.modelNamePrefix = modelNamePrefix == null ? "" : modelNamePrefix;
@@ -209,8 +213,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this.migrationReadBarrierConfiguration = Objects.requireNonNull(
                 migrationReadBarrierConfiguration, "migrationReadBarrierConfiguration");
         this.cacheSource = Objects.requireNonNull(cache, "cache");
+        this.cacheOwner = Objects.requireNonNull(cacheOwner, "cacheOwner");
+        this.owningApplication = Objects.requireNonNull(owningApplication, "owningApplication");
         this.modelCache = cache == NoOpCache.INSTANCE
-                ? cache : ModelCache.shared(cache, client.namespace());
+                ? cache : ModelCache.shared(cache, cacheOwner, client.namespace());
         this.snapshotStore = snapshotSerializer == null
                 ? null : new ModelSnapshotStore(documentStore, snapshotSerializer);
         EventStoreClient eventStoreClient = Objects.requireNonNull(
@@ -225,7 +231,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 : new ModelCacheTracker(
                         eventStoreClient,
                         (ModelCache) modelCache,
-                        this::refreshCurrentModels);
+                        this::refreshCurrentModels, owningApplication::get);
         if (modelCacheTracker != null) {
             client.beforeShutdown(() -> {
                 modelCacheTracker.close();
@@ -241,11 +247,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         DefaultModelRepository result = new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
                 snapshotSerializer, cacheSource, modelDefinitionCompiler,
-                migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName);
+                migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName, cacheOwner, owningApplication);
         result.configureModelTypes(modelTypes);
         result.configureAutomaticModelRouting(automaticModelRouting);
         result.configureReplayRestoration(replayRestoration);
         return result;
+    }
+
+    /**
+     * Binds background cache replay to this repository's owning application, including namespace views. Builders
+     * configure this before exposing the repository. Standalone repositories do not infer ownership from callers.
+     */
+    public void configureOwningApplication(Fluxzero application) {
+        Objects.requireNonNull(application, "application");
+        if (!owningApplication.compareAndSet(null, application) && owningApplication.get() != application) {
+            throw new IllegalStateException("Model repository already belongs to another application");
+        }
     }
 
     /** Configures application-owned event payload restoration before this repository is made available to callers. */
@@ -716,14 +733,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType) {
         return ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), modelId, modelType,
-                loadDurable(modelId, modelType));
+                loadDurable(modelId, modelType), modelDefinitionCompiler);
     }
 
     @Override
     public <T> Entity<T> loadCurrent(@NonNull String modelId, @NonNull Class<T> modelType) {
         return ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), modelId, modelType,
-                loadDurable(modelId, modelType, ModelReadBoundary.current(), null));
+                loadDurable(modelId, modelType, ModelReadBoundary.current(), null), modelDefinitionCompiler);
     }
 
     private <T> Entity<T> loadDurable(
@@ -825,7 +842,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public ModelBatchScope.Snapshot graphStagedValues(ModelReadBoundary boundary) {
         return boundary.includeMessageBatch()
-                ? ModelBatchScope.snapshot(messageBatchNamespace()) : ModelBatchScope.Snapshot.EMPTY;
+                ? ModelBatchScope.snapshot(messageBatchNamespace(), modelDefinitionCompiler) : ModelBatchScope.Snapshot.EMPTY;
     }
 
     @Override
@@ -874,8 +891,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, Class<?> modelType) {
+        return resolveCurrentGraphIdentity(modelId, false, modelType);
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, boolean exact, Class<?> modelType) {
         // A cached root may be valid only through an older tracker cursor. Relationships can have changed since
         // that cursor without changing the root. Pin an explicitly current Graph at storage, not at the cache.
+        if (exact) {
+            modelName(modelType);
+            return replayCursor.graphIdentity(modelId.toString(), modelType, ModelReadBoundary.current().forRequest(),
+                                               false, modelCacheTracker, true);
+        }
         return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest(), false);
     }
 
@@ -1022,7 +1049,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         } else {
             Map<String, Entity<?>> staged =
                     ModelBatchScope.currentValues(
-                            messageBatchNamespace());
+                            messageBatchNamespace(), modelDefinitionCompiler);
             if (staged.isEmpty()) {
                 stagedValues = Map.of();
             } else {
@@ -1089,7 +1116,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         Map<String, Entity<?>> staged =
                 includeMessageBatch
                         ? ModelBatchScope.currentValues(
-                                messageBatchNamespace())
+                                messageBatchNamespace(), modelDefinitionCompiler)
                         : Map.of();
         Graph<T> result = replayCursor.graph(
                 rootId, rootType, options, boundary,
@@ -1240,6 +1267,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 stagedValues, includeMessageBatch, migration, true);
     }
 
+    /**
+     * Loads one transaction's initial context at a freshly observed storage boundary. A cached root's validation
+     * cursor is not evidence of current Graph membership. Values still reuse exact matching cached revisions;
+     * incomplete document history follows the existing bounded boundary-advance protocol before evaluation begins.
+     */
+    public CommitAttempt loadCurrentContext(MutationPlan.Resolution resolution, Map<String, Object> stagedValues,
+                                            boolean includeMessageBatch) {
+        if (!resolution.hasAncestorDependencies() && resolution.models().stream().allMatch(target ->
+                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced())) {
+            return loadContext(resolution, ModelReadBoundary.current(), stagedValues, includeMessageBatch,
+                               false, false, true);
+        }
+        long current = replayCursor.loadHeads(List.of(), ModelReadBoundary.current()).stateIndex();
+        return loadRebaseContext(resolution, current, stagedValues, includeMessageBatch, false);
+    }
+
     private String messageBatchNamespace() {
         DeserializingMessage message =
                 DeserializingMessage.getCurrent();
@@ -1284,11 +1327,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch,
             boolean migration,
             boolean advanceIncompleteDocumentBoundary) {
+        return loadContext(resolution, boundary, stagedValues, includeMessageBatch, migration,
+                           advanceIncompleteDocumentBoundary, false);
+    }
+
+    private CommitAttempt loadContext(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                       Map<String, Object> stagedValues, boolean includeMessageBatch,
+                                       boolean migration, boolean advanceIncompleteDocumentBoundary,
+                                       boolean forceStorageBoundary) {
         String namespace = includeMessageBatch ? messageBatchNamespace() : null;
         Map<String, Object> effectiveStagedValues = stagedValues;
         if (includeMessageBatch) {
             Map<String, Object> batchValues = ModelBatchScope.currentValues(
-                    namespace, resolution);
+                    namespace, resolution, modelDefinitionCompiler);
             if (!batchValues.isEmpty()) {
                 if (stagedValues.isEmpty()) {
                     effectiveStagedValues = batchValues;
@@ -1299,16 +1350,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
             }
         }
-        CommitAttempt context = replayCursor.context(
+        CommitAttempt context = forceStorageBoundary
+                ? replayCursor.contextAtStorage(resolution, effectiveStagedValues,
+                        includeMessageBatch
+                                ? modelId -> ModelBatchScope.currentValue(namespace, modelId, modelDefinitionCompiler)
+                                : null, modelCacheTracker)
+                : replayCursor.context(
                 resolution, boundary, effectiveStagedValues,
                 includeMessageBatch
-                        ? modelId -> ModelBatchScope.currentValue(namespace, modelId)
+                        ? modelId -> ModelBatchScope.currentValue(namespace, modelId, modelDefinitionCompiler)
                         : null,
                 migration ? null : modelCacheTracker, true,
                 migration, advanceIncompleteDocumentBoundary);
-        return includeMessageBatch
-                ? ModelBatchScope.overlayCurrent(namespace, context)
-                : context;
+        return includeMessageBatch ? overlayPendingContext(context) : context;
+    }
+
+    /** Adds this repository's visible pending values and commit dependencies to a prefetched durable context. */
+    public CommitAttempt overlayPendingContext(CommitAttempt context) {
+        return ModelBatchScope.overlayCurrent(messageBatchNamespace(), context, modelDefinitionCompiler);
     }
 
     private AncestorResolution resolveAncestors(
@@ -1325,7 +1384,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         ModelReplayCursor.AncestorResult result = replayCursor.resolveAncestors(
                 resolution, boundary, stagedValues,
                 includeMessageBatch
-                        ? modelId -> ModelBatchScope.currentValue(namespace, modelId)
+                        ? modelId -> ModelBatchScope.currentValue(namespace, modelId, modelDefinitionCompiler)
                         : null,
                 requireAncestors, closestAncestorsOnly, allowMultipleAncestors,
                 maxDepth, maxModels);

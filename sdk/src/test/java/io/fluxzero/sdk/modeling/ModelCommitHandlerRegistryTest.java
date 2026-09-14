@@ -218,6 +218,9 @@ class ModelCommitHandlerRegistryTest {
     void retryReevaluatesAllHandlersAtTheConflictBoundary() {
         DefaultModelRepository repository =
                 mock(DefaultModelRepository.class);
+        when(repository.loadCurrentContext(any(), anyMap(), anyBoolean()))
+                .thenAnswer(invocation -> repository.loadContext(invocation.getArgument(0), null,
+                                                                 invocation.getArgument(1), invocation.getArgument(2)));
         when(repository.beginLocalCommit(any()))
                 .thenReturn(() -> {
                 });
@@ -2008,6 +2011,9 @@ class ModelCommitHandlerRegistryTest {
                 any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean(), anyBoolean()))
                 .thenAnswer(answer);
+        when(repository.loadCurrentContext(any(), anyMap(), anyBoolean()))
+                .thenAnswer(invocation -> repository.loadContext(invocation.getArgument(0), null,
+                                                                 invocation.getArgument(1), invocation.getArgument(2)));
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
     }
