@@ -46,6 +46,9 @@ jobs:
           python3 .github/scripts/check-executor-isolation.test.py
           python3 .github/scripts/check-executor-isolation.py
 
+      - name: Qualify executable OpenAPI packaging
+        run: bash .github/scripts/test-openapi-packaging.sh
+
       - name: Verify standard Maven publication and release attachments
         run: |
           repository="$RUNNER_TEMP/maven-publication"
