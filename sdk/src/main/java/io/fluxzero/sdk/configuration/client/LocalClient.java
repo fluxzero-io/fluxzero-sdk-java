@@ -190,7 +190,12 @@ public class LocalClient extends AbstractClient {
             return new LocalTrackingClient(eventStore.getMessageStore(), MessageType.NOTIFICATION, null,
                                            initialPositionLag);
         }
-        return (TrackingClient) getGatewayClient(messageType, topic);
+        TrackingClient result = (TrackingClient) getGatewayClient(messageType, topic);
+        if (messageType == MessageType.DOCUMENT && result instanceof LocalTrackingClient local) {
+            // Subscribe before the consumer thread starts: unobserved document stores intentionally keep no update log.
+            local.getTrackingStrategy();
+        }
+        return result;
     }
 
     @Override

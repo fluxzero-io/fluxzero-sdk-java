@@ -92,6 +92,22 @@ class ModelSourceDocumentMigrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
+    void documentTrackingRegistrationRetainsUpdatesBeforeTheFirstRead(boolean registerTracking) {
+        TestFixture.create().whenExecuting(fc -> {
+            var archive = fc.client().forNamespace("archive");
+            if (registerTracking) {
+                archive.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, SOURCE);
+            }
+            seed(fc, archive);
+            assertEquals(0, archive.getSearchClient().fetchModelDocument(new GetDocument("project", SOURCE, true, true))
+                    .getDocument().getDocument().getRevision());
+            var store = (io.fluxzero.sdk.persisting.search.client.InMemorySearchStore) archive.getSearchClient();
+            assertEquals(registerTracking ? 1 : 0, store.openStream(SOURCE, -1L, 10).count());
+        }).expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
     void businessChangesCannotBeCertifiedAsSchemaMigration(boolean async) {
         TestFixture fixture = TestFixture.create().registerCasters(new MoveName());
         if (async) { fixture = fixture.async(); }
