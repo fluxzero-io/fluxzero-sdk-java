@@ -139,6 +139,22 @@ Persistence does not control event storage or publication. Those remain owned by
 make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
 `ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT`-only Models.
 
+## Persistence and protection boundaries
+
+Storage and query visibility are not authorization. `DOCUMENT` with effective `eventPublication = NEVER`
+can persist current state without Model events, but has no history or `previous()`. Event-sourced state changes
+must store their event. This does not suppress incoming request logs, results or application logs.
+`@DocumentProjection(searchable = false)` removes unrestricted typed search, not identity or exact
+parent/ancestor reads. Graph predicates can still use internal content indexes independently of the public projection.
+
+`@ProtectData` on an input does not carry over to copies in Model state, snapshots, documents or return values.
+Result payloads can declare their own protected fields for normal RESULT dispatch; do not infer HTTP-body protection.
+Use trusted handlers and deployment access controls for sensitive state; do not treat a Graph or non-searchable
+document as a secret store. There is no implicit KMS, encryption-at-rest or backup guarantee.
+Returning `null` from `@Apply` is logical deletion, not physical erasure. Model erasure fences stale writes
+but global event logs, surviving shared event references, external copies and backups have separate lifecycles.
+Use one Model action for atomic related state changes; external I/O and schedules are outside that transaction.
+
 ## Apply actions
 
 ```kotlin

@@ -338,6 +338,11 @@ the regular payload.
 
 <a name="drop-protected-data"></a>
 
+Input-message protection does not carry over to copies in Model state, snapshots, documents, results or logs.
+A result payload can declare its own protected fields for normal RESULT dispatch; this is not a blanket HTTP-body guarantee.
+Neither `DOCUMENT` nor `searchable = false` is an authorization or encryption boundary. For eventless state,
+atomic transitions and erasure limits, see [Model persistence boundaries](entities.md#persistence-and-protection-boundaries).
+
 ### @DropProtectedData
 
 Use this annotation on a handler or endpoint to permanently delete the sensitive values from the KV store, or discard

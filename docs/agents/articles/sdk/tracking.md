@@ -20,7 +20,12 @@ class OrderProjection {
 }
 ```
 
-Handlers without explicit consumer configuration use the unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class a generated default consumer. `defaultAppConsumer` shares the application default consumer. With `fluxzero.defaults.version >= 2026.05.20`, `perHandler` is the default.
+Handlers without explicit consumer configuration use the unconfigured-handler fallback. Set
+`fluxzero.tracking.unconfiguredHandlerConsumerMode` (`FLUXZERO_TRACKING_UNCONFIGURED_HANDLER_CONSUMER_MODE`) explicitly
+to `perHandler`, `perPackage`, or `defaultAppConsumer`. Otherwise `fluxzero.defaults.version` chooses:
+missing/before `2026.05.20` → shared application consumer; `2026.05.20` through `2026.07.26` → per handler;
+`2026.07.27` or newer → per exact package and message type. Absolute HTTP test stubs use these same rules;
+give a stub its own test consumer when it represents an independently running external service.
 
 Replay is a code/configuration decision, not a casual runtime action:
 

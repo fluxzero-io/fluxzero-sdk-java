@@ -102,6 +102,11 @@ silently renaming fields in an existing application's history.
 
 ## Storage is a separate choice
 
+Storage choices do not establish privacy. DOCUMENT plus effective `eventPublication = NEVER` supports
+eventless current state, not history or `previous()`. Non-searchable documents still support identity/relationship
+reads, and `@ProtectData` does not protect values copied into Model state. Read the linked **Model state:
+persistence and protection boundaries** article before using these controls for sensitive data.
+
 **Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
 stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
 replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not

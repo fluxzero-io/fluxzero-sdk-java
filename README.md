@@ -22,6 +22,9 @@ Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concep
 For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
 
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
+For eventless current state, non-searchable documents and erasure, read the
+[Model state boundaries](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx):
+storage and query visibility are not authorization or secret-storage guarantees.
 Optional `DOCUMENT` projections are separate from internal Model/Graph sources: direct search returns the projection,
 while Graph composition and related-content predicates use the internal source. See the
 [migration guide](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) for independent reindexing.

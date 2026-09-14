@@ -52,6 +52,10 @@ import static io.fluxzero.sdk.Fluxzero.currentIdentityProvider;
  *
  * <p>
  * Messages can be enriched with metadata, transformed with a new payload, or serialized for transmission.
+ * Logical redispatch retains the message ID unless explicitly replaced; it does not forward an
+ * incoming transport envelope. Source, target, request ID and log index belong to {@code SerializedMessage}, not
+ * this value. Request transport sets source to the sending client for response correlation. Local in-process
+ * handling has no transport source. Blocking gateway methods do not determine whether delivery is local or remote.
  * </p>
  *
  * <h2>Key Features</h2>

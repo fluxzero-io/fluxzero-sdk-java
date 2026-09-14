@@ -656,7 +656,12 @@ public class TestFixture implements Given<TestFixture>, When {
     /**
      * Registers one or more message handlers with the fixture.
      * <p>
-     * In async mode, all handlers for the same consumer must be registered together.
+     * Additional handlers may be registered after tracking has started. When extending an existing consumer, keep
+     * its configuration identical; registration is not a live consumer-reconfiguration API. Late registration does
+     * not rewind that consumer's position to deliver already consumed messages to the new handler.
+     * <p>
+     * Absolute HTTP stubs use normal consumer selection, just like application endpoints. Give a blocking external
+     * stub its own test consumer when it represents a separate service; the URL alone does not separate consumers.
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     public TestFixture registerHandlers(List<?> handlers) {
@@ -767,7 +772,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
             List<?> handlers, Stream<ConsumerConfiguration> configurations) {
         var unassignedHandlers = new ArrayList<Object>(handlers);
-        var result = normalizeConfigurations(configurations).stream().map(config -> {
+        var result = normalizeConfigurations(configurations, handlers).stream().map(config -> {
             var matches = unassignedHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
             if (config.exclusive() && !config.conditionallyExclusive()) {
                 unassignedHandlers.removeAll(matches);
@@ -833,7 +838,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private List<Object> fallbackHandlers(List<?> handlers, Collection<ConsumerConfiguration> configurations) {
         var fallbackHandlers = new ArrayList<Object>(handlers);
-        normalizeConfigurations(configurations.stream()).forEach(config -> {
+        normalizeConfigurations(configurations.stream(), handlers).forEach(config -> {
             var matches = fallbackHandlers.stream().filter(h -> config.getHandlerFilter().test(h)).toList();
             if (config.exclusive() && !config.conditionallyExclusive()) {
                 fallbackHandlers.removeAll(matches);
@@ -899,23 +904,27 @@ public class TestFixture implements Given<TestFixture>, When {
                 });
     }
 
-    private List<ConsumerConfiguration> normalizeConfigurations(Stream<ConsumerConfiguration> configurations) {
+    private List<ConsumerConfiguration> normalizeConfigurations(Stream<ConsumerConfiguration> configurations,
+                                                               List<?> handlers) {
         return configurations
                 .sorted(Comparator.comparing(ConsumerConfiguration::exclusive))
                 .map(ConsumerConfiguration::ordered)
                 .map(ConsumerConfiguration::substituteProperties)
                 .collect(toMap(ConsumerConfiguration::getName, Function.identity(),
-                               TestFixture::mergeConfigurations, LinkedHashMap::new))
+                               (a, b) -> mergeConfigurations(a, b, handlers), LinkedHashMap::new))
                 .values().stream().toList();
     }
 
-    private static ConsumerConfiguration mergeConfigurations(ConsumerConfiguration a, ConsumerConfiguration b) {
+    private static ConsumerConfiguration mergeConfigurations(ConsumerConfiguration a, ConsumerConfiguration b,
+                                                            List<?> handlers) {
         if (a.equals(b)) {
             return a.toBuilder().handlerFilter(a.getHandlerFilter().or(b.getHandlerFilter())).build();
         }
         throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                 "Consumer name is configured more than once",
-                "Fluxzero found multiple different consumer configurations named `%s`.".formatted(a.getName()),
+                ("Fluxzero found multiple different consumer configurations named `%s`. "
+                 + "Handler types in this registration: %s.").formatted(a.getName(), handlers.stream()
+                        .map(ReflectionUtils::asClass).map(Class::getName).distinct().toList()),
                 "Use unique consumer names, or make the repeated @Consumer configurations identical so "
                 + "Fluxzero can merge their handler filters.",
                 null, a.getName()));
@@ -979,9 +988,7 @@ public class TestFixture implements Given<TestFixture>, When {
     /**
      * Register additional handlers with the test fixture.
      * <p>
-     * For async test fixtures, make sure all handlers of the same consumer are registered together, i.e. either via one
-     * of the test fixture creator methods, or all at the same time via registerHandlers. If handlers that share the
-     * same consumer are registered separately, an exception will be raised.
+     * See {@link #registerHandlers(List)} for late registration and HTTP-stub consumer configuration.
      */
     public TestFixture registerHandlers(Object... handlers) {
         return registerHandlers(Arrays.asList(handlers));

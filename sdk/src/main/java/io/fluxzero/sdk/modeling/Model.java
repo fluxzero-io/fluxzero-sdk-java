@@ -52,7 +52,8 @@ import java.lang.annotation.Target;
  * <h2>Persistence</h2>
  * {@link #persistence()} makes the durable representations and authoritative load path explicit. Event-sourced models
  * are reconstructed from their model stream, optionally from a snapshot. Adding {@link ModelPersistence#DOCUMENT}
- * maintains a current document as well; when event sourcing is absent, that document is authoritative. Event storage
+ * maintains an independent public projection as well; when event sourcing is absent, the internal current source
+ * is authoritative. Event storage
  * and publication remain independent and are controlled by {@link #eventPublication()},
  * {@link #publicationStrategy()}, and per-apply overrides. Internal component documents used for Graph composition are
  * likewise orthogonal and never change the selected load path.
@@ -200,11 +201,13 @@ public @interface Model {
     ModelCommitPolicy commitPolicy() default ModelCommitPolicy.DEFAULT;
 
     /**
-     * Controls whether an applied update produces an event when the returned model is unchanged.
+     * Controls whether an applied update produces an event, including unchanged results.
      * <p>
      * Independent models default to {@link EventPublication#IF_MODIFIED IF_MODIFIED}, so a no-op apply does not
      * create a model-stream or globally published event. Use {@link EventPublication#ALWAYS ALWAYS} when an unchanged
      * apply intentionally represents a domain event. This setting is evaluated before {@link #publicationStrategy()}.
+     * {@link EventPublication#NEVER NEVER} permits eventless state changes only for document-loaded Models, not
+     * event-sourced Models. It does not suppress incoming command/webrequest logs, results or application logging.
      */
     EventPublication eventPublication() default EventPublication.IF_MODIFIED;
 
@@ -226,6 +229,8 @@ public @interface Model {
      * Model loads, verified state and Graph composition use the separate internal source, unaffected by ordinary
      * public document rewrites. Timestamps default to the applied event timestamp when no paths are
      * configured.
+     * <p>Non-searchability is not authorization or encryption. Model state and documents do not inherit
+     * {@code @ProtectData} protection from input messages; enforce sensitive-state access and storage separately.</p>
      */
     DocumentProjection document() default @DocumentProjection;
 
