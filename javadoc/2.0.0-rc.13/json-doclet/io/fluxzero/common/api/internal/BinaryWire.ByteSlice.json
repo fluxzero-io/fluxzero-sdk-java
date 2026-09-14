@@ -1,0 +1,131 @@
+{
+  "name" : "ByteSlice",
+  "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice",
+  "packageName" : "io.fluxzero.common.api.internal",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.Data.ByteArrayView" ],
+  "fields" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice.bytes",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "length",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice.length",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "materialized",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice.materialized",
+    "type" : "byte[]",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "offset",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice.offset",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ByteSlice",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice#ByteSlice",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "array",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice#array",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice#get",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "length",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice#length",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "offset",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice#offset",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

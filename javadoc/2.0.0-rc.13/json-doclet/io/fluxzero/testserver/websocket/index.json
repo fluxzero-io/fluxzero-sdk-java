@@ -1,0 +1,114 @@
+{
+  "package" : {
+    "name" : "websocket",
+    "qualifiedName" : "io.fluxzero.testserver.websocket",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CommandIdempotencyStore.json",
+    "name" : "CommandIdempotencyStore",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+    "kind" : "class"
+  }, {
+    "file" : "CommandIdempotencyStore.ClientCommandResults.json",
+    "name" : "CommandIdempotencyStore.ClientCommandResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults",
+    "kind" : "class"
+  }, {
+    "file" : "CommandIdempotencyStore.CommandRegistration.json",
+    "name" : "CommandIdempotencyStore.CommandRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration",
+    "kind" : "record"
+  }, {
+    "file" : "CommandIdempotencyStore.CommandResult.json",
+    "name" : "CommandIdempotencyStore.CommandResult",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandResult",
+    "kind" : "class"
+  }, {
+    "file" : "ConsumerEndpoint.json",
+    "name" : "ConsumerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "EventSourcingEndpoint.json",
+    "name" : "EventSourcingEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.EventSourcingEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "Handle.json",
+    "name" : "Handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.Handle",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "JettyWebsocketAdapter.json",
+    "name" : "JettyWebsocketAdapter",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketAdapter",
+    "kind" : "class"
+  }, {
+    "file" : "JettyWebsocketRouter.json",
+    "name" : "JettyWebsocketRouter",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter",
+    "kind" : "class"
+  }, {
+    "file" : "JettyWebsocketRouter.HealthHandler.json",
+    "name" : "JettyWebsocketRouter.HealthHandler",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$HealthHandler",
+    "kind" : "class"
+  }, {
+    "file" : "JettyWebsocketRouter.Route.json",
+    "name" : "JettyWebsocketRouter.Route",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route",
+    "kind" : "record"
+  }, {
+    "file" : "KeyValueEndPoint.json",
+    "name" : "KeyValueEndPoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.KeyValueEndPoint",
+    "kind" : "class"
+  }, {
+    "file" : "ProducerEndpoint.json",
+    "name" : "ProducerEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "SchedulingEndpoint.json",
+    "name" : "SchedulingEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SchedulingEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "SearchEndpoint.json",
+    "name" : "SearchEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "ServerWebsocketSession.json",
+    "name" : "ServerWebsocketSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ServerWebsocketSession",
+    "kind" : "interface"
+  }, {
+    "file" : "WebsocketDeploymentUtils.json",
+    "name" : "WebsocketDeploymentUtils",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketDeploymentUtils",
+    "kind" : "class"
+  }, {
+    "file" : "WebsocketEndpoint.json",
+    "name" : "WebsocketEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "WebsocketEndpoint.ClientMessage.json",
+    "name" : "WebsocketEndpoint.ClientMessage",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$ClientMessage",
+    "kind" : "class"
+  }, {
+    "file" : "WebsocketEndpoint.PingRegistration.json",
+    "name" : "WebsocketEndpoint.PingRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$PingRegistration",
+    "kind" : "class"
+  }, {
+    "file" : "WebsocketEndpoint.SessionBacklog.json",
+    "name" : "WebsocketEndpoint.SessionBacklog",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint$SessionBacklog",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

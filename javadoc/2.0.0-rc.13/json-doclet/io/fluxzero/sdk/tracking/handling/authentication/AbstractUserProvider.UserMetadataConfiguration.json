@@ -1,0 +1,153 @@
+{
+  "name" : "UserMetadataConfiguration",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "configured",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration.configured",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "defaultsVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration.defaultsVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "useUserIdMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration.useUserIdMetadata",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "UserMetadataConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#UserMetadataConfiguration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configured",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultsVersion",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "useUserIdMetadata",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "configured",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#configured",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultsVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#defaultsVersion",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "useUserIdMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider$UserMetadataConfiguration#useUserIdMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "configured",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "defaultsVersion",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "useUserIdMetadata",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

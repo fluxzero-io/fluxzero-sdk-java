@@ -1,0 +1,44 @@
+{
+  "package" : {
+    "name" : "internal",
+    "qualifiedName" : "io.fluxzero.common.api.internal",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "BinaryWire.json",
+    "name" : "BinaryWire",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire",
+    "kind" : "class"
+  }, {
+    "file" : "BinaryWire.ByteSlice.json",
+    "name" : "BinaryWire.ByteSlice",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$ByteSlice",
+    "kind" : "class"
+  }, {
+    "file" : "BinaryWire.Cursor.json",
+    "name" : "BinaryWire.Cursor",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor",
+    "kind" : "class"
+  }, {
+    "file" : "BinaryWire.EncodedMessage.json",
+    "name" : "BinaryWire.EncodedMessage",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage",
+    "kind" : "class"
+  }, {
+    "file" : "BinaryWire.EnvelopeHeaderCache.json",
+    "name" : "BinaryWire.EnvelopeHeaderCache",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EnvelopeHeaderCache",
+    "kind" : "class"
+  }, {
+    "file" : "BinaryWire.Reader.json",
+    "name" : "BinaryWire.Reader",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader",
+    "kind" : "class"
+  }, {
+    "file" : "BinaryWire.Writer.json",
+    "name" : "BinaryWire.Writer",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

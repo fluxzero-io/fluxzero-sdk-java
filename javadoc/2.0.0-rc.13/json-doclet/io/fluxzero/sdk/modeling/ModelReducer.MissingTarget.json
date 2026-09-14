@@ -1,0 +1,60 @@
+{
+  "name" : "MissingTarget",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$MissingTarget",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.ModelReducer.MissingTarget>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "MissingTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$MissingTarget#MissingTarget",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$MissingTarget#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelReducer.MissingTarget",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$MissingTarget#values",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelReducer.MissingTarget[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$MissingTarget.INSTANCE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

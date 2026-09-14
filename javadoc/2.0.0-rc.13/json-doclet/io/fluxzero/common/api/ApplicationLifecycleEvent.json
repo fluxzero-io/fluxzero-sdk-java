@@ -1,0 +1,109 @@
+{
+  "name" : "ApplicationLifecycleEvent",
+  "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Metric event emitted when a Fluxzero application instance starts or begins shutting down.\n <p>\n A {@link Phase#STARTED} event is only published after the fully constructed application can store a message through\n its metrics gateway. Its presence therefore confirms both application startup and connectivity to a Fluxzero\n Runtime endpoint. A matching {@link Phase#STOPPING} event is attempted during controlled shutdown without delaying\n shutdown indefinitely.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "applicationId",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.applicationId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Stable application identifier, if configured. ",
+    "constantValue" : null
+  }, {
+    "name" : "clientId",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.clientId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Unique identifier of this client instance. ",
+    "constantValue" : null
+  }, {
+    "name" : "clientName",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.clientName",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Human-readable client or application name. ",
+    "constantValue" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.namespace",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Namespace used by this application, if configured. ",
+    "constantValue" : null
+  }, {
+    "name" : "phase",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.phase",
+    "type" : "io.fluxzero.common.api.ApplicationLifecycleEvent.Phase",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Lifecycle phase represented by this event. ",
+    "constantValue" : null
+  }, {
+    "name" : "sdkVersion",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.sdkVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Version of the Fluxzero SDK, if available from build metadata. ",
+    "constantValue" : null
+  }, {
+    "name" : "startedAt",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.startedAt",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Epoch milliseconds at which construction of this application instance completed. ",
+    "constantValue" : null
+  }, {
+    "name" : "startupId",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.startupId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Unique identifier shared by the lifecycle events of one application instance. ",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Epoch milliseconds at which this lifecycle phase was initiated. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ApplicationLifecycleEvent",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent#ApplicationLifecycleEvent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Phase",
+    "qualifiedName" : "io.fluxzero.common.api.ApplicationLifecycleEvent$Phase",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,0 +1,103 @@
+{
+  "name" : "AppendEvents",
+  "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents",
+  "packageName" : "io.fluxzero.common.api.eventsourcing",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command used to append one or more event batches to the event store.\n <p>\n Each {@link EventBatch} corresponds to a single aggregate instance and contains a list of serialized events along\n with metadata such as the aggregate ID and the current sequence number.\n <p>\n This command is typically sent by a client when applying updates to aggregates in an event-sourced system. Events in\n the same batch are stored atomically and will be assigned sequential positions in the event log.\n\n <h2>Routing</h2>\n The command is routed based on the aggregate ID of the first batch. If multiple batches are included, they should\n ideally refer to the same aggregate or be routed consistently by design.\n\n @see EventBatch\n @see Guarantee\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "eventBatches",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents.eventBatches",
+    "type" : "java.util.List<io.fluxzero.common.api.eventsourcing.EventBatch>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The event batches to append. Each batch contains events for a single aggregate and its metadata.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Guarantee level for durability of this operation (e.g. persisted or replicated).\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AppendEvents",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents#AppendEvents",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the routing key used to partition the command, based on the first batch’s aggregate ID.\n"
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents#toMetric",
+    "returnType" : "io.fluxzero.common.api.eventsourcing.AppendEvents.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts this command to a metric-friendly representation for logging and monitoring.\n"
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a human-readable description of the operation.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

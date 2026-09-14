@@ -1,0 +1,44 @@
+{
+  "name" : "CpuWorkers",
+  "qualifiedName" : "io.fluxzero.common.ObjectUtils$CpuWorkers",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EXECUTOR",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$CpuWorkers.EXECUTOR",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "POOL",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$CpuWorkers.POOL",
+    "type" : "java.util.concurrent.ForkJoinPool",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CpuWorkers",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$CpuWorkers#CpuWorkers",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
