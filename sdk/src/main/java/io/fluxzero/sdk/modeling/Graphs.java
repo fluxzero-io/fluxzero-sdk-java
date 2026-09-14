@@ -1663,6 +1663,8 @@ final class GraphState {
         private final Set<Node> retained;
         private final PathSelection selection;
         private final boolean hideEmpty;
+        // A complete-change boundary can explicitly have no previous graph (creation).
+        private final boolean previousSpecified;
         private final Graph<?> previousRoot;
         private final BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator;
         private final boolean mappedValues;
@@ -1674,7 +1676,7 @@ final class GraphState {
                 GraphState state, BiFunction<Node, CommitAttempt.GraphReadContext, Object> value,
                 Function<String, String> path, List<?> values,
                 ViewContext contextFallback, Set<Node> retained, PathSelection selection,
-                boolean hideEmpty, Graph<?> previousRoot,
+                boolean hideEmpty, boolean previousSpecified, Graph<?> previousRoot,
                 BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator,
                 boolean mappedValues, CommitAttempt.GraphReadProof readProof, CommitAttempt.GraphReadContext readContext) {
             this.state = state;
@@ -1685,6 +1687,7 @@ final class GraphState {
             this.retained = retained;
             this.selection = selection;
             this.hideEmpty = hideEmpty;
+            this.previousSpecified = previousSpecified;
             this.previousRoot = previousRoot;
             this.decorator = decorator;
             this.mappedValues = mappedValues;
@@ -1694,7 +1697,7 @@ final class GraphState {
 
         static ViewContext canonical(GraphState state) {
             return new ViewContext(state, (node, reads) -> node.data().value(), IDENTITY_PATH, List.of(), null, null, null,
-                                   false, null, (graph, reads) -> graph, false, null, null);
+                                   false, false, null, (graph, reads) -> graph, false, null, null);
         }
 
         CommitAttempt.GraphReadProof readProof() {
@@ -1709,7 +1712,7 @@ final class GraphState {
             if (reads == readContext) {
                 return this;
             }
-            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previousRoot,
+            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previousSpecified, previousRoot,
                     (graph, actualReads) -> Graphs.withReadContext(Graphs.cast(decorator.apply(graph, actualReads)), actualReads),
                     mappedValues, readProof, reads);
         }
@@ -1796,6 +1799,12 @@ final class GraphState {
             return decorator.apply(graph, readContext);
         }
 
+        Graph<?> decorateExpanded(Graph<?> graph, Node node) {
+            Graph<?> result = decorate(graph);
+            // Keep the source boundary, but defer locating a descendant's previous placement until previous() is read.
+            return previousSpecified(node) ? Graphs.withPrevious(Graphs.cast(result), Graphs.cast(previousRoot)) : result;
+        }
+
         Graph<?> decorateHistorical(Graph<?> graph) {
             return decorator.apply(graph, null);
         }
@@ -1803,7 +1812,7 @@ final class GraphState {
         ViewContext mapValues(Function<? super Graph<?>, ?> mapper) {
             ViewContext source = this;
             return new ViewContext(state, (node, reads) -> mapper.apply(source.withReadContext(reads).view(node)), path, values, contextFallback,
-                                   retained, selection, hideEmpty, previousRoot,
+                                   retained, selection, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.mapValues(Graphs.cast(decorator.apply(graph, reads)), mapper), true, readProof,
                                    readContext);
         }
@@ -1811,14 +1820,14 @@ final class GraphState {
         ViewContext remapPaths(UnaryOperator<String> mapper, Map<String, String> overrides) {
             Function<String, String> previous = path;
             return new ViewContext(state, value, raw -> mapper.apply(previous.apply(raw)), values, contextFallback,
-                                   retained, selection, hideEmpty, previousRoot,
+                                   retained, selection, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.remapPaths(Graphs.cast(decorator.apply(graph, reads)), overrides),
                                    mappedValues, readProof, readContext);
         }
 
         ViewContext withContext(Collection<?> added) {
             List<?> stable = List.copyOf(added);
-            return new ViewContext(state, value, path, stable, this, retained, selection, hideEmpty, previousRoot,
+            return new ViewContext(state, value, path, stable, this, retained, selection, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.withContext(Graphs.cast(decorator.apply(graph, reads)), stable),
                                    mappedValues, readProof, readContext);
         }
@@ -1826,14 +1835,14 @@ final class GraphState {
         ViewContext retain(Set<Node> retained, Predicate<? super Graph<?>> predicate, CommitAttempt.GraphReadProof proof) {
             ViewContext source = this;
             return new ViewContext(state, (node, reads) -> retained.contains(node) ? source.value.apply(node, reads) : null, path, values,
-                                   contextFallback, retained, selection, true, previousRoot,
+                                   contextFallback, retained, selection, true, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph, reads)), predicate),
                                    mappedValues, proof == null ? readProof : proof, readContext);
         }
 
         ViewContext select(Node root, Set<String> selected) {
             PathSelection selectedPaths = new PathSelection(root, selected, path, selection);
-            return new ViewContext(state, value, path, values, contextFallback, retained, selectedPaths, hideEmpty, previousRoot,
+            return new ViewContext(state, value, path, values, contextFallback, retained, selectedPaths, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.selectPaths(Graphs.cast(decorator.apply(graph, reads)), selected),
                                    mappedValues, readProof, readContext);
         }
@@ -1880,16 +1889,29 @@ final class GraphState {
         }
 
         ViewContext withPrevious(Graph<?> previous) {
-            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previous,
+            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, true, previous,
                                    (graph, reads) -> graph, mappedValues, readProof, readContext);
+        }
+
+        boolean previousSpecified(Node node) {
+            if (!previousSpecified) {
+                return false;
+            }
+            // Placements reached through an external ancestor retain their own model history.
+            while (node.parent() != null) {
+                node = node.parent();
+            }
+            return node == state.root;
         }
 
         Graph<?> previous(Node node) {
             if (previousRoot == null) {
                 return null;
             }
-            return node == state.root ? previousRoot
-                    : previousRoot.find(node.data().id(), node.data().type()).orElse(null);
+            return Objects.equals(node.data().id(), Objects.toString(previousRoot.id(), null)) ? previousRoot
+                    : Graphs.lookupStream(previousRoot)
+                            .filter(candidate -> Objects.equals(node.data().id(), Objects.toString(candidate.id(), null)))
+                            .findFirst().orElse(null);
         }
 
         boolean selected() {
@@ -1947,7 +1969,7 @@ final class GraphView<T> implements Graph<T> {
     }
 
     Graph<?> expanded() {
-        return context.decorate(state.expand(node));
+        return context.decorateExpanded(state.expand(node), node);
     }
 
     @Override
@@ -2497,9 +2519,9 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public Graph<T> previous() {
-        Graph<?> explicit = context.previous(node);
-        if (explicit != null) {
-            return CommitAttempt.historicalGraph(Graphs.cast(explicit));
+        if (context.previousSpecified(node)) {
+            Graph<?> explicit = context.previous(node);
+            return explicit == null ? null : CommitAttempt.historicalGraph(Graphs.cast(explicit));
         }
         if (node.data().previousStateIndex() != null && node == state.rootNode()) {
             return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(

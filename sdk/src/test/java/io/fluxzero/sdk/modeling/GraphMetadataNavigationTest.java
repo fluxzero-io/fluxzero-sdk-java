@@ -51,6 +51,65 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GraphMetadataNavigationTest {
     @Test
+    void ancestorOutsideTheChangeTreeRetainsItsOwnModelHistory() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            seed(app);
+            commit(app, new CreateRoot("root", 2));
+            commit(app, new PutRevisionChild("sibling", "root", 1));
+            commit(app, new PutRevisionChild("sibling", "root", 2));
+            Graph<KnownChild> changed = Graphs.withPrevious(
+                    Graphs.lazy("known", KnownChild.class, app.modelRepository()), null);
+
+            assertNull(changed.previous());
+            Graph<Root> parent = changed.parent(Root.class).orElseThrow();
+            assertEquals(2, parent.get().version());
+            assertEquals(1, parent.previous().get().version());
+            assertEquals(1, parent.children(RevisionChild.class).getFirst().previous().get().version());
+            assertEquals(1, ((RevisionChild) parent.children().stream().filter(g -> g.id().equals("sibling"))
+                    .findFirst().orElseThrow().previous().get()).version());
+        }
+    }
+
+    @Test
+    void descendantExpansionKeepsTheOriginalPreviousTreeWithoutChangingItsRootIdentity() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            seed(app);
+            Graph<Root> before = Graphs.lazy("root", Root.class, app.modelRepository());
+            Graph<Root> changed = Graphs.withPrevious(Graphs.lazy("root", Root.class, app.modelRepository()), before);
+
+            Graph<?> leaf = changed.children(Foreign.class).getFirst().children().getFirst();
+
+            assertEquals("leaf", leaf.id());
+            assertEquals("leaf", leaf.previous().id());
+            assertEquals("foreign", leaf.root().id());
+            assertEquals("foreign", leaf.root().previous().id());
+        }
+    }
+
+    @Test
+    void explicitPreviousFindsUnknownDescendantsByIdentityWithoutReplay() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            catalog(reader, Root.class, KnownChild.class);
+            client.eventQueries.clear();
+            Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
+            Graph<Root> changed = Graphs.withPrevious(graph, graph);
+
+            Graph<?> foreign = changed.namedChildren("foreign", false).getFirst();
+            assertTrue(foreign.knownType().isEmpty());
+            assertEquals("foreign", foreign.previous().id());
+            assertTrue(foreign.previous().knownType().isEmpty());
+            assertEquals(0, rejected.get());
+            assertTrue(client.eventQueries.isEmpty());
+        }
+    }
+
+    @Test
     void pathViewsAndExactLookupsDoNotReplayUnrelatedValues() {
         var client = new ObservedClient();
         var rejected = new AtomicInteger();

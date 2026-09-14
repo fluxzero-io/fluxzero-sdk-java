@@ -299,6 +299,24 @@ class ModelLifecycleContractTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void creationAndRecreationHaveNoPreviousChangeGraph(boolean async) {
+        List<Graph<Root>> creations = new CopyOnWriteArrayList<>();
+        fixture(async, new Object() {
+            @HandleEvent void changed(Graph<Root> graph) {
+                if (graph.isPresent()) { creations.add(graph); }
+            }
+        }).givenCommands(new CreateRoot(rootId), new DeleteRoot(rootId))
+                .whenCommand(new CreateRoot(rootId))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(fc -> {
+                    assertEquals(2, creations.size());
+                    fc.cache().clear();
+                    creations.forEach(graph -> assertNull(graph.previous()));
+                });
+    }
+
     private Object childObserver(List<Graph<Child>> changes) {
         return new Object() {
             @HandleEvent void changed(Graph<Child> graph) {

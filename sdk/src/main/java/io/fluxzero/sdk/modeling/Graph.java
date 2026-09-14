@@ -732,6 +732,8 @@ public interface Graph<T> {
      * Surrounding models and relationships are resolved immediately before the current revision became effective.
      * This keeps children added after the preceding root revision visible while excluding changes made by the update
      * whose before-state is being observed.
+     * A complete-change handler's explicit before-state takes precedence over retained model revisions: creation
+     * has no previous graph, including when a deleted identity is recreated or a node is absent at that boundary.
      * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
      * stores current state, not document versions: it does not provide durable prior values after overwrite. A
      * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.</p>
