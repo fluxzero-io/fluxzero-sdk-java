@@ -59,6 +59,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionUtilsTest {
 
+    @Test
+    void handwrittenJavaComponentMethodsAreNotKotlinConstructorProperties() throws Exception {
+        assertFalse(ReflectionUtils.isKotlinDataClassComponent(JavaComponents.class.getDeclaredMethod("component1")));
+    }
+
+    private static class JavaComponents {
+        String component1() { return "domain-property"; }
+    }
+
     private static final AtomicInteger genericInitializations = new AtomicInteger();
 
     @Test
