@@ -75,7 +75,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -3001,45 +3000,31 @@ final class ModelReplayCursor {
         boolean await(long eventIndex);
     }
 
-    /** Coalesces compatible concurrent current reads while leaving local, large and historical reads direct. */
+    /**
+     * Drains compatible current reads without a collection timer. One worker performs calls serially; reads queued
+     * during a call form the next batch and never inherit that in-flight call's snapshot. Local, large and historical
+     * reads retain their direct route.
+     */
     static final class ReadBatcher {
-        private static final long COALESCING_DELAY_NANOS = 200_000L;
         private static final int DIRECT_REQUEST_SIZE = 1_024;
 
         private final EventStoreClient client;
         private final Function<GetModelEvents, GetModelEventsResult> loader;
         private final int maxStreams;
-        private final long delayNanos;
         private final ConcurrentLinkedQueue<PendingRead> pending = new ConcurrentLinkedQueue<>();
         private final AtomicBoolean flushing = new AtomicBoolean();
 
         ReadBatcher(EventStoreClient client, int maxStreams) {
-            this(client, client::getModelEvents, maxStreams, COALESCING_DELAY_NANOS);
-        }
-
-        ReadBatcher(EventStoreClient client, int maxStreams, long delayNanos) {
-            this(client, client::getModelEvents, maxStreams, delayNanos);
+            this(client, client::getModelEvents, maxStreams);
         }
 
         ReadBatcher(
                 EventStoreClient client,
                 Function<GetModelEvents, GetModelEventsResult> loader,
                 int maxStreams) {
-            this(client, loader, maxStreams, COALESCING_DELAY_NANOS);
-        }
-
-        private ReadBatcher(
-                EventStoreClient client,
-                Function<GetModelEvents, GetModelEventsResult> loader,
-                int maxStreams,
-                long delayNanos) {
             this.client = Objects.requireNonNull(client, "client");
             this.loader = Objects.requireNonNull(loader, "loader");
             this.maxStreams = maxStreams;
-            if (delayNanos < 0L) {
-                throw new IllegalArgumentException("Coalescing delay must not be negative");
-            }
-            this.delayNanos = delayNanos;
         }
 
         GetModelEventsResult get(GetModelEvents request) {
@@ -3096,7 +3081,6 @@ final class ModelReplayCursor {
 
         private void flush() {
             while (true) {
-                LockSupport.parkNanos(delayNanos);
                 List<PendingRead> reads = new ArrayList<>(maxStreams);
                 PendingRead read;
                 while (reads.size() < maxStreams && (read = pending.poll()) != null) {
