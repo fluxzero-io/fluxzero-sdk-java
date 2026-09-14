@@ -4,6 +4,90 @@
   "root": "/docs",
   "articles": [
     {
+      "path": "/docs/sdk/models/recipes-java",
+      "title": "Model recipes (Java)",
+      "summary": "One-to-one companion IDs, nullable upserts, derived Graph preferences, fresh current views, and atomic actions versus command orchestration.",
+      "source": "articles/sdk/models/recipes-java.md",
+      "symbols": [
+        "Graph.current()",
+        "current()",
+        "@EntityId",
+        "@Parent",
+        "one-to-one companion",
+        "upsert",
+        "@GraphProperty",
+        "primaryLightId",
+        "assertLegal",
+        "assertAndApply",
+        "sendCommandAndWait",
+        "FunctionalException"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Start with independent Model lifecycle"
+        },
+        {
+          "path": "/docs/sdk/models/state-java",
+          "description": "Choose state and value objects"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Navigate pinned relationships and history"
+        },
+        {
+          "path": "/docs/sdk/models/actions-java",
+          "description": "Apply actions and preserve atomicity"
+        },
+        {
+          "path": "/docs/sdk/entities/ids",
+          "description": "Keep functional and repository IDs distinct"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/recipes-kotlin",
+      "title": "Model recipes (Kotlin)",
+      "summary": "One-to-one companion IDs, nullable upserts, derived Graph preferences, fresh current views, and atomic actions versus command orchestration.",
+      "source": "articles/sdk/models/recipes-kotlin.md",
+      "symbols": [
+        "Graph.current()",
+        "current()",
+        "@EntityId",
+        "@Parent",
+        "one-to-one companion",
+        "upsert",
+        "@GraphProperty",
+        "primaryLightId",
+        "assertLegal",
+        "assertAndApply",
+        "sendCommandAndWait",
+        "FunctionalException"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Start with independent Model lifecycle"
+        },
+        {
+          "path": "/docs/sdk/models/state-kotlin",
+          "description": "Choose state and value objects"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Navigate pinned relationships and history"
+        },
+        {
+          "path": "/docs/sdk/models/actions-kotlin",
+          "description": "Apply actions and preserve atomicity"
+        },
+        {
+          "path": "/docs/sdk/entities/ids",
+          "description": "Keep functional and repository IDs distinct"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/models/state-boundaries",
       "title": "Model state and protection boundaries",
       "summary": "Choose atomic state, eventless DOCUMENT, search visibility and erasure without treating storage options as secret protection.",
@@ -2151,6 +2235,14 @@
         {
           "description": "Add state-changing intent legal checks and tests",
           "path": "/docs/recipes/add-command"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -6815,6 +6907,14 @@
         {
           "path": "/docs/sdk/models/state-boundaries",
           "description": "Separate storage and search visibility from protection and erasure guarantees"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -6866,6 +6966,10 @@
         {
           "path": "/docs/sdk/models/state-boundaries",
           "description": "Choose eventless current state with explicit privacy and erasure boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -6907,6 +7011,10 @@
         {
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
           "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -6936,7 +7044,9 @@
         "deleteOnParentDeletion",
         "non-owning relationships",
         "multiple parents",
-        "Graph cycles"
+        "Graph cycles",
+        "Graph.current()",
+        "current()"
       ],
       "links": [
         {
@@ -6962,6 +7072,10 @@
         {
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
           "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -7062,6 +7176,10 @@
         {
           "path": "/docs/sdk/models/state-boundaries",
           "description": "Choose eventless current state with explicit privacy and erasure boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -7103,6 +7221,10 @@
         {
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
           "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -7132,7 +7254,9 @@
         "deleteOnParentDeletion",
         "non-owning relationships",
         "multiple parents",
-        "Graph cycles"
+        "Graph cycles",
+        "Graph.current()",
+        "current()"
       ],
       "links": [
         {
@@ -7158,6 +7282,10 @@
         {
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
           "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
