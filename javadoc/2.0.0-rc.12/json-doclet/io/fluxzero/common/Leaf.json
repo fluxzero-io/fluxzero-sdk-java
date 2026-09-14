@@ -1,0 +1,18 @@
+{
+  "name" : "Leaf",
+  "qualifiedName" : "io.fluxzero.common.Leaf",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Marker interface for value objects that should be treated as leaves during reflective traversal.\n <p>\n Types implementing this interface are handled as terminal values by Fluxzero's reflection-based infrastructure.\n This means they are not recursively inspected for nested annotated properties when features such as\n {@code @Facet}, {@code @Sortable}, or {@code @ProtectData} traverse an object graph.\n <p>\n Use this for domain-specific value objects that should behave like primitives or other scalar values from the\n framework's point of view, even if they are implemented as regular classes with multiple fields.\n <p>\n Typical examples are identifier wrappers, strongly typed value objects, or custom scalar abstractions where the\n framework should rely on the value as a whole rather than introspecting its internal structure.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

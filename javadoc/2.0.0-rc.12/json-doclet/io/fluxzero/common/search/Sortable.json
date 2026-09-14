@@ -1,0 +1,45 @@
+{
+  "name" : "Sortable",
+  "qualifiedName" : "io.fluxzero.common.search.Sortable",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,FIELD,TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Marker annotation on fields and getters that indicates that a property is to be used for sorting and filtering.\n <p>\n Use this annotation if you want to filter documents fast using a {@link BetweenConstraint} or when you want to sort\n documents in a collection on something else than the default document time range. Filtering using\n {@link ExistsConstraint} is also much faster, as it can be done using a single index lookup.\n <p>\n The index value is determined as follows:\n <p>\n 1) in case the object is null or a blank string the index is ignored;\n <p>\n 2) in case the object is a collection, an index is created for the <strong>maximum</strong> value of the collection\n elements (use getter if you need one for the minimum value too);\n <p>\n 3) in case the object is a map, facets are created for each of the map values. Keys of the map are appended to the\n property name (including a delimiting slash);\n <p>\n 4) in case the class of the element is annotated with {@link Sortable}, the toString() value of the element is used;\n <p>\n 5) in case the object is a constant value (number, string or boolean) the element is used as is;\n <p>\n 6) for other values, nested indexes are collected by inspecting all annotated properties of the object. If the object\n contains any indexed values these will be included as well. Names of nested indexes will be appended to the parent\n property name (including a delimiting slash);\n <p>\n 7) in other cases the toString() value of the element is used.\n <p>\n Note that placing this annotation on a property while there are already documents in the collection, will not\n automatically make sure the existing documents get retroactively indexed. See {@code @HandleDocument} if you need\n that.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.search.Sortable#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional argument that defines the name of the indexed property. If left empty, the property name will be used.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

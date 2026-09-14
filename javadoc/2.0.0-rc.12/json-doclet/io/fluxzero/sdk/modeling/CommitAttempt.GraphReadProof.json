@@ -1,0 +1,65 @@
+{
+  "name" : "GraphReadProof",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$GraphReadProof",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Carries reads through cached transformations without running user mappers or predicates a second time. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "generation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$GraphReadProof.generation",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "owner",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$GraphReadProof.owner",
+    "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationships",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$GraphReadProof.relationships",
+    "type" : "java.util.Set<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$GraphReadProof.values",
+    "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GraphReadProof",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$GraphReadProof#GraphReadProof",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "owner",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

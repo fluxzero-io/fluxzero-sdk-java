@@ -1,0 +1,196 @@
+{
+  "name" : "ParsedForm",
+  "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "parameterValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm.parameterValues",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.Object>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm.parameters",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parts",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm.parts",
+    "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.sdk.web.WebFormPart>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ParsedForm",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#ParsedForm",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterValues",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.Object>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameters",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parts",
+      "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.sdk.web.WebFormPart>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "empty",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#empty",
+    "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestContext.ParsedForm",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ofMultipart",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#ofMultipart",
+    "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestContext.ParsedForm",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parts",
+      "type" : "java.util.List<io.fluxzero.sdk.web.WebFormPart>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ofUrlEncoded",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#ofUrlEncoded",
+    "returnType" : "io.fluxzero.sdk.web.DefaultWebRequestContext.ParsedForm",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameters",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameterValues",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#parameterValues",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.Object>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#parameters",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parts",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#parts",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.sdk.web.WebFormPart>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext$ParsedForm#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "parameterValues",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.Object>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parts",
+    "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.sdk.web.WebFormPart>>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

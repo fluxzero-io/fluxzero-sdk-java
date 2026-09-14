@@ -1,0 +1,40 @@
+{
+  "name" : "HeadValue",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$HeadValue",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Optional head evidence carried by a lazy entity supplier, without allocating a separate metadata wrapper per\n node. Reading the head never reconstructs the value. Custom resolvers may continue returning ordinary suppliers\n when revision evidence is unavailable.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "head",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$HeadValue#head",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the pinned revision without value reconstruction, or null for proven absence. "
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$HeadValue#type",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the locally resolved class, Object for an absent untyped root, or null for an unknown child. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

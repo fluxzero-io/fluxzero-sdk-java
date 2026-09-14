@@ -1,0 +1,202 @@
+{
+  "name" : "ModelTypeProcessor",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "javax.annotation.processing.SupportedAnnotationTypes",
+    "values" : {
+      "value" : "\"*\""
+    }
+  } ],
+  "documentation" : " Indexes {@code @Model} declarations independently of serialization aliases or handler registration.\n Contributing modules must enable this processor and preserve their Model index when packaged.\n In explicit processor lists, run this observer before processors that exclusively claim annotations.\n",
+  "typeParameters" : [ ],
+  "superClass" : "javax.annotation.processing.AbstractProcessor",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "MODEL_ANNOTATION",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor.MODEL_ANNOTATION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "io.fluxzero.sdk.modeling.Model"
+  }, {
+    "name" : "TYPES_FILE",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor.TYPES_FILE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Resource containing the binary names of Model declarations in a compiled module. ",
+    "constantValue" : "META-INF/io.fluxzero.sdk.modeling.Model"
+  }, {
+    "name" : "compilations",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor.compilations",
+    "type" : "java.util.WeakHashMap<javax.annotation.processing.ProcessingEnvironment,java.lang.Boolean>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "owner",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor.owner",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "types",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor.types",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "visited",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor.visited",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelTypeProcessor",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#ModelTypeProcessor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getSupportedSourceVersion",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#getSupportedSourceVersion",
+    "returnType" : "javax.lang.model.SourceVersion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "init",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#init",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "processingEnv",
+      "type" : "javax.annotation.processing.ProcessingEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isIndexedModel",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#isIndexedModel",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isModel",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#isModel",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visited",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mergePrevious",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#mergePrevious",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "process",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#process",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotations",
+      "type" : "java.util.Set<? extends javax.lang.model.element.TypeElement>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "roundEnv",
+      "type" : "javax.annotation.processing.RoundEnvironment",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "visit",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelTypeProcessor#visit",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "javax.lang.model.element.Element",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

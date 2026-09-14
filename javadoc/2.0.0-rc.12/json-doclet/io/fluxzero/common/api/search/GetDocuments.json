@@ -1,0 +1,52 @@
+{
+  "name" : "GetDocuments",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetDocuments",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Request to fetch multiple documents from the search store by collection and their IDs.\n <p>\n This is typically used to retrieve the latest indexed versions of the requested documents for inspection or\n further processing. If no documents are found, an empty collection is returned.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocuments.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The collection in which the documents are stored.\n",
+    "constantValue" : null
+  }, {
+    "name" : "ids",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocuments.ids",
+    "type" : "java.util.Collection<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The unique IDs of the documents to fetch.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocuments#GetDocuments",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

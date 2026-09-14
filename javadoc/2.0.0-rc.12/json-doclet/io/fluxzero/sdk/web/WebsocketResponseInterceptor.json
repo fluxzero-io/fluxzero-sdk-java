@@ -1,0 +1,60 @@
+{
+  "name" : "WebsocketResponseInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.web.WebsocketResponseInterceptor",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link DispatchInterceptor} that modifies outgoing {@link WebResponse} messages in response to WebSocket-based\n {@link WebRequest}s.\n <p>\n This interceptor ensures that appropriate metadata is included in the corresponding {@link WebResponse}. It supports\n both the WebSocket handshake phase and subsequent message exchanges over an established WebSocket session.\n\n <p>Specifically:\n <ul>\n     <li>If the incoming message is a {@code WS_HANDSHAKE}, it adds the {@code clientId}\n     and {@code trackerId} to the response metadata to identify the connection.</li>\n     <li>If the session is already open, it includes the {@code sessionId} and, if\n     absent, sets a {@code function} field to either {@code message} or {@code ack},\n     depending on whether the outgoing message has a payload.</li>\n </ul>\n\n <p>This ensures that the Fluxzero WebSocket infrastructure can properly route and\n interpret messages sent back to the client.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "WebsocketResponseInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketResponseInterceptor#WebsocketResponseInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebsocketResponseInterceptor#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts and conditionally modifies an outgoing message in the context of a WebSocket request.\n\n @param message     the original message to be dispatched\n @param messageType the type of the message (e.g., WEBRESPONSE)\n @param topic       the topic to which the message is being published\n @return the possibly modified message\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
