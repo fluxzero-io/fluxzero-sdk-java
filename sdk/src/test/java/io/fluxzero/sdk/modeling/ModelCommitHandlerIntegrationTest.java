@@ -2193,8 +2193,9 @@ class ModelCommitHandlerIntegrationTest {
                     DeserializingMessage.forEachInBatch(
                             List.of(moveMessage, readMessage), current -> {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     durable.stateIndex(),
                                                     List.of(firstChildId.toString()),
@@ -2291,8 +2292,9 @@ class ModelCommitHandlerIntegrationTest {
                                             fluxzero.serializer())),
                             current -> {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     -1L,
                                                     List.of(
@@ -2359,8 +2361,9 @@ class ModelCommitHandlerIntegrationTest {
                                 if (DeserializingMessage
                                             .getMessageBatchIndex()
                                     == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     durable.stateIndex(),
                                                     List.of(

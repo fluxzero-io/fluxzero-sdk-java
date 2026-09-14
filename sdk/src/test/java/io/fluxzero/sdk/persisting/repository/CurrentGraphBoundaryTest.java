@@ -25,13 +25,14 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
+import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
@@ -43,6 +44,131 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CurrentGraphBoundaryTest {
+    @Test
+    void cachedMissingDocumentMustRecheckANewlyAssignedWritableAlias() throws Exception {
+        var client = LocalClient.newInstance();
+        try (Fluxzero warm = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero cold = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            assertTrue(((DefaultModelRepository) warm.modelRepository()).cacheTrackingReadiness()
+                               .get(5, TimeUnit.SECONDS));
+            assertTrue(((DefaultModelRepository) cold.modelRepository()).cacheTrackingReadiness()
+                               .get(5, TimeUnit.SECONDS));
+            assertTrue(warm.modelRepository().load("alias", AliasedDocument.class).isEmpty());
+            commit(cold, new CreateAliasedDocument("different", "alias"));
+            for (Fluxzero application : List.of(cold, warm)) {
+                Throwable failure = assertThrows(Exception.class,
+                        () -> commit(application, new CreateAliasedDocument("alias", "newAlias")));
+                while (failure.getCause() != null) {
+                    failure = failure.getCause();
+                }
+                assertTrue(failure.getMessage().contains("resolved through alias"), failure.toString());
+            }
+            assertEquals(new AliasedDocument("different", "alias"),
+                         warm.modelRepository().load("alias", AliasedDocument.class).get());
+        }
+    }
+
+
+    @Model(persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
+    record AliasedDocument(@EntityId String documentId, @io.fluxzero.sdk.modeling.Alias String alias) {}
+    record CreateAliasedDocument(String documentId, String alias) {
+        @Apply AliasedDocument apply(@jakarta.annotation.Nullable AliasedDocument existing) {
+            return new AliasedDocument(documentId, alias);
+        }
+    }
+
+    @Test
+    void backgroundReplayUsesItsOwnerEvenWhenFirstLoadedByAnotherApplication() throws Exception {
+        var client = LocalClient.newInstance();
+        try (Fluxzero owner = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero foreign = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(LocalClient.newInstance())) {
+            commit(writer, new CreateRoot("root"));
+            var repository = (DefaultModelRepository) owner.modelRepository();
+            var replayApplication = new CompletableFuture<Fluxzero>();
+            repository.configureReplayRestoration(message -> {
+                if (Thread.currentThread().getName().startsWith("fluxzero-model-cache-refresh-")) {
+                    replayApplication.complete(Fluxzero.get());
+                }
+                return message;
+            });
+            foreign.apply(fc -> repository.load("root", FreshnessRoot.class));
+            assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+            foreign.apply(fc -> repository.load("root", FreshnessRoot.class));
+            commit(writer, new UpdateRoot("root"));
+            assertSame(owner, replayApplication.get(5, TimeUnit.SECONDS));
+            assertEquals(new FreshnessRoot("root", 2), repository.load("root", FreshnessRoot.class).get());
+        }
+    }
+
+    @Test
+    void sharedPhysicalCacheNeverBorrowsAnotherRepositoriesValues() {
+        var physical = new io.fluxzero.sdk.persisting.caching.DefaultCache();
+        try (Fluxzero first = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .withModelCache(physical).build(LocalClient.newInstance());
+             Fluxzero other = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .withModelCache(physical).build(LocalClient.newInstance())) {
+            commit(first, new CreateRoot("same"));
+            commit(other, new CreateRoot("same"));
+            commit(other, new UpdateRoot("same"));
+            for (int i = 0; i < 3; i++) {
+                assertEquals(new FreshnessRoot("same", 1), first.modelRepository().load("same", FreshnessRoot.class).get());
+                assertEquals(new FreshnessRoot("same", 2), other.modelRepository().load("same", FreshnessRoot.class).get());
+            }
+            ((DefaultModelRepository) first.modelRepository()).invalidateModels(List.of("same"));
+            assertEquals(new FreshnessRoot("same", 2), other.modelRepository().load("same", FreshnessRoot.class).get());
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"add,direct,RETRY", "remove,direct,RETRY", "reparent,direct,FAIL",
+                "add,nested,FAIL", "remove,nested,RETRY", "reparent,interceptor,RETRY",
+                "add,apply,RETRY", "remove,apply,FAIL", "add,document,RETRY", "remove,document,FAIL"})
+    void commandAssertionIncludesCommittedChildrenWhileRootCacheTrackingLags(
+            String change, String route, io.fluxzero.common.api.modeling.ModelConflictPolicy policy) throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .configureModelConflictHandling(policy, io.fluxzero.sdk.modeling.ModelConflictResolver.retryIfAllowed(), 3).build(client)) {
+            try {
+                var repository = (DefaultModelRepository) app.modelRepository();
+                assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+                boolean document = route.equals("document");
+                commit(app, document ? new CreateDocumentRoot("root") : new CreateRoot("root"));
+                commit(app, document ? new CreateDocumentRoot("other") : new CreateRoot("other"));
+                if (!change.equals("add")) {
+                    commit(app, document ? new UpsertDocumentChild("child", "root")
+                            : new UpsertChild("child", "root"));
+                }
+                if (document) {
+                    repository.load("root", DocumentRoot.class);
+                } else {
+                    repository.load("root", FreshnessRoot.class);
+                }
+                commit(app, switch (change) {
+                    case "add" -> document ? new UpsertDocumentChild("child", "root") : new UpsertChild("child", "root");
+                    case "remove" -> document ? new DeleteDocumentChild("child") : new DeleteChild("child");
+                    default -> new UpsertChild("child", "other");
+                });
+                List<Object> expected = change.equals("add") ? List.of("child") : List.of();
+                client.eventQueries.clear();
+                commit(app, switch (route) {
+                    case "nested" -> new NestedMembership("root", expected);
+                    case "interceptor" -> new InterceptedMembership("root", expected);
+                    case "apply" -> new ApplyMembership("root", expected);
+                    case "document" -> new DocumentMembership("root", expected);
+                    default -> new RequireMembership("root", expected);
+                });
+                assertFalse(client.eventQueries.isEmpty(), "A new Graph-dependent evaluation must observe storage");
+                if (route.equals("direct") || route.equals("apply")) {
+                    assertEquals(1, client.eventQueries.size(),
+                                 "Event-sourced targets combine namespace freshness and suffix validation");
+                }
+            } finally {
+                client.releaseUpdates.complete(null);
+            }
+        }
+    }
+
     @Test
     void currentGraphIncludesCommittedChildrenWhileRootCacheTrackingLags() throws Exception {
         var client = new DelayedTrackingClient();
@@ -77,8 +203,8 @@ class CurrentGraphBoundaryTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"add", "remove", "reparent"})
-    void publicCurrentGraphPinsChangedMembershipAndDefersValues(String change) throws Exception {
+    @CsvSource({"add,false", "remove,false", "reparent,false", "add,true", "remove,true", "reparent,true"})
+    void publicCurrentGraphPinsChangedMembershipAndDefersValues(String change, boolean shortcut) throws Exception {
         var client = new DelayedTrackingClient();
         try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
             try {
@@ -99,7 +225,8 @@ class CurrentGraphBoundaryTest {
                     default -> new UpsertChild("child", "other");
                 });
                 client.eventQueries.clear();
-                Graph<FreshnessRoot> current = app.apply(fc -> Fluxzero.loadCurrentGraph("root", FreshnessRoot.class));
+                Graph<FreshnessRoot> current = shortcut ? before.current()
+                        : app.apply(fc -> Fluxzero.loadCurrentGraph("root", FreshnessRoot.class));
                 assertEquals(1, client.eventQueries.size());
                 assertTrue(client.eventQueries.getFirst().getRequests().stream()
                                    .allMatch(request -> request.getMaxSize() == 0));
@@ -171,6 +298,52 @@ class CurrentGraphBoundaryTest {
 
     record UpdateRoot(String rootId) {
         @Apply FreshnessRoot apply(FreshnessRoot root) { return new FreshnessRoot(rootId, root.version() + 1); }
+    }
+
+    record RequireMembership(String rootId, List<Object> expected) {
+        @AssertLegal void check(Graph<FreshnessRoot> root) { assertEquals(expected, ids(root)); }
+        @Apply FreshnessRoot apply(FreshnessRoot root) { return new FreshnessRoot(rootId, root.version() + 1); }
+    }
+
+    record NestedMembership(String rootId, List<Object> expected) {
+        @AssertLegal Object check() { return new MembershipGuard(expected); }
+        @Apply FreshnessRoot apply(FreshnessRoot root) { return new FreshnessRoot(rootId, root.version() + 1); }
+    }
+    record MembershipGuard(List<Object> expected) {
+        @AssertLegal void check(Graph<FreshnessRoot> root) { assertEquals(expected, ids(root)); }
+    }
+    record InterceptedMembership(String rootId, List<Object> expected) {
+        @io.fluxzero.sdk.persisting.eventsourcing.InterceptApply
+        Object intercept() { return new RequireMembership(rootId, expected); }
+    }
+    record ApplyMembership(String rootId, List<Object> expected) {
+        @Apply FreshnessRoot apply(Graph<FreshnessRoot> root) {
+            assertEquals(expected, ids(root));
+            return new FreshnessRoot(rootId, root.get().version() + 1);
+        }
+    }
+
+    @Model(persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
+    record DocumentRoot(@EntityId String rootId) {}
+    @Model(persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
+    record DocumentChild(@EntityId String childId,
+                         @Parent(value = DocumentRoot.class, pathInParent = "children") String rootId) {}
+    record CreateDocumentRoot(String rootId) {
+        @Apply DocumentRoot apply() { return new DocumentRoot(rootId); }
+    }
+    record UpsertDocumentChild(String childId, String rootId) {
+        @Apply DocumentChild apply(@jakarta.annotation.Nullable DocumentChild existing) {
+            return new DocumentChild(childId, rootId);
+        }
+    }
+    record DeleteDocumentChild(String childId) {
+        @Apply DocumentChild apply(DocumentChild existing) { return null; }
+    }
+    record DocumentMembership(String rootId, List<Object> expected) {
+        @AssertLegal void check(Graph<DocumentRoot> root) {
+            assertEquals(expected, root.children(DocumentChild.class).stream().map(Graph::id).toList());
+        }
+        @Apply DocumentRoot apply(DocumentRoot root) { return root; }
     }
 
     record DeleteChild(String childId) {

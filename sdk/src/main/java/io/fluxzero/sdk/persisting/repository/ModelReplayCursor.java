@@ -786,6 +786,13 @@ final class ModelReplayCursor {
         return position.getMaterializedStateIndex();
     }
 
+    /** Validates cached event-sourced bases at storage without first performing a separate namespace-head read. */
+    CommitAttempt contextAtStorage(MutationPlan.Resolution resolution, Map<String, Object> stagedValues,
+                                    Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker) {
+        return contextAtBoundary(resolution, ModelReadBoundary.current(), stagedValues, pendingAncestor,
+                                 cacheTracker, true, false, true);
+    }
+
     private CommitAttempt contextAtBoundary(
             MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
@@ -794,6 +801,14 @@ final class ModelReplayCursor {
             ModelCacheTracker cacheTracker,
             boolean requireBoundary,
             boolean migration) {
+        return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
+                                 requireBoundary, migration, false);
+    }
+
+    private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                             Map<String, Object> stagedValues,
+                                             Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker,
+                                             boolean requireBoundary, boolean migration, boolean forceStorageBoundary) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -857,7 +872,7 @@ final class ModelReplayCursor {
         long stateIndex;
         Map<String, ModelCache.Stamp> cachePublications = new LinkedHashMap<>();
         if (replayTargets.isEmpty()) {
-            CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
+            CurrentProjection current = !forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
                     ? currentProjection(documentTargets, cacheTracker)
                     : null;
             if (current != null) {
@@ -874,7 +889,7 @@ final class ModelReplayCursor {
                                     : -1L
                     : ancestorStateIndex;
         } else {
-            CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
+            CurrentProjection current = !forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
                     ? currentProjection(replayTargets, cacheTracker)
                     : null;
             if (current == null) {
@@ -1117,8 +1132,14 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
                                                boolean historical, ModelCacheTracker cacheTracker) {
+        return graphIdentity(requestedId, type, boundary, historical, cacheTracker, false);
+    }
+
+    ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
+                                               boolean historical, ModelCacheTracker cacheTracker, boolean exact) {
         LoadResult loaded = loadHeads(List.of(requestedId), boundary);
-        ModelHeadState head = loaded.heads().get(requestedId);
+        ModelHeadState resolved = loaded.heads().get(requestedId);
+        ModelHeadState head = exact && resolved != null && !requestedId.equals(resolved.getModelId()) ? null : resolved;
         String id = head == null ? requestedId : head.getModelId();
         Class<?> storedType = head == null ? type : modelType(head.getModelType(), id);
         if (!type.isAssignableFrom(storedType)) {

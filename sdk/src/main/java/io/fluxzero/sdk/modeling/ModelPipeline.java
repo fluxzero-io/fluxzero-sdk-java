@@ -287,6 +287,7 @@ final class ModelPipeline {
                 throw new IllegalStateException("Model evaluation replaced its commit attempt");
             }
             warnEmptyExplicitApply(request, initial);
+            entry.repositoryOwner = repository.modelDefinitionCompiler();
             ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
             entry.initialize(initial.readModelIds());
         } catch (Throwable failure) {
@@ -995,6 +996,7 @@ final class ModelPipeline {
         private final boolean advanceIncompleteDocumentBoundary;
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
+        private boolean requiresStorageBoundary;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
         private final Map<AncestorPlanKey, AncestorPlan> ancestorPlans =
                 new LinkedHashMap<>();
@@ -1056,19 +1058,21 @@ final class ModelPipeline {
                                 .formatted(pinnedStateIndex, boundary));
             }
             MutationPlan definition = definitionFor(substep.getPayloadClass());
+            requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
                 && requestedStateIndex == null
                 && stagedValues.isEmpty()) {
                 MutationPlan.ResolvedModel target = prefetched.target;
-                commitEntities.put(target.modelId(), prefetched.entity);
-                return new ModelReducer.ResolvedSubstep(
-                        CommitAttempt.createSingle(
-                                prefetched.stateIndex,
-                                target.modelId(), target.modelType(), target.access(), target.sourceProperties(),
-                        prefetched.entity),
-                        definition.reducer());
+                CommitAttempt context = CommitAttempt.createSingle(
+                        prefetched.stateIndex, target.modelId(), target.modelType(), target.access(),
+                        target.sourceProperties(), prefetched.entity);
+                if (DeserializingMessage.getMessageBatchIndex() >= 0) {
+                    context = repository.overlayPendingContext(context);
+                }
+                commitEntities.put(target.modelId(), context.entity(target.modelId()));
+                return new ModelReducer.ResolvedSubstep(context, definition.reducer());
             }
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
@@ -1193,7 +1197,9 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            CommitAttempt loaded = advanceIncompleteDocumentBoundary
+            CommitAttempt loaded = boundary == null && requiresStorageBoundary && !migration
+                    ? repository.loadCurrentContext(resolution, stagedValues, true)
+                    : advanceIncompleteDocumentBoundary
                     ? repository.loadRebaseContext(
                             resolution, boundary, stagedValues, true, migration)
                     : migration
@@ -1305,7 +1311,7 @@ final class ModelPipeline {
     private PrefetchSlot prefetch(DeserializingMessage message) {
         MutationPlan definition = definitionFor(message.getPayloadClass());
         MutationPlan.TargetPlan targets = definition.targets();
-        if (!targets.isDirectSingleTarget()) {
+        if (!targets.isDirectSingleTarget() || definition.reducer().requiresStorageBoundary()) {
             return null;
         }
         return new PrefetchSlot(targets.resolveSingle(message));

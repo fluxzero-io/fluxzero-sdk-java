@@ -64,6 +64,63 @@ import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void lateAdmissionCannotMissAnUpdateOrRefreshBeforeItsAdmissionBoundary(
+            boolean hardDelete, boolean finishPageBeforePublication) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        var polls = polls(eventStore);
+        // Isolate tracker admission from a delegate's later conservative CLEAR notification.
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null));
+        CountDownLatch processing = new CountDownLatch(1), proceed = new CountDownLatch(1);
+        AtomicInteger refreshes = new AtomicInteger();
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            refreshes.incrementAndGet();
+            return new ModelCacheTracker.RefreshedBatch(boundary, Map.of("document-1", documentEntity(10L, "old")));
+        })) {
+            assertTrue(tracker.readiness().get(5, TimeUnit.SECONDS));
+            var page = awaitNext(polls);
+            long boundary = tracker.safeDocumentBoundary();
+            assertEquals(10L, boundary);
+            List<ModelCommitTargetResult> blockingTargets = new AbstractList<>() {
+                @Override public int size() { return 1; }
+                @Override public ModelCommitTargetResult get(int index) {
+                    processing.countDown();
+                    awaitLatch(proceed);
+                    return new ModelCommitTargetResult("unrelated", 0L, true);
+                }
+            };
+            page.complete(new TrackModelUpdatesResult(1L, 12L, 12L, 10L, List.of(
+                    new ModelUpdate(hardDelete ? ModelUpdateKind.HARD_DELETE : ModelUpdateKind.COMMIT,
+                                    "change", 0, 11L, null,
+                                    List.of(new ModelCommitTargetResult("document-1", 1L, false))),
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "other", 0, 12L, null, blockingTargets))));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+            if (finishPageBeforePublication) {
+                proceed.countDown();
+                awaitNext(polls);
+            }
+            // The document boundary was obtained before the page; this token was admitted after its target/clear.
+            try (var token = cache.beginRead("document-1")) {
+                var stamp = cache.publish(token, documentEntity(10L, "old"), boundary);
+                tracker.loaded("document-1", TrackedDocument.class, boundary, stamp);
+            }
+            if (!finishPageBeforePublication) {
+                proceed.countDown();
+                awaitNext(polls);
+            }
+            assertNull(tracker.safeDocumentBoundary());
+            assertNull(tracker.current("document-1", TrackedDocument.class));
+            assertEquals(0, refreshes.get(), "A lagging document cannot repair a missed update or erasure");
+            cache.put("document-1", documentEntity(12L, "verified"));
+            tracker.loaded("document-1", TrackedDocument.class, 12L);
+            assertNotNull(tracker.current("document-1", TrackedDocument.class));
+        } finally {
+            proceed.countDown();
+            cache.close();
+        }
+    }
+
     @Test
     void restoresHealthOnlyAfterAValidRecoveryPageHasBeenProcessed() throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);
@@ -761,7 +818,7 @@ class ModelCacheTrackerTest {
                                  refreshed.countDown();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(11L, Map.of("sample-1", after));
-                             })) {
+                             }, () -> application)) {
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -1620,8 +1677,12 @@ class ModelCacheTrackerTest {
                 polls = polls(eventStore);
         ConcurrentLinkedQueue<Runnable> evictionNotifications =
                 new ConcurrentLinkedQueue<>();
+        CountDownLatch evictionQueued = new CountDownLatch(1);
         ModelCache cache = new ModelCache(new SoftReferenceCache(
-                100, evictionNotifications::add, null));
+                100, notification -> {
+                    evictionNotifications.add(notification);
+                    evictionQueued.countDown();
+                }, null));
         cache.put("sample-1", entity(SampleModel.class));
         CountDownLatch refreshStarted = new CountDownLatch(1);
         CountDownLatch continueRefresh = new CountDownLatch(1);
@@ -1688,6 +1749,7 @@ class ModelCacheTrackerTest {
             assertTimeoutPreemptively(
                     Duration.ofSeconds(1L),
                     () -> assertNull(lookup.join()));
+            assertTrue(evictionQueued.await(5L, TimeUnit.SECONDS));
             assertFalse(evictionNotifications.isEmpty());
         } finally {
             continueRefresh.countDown();

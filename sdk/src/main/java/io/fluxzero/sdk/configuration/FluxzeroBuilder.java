@@ -176,6 +176,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Configures the cache used by independently stored models.
      * <p>
      * This overrides the shared cache for model state only; aggregate and relationship caches are unaffected.
+     * Model entries are isolated by repository family and namespace, even when the supplied cache is shared between
+     * applications. A shared delegate must still support its applications' existing cache shutdown lifecycle.
      */
     default FluxzeroBuilder withModelCache(Cache cache) {
         throw new UnsupportedOperationException(

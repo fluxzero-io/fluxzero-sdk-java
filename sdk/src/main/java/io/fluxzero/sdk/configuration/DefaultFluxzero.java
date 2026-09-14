@@ -1357,6 +1357,7 @@ public class DefaultFluxzero implements Fluxzero {
                                     ? dps : new DecryptingPropertySource(propertySource),
                             clock, taskScheduler, client, shutdownHandler);
 
+            commandModelRepository.configureOwningApplication(fluxzero);
             if (fluxzero instanceof DefaultFluxzero defaultFluxzero) {
                 defaultFluxzero.modelCommitExecutor.set(modelCommitHandlerRegistry);
             }

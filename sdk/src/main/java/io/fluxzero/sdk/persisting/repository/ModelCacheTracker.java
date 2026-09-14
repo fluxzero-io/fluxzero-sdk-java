@@ -44,8 +44,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Supplier;
 
 /**
  * Keeps cached independent models coherent by long-polling the durable model-commit position.
@@ -86,9 +86,10 @@ final class ModelCacheTracker implements AutoCloseable {
     private final AtomicBoolean refreshRequested =
             new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
-    private final AtomicReference<Fluxzero> application =
-            new AtomicReference<>();
+    private final Supplier<Fluxzero> application;
     private final Object startMonitor = new Object();
+    // Only coordinates proof admission with page start; never held during I/O, cache access or entry locking.
+    private final Object publicationMonitor = new Object();
     private final Object trackMonitor = new Object();
     private final Registration evictionRegistration;
 
@@ -103,12 +104,19 @@ final class ModelCacheTracker implements AutoCloseable {
     private volatile CompletableFuture<TrackModelUpdatesResult>
             pendingTrack;
     private volatile CompletableFuture<Void> processingPage;
+    private long processingBoundary = -1L; // guarded by publicationMonitor
     private volatile Thread trackerThread;
 
     ModelCacheTracker(
             EventStoreClient eventStoreClient,
             ModelCache cache,
             Refresher refresher) {
+        this(eventStoreClient, cache, refresher, () -> null);
+    }
+
+    ModelCacheTracker(EventStoreClient eventStoreClient, ModelCache cache, Refresher refresher,
+                      Supplier<Fluxzero> application) {
+        this.application = Objects.requireNonNull(application, "application");
         this.eventStoreClient =
                 Objects.requireNonNull(
                         eventStoreClient,
@@ -258,6 +266,10 @@ final class ModelCacheTracker implements AutoCloseable {
             if (!modelType.equals(cached.type())) {
                 return null;
             }
+            if (cached.isEmpty() && EntityMetadata.validate(modelType).hasAliases()) {
+                // A newly assigned alias updates its owner, not this absent lookup ID. Revalidate that lookup.
+                return null;
+            }
             long modelStateIndex =
                     cached instanceof ModelRoot<?> model
                             ? model.stateIndex() : -1L;
@@ -366,13 +378,22 @@ final class ModelCacheTracker implements AutoCloseable {
             return null;
         }
         boolean created = false;
-        Entry entry = expectedEntry == null ? entries.get(modelId) : expectedEntry;
-        if (entry == null) {
-            Entry candidate = new Entry();
-            Entry existing = entries.putIfAbsent(
-                    modelId, candidate);
-            entry = existing == null ? candidate : existing;
-            created = existing == null;
+        Entry entry;
+        synchronized (publicationMonitor) {
+            CompletableFuture<Void> page = processingPage;
+            if (page != null && !page.isDone()) {
+                // An absent entry may already have missed its target in this page. It cannot inherit that cursor.
+                return null;
+            }
+            entry = expectedEntry == null ? entries.get(modelId) : expectedEntry;
+            if (entry == null) {
+                Entry candidate = new Entry();
+                // Preserve this admission floor through refreshes while document materialization lags.
+                candidate.latestUpdate = cursor;
+                Entry existing = entries.putIfAbsent(modelId, candidate);
+                entry = existing == null ? candidate : existing;
+                created = existing == null;
+            }
         }
         CompletableFuture<Void> completedRefresh = null;
         boolean refreshNeeded = false;
@@ -531,8 +552,15 @@ final class ModelCacheTracker implements AutoCloseable {
          */
         Entry entry = entries.get(modelId);
         if (entry == null) {
-            entry = entries.computeIfAbsent(
-                    modelId, ignored -> new Entry());
+            synchronized (publicationMonitor) {
+                entry = entries.computeIfAbsent(modelId, ignored -> {
+                    Entry candidate = new Entry();
+                    CompletableFuture<Void> page = processingPage;
+                    candidate.latestUpdate = page != null && !page.isDone()
+                            ? Math.max(cursor, processingBoundary) : cursor;
+                    return candidate;
+                });
+            }
         }
         entry.pendingLocalCommits.incrementAndGet();
         return new LocalCommit(modelId, entry);
@@ -585,11 +613,6 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     private boolean start() {
-        if (application.get() == null) {
-            Fluxzero.getOptionally().ifPresent(
-                    current -> application.compareAndSet(
-                            null, current));
-        }
         if (started.get()) {
             return healthy && !unsupported && !closed.get();
         }
@@ -691,13 +714,14 @@ final class ModelCacheTracker implements AutoCloseable {
                 TrackModelUpdatesResult result =
                         request.join();
                 pendingTrack = null;
-                CompletableFuture<Void> catchUp =
-                        processingPage;
-                if (healthy
-                    || catchUp == null
-                    || catchUp.isDone()) {
-                    catchUp = new CompletableFuture<>();
-                    processingPage = catchUp;
+                CompletableFuture<Void> catchUp;
+                synchronized (publicationMonitor) {
+                    processingBoundary = result.getLastStateIndex();
+                    catchUp = processingPage;
+                    if (healthy || catchUp == null || catchUp.isDone()) {
+                        catchUp = new CompletableFuture<>();
+                        processingPage = catchUp;
+                    }
                 }
                 boolean globallyInvalidating =
                         result.getUpdates().stream()

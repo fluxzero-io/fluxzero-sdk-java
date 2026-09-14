@@ -67,6 +67,7 @@ public final class ModelReducer {
     private final List<MutationPlan.Assertion> beforePayloadAssertions, beforeModelAssertions;
     private final List<MutationPlan.Assertion> afterPayloadAssertions, afterModelAssertions;
     private final boolean recursiveAssertions;
+    private final boolean requiresStorageBoundary;
 
     ModelReducer(
             MutationPlan.HandlerPlan handlers,
@@ -95,6 +96,10 @@ public final class ModelReducer {
         this.recursiveAssertions = !fields.isEmpty() || handlers.all().stream().anyMatch(handler ->
                 handler.method().kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL
                 && handler.method().executable() instanceof Method method && method.getReturnType() != void.class);
+        // Nested validation and interceptor replacements can introduce Graph dependencies only at execution time.
+        this.requiresStorageBoundary = recursiveAssertions || handlers.all().stream().anyMatch(handler ->
+                handler.method().kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
+                || handler.method().modelParameters().stream().anyMatch(EntityMetadata.ModelParameter::graphWrapped));
     }
 
     boolean empty() {
@@ -104,6 +109,10 @@ public final class ModelReducer {
 
     boolean direct() {
         return directApply != null;
+    }
+
+    boolean requiresStorageBoundary() {
+        return requiresStorageBoundary;
     }
 
     List<EntityMetadata.HandlerMethod> methods() {
