@@ -17,6 +17,10 @@ retained — supporting compliance with data protection standards like **GDPR** 
 
 ## @ProtectData: mark sensitive fields
 
+Message-field protection does not extend to secrets copied into Model state or documents. For eventless current
+state, query visibility, authorization and erasure boundaries, start with
+[Model state: persistence and protection boundaries](/docs/guides/modeling-and-persistence/model-state-boundaries/).
+
 To prevent a field from being stored with the rest of a message payload, annotate it with `@ProtectData`:
 
 <Tabs>

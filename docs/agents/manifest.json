@@ -4,6 +4,103 @@
   "root": "/docs",
   "articles": [
     {
+      "path": "/docs/sdk/models/state-boundaries",
+      "title": "Model state and protection boundaries",
+      "summary": "Choose atomic state, eventless DOCUMENT, search visibility and erasure without treating storage options as secret protection.",
+      "source": "articles/sdk/models/state-boundaries.md",
+      "symbols": [
+        "protected state",
+        "DOCUMENT",
+        "EventPublication.NEVER",
+        "searchable = false",
+        "deleteModel",
+        "@ProtectData",
+        "erasure fences",
+        "backup"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model state and lifecycle"
+        },
+        {
+          "path": "/docs/sdk/models/migration",
+          "description": "Qualify storage changes and compatible writers"
+        },
+        {
+          "path": "/docs/sdk/validation/protected-data",
+          "description": "Protect message fields and handle missing protected data"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Test retained state and independent source/projection migration"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/testing/http-stubs",
+      "title": "External HTTP stubs and consumers",
+      "summary": "Configure independent HTTP test doubles without changing consumer defaults; verify sync/async, late registration, namespaces and authorization.",
+      "source": "articles/sdk/testing/http-stubs.md",
+      "symbols": [
+        "@HandleGet",
+        "@HandlePost",
+        "@Consumer",
+        "ConsumerConfiguration",
+        "perPackage",
+        "perHandler",
+        "defaultAppConsumer",
+        "registerHandlers",
+        "sendAndWait",
+        "HTTP stub"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/testing/http",
+          "description": "Test endpoint routing and response mapping"
+        },
+        {
+          "path": "/docs/sdk/tracking",
+          "description": "Choose consumers and versioned fallback defaults"
+        },
+        {
+          "path": "/docs/sdk/testing/http-authentication",
+          "description": "Separate fixture identities from credential establishment"
+        },
+        {
+          "path": "/docs/sdk/messages/envelopes",
+          "description": "Distinguish fixture delivery from real transport envelopes"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/messages/envelopes",
+      "title": "Logical messages and transport envelopes",
+      "summary": "Distinguish messageId from transport source, logical replacements from envelope mutation and local delivery from blocking gateway calls.",
+      "source": "articles/sdk/messages/envelopes.md",
+      "symbols": [
+        "Message",
+        "SerializedMessage",
+        "DeserializingMessage",
+        "messageId",
+        "source",
+        "withMessageId",
+        "withMessage",
+        "interceptDispatch",
+        "modifySerializedMessage"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/messages",
+          "description": "Choose gateways and logical message APIs"
+        },
+        {
+          "path": "/docs/sdk/testing/http-stubs",
+          "description": "Configure independent HTTP stub consumers"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/models/migration-testing",
       "title": "Testing Model migrations and retained storage",
       "summary": "Preserve old fields while moving name into details; distinguish caster tests, givenModelEvents and an old writer/new reader, then verify search paths before and after Graph rematerialization.",
@@ -1364,6 +1461,10 @@
         {
           "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
           "path": "/docs/sdk/messages/local-only"
+        },
+        {
+          "path": "/docs/sdk/messages/envelopes",
+          "description": "Preserve logical identity without confusing it with transport source"
         }
       ]
     },
@@ -2725,6 +2826,10 @@
         {
           "description": "Choose consumer skip retry or stop behavior after failures",
           "path": "/docs/sdk/tracking/error-policy"
+        },
+        {
+          "path": "/docs/sdk/testing/http-stubs",
+          "description": "Configure HTTP stubs with production-consistent consumer defaults"
         }
       ]
     },
@@ -3577,6 +3682,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/messages/envelopes",
+          "description": "Distinguish in-process, tracked and native HTTP envelope behavior"
         }
       ]
     },
@@ -4115,6 +4224,10 @@
         {
           "description": "Write TestFixture scenarios for domain behavior and adapters",
           "path": "/docs/recipes/test-behavior"
+        },
+        {
+          "path": "/docs/sdk/testing/http-stubs",
+          "description": "Keep external stubs on deliberately configured consumers"
         }
       ]
     },
@@ -4348,6 +4461,10 @@
         {
           "description": "state-dependent invariants after protected restoration",
           "path": "/docs/sdk/entities/assert-legal"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Distinguish message redaction from persistent Model-state protection"
         }
       ]
     },
@@ -6694,6 +6811,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Separate storage and search visibility from protection and erasure guarantees"
         }
       ]
     },
@@ -6741,6 +6862,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Choose eventless current state with explicit privacy and erasure boundaries"
         }
       ]
     },
@@ -6933,6 +7058,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Choose eventless current state with explicit privacy and erasure boundaries"
         }
       ]
     },
