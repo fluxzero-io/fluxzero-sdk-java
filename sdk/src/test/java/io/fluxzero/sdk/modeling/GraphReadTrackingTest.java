@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
@@ -43,6 +44,35 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class GraphReadTrackingTest {
+    interface NavigableRepository extends ModelRepository, ModelGraphResolver {}
+
+    @Test
+    void changedGraphPreservesHistoricalNavigationMode() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        ModelReadBoundary boundary = ModelReadBoundary.state(42L, false);
+        Entity<Node> root = entity("parent", new Node("parent", "root"));
+        when(source.resolveGraphIdentity("parent", true, Node.class, boundary))
+                .thenReturn(new ModelGraphResolver.Identity("parent", true, boundary, true, () -> root));
+        when(source.graphStagedValues(boundary)).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        when(source.loadGraphRelations(eq(List.of("parent")), eq(CHILDREN), eq(boundary), any(), eq(true)))
+                .thenReturn(new ModelGraphResolver.Relations(boundary, Map.of(), List.of(), Set.of("parent"), true));
+        assertTrue(Graphs.changedGraph("parent", Node.class, 42L, source).namedChildren("unused", false).isEmpty());
+        verify(source).loadGraphRelations(eq(List.of("parent")), eq(CHILDREN), eq(boundary), any(), eq(true));
+    }
+
+    @Test
+    void changedGraphValueFallbackPreservesHistoricalNavigationMode() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        ModelReadBoundary boundary = ModelReadBoundary.state(42L, false);
+        Entity<Node> root = entity("parent", new Node("parent", "root"));
+        when(source.loadGraphValue("parent", true, Node.class, boundary))
+                .thenReturn(new ModelGraphResolver.Value(root, boundary, true));
+        when(source.graphStagedValues(boundary)).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        when(source.loadGraphRelations(eq(List.of("parent")), eq(CHILDREN), eq(boundary), any(), eq(true)))
+                .thenReturn(new ModelGraphResolver.Relations(boundary, Map.of(), List.of(), Set.of("parent"), true));
+        assertTrue(Graphs.changedGraph("parent", Node.class, 42L, source).namedChildren("unused", false).isEmpty());
+        verify(source).loadGraphRelations(eq(List.of("parent")), eq(CHILDREN), eq(boundary), any(), eq(true));
+    }
     private final ModelRepository repository = mock(ModelRepository.class);
     private final Entity<Node> parent = entity("parent", new Node("parent", "root"));
     private final Entity<Node> child = entity("child", new Node("child", "excluded"));

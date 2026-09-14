@@ -215,6 +215,10 @@ public class CommitModels extends Command implements RetryAwareRequest {
                             target.getDocument()
                                     .getBytes());
                 }
+                if (target.getDocumentProjection() != null) {
+                    directDocumentCount++;
+                    directDocumentBytes = addSaturated(directDocumentBytes, target.getDocumentProjection().getBytes());
+                }
                 if (target.getSnapshot() != null) {
                     snapshotCount++;
                     snapshotBytes = addSaturated(

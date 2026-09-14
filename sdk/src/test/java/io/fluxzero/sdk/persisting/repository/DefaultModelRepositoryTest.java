@@ -485,10 +485,10 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void loadsDocumentBasedModelFromItsDirectSearchCollection() {
+    void loadsDocumentBasedModelFromItsInternalSourceCollection() {
         ProductId id = new ProductId("1");
         Product product = new Product(id, "first");
-        when(documentStore.fetchDocument(id.toString(), "products", Product.class))
+        when(documentStore.fetchDocument(id.toString(), "$modelGraphComponents/Product", Product.class))
                 .thenReturn(Optional.of(product));
 
         var result = repository.load(id);
@@ -499,14 +499,14 @@ class DefaultModelRepositoryTest {
         assertEquals("productId", result.idProperty());
         assertEquals(0L, result.sequenceNumber());
         assertEquals(0L, ((ModelRoot<?>) result.root()).stateIndex());
-        verify(documentStore).fetchDocument(id.toString(), "products", Product.class);
+        verify(documentStore).fetchDocument(id.toString(), "$modelGraphComponents/Product", Product.class);
         verify(eventStoreClient, times(0)).getModelEvents(any());
     }
 
     @Test
     void missingDirectDocumentReturnsTypedEmptyEntity() {
         ProductId id = new ProductId("missing");
-        when(documentStore.fetchDocument(id.toString(), "products", Product.class))
+        when(documentStore.fetchDocument(id.toString(), "$modelGraphComponents/Product", Product.class))
                 .thenReturn(Optional.empty());
 
         var result = repository.load(id);
@@ -518,7 +518,7 @@ class DefaultModelRepositoryTest {
 
     @Test
     void rejectsDocumentWhoseEntityIdDoesNotMatchStorageKey() {
-        when(documentStore.fetchDocument("product-1", "products", Product.class))
+        when(documentStore.fetchDocument("product-1", "$modelGraphComponents/Product", Product.class))
                 .thenReturn(Optional.of(new Product(new ProductId("other"), "wrong")));
 
         EventSourcingException exception = assertThrows(
@@ -537,7 +537,8 @@ class DefaultModelRepositoryTest {
         try (Fluxzero fluxzero = configuredFluxzero()) {
             commitDirectDocument(
                     fluxzero, "renamed-type", id.toString(),
-                    io.fluxzero.sdk.modeling.ModelNames.name(AliasedAccount.class), "aliasedAccounts",
+                    io.fluxzero.sdk.modeling.ModelNames.name(AliasedAccount.class),
+                    "$modelGraphComponents/" + io.fluxzero.sdk.modeling.ModelNames.name(AliasedAccount.class),
                     new AliasedAccount(id, 7));
 
             Entity<Object> loaded =
@@ -965,7 +966,7 @@ class DefaultModelRepositoryTest {
                 .build(LocalClient.newInstance(null))) {
             commitDirectDocument(
                     fluxzero, "configured-product", id.toString(),
-                    Product.class.getSimpleName(), "products", product);
+                    Product.class.getSimpleName(), "$modelGraphComponents/Product", product);
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -997,12 +998,12 @@ class DefaultModelRepositoryTest {
             commitDirectDocument(
                     client, serializer, documentSerializer,
                     "enveloped-first", firstId.toString(),
-                    Product.class.getSimpleName(), "products", first,
+                    Product.class.getSimpleName(), "$modelGraphComponents/Product", first,
                     timestamp, end, metadata);
             commitDirectDocument(
                     client, serializer, documentSerializer,
                     "enveloped-second", secondId.toString(),
-                    Product.class.getSimpleName(), "products", second,
+                    Product.class.getSimpleName(), "$modelGraphComponents/Product", second,
                     timestamp, end, metadata);
 
             DefaultModelRepository restarted =
@@ -1027,14 +1028,14 @@ class DefaultModelRepositoryTest {
                     client.forNamespace(namespace), serializer,
                     documentSerializer, "enveloped-namespaced",
                     namespacedId.toString(), Product.class.getSimpleName(),
-                    "products", namespaced, timestamp, end, metadata);
+                    "$modelGraphComponents/Product", namespaced, timestamp, end, metadata);
             assertEquals(
                     namespaced,
                     restarted.forNamespace(namespace)
                             .load(namespacedId).get());
 
             assertTrue(documentSerializer.reads().stream().allMatch(
-                    read -> "products".equals(read.collection())
+                    read -> "$modelGraphComponents/Product".equals(read.collection())
                             && timestamp.toEpochMilli()
                             == read.timestamp()
                             && end.toEpochMilli() == read.end()
@@ -1129,9 +1130,7 @@ class DefaultModelRepositoryTest {
                     .modelDocumentCollection().orElseThrow();
             assertEquals("AliasAccount", collection);
             SerializedDocument stored = client.getSearchClient()
-                    .fetchModelDocument(new GetDocument(
-                            id.toString(), collection))
-                    .getDocument();
+                    .fetch(new GetDocument(id.toString(), collection)).orElseThrow();
             assertNotNull(stored);
             assertNull(stored.getSummary());
             assertTrue(stored.getFacets().isEmpty());
@@ -1386,7 +1385,7 @@ class DefaultModelRepositoryTest {
             fluxzero.commandGateway().send(
                     new CreateEvolvedDocument(id, 2)).join();
             downgradeOnlyDocument(
-                    fluxzero, "evolvedDocuments", id.toString());
+                    fluxzero, "$modelGraphComponents/EvolvedDocument", id.toString());
             serializer.registerUpcasters(
                     new ModelStateUpcaster());
             DefaultModelRepository repository =

@@ -462,6 +462,9 @@ public class InMemorySearchStore implements SearchClient {
     public synchronized GetDocumentResult fetchModelDocument(GetDocument request) {
         DirectDocumentVersion version = modelDocumentVersions.get(
                 asIdentifier(request.getCollection(), request.getId()));
+        if (version != null && version.projection()) {
+            return new GetDocumentResult(request.getRequestId(), null, null, request.isVerifyModelState());
+        }
         ModelHeadState head = version != null && version.collection().equals(request.getCollection())
                 ? version.head() : null;
         SerializedDocument document = head == null ? null
@@ -472,6 +475,29 @@ public class InMemorySearchStore implements SearchClient {
         }
         return new GetDocumentResult(
                 request.getRequestId(), document, head, request.isVerifyModelState());
+    }
+
+    @Override
+    public CompletableFuture<Void> rewriteModelSourceDocument(
+            io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        request.validate();
+        Runnable publication;
+        synchronized (this) {
+            var document = request.getDocument();
+            String key = asIdentifier(document.getCollection(), document.getId());
+            DirectDocumentVersion version = modelDocumentVersions.get(key);
+            if (version == null || !version.head().equals(request.getExpectedHead())
+                || !request.getExpectedProof().equals(version.proof())
+                || !request.getExpectedProof().equals(of(documents.get(key), version.head()))) {
+                return CompletableFuture.completedFuture(null);
+            }
+            documents.put(key, document);
+            documentIndices.put(key, nextDocumentIndex.incrementAndGet());
+            modelDocumentVersions.put(key, new DirectDocumentVersion(document.getCollection(), version.head(), document));
+            publication = prepareMessages(Map.of(key, document));
+        }
+        publication.run();
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -514,7 +540,8 @@ public class InMemorySearchStore implements SearchClient {
                 io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION,
                 request.getModelId());
         DirectDocumentVersion migration = modelDocumentVersions.get(migrationKey);
-        DirectDocumentVersion adopted = modelDocumentVersions.get(productionKey);
+        String sourceKey = asIdentifier(request.sourceCollection(), request.getModelId());
+        DirectDocumentVersion adopted = modelDocumentVersions.get(sourceKey);
         if (migration == null) {
             if (adopted != null
                 && adopted.head().getStateIndex()
@@ -556,6 +583,10 @@ public class InMemorySearchStore implements SearchClient {
                             + request.getModelId()));
         }
         SerializedDocument staged = documents.get(migrationKey);
+        if (!Objects.equals(migration.proof(), of(staged, migration.head()))) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Staged Model source has no matching durable document proof: " + request.getModelId()));
+        }
         if (documents.containsKey(productionKey) && staged == null) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException(
@@ -572,23 +603,37 @@ public class InMemorySearchStore implements SearchClient {
             collections.add(request.getCollection());
         }
         adoptedModelIds.add(request.getModelId());
-        if (staged != null) {
+        SerializedDocument sourceDocument = staged == null ? null : staged.withCollection(request.sourceCollection());
+        if (!sourceKey.equals(productionKey)) {
+            if (sourceDocument == null) {
+                documents.remove(sourceKey);
+                documentIndices.remove(sourceKey);
+            } else {
+                documents.put(sourceKey, sourceDocument);
+                documentIndices.put(sourceKey, nextDocumentIndex.incrementAndGet());
+                collections.add(request.sourceCollection());
+            }
+            modelDocumentVersions.put(sourceKey, new DirectDocumentVersion(request.sourceCollection(), migration.head(), sourceDocument));
+        }
+        if (staged != null && sourceKey.equals(productionKey)) {
             adoptedModelSources.put(
                     request.getModelId(),
-                    staged.withCollection(request.getCollection()));
+                    sourceDocument);
         } else {
             adoptedModelSources.remove(request.getModelId());
         }
         modelDocumentVersions.put(
                 productionKey,
                 new DirectDocumentVersion(
-                        request.getCollection(), migration.head(), documents.get(productionKey)));
+                        request.getCollection(), migration.head(), sourceKey.equals(productionKey)
+                        ? of(documents.get(productionKey), migration.head()) : null, !sourceKey.equals(productionKey)));
         documents.remove(migrationKey);
         documentIndices.remove(migrationKey);
         modelDocumentVersions.remove(migrationKey);
-        if (adoptedDocument != null) {
-            storeMessages(Map.of(productionKey, adoptedDocument));
-        }
+        Map<String, SerializedDocument> published = new LinkedHashMap<>();
+        if (adoptedDocument != null) { published.put(productionKey, adoptedDocument); }
+        if (!sourceKey.equals(productionKey) && sourceDocument != null) { published.put(sourceKey, sourceDocument); }
+        if (!published.isEmpty()) { storeMessages(published); }
         return CompletableFuture.completedFuture(null);
     }
 
@@ -654,6 +699,10 @@ public class InMemorySearchStore implements SearchClient {
                                 graphIds.contains(document.getId())
                                 && !io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION.equals(
                                         document.getCollection()))
+                .filter(document -> {
+                    var version = modelDocumentVersions.get(identifier.apply(document));
+                    return version == null || !version.projection();
+                })
                 .forEach(document -> {
                     document = effectiveModelSource(document);
                     SerializedDocument existing =
@@ -882,8 +931,11 @@ public class InMemorySearchStore implements SearchClient {
                             assigned.getStateIndex();
                     ModelCommitTargetResult position =
                             assigned.getTargets().get(targetIndex);
-                    if (target.getDocument() != null) {
-                        var mutation = target.getDocument();
+                    for (int role = 0; role < 2; role++) {
+                        var mutation = role == 0 ? target.getDocument() : target.getDocumentProjection();
+                        if (mutation == null) {
+                            continue;
+                        }
                         String collection = commit.isMigration()
                                 ? io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION
                                 : mutation.getCollection();
@@ -908,13 +960,10 @@ public class InMemorySearchStore implements SearchClient {
                                 throw new IllegalArgumentException(
                                         "A direct Model document's first commit must provide its model type");
                             }
-                            modelDocumentVersions.put(
-                                    documentKey,
-                                    new DirectDocumentVersion(
-                                            collection, new ModelHeadState(
-                                                    target.getModelId(), modelType,
-                                                    position.getSequenceNumber(), stateIndex,
-                                                    position.isHistoryComplete(), target.isDelete()), document));
+                            ModelHeadState head = new ModelHeadState(target.getModelId(), modelType,
+                                    position.getSequenceNumber(), stateIndex, position.isHistoryComplete(), target.isDelete());
+                            modelDocumentVersions.put(documentKey, new DirectDocumentVersion(
+                                    collection, head, role == 0 ? of(document, head) : null, role == 1));
                             if (!commit.isMigration()) {
                                 adoptedModelIds.remove(target.getModelId());
                                 adoptedModelSources.remove(target.getModelId());
@@ -963,9 +1012,9 @@ public class InMemorySearchStore implements SearchClient {
         }
     }
 
-    private record DirectDocumentVersion(String collection, ModelHeadState head, String proof) {
+    private record DirectDocumentVersion(String collection, ModelHeadState head, String proof, boolean projection) {
         private DirectDocumentVersion(String collection, ModelHeadState head, SerializedDocument document) {
-            this(collection, head, of(document, head));
+            this(collection, head, of(document, head), false);
         }
     }
 

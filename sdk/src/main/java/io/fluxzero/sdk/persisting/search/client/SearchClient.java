@@ -93,6 +93,13 @@ public interface SearchClient extends AutoCloseable {
                 "Materialized model graph document migration is not supported by this client"));
     }
 
+    /** Atomically rewrites a verified internal source at the same Model head and document proof. */
+    default CompletableFuture<Void> rewriteModelSourceDocument(
+            io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "Conditional Model source migration is not supported by this client"));
+    }
+
     /**
      * Executes a streaming search query using the given criteria and fetch size.
      *

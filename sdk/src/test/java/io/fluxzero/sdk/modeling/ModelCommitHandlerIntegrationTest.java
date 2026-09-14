@@ -123,7 +123,7 @@ class ModelCommitHandlerIntegrationTest {
 
     private record SetAncestorOrder(String orderId, String customerId) {
         @Apply
-        AncestorOrder apply() {
+        AncestorOrder apply(@Nullable AncestorOrder existing) {
             return new AncestorOrder(orderId, customerId);
         }
     }

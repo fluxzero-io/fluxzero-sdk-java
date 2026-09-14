@@ -48,7 +48,7 @@ public record RenameProject(ProjectId projectId,
     Project apply(Project project) {
         return new Project(
                 projectId,
-                new ProjectDetails(name),
+                project.details().withName(name),
                 project.ownerId());
     }
 }
@@ -73,7 +73,7 @@ data class RenameProject(
     fun apply(project: Project) =
         Project(
             projectId,
-            ProjectDetails(name),
+            project.details.copy(name = name),
             project.ownerId
         )
 }
@@ -123,8 +123,11 @@ data class Project(
   </TabItem>
 </Tabs>
 
-`ProjectId` is the application's typed `Id<Project>` and `ProjectDetails` its immutable details value; their ordinary
-value-type definitions are omitted here so the example stays focused on Model behavior.
+`ProjectId` is the application's typed `Id<Project>`. Descriptive business data belongs in an immutable
+`ProjectDetails` value even if it initially contains only `name`. Keep identity, relations and simple status separate.
+Java uses a generated `withName` (Lombok `@With`); Kotlin uses `copy`. The rename retains every other detail, rather
+than replacing the whole value with only a new name. See [Designing Model state](/docs/guides/modeling-and-persistence/model-state)
+for field-selection criteria and the complete Java/Kotlin definitions, creation, validation and targeted update.
 
 Each model ID is its own persistence and lifecycle boundary. Its event stream, cache, snapshots and direct search
 document are enabled independently through `@Model` settings. The exact
@@ -139,8 +142,7 @@ and authoritative load source. Updates are still stored and published as Model e
 ```java
 @Model(persistence = ModelPersistence.DOCUMENT)
 public record Product(@EntityId ProductId productId,
-                      String name,
-                      BigDecimal price) {
+                      ProductDetails details) {
 }
 ```
 

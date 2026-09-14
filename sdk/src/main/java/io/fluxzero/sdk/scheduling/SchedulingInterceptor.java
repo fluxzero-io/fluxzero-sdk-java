@@ -311,7 +311,7 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     private void scheduleInternal(Schedule schedule, DeserializingMessage source) {
         try {
-            scheduler(source).schedule(schedule);
+            scheduler(source).schedule(ScheduleParents.inherit(schedule, source.getMetadata()));
         } catch (Exception e) {
             log.error("Failed to reschedule a {}", schedule.getPayloadClass(), e);
         }

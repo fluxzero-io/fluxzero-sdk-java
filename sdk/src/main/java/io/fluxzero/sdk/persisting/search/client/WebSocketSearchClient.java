@@ -83,6 +83,12 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     }
 
     @Override
+    public CompletableFuture<Void> rewriteModelSourceDocument(
+            io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return sendCommand(request);
+    }
+
+    @Override
     public Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize) {
         return search(searchDocuments, fetchSize, request -> request);
     }

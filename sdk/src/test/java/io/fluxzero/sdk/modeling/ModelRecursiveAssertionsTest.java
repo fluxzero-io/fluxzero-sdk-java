@@ -387,7 +387,7 @@ class ModelRecursiveAssertionsTest {
 
     record Seed(String id, int count) {
         @Apply
-        State apply() {
+        State apply(@jakarta.annotation.Nullable State existing) {
             return new State(id, count);
         }
     }
@@ -455,7 +455,7 @@ class ModelRecursiveAssertionsTest {
 
     record SetInventory(String inventoryId, boolean allowed) {
         @Apply
-        Inventory apply() { return new Inventory(inventoryId, allowed); }
+        Inventory apply(@jakarta.annotation.Nullable Inventory existing) { return new Inventory(inventoryId, allowed); }
     }
 
     record WithDependency(String id, String inventoryId) {
@@ -608,7 +608,7 @@ class ModelRecursiveAssertionsTest {
 
     record SetChild(String childId, String inventoryId, int count) {
         @Apply
-        Child apply() { return new Child(childId, inventoryId, count); }
+        Child apply(@jakarta.annotation.Nullable Child existing) { return new Child(childId, inventoryId, count); }
     }
 
     record UpdateChild(String childId) {

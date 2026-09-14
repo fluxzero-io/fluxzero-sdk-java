@@ -157,7 +157,7 @@ class EntityMetadataTest {
                         .orElseThrow();
 
         assertEquals(
-                "projected-models",
+                "$modelGraphComponents/ProjectedModel",
                 configuration.getRootCollection());
         assertEquals(
                 "projected-graphs",
@@ -189,7 +189,7 @@ class EntityMetadataTest {
         var referenceOnlyConfiguration =
                 EntityMetadata.validate(ReferenceOnlyProjectedModel.class)
                         .graphProjectionConfiguration().orElseThrow();
-        assertEquals("reference-only-projected-models",
+        assertEquals("$modelGraphComponents/ReferenceOnlyProjectedModel",
                      referenceOnlyConfiguration.getRootCollection());
         assertEquals("reference-only-projected-models-graphs",
                      referenceOnlyConfiguration.getCollection());
@@ -227,10 +227,10 @@ class EntityMetadataTest {
     @Test
     void keepsApplicationResolvedGraphConfigurationOutOfTheClassCache() {
         assertEquals(
-                List.of("first-models", "first-graphs"),
+                List.of("$modelGraphComponents/ConfiguredProjectionCollections", "first-models", "first-graphs"),
                 projectionCollections("first"));
         assertEquals(
-                List.of("second-models", "second-graphs"),
+                List.of("$modelGraphComponents/ConfiguredProjectionCollections", "second-models", "second-graphs"),
                 projectionCollections("second"));
     }
 
@@ -263,7 +263,9 @@ class EntityMetadataTest {
                 var configuration = EntityMetadata.validate(ConfiguredProjectionCollections.class)
                         .graphProjectionConfiguration()
                         .orElseThrow();
-                return List.of(configuration.getRootCollection(), configuration.getCollection());
+                return List.of(configuration.getRootCollection(),
+                               EntityMetadata.validate(ConfiguredProjectionCollections.class).modelDocumentCollection().orElseThrow(),
+                               configuration.getCollection());
             });
         }
     }
@@ -506,7 +508,8 @@ class EntityMetadataTest {
 
     @Test
     void rejectsInvalidParentDeclarations() {
-        assertMessage(ParentOnNonModel.class, "@Parent is only supported on @Model");
+        assertFalse(EntityMetadata.of(ParentOnNonModel.class).isModel());
+        assertEquals(1, EntityMetadata.scheduleParentReferences(ParentOnNonModel.class).size());
         assertMessage(CollectionParentModel.class, "must contain one scalar ID");
         assertMessage(PaddedPathModel.class, "must not be blank or have surrounding whitespace");
         assertMessage(InvalidPathModel.class, "relative path without empty segments");

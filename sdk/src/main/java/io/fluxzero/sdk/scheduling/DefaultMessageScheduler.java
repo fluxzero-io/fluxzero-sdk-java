@@ -23,6 +23,8 @@ import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -45,6 +47,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
@@ -68,6 +71,8 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final DispatchInterceptor commandDispatchInterceptor;
+    /** Restores selected protected parent fields for an ownership-only read view; never for dispatch. */
+    private final UnaryOperator<DeserializingMessage> parentDataRestoration;
     private final TaskScheduler taskScheduler;
     @Delegate
     private final HandlerRegistry localHandlerRegistry;
@@ -84,30 +89,79 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     @Override
     public CompletableFuture<Void> schedule(Schedule message, boolean ifAbsent, Guarantee guarantee) {
+        return schedule(message, ifAbsent, guarantee, null);
+    }
+
+    private CompletableFuture<Void> schedule(Schedule message, boolean ifAbsent, Guarantee guarantee,
+                                              ParentSelection commandParents) {
         if (Entity.isLoading()) {
             return CompletableFuture.completedFuture(null);
         }
+        Object originalPayload = message.getPayload();
         message = (Schedule) dispatchInterceptor.interceptDispatch(message, SCHEDULE, null, client.namespace());
         if (message == null) {
             return CompletableFuture.completedFuture(null);
         }
+        SerializedMessage initial = message.serialize(serializer);
+        var initialData = initial.getData();
         SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
-                message.serialize(serializer), message, SCHEDULE, null);
+                initial, message, SCHEDULE, null);
         if (serializedMessage == null) {
             return CompletableFuture.completedFuture(null);
         }
         dispatchInterceptor.monitorDispatch(message, SCHEDULE, null, client.namespace(), false);
         Fluxzero fluxzero = Fluxzero.getOptionally().orElse(null);
         Schedule scheduledMessage = message;
-        return getSchedulingClient().schedule(guarantee, new SerializedSchedule(message.getScheduleId(),
-                                                                           message.getDeadline().toEpochMilli(),
-                                                                           serializedMessage, ifAbsent))
+        Schedule ownershipMessage = message.withMetadata(serializedMessage.getMetadata());
+        if (!Objects.equals(initialData, serializedMessage.getData())
+            && !serializedMessage.getMetadata().containsKey(ScheduleParents.METADATA_KEY)
+            && (commandParents != null && commandParents.declared()
+                || message.getMetadata().containsKey(ScheduleParents.BINDINGS_KEY)
+                || ScheduleParents.hasOwningDeclarations(message))) {
+            var decoded = serializer.deserializeMessages(Stream.of(serializedMessage), SCHEDULE).limit(2).toList();
+            if (decoded.size() != 1) {
+                throw new IllegalStateException("Schedule ownership requires exactly one decoded payload");
+            }
+            ownershipMessage = ownershipMessage.withPayload(decoded.getFirst().getPayload());
+        }
+        boolean unchangedCommand = ownershipMessage.getPayload() == originalPayload
+                || ownershipMessage.getPayload() instanceof ScheduledCommand next && originalPayload instanceof ScheduledCommand prior
+                   && Objects.equals(next.getCommand(), prior.getCommand());
+        var parents = commandParents != null && unchangedCommand
+                      && !serializedMessage.getMetadata().containsKey(ScheduleParents.METADATA_KEY)
+                ? commandParents.ids() : resolveParents(ownershipMessage,
+                        commandParents != null && commandParents.declared()
+                        || ownershipMessage.getMetadata().containsKey(ScheduleParents.BINDINGS_KEY));
+        var serializedSchedule = new SerializedSchedule(message.getScheduleId(),
+                                                        message.getDeadline().toEpochMilli(), serializedMessage, ifAbsent);
+        return (parents.isEmpty() ? getSchedulingClient().schedule(guarantee, serializedSchedule)
+                : getSchedulingClient().bindScheduleParents(parents).thenCompose(ThreadLocalContext.capture().wrap(bindings -> {
+                    var bound = serializedMessage.withMetadata(
+                            ScheduleParents.bind(serializedMessage.getMetadata(), client.namespace(), bindings));
+                    return getSchedulingClient().scheduleBoundToParents(guarantee, bindings,
+                            new SerializedSchedule(serializedSchedule.getScheduleId(), serializedSchedule.getTimestamp(),
+                                                   bound, ifAbsent));
+                })))
                 .whenComplete((ignored, error) -> {
                     if (error == null) {
                         scheduleLocalDelivery(scheduledMessage, ifAbsent, fluxzero);
                     }
                 });
     }
+
+    private java.util.List<String> resolveParents(Schedule message, boolean previouslyOwnedCommand) {
+        if (!message.getMetadata().containsKey(ScheduleParents.METADATA_KEY)
+            && previouslyOwnedCommand && message.getPayload() instanceof ScheduledCommand command) {
+            var decoded = serializer.deserializeMessages(Stream.of(command.getCommand()), COMMAND).limit(2).toList();
+            if (decoded.size() != 1) {
+                throw new IllegalStateException("Scheduled command ownership requires exactly one decoded command");
+            }
+            return ScheduleParents.resolve(decoded.getFirst().toMessage(), COMMAND, serializer, parentDataRestoration);
+        }
+        return ScheduleParents.resolve(message, SCHEDULE, serializer, parentDataRestoration);
+    }
+
+    private record ParentSelection(java.util.List<String> ids, boolean declared) {}
 
     @Override
     public CompletableFuture<Void> scheduleCommand(Schedule schedule, boolean ifAbsent, Guarantee guarantee) {
@@ -121,14 +175,37 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
             return CompletableFuture.completedFuture(null);
         }
         commandMessage = commandMessage.withPayload(intercepted.getPayload()).withMetadata(intercepted.getMetadata());
+        SerializedMessage initialCommand = commandMessage.serialize(serializer);
+        var initialCommandData = initialCommand.getData();
         SerializedMessage serializedCommand = commandDispatchInterceptor.modifySerializedMessage(
-                commandMessage.serialize(serializer), commandMessage, COMMAND, null);
+                initialCommand, commandMessage, COMMAND, null);
         if (serializedCommand == null) {
             return CompletableFuture.completedFuture(null);
         }
-        return schedule(schedule.withPayload(new ScheduledCommand(serializedCommand))
-                                .addMetadata("$commandType", schedule.getPayloadClass().getName()), ifAbsent,
-                        guarantee);
+        Message ownershipCommand = commandMessage.withMetadata(serializedCommand.getMetadata());
+        if (!Objects.equals(initialCommandData, serializedCommand.getData())
+            && !serializedCommand.getMetadata().containsKey(ScheduleParents.METADATA_KEY)
+            && ScheduleParents.hasOwningDeclarations(commandMessage)) {
+            var decoded = serializer.deserializeMessages(Stream.of(serializedCommand), COMMAND).limit(2).toList();
+            if (decoded.size() != 1) {
+                throw new IllegalStateException("Scheduled command ownership requires exactly one decoded command");
+            }
+            ownershipCommand = decoded.getFirst().toMessage();
+        }
+        var parents = ScheduleParents.resolve(ownershipCommand,
+                                              COMMAND, serializer, parentDataRestoration);
+        var wrapped = schedule.withPayload(new ScheduledCommand(serializedCommand))
+                .addMetadata("$commandType", schedule.getPayloadClass().getName());
+        wrapped = wrapped.withMetadata(wrapped.getMetadata().without(ScheduleParents.METADATA_KEY)
+                                               .without(ScheduleParents.BINDINGS_KEY).without(ScheduleParents.NAMESPACE_KEY));
+        for (String key : java.util.List.of(ScheduleParents.METADATA_KEY,
+                                           ScheduleParents.BINDINGS_KEY, ScheduleParents.NAMESPACE_KEY)) {
+            if (serializedCommand.getMetadata().containsKey(key)) {
+                wrapped = wrapped.addMetadata(key, serializedCommand.getMetadata().get(key));
+            }
+        }
+        return schedule(wrapped, ifAbsent, guarantee,
+                        new ParentSelection(parents, ScheduleParents.hasOwningDeclarations(ownershipCommand)));
     }
 
     @Override

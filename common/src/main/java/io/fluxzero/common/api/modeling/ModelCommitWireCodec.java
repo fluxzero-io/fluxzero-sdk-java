@@ -225,6 +225,7 @@ public final class ModelCommitWireCodec {
                 return false;
             }
             if (target.getDocument() != null
+                    || target.getDocumentProjection() != null
                     || target.getSnapshot() != null
                     || target.getModelType() == null
                     || target.getModelType().isBlank()

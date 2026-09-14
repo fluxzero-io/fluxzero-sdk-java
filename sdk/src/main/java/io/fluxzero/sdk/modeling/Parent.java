@@ -25,7 +25,21 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Declares that a model property contains the ID of a parent model.
+ * On a Model, registers a directed Graph relationship whose property contains the referenced parent Model's ID.
+ * <p>
+ * Choose which relationships belong in the Graph first, then choose each relationship's deletion policy.
+ * A plain typed {@link Id} without this annotation stores a reference but registers no Graph edge.
+ * This annotation defaults to cascade deletion; {@code @Parent(deleteOnParentDeletion = false)} expresses a
+ * normal non-owning Graph relation. For example, a LineItem can have an owning {@code @Parent OrderId orderId}
+ * and a non-owning {@code @Parent(deleteOnParentDeletion = false) ProductId productId}: deleting the order
+ * deletes the line, whereas deleting the product does not.
+ * <p>
+ * On a scheduled message or command payload, this also declares schedule ownership: deletion of any referenced,
+ * already committed Model asynchronously cancels the schedule. Applicable {@code @Apply} returns of {@code null},
+ * cascaded deletion and hard erasure all invalidate ownership. Null references and
+ * {@code deleteOnParentDeletion = false} do not own the schedule. The schedule is not a Model or Graph node;
+ * {@code pathInParent} and {@code apiDoc} do not compose it. Already delivered work cannot be recalled.
+ * Explicit {@link io.fluxzero.sdk.scheduling.Schedule#withParents(Object...)} selections override these declarations.
  * <p>
  * Both sides remain independent model and persistence boundaries. Use a parent relationship when the child has its own
  * creation, update history, retention, or deletion lifecycle but belongs in the parent's domain graph. Being rendered
@@ -60,8 +74,13 @@ import java.lang.annotation.Target;
  * <p>
  * By default the relationship also owns the child's lifecycle: deleting the referenced parent deletes this model and
  * its likewise owned descendants in the same atomic model commit. Set {@link #deleteOnParentDeletion()} to
- * {@code false} for a shared or independently retained child. This lifecycle rule does not require a graph path and
+ * {@code false} for a non-owning relation, including shared or independently retained children.
+ * Disabling cascade does not block deletion of the referenced parent; enforce such restrictions with domain rules.
+ * It also does not permit concrete Graph cycles. This lifecycle rule does not require a graph path and
  * moving a child by changing its parent ID does not count as parent deletion.
+ * Sole-Graph event/notification handlers for a cascaded child observe its empty current value and historical
+ * before-state through the original published event, just as for a direct logical deletion. Reading that before-state
+ * requires stored history; DOCUMENT-only persistence does not retain previous document versions.
  * <p>
  * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
  * A one-to-one companion model may annotate the same property with {@link EntityId}; entity-ID affixes affect only
@@ -110,8 +129,10 @@ public @interface Parent {
     /**
      * Whether this model is deleted when the referenced parent is logically deleted.
      * <p>
-     * The default expresses ordinary parent-owned child lifecycle. Opt out for shared graph edges or models which must
-     * remain independently addressable after their parent disappears.
+     * The default expresses parent-owned child lifecycle. Set this to {@code false} for a non-owning Graph relation
+     * or a model which must remain independently addressable after this parent disappears. The policy is per edge:
+     * another owning parent may still cascade deletion to the same child. This setting does not prevent parent
+     * deletion or relax Graph cycle checks.
      */
     boolean deleteOnParentDeletion() default true;
 }

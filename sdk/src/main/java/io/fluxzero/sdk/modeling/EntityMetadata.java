@@ -197,8 +197,8 @@ public final class EntityMetadata {
                 .toList();
 
         this.parentReferences = inspectParentReferences(typeMetadata);
-        if (model == null && !parentReferences.isEmpty()) {
-            throw invalid("@Parent is only supported on @Model types, but was found on %s".formatted(type.getName()));
+        if (aggregate != null && !parentReferences.isEmpty()) {
+            throw invalid("@Parent is not supported on @Aggregate types: %s".formatted(type.getName()));
         }
         if (parentScopedEntityId) {
             if (model == null) {
@@ -555,7 +555,15 @@ public final class EntityMetadata {
         if (rootConfiguration.directDocument()) {
             return Optional.of(configuredModelDocumentCollection(modelNamePrefix));
         }
-        return maintainsGraphComponentDocument()
+        return modelSourceDocumentCollection(modelNamePrefix);
+    }
+
+    /**
+     * Returns the internal source used for current Model state and Graph composition. A separate public
+     * {@link ModelPersistence#DOCUMENT} projection never owns this source, including for document-only Models.
+     */
+    public Optional<String> modelSourceDocumentCollection(String modelNamePrefix) {
+        return model != null && (rootConfiguration.directDocument() || maintainsGraphComponentDocument())
                 ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
                         ModelNames.name(type, modelNamePrefix)))
                 : Optional.empty();
@@ -576,7 +584,8 @@ public final class EntityMetadata {
                 .orElseGet(() -> configuredModelDocumentCollection(modelNamePrefix));
     }
 
-    private String configuredModelDocumentCollection(String modelNamePrefix) {
+    /** Returns the independent document projection's configured collection. */
+    public String configuredModelDocumentCollection(String modelNamePrefix) {
         return rootConfiguration.resolvedCollection(type, modelNamePrefix);
     }
 
@@ -604,19 +613,20 @@ public final class EntityMetadata {
             return Optional.empty();
         }
         GraphProjection projection = model.graphProjection();
-        String rootCollection = modelDocumentCollection(modelNamePrefix).orElseThrow(
+        String rootCollection = modelSourceDocumentCollection(modelNamePrefix).orElseThrow(
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
         String graphCollectionBase = rootConfiguration.directDocument()
-                ? rootCollection : ModelNames.name(type, modelNamePrefix);
+                ? configuredModelDocumentCollection(modelNamePrefix) : ModelNames.name(type, modelNamePrefix);
         String collection = projection.collection().isEmpty()
                 ? graphCollectionBase + "-graphs"
                 : ApplicationProperties.substituteProperties(projection.collection());
-        if (rootCollection.equals(collection)) {
+        if (rootCollection.equals(collection) || rootConfiguration.directDocument()
+                && configuredModelDocumentCollection(modelNamePrefix).equals(collection)) {
             throw new IllegalStateException(
-                    "Graph projection collection on %s must differ from its current-document collection '%s'"
-                            .formatted(type.getName(), rootCollection));
+                    "Graph projection collection on %s must differ from its internal source and direct document collection"
+                            .formatted(type.getName()));
         }
         return Optional.of(new ModelGraphProjectionConfiguration(
                 ModelNames.name(type, modelNamePrefix), rootCollection, collection,
@@ -743,7 +753,22 @@ public final class EntityMetadata {
         return handlerMethods.stream().filter(method -> method.kind() == HandlerKind.APPLY).toList();
     }
 
-    private List<ParentReference> inspectParentReferences(ReflectionUtils.TypeMetadata typeMetadata) {
+    /**
+     * Returns cached parent declarations for a schedule payload without treating that payload as a Model.
+     * Composition settings do not add schedules to Graphs. Identity conversion uses the same contract as Models.
+     */
+    public static List<ParentReference> scheduleParentReferences(Class<?> payloadType) {
+        return ReflectionUtils.getTypeMetadata(payloadType)
+                .specializedMetadata(ScheduleParentReferences.class,
+                                     type -> new ScheduleParentReferences(inspectParentReferences(
+                                             ReflectionUtils.getTypeMetadata(type))))
+                .references();
+    }
+
+    private record ScheduleParentReferences(List<ParentReference> references) {}
+
+    private static List<ParentReference> inspectParentReferences(ReflectionUtils.TypeMetadata typeMetadata) {
+        Class<?> type = typeMetadata.type();
         LinkedHashMap<String, ParentProperty> properties = new LinkedHashMap<>();
         for (AccessibleObject candidate : parentCandidates(typeMetadata)) {
             Parent annotation = parentAnnotation(typeMetadata, candidate);
@@ -763,7 +788,7 @@ public final class EntityMetadata {
             validateScalarId(parentProperty.property(), "@Parent");
             Parent annotation = parentProperty.annotation();
             String pathInParent = validatePathInParent(
-                    parentProperty.property(), annotation.pathInParent());
+                    type, parentProperty.property(), annotation.pathInParent());
             Class<?> inferredType = inferIdTarget(
                     parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
@@ -825,7 +850,7 @@ public final class EntityMetadata {
         };
     }
 
-    private String validatePathInParent(Property property, String pathInParent) {
+    private static String validatePathInParent(Class<?> type, Property property, String pathInParent) {
         if (pathInParent.isEmpty()) {
             return pathInParent;
         }

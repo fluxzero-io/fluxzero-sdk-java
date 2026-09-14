@@ -21,7 +21,8 @@ SDK v2 requires Java 25 or newer and a matching v2 Runtime for standalone Models
 
 Choose the focused state, actions or Graph article for the application's language:
 
-- State: immutable Models, event-sourced/document persistence, typed identity and intentional embedded members.
+- State: immutable Models, details versus settings/status, validated creation and targeted edits, persistence,
+  typed identity and intentional embedded members.
 - Actions: automatic `@Apply` command handling, recursive assertions, interception and atomic multi-Model commits.
 - Graphs: independent children via `@Parent`, lazy navigation, exact event-state injection and graph search/projections.
 - Conflicts: read dependencies, empty collections, `RETRY`/`FAIL`/`ACCEPT` and the cost of actual navigation.
@@ -30,6 +31,11 @@ Choose the focused state, actions or Graph article for the application's languag
 Choose boundaries by lifecycle, not collection shape or storage convenience. State whose creation, changes, history,
 retention or deletion can be independent is a separate Model connected with `@Parent`. A parent-scoped identity is
 enough. Use `@Member` only when all these concerns deliberately belong to its root.
+
+Descriptive business data belongs in a cohesive details value object, even when it contains only `name`.
+Keep configuration, identity, relationships, current status and execution bookkeeping distinct. A plain details
+value is neither a separate Model nor a Member. The language-specific state articles explain the field-selection
+criteria and show creation plus `RenameProject(id, name)` without losing other details.
 
 A command with applicable Model `@Apply` methods is handled automatically. Do not add a pass-through
 `@HandleCommand`/`loadAggregate(...)` interface from an old example. A real orchestration handler can call

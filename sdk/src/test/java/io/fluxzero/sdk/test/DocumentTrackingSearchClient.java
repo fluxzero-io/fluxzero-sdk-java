@@ -99,6 +99,20 @@ class DocumentTrackingSearchClient implements SearchClient {
         }
     }
 
+    @Override
+    public CompletableFuture<Void> rewriteModelGraphDocument(
+            SerializedDocument document, String expectedManifest, Guarantee guarantee) {
+        // A stale manifest may make this operation a successful no-op. Do not invent a pending document dispatch;
+        // retained-store migration tests must observe the actual resulting projection/consumer progress.
+        return delegate.rewriteModelGraphDocument(document, expectedManifest, guarantee);
+    }
+
+    @Override
+    public CompletableFuture<Void> rewriteModelSourceDocument(
+            io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return delegate.rewriteModelSourceDocument(request);
+    }
+
     private void monitorDocumentUpdates(List<SerializedDocument> documents) {
         documents.forEach(interceptor::monitorDocumentDispatch);
     }

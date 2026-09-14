@@ -50,7 +50,7 @@ List<LineItem> lines = graph.childModels("lines", LineItem.class);
 - `id()` and `type()` expose its collision-safe persisted identity and type;
 - `functionalId()` exposes the public ID from the current or last present model value, without repository prefixes,
   postfixes or parent scope;
-- `previous()` returns the retained previous revision when `cachingDepth` permits it;
+- `previous()` returns the preceding revision; durable historical values require `EVENT_SOURCED`, not `DOCUMENT` alone;
 - `stateIndex()` pins the whole graph read, while `revisionStateIndex()` says when this concrete node revision became
   current;
 - `sequenceNumber()` is the position within this model's own stream;
@@ -78,7 +78,7 @@ Use `@Alias` when an independently stored model must also be addressable by a cu
 record Customer(
         @EntityId CustomerId customerId,
         @Alias(prefix = "email:") String email,
-        String name) {
+        CustomerDetails details) {
 }
 
 Customer customer = Fluxzero.loadModel(
@@ -149,7 +149,7 @@ Select document persistence to load the current model directly from its synchron
 
 ```java
 @Model(persistence = ModelPersistence.DOCUMENT)
-record Country(@EntityId CountryId countryId, String name) {
+record Country(@EntityId CountryId countryId, CountryDetails details) {
 }
 ```
 
@@ -203,8 +203,9 @@ Later cache entries never leak into historical event handling. Earlier `STORE_ON
 because exactness is based on the committed model commit, not only on the globally published event stream.
 
 Ordinary `loadGraph(...)` calls made while handling a message inherit that same coherent read boundary. This is usually
-what event and notification handlers need. After sending a synchronous nested command, use `loadCurrentGraph(...)`
-only when the remainder of the handler deliberately needs the newer state produced by that command:
+what event and notification handlers need. Use `loadCurrentGraph(...)` when current intent is deliberately required:
+after a synchronous nested command, or in a scheduling reconciler deciding which deadlines still belong despite
+receiving an old event. For example:
 
 ```java
 Fluxzero.sendCommandAndWait(new ReserveItem(itemId));
@@ -295,8 +296,8 @@ void organisationChanged(Graph<Organisation> graph) {
 
 Fluxzero reads the affected model identities from the exact durable model-commit substep, so the published event does
 not need to repeat the root ID. Each affected root is invoked once, even when several models in that graph changed in
-one atomic action. `graph.previous()` is the complete graph immediately before that action, independent of the model
-cache depth.
+one committed substep. `graph.previous()` is the graph immediately before that change, independent of model cache
+depth when its inspected nodes have event-sourced history.
 
 - creation supplies the new graph and no previous graph;
 - deletion supplies an empty current graph and the complete deleted graph through `previous()`;
@@ -309,6 +310,18 @@ the matching typed `Graph<T>` method, so no per-type adapter objects are needed.
 
 A handler that also declares the explicit event payload remains an ordinary payload handler. Its `Graph<T>` parameter
 keeps the direct or ancestor-injection semantics described above.
+
+Cascaded logical deletions also notify the deleted child's sole-`Graph<T>` handler through the original domain event.
+It receives an empty current graph and the previous value; no extra public technical event or parent-specific cleanup
+handler is needed. Cascades retain their own internal change boundary. A child updated and then cascaded in one
+commit can therefore produce both observations; surviving shared ancestors observe removal as well. An already
+deleted ancestor is not notified twice for that deletion. New commits carry these links; old events are not rewritten.
+Suppressed publication and physical erasure do not manufacture domain notifications. Normal delivery retry rules apply.
+
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled.** `DOCUMENT` alone stores current state, not historical
+document versions. Neither a before-boundary nor a larger cache can reconstruct an overwritten document durably.
+This requirement applies to each historical Graph node whose value you inspect. Event sourcing plus `DOCUMENT`
+retains history; ordinary snapshot/cache settings do not prune Model events automatically.
 
 ## Loading a complete model graph
 

@@ -158,6 +158,12 @@ public interface Given<Self extends Given<Self>> extends When {
      * Event-sources an independently stored model into the state used as input for the behavior under test.
      * <p>
      * This is model vocabulary for {@link io.fluxzero.sdk.modeling.Model}; it does not load a containing aggregate.
+     * Inputs have the same serialized-message, JSON-resource, and upcasting support as
+     * {@link #givenAppliedEvents(Id, Object...)}. Register casters before seeding.
+     * <p>
+     * This is synthetic setup: inputs are deserialized/upcast and applied by the current Model code, producing new
+     * commits, documents, and relationships. Registered observers may run during Given. It neither preserves the
+     * original serialized bytes and heads nor proves compatibility with a previous writer or a database restart.
      */
     default Self givenModelEvents(Id<?> modelId, Object... events) {
         return givenModelEvents(modelId.toString(), modelId.getType(), events);
@@ -165,6 +171,8 @@ public interface Given<Self extends Given<Self>> extends When {
 
     /**
      * Event-sources an independently stored model into the state used as input for the behavior under test.
+     *
+     * @see #givenModelEvents(Id, Object...) the supported input forms, setup effects, and reconstruction proof boundary
      */
     default Self givenModelEvents(String modelId, Class<?> modelClass, Object... events) {
         throw new UnsupportedOperationException("This Given implementation does not support independent models");

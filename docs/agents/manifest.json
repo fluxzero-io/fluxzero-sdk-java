@@ -4,6 +4,49 @@
   "root": "/docs",
   "articles": [
     {
+      "path": "/docs/sdk/models/migration-testing",
+      "title": "Testing Model migrations and retained storage",
+      "summary": "Preserve old fields while moving name into details; distinguish caster tests, givenModelEvents and an old writer/new reader, then verify search paths before and after Graph rematerialization.",
+      "source": "articles/sdk/models/migration-testing.md",
+      "symbols": [
+        "givenModelEvents",
+        "registerCasters",
+        "whenUpcasting",
+        "Model migration",
+        "old SDK writer",
+        "retained storage",
+        "name to details.name",
+        "reindexing",
+        "previous()",
+        "searchGraph",
+        "loadCurrentModelState",
+        "Model document proof",
+        "modelState",
+        "@HandleDocument(modelState)",
+        "internal Model source",
+        "independent DOCUMENT projection",
+        "schema reindexing"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model lifecycle, state and Graph APIs"
+        },
+        {
+          "path": "/docs/sdk/testing/reconstruction",
+          "description": "Run complete givenModelEvents reconstruction examples"
+        },
+        {
+          "path": "/docs/sdk/serialization",
+          "description": "Register value-preserving casters with matching source revisions"
+        },
+        {
+          "path": "/docs/sdk/reference/test-fixture-signatures",
+          "description": "Check synthetic setup and complete active schedule assertions"
+        }
+      ]
+    },
+    {
       "path": "/docs",
       "title": "Fluxzero Agent Docs",
       "summary": "Start here when a coding agent needs compact Fluxzero SDK, testing, and cloud deployment guidance.",
@@ -148,7 +191,7 @@
     {
       "path": "/docs/sdk/principles",
       "title": "SDK Principles",
-      "summary": "The defaults that keep Fluxzero applications deterministic, testable, and easy for agents to extend.",
+      "summary": "Core SDK principles, including cohesive details value objects versus configuration, identity, status and execution state.",
       "source": "articles/sdk/principles.md",
       "symbols": [
         "@Apply",
@@ -156,7 +199,9 @@
         "Fluxzero.currentTime()",
         "Fluxzero.search(...)",
         "Request<T>",
-        "Fluxzero.publishEvent(...)"
+        "Fluxzero.publishEvent(...)",
+        "details value object",
+        "RenameProject"
       ],
       "links": [
         {
@@ -174,6 +219,14 @@
         {
           "description": "create a first app",
           "path": "/docs/recipes/create-app"
+        },
+        {
+          "description": "Choose details and state fields, with validated Java creation and rename",
+          "path": "/docs/sdk/models/state-java"
+        },
+        {
+          "description": "Choose details and state fields, with validated Kotlin creation and rename",
+          "path": "/docs/sdk/models/state-kotlin"
         }
       ]
     },
@@ -2416,6 +2469,10 @@
       ],
       "links": [
         {
+          "description": "Automatically cancel schedules on committed Model parent deletion",
+          "path": "/docs/sdk/scheduling/parent-owned-schedules"
+        },
+        {
           "description": "Choose the relevant SDK implementation topic",
           "path": "/docs/sdk"
         },
@@ -2448,7 +2505,7 @@
           "path": "/docs/sdk/testing/verification-boundaries"
         },
         {
-          "description": "reconcile tracked scheduled effects from current aggregate state during replay",
+          "description": "reconcile tracked scheduled effects from current Model intent during replay",
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
         },
         {
@@ -2462,9 +2519,32 @@
       ]
     },
     {
+      "path": "/docs/sdk/scheduling/parent-owned-schedules",
+      "title": "Parent-Owned Schedules",
+      "summary": "Bind delayed work to committed Model lifetimes, cancel on direct or cascade deletion, and understand retries, in-flight execution and metrics.",
+      "source": "articles/sdk/scheduling/parent-owned-schedules.md",
+      "symbols": [
+        "@Parent",
+        "Schedule.withParents(...)",
+        "ScheduleAutoCancelled",
+        "parent-owned schedules",
+        "Apply null cancels schedules"
+      ],
+      "links": [
+        {
+          "description": "Scheduling overview",
+          "path": "/docs/sdk/scheduling"
+        },
+        {
+          "description": "Reconcile status and deadline changes",
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
       "title": "Replay-Safe Tracked Schedule Reconciliation",
-      "summary": "Treat historical events as reconciliation triggers, derive the complete desired active-schedule set from current aggregate state, and prove replay cannot resurrect cancelled work.",
+      "summary": "Reconcile delayed work from current Model intent, guard stale commands, and clean up cascaded children without restoring obsolete schedules during replay.",
       "source": "articles/sdk/scheduling/tracked-effect-reconciliation.md",
       "symbols": [
         "replay safe schedule",
@@ -2476,7 +2556,19 @@
         "redelivery terminal no schedules",
         "duplicate timer delivery",
         "schedule cancellation stale delivery",
-        "replay rebuild deadline reconciliation"
+        "replay rebuild deadline reconciliation",
+        "loadCurrentGraph",
+        "Graph<Reminder>",
+        "@Parent",
+        "cascade deletion",
+        "singleTracker",
+        "expectedDeadline",
+        "previous()",
+        "EVENT_SOURCED",
+        "expectOnlyActiveScheduledCommands",
+        "Predicate<Schedule>",
+        "all active scheduled commands",
+        "schedule ID deadline payload"
       ],
       "links": [
         {
@@ -2506,6 +2598,10 @@
         {
           "description": "Use exact schedule constructors and active-set assertions",
           "path": "/docs/sdk/reference/test-fixture-signatures"
+        },
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model lifecycle, history and Graph reads"
         }
       ]
     },
@@ -3381,7 +3477,9 @@
         "whenUpcasting",
         "createAsync",
         "@class",
-        "@extends"
+        "@extends",
+        "givenModelEvents",
+        "registerCasters"
       ],
       "links": [
         {
@@ -3475,6 +3573,10 @@
         {
           "description": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
           "path": "/docs/sdk/testing/revisioned-json"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -3635,7 +3737,9 @@
         "durable scheduling fixture reconstruction",
         "active schedules after fresh application restart",
         "restore retained store without reseeding",
-        "supplied events documents schedules do not prove persistence"
+        "supplied events documents schedules do not prove persistence",
+        "givenModelEvents",
+        "registerCasters"
       ],
       "links": [
         {
@@ -3689,6 +3793,10 @@
         {
           "description": "symmetric correlated workflow scenarios",
           "path": "/docs/sdk/testing/correlated-workflows"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -4300,6 +4408,10 @@
         {
           "description": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
           "path": "/docs/sdk/testing/revisioned-json"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -4359,7 +4471,8 @@
         "legacy event envelope",
         "Data.JSON_FORMAT",
         "registerCasters",
-        "whenUpcasting narrower"
+        "whenUpcasting narrower",
+        "givenModelEvents"
       ],
       "links": [
         {
@@ -4381,6 +4494,10 @@
         {
           "description": "Test behavior across fixture message and HTTP flows",
           "path": "/docs/sdk/testing"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -5512,7 +5629,11 @@
         "expectWebResult getPayloadAs Type explicit method witness",
         "response getPayloadAs class domain accessor Object",
         "WebRequest WebResponse getPayloadAs Type",
-        "fixture generic result compile error"
+        "fixture generic result compile error",
+        "expectOnlyActiveScheduledCommands",
+        "Predicate<Schedule>",
+        "all active scheduled commands",
+        "schedule ID deadline payload"
       ],
       "links": [
         {
@@ -6488,7 +6609,7 @@
     {
       "path": "/docs/sdk/models",
       "title": "Models and Graphs in SDK v2",
-      "summary": "Start new Java/Kotlin domain state with Models: lifecycle, automatic commands, atomic commits, lazy Graphs and scoped conflict detection.",
+      "summary": "Start new Java/Kotlin state with Models: details and status, lifecycle, validated commands, atomic commits and lazy Graphs.",
       "source": "articles/sdk/models/index.md",
       "symbols": [
         "@Model",
@@ -6569,13 +6690,17 @@
         {
           "path": "/docs/sdk/entities/kotlin-models",
           "description": "Kotlin Models And Updates — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
     {
       "path": "/docs/sdk/models/state-java",
       "title": "Model state and lifecycle (Java)",
-      "summary": "Core rules, Define a model, Embedded members for SDK v2 java applications.",
+      "summary": "Choose cohesive details and settings versus identity, relationships, status and execution bookkeeping; validate creation and targeted changes without a separate Model or Member.",
       "source": "articles/sdk/models/state-java.md",
       "symbols": [
         "@Model",
@@ -6584,7 +6709,13 @@
         "@EntityId",
         "@DocumentProjection",
         "parentScoped",
-        "java"
+        "java",
+        "ProjectDetails",
+        "RenameProject",
+        "@Valid",
+        "details value object",
+        "configuration",
+        "execution bookkeeping"
       ],
       "links": [
         {
@@ -6606,6 +6737,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -6621,7 +6756,11 @@
         "Fluxzero.assertAndApply",
         "Fluxzero.commit",
         "automaticHandling",
-        "java"
+        "java",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
       ],
       "links": [
         {
@@ -6639,13 +6778,17 @@
         {
           "description": "Model relationships and lazy Graphs",
           "path": "/docs/sdk/models/graphs-java"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },
     {
       "path": "/docs/sdk/models/graphs-java",
       "title": "Model relationships and lazy Graphs (Java)",
-      "summary": "Relationships, Loading and event parameters, Complete graph-change handlers, Search and graph composition for SDK v2 java applications.",
+      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Java.",
       "source": "articles/sdk/models/graphs-java.md",
       "symbols": [
         "@Parent",
@@ -6660,7 +6803,15 @@
         "whereAncestor",
         "whereParent",
         "loadCurrentGraph",
-        "java"
+        "java",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion",
+        "deleteOnParentDeletion",
+        "non-owning relationships",
+        "multiple parents",
+        "Graph cycles"
       ],
       "links": [
         {
@@ -6682,6 +6833,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },
@@ -6727,13 +6882,17 @@
         {
           "description": "Choose a Model topic and language",
           "path": "/docs/sdk/models"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
     {
       "path": "/docs/sdk/models/state-kotlin",
       "title": "Model state and lifecycle (Kotlin)",
-      "summary": "Core rules, Define a model, Embedded members for SDK v2 kotlin applications.",
+      "summary": "Choose cohesive details and settings versus identity, relationships, status and execution bookkeeping; validate creation and targeted changes without a separate Model or Member.",
       "source": "articles/sdk/models/state-kotlin.md",
       "symbols": [
         "@Model",
@@ -6742,7 +6901,13 @@
         "@EntityId",
         "@DocumentProjection",
         "parentScoped",
-        "kotlin"
+        "kotlin",
+        "ProjectDetails",
+        "RenameProject",
+        "@Valid",
+        "details value object",
+        "configuration",
+        "execution bookkeeping"
       ],
       "links": [
         {
@@ -6764,6 +6929,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -6779,7 +6948,11 @@
         "Fluxzero.assertAndApply",
         "Fluxzero.commit",
         "automaticHandling",
-        "kotlin"
+        "kotlin",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
       ],
       "links": [
         {
@@ -6797,13 +6970,17 @@
         {
           "description": "Model relationships and lazy Graphs",
           "path": "/docs/sdk/models/graphs-kotlin"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },
     {
       "path": "/docs/sdk/models/graphs-kotlin",
       "title": "Model relationships and lazy Graphs (Kotlin)",
-      "summary": "Relationships, Loading and event parameters, Complete graph-change handlers, Search and graph composition for SDK v2 kotlin applications.",
+      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Kotlin.",
       "source": "articles/sdk/models/graphs-kotlin.md",
       "symbols": [
         "@Parent",
@@ -6818,7 +6995,15 @@
         "whereAncestor",
         "whereParent",
         "loadCurrentGraph",
-        "kotlin"
+        "kotlin",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion",
+        "deleteOnParentDeletion",
+        "non-owning relationships",
+        "multiple parents",
+        "Graph cycles"
       ],
       "links": [
         {
@@ -6840,6 +7025,10 @@
         {
           "path": "/docs/sdk/entities/graph-search",
           "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
         }
       ]
     },

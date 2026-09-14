@@ -25,12 +25,15 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration;
+import io.fluxzero.sdk.persisting.search.ModelSourceDocumentMigration;
+import io.fluxzero.sdk.persisting.search.client.SearchClient;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
@@ -70,6 +73,7 @@ import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
 public class DocumentHandlerDecorator implements HandlerDecorator {
     private final Supplier<DocumentStore> documentStoreSupplier;
     private final GraphDocumentWriter graphDocumentWriter;
+    private final Function<DeserializingMessage, SearchClient> searchClient;
 
     public DocumentHandlerDecorator(Supplier<DocumentStore> documentStoreSupplier) {
         this(documentStoreSupplier, migration -> CompletableFuture.failedFuture(
@@ -80,8 +84,17 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
     public DocumentHandlerDecorator(
             Supplier<DocumentStore> documentStoreSupplier,
             GraphDocumentWriter graphDocumentWriter) {
+        this(documentStoreSupplier, graphDocumentWriter, null);
+    }
+
+    /** Configures conditional internal Model-source rewriting alongside ordinary document and Graph handling. */
+    public DocumentHandlerDecorator(
+            Supplier<DocumentStore> documentStoreSupplier,
+            GraphDocumentWriter graphDocumentWriter,
+            Function<DeserializingMessage, SearchClient> searchClient) {
         this.documentStoreSupplier = documentStoreSupplier;
         this.graphDocumentWriter = graphDocumentWriter;
+        this.searchClient = searchClient;
     }
 
     @Override
@@ -114,6 +127,23 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                     .orElse(null);
             if (annotation == null) {
                 return invoker;
+            }
+            if (annotation.modelState() != Void.class) {
+                String collection = DocumentHandlerTopics.resolve(annotation, method);
+                if (method.getReturnType() == void.class) {
+                    return invoker;
+                }
+                return new HandlerInvoker.DelegatingHandlerInvoker(invoker) {
+                    @Override
+                    public Object invoke(BiFunction<Object, Object, Object> combiner) {
+                        var migration = ModelSourceDocumentMigration.prepare(
+                                message, annotation.modelState(), collection,
+                                documentStoreSupplier.get().getSerializer(), searchClient == null ? null : searchClient.apply(message));
+                        Object result = delegate.invoke(combiner);
+                        migration.finish(result);
+                        return result;
+                    }
+                };
             }
             if (annotation.modelGraph() != Void.class) {
                 if (!Graph.class.isAssignableFrom(method.getReturnType())) {

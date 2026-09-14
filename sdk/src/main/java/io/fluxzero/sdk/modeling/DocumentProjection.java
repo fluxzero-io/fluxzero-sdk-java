@@ -22,7 +22,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Configures the direct current-state document maintained by a {@link Model} whose
+ * Configures the independent public document projection maintained by a {@link Model} whose
  * {@link Model#persistence() persistence} stores a document.
  */
 @Documented
@@ -34,9 +34,9 @@ public @interface DocumentProjection {
      * Whether this current document is exposed through the Model's public search collection.
      * <p>
      * When {@code false}, Fluxzero does not expose the document through an unrestricted typed Model search. The direct
-     * document remains in {@link #collection() its normal resolved collection}. A Model without a separate Graph role
-     * is stored without a text summary, facets or sortable indexes and remains available through direct Model loads,
-     * aliases and exact parent or ancestor relationships. A Model that participates in Graph composition still
+     * document remains in {@link #collection() its normal resolved collection}, without a text summary, facets or
+     * sortable indexes, and is retrievable through exact parent or ancestor relationships. Model loads and verified
+     * current-state reads use a separate internal source. A Model that participates in Graph composition still
      * maintains its independently required internal component indexes; use
      * {@link io.fluxzero.common.search.SearchExclude @SearchExclude}, {@code @Facet} and {@code @Sortable} to shape
      * those indexes explicitly.

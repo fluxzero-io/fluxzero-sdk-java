@@ -73,6 +73,40 @@ class InMemorySearchStoreModelMaterializationTest {
             new InMemorySearchStore(Duration.ofDays(1));
 
     @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3, 4})
+    void staleSourceRewriteCannotReplaceMigrationUpdateDeletionRecreationOrUntrustedWrite(int intervening) {
+        String collection = ModelDocumentMutation.privateModelDocumentCollection("TestModel");
+        SerializedDocument original = structuredDocument("model-1", collection, "old");
+        SerializedDocument replacement = structuredDocument("model-1", collection, "migrated");
+        materialize(subject, "model-1", 10, new ModelDocumentMutation(collection, original));
+        var first = subject.fetchModelDocument(new GetDocument("model-1", collection, true, true));
+        var rewrite = new io.fluxzero.common.api.search.RewriteModelSourceDocument(replacement, first.getModelHead(),
+                io.fluxzero.common.modeling.ModelDocumentProof.of(first.getDocument(), first.getModelHead()), STORED);
+        SerializedDocument newer = structuredDocument("model-1", collection, "newer");
+        switch (intervening) {
+            case 0 -> subject.rewriteModelSourceDocument(new io.fluxzero.common.api.search.RewriteModelSourceDocument(
+                    newer, rewrite.getExpectedHead(), rewrite.getExpectedProof(), STORED)).join();
+            case 1 -> materialize(subject, "model-1", 11, new ModelDocumentMutation(collection, newer));
+            case 2 -> materialize(subject, "model-1", 11, new ModelDocumentMutation(collection, null));
+            case 3 -> {
+                materialize(subject, "model-1", 11, new ModelDocumentMutation(collection, null));
+                materialize(subject, "model-1", 12, new ModelDocumentMutation(collection, newer));
+            }
+            case 4 -> subject.index(List.of(newer), STORED, false).join();
+        }
+        subject.rewriteModelSourceDocument(rewrite).join();
+        subject.rewriteModelSourceDocument(rewrite).join();
+        assertEquals(intervening == 2 ? null : newer.getDocument(),
+                     subject.fetch(new GetDocument("model-1", collection)).map(SerializedDocument::getDocument).orElse(null));
+        if (intervening == 4) {
+            assertThrows(IllegalStateException.class,
+                         () -> subject.fetchModelDocument(new GetDocument("model-1", collection, true, true)));
+        } else {
+            assertTrue(subject.fetchModelDocument(new GetDocument("model-1", collection, true, true)).isModelStateVerified());
+        }
+    }
+
+    @ParameterizedTest
     @MethodSource("referenceOnlyQueries")
     void referenceOnlyModelsRespectNecessarySummaryPredicatesButKeepEntryScanFallbacks(
             Constraint constraint, boolean requiresSummary) {
@@ -460,6 +494,38 @@ class InMemorySearchStoreModelMaterializationTest {
         assertEquals(IllegalStateException.class, failure.getCause().getClass());
         assertEquals("Production Model head has ordinary writes for " + rootId,
                      failure.getCause().getMessage());
+    }
+
+    @Test
+    void splitAdoptionPublishesAndUsesTheReindexedInternalSource() {
+        String id = "adopted-source";
+        String sourceCollection = ModelDocumentMutation.privateModelDocumentCollection("Root");
+        var store = new InMemorySearchStore(Duration.ofDays(1), null, (ids, composition) -> List.of(),
+                ids -> Map.of(id, sourceCollection));
+        var legacy = structuredDocument(id, "roots", "legacy");
+        store.index(List.of(legacy), STORED, false).join();
+        materialize(store, id, 10L, new ModelDocumentMutation(sourceCollection,
+                structuredDocument(id, sourceCollection, "current")), true);
+        var inspection = store.getModelMigration(new GetModelMigration(id, "roots"));
+        store.registerMonitor(sourceCollection, messages -> {});
+        store.adoptModelMigration(new io.fluxzero.common.api.search.AdoptModelMigrationWithSource(
+                id, "roots", inspection.getProductionDocumentIndex(), 10L, STORED, sourceCollection)).join();
+        assertEquals(1, store.openStream(sourceCollection, null, 10).count());
+        var current = store.fetchModelDocument(new GetDocument(id, sourceCollection, true, true));
+        var rewritten = new SerializedDocument(current.getDocument().deserializeDocument().toBuilder().revision(1)
+                .entries(Map.of(new Document.Entry(TEXT, "current"), List.of(new Document.Path("details/name")))).build());
+        store.rewriteModelSourceDocument(new io.fluxzero.common.api.search.RewriteModelSourceDocument(
+                rewritten, current.getModelHead(), io.fluxzero.common.modeling.ModelDocumentProof.of(
+                current.getDocument(), current.getModelHead()), STORED)).join();
+        var configuration = new ModelGraphProjectionConfiguration("Root", sourceCollection, "rootGraphs",
+                ModelGraphComposition.builder().build(),
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 1)), List.of());
+        store.materializeModelGraphProjection(configuration, Set.of(id), 10L, true);
+        assertEquals("current", store.fetch(new GetDocument(id, "rootGraphs")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("details/name").orElseThrow().getValue());
+        assertEquals("legacy", store.fetch(new GetDocument(id, "roots")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("name").orElseThrow().getValue());
+        assertEquals(current.getModelHead(), store.fetchModelDocument(new GetDocument(id, sourceCollection, true, true)).getModelHead());
     }
 
     @Test

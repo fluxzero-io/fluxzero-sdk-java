@@ -81,7 +81,7 @@ class ModelCurrentStateTest {
             commit(app, new Create("account", "first"));
             var current = app.modelRepository().loadCurrentState("account", Account.class);
             assertTrue(current.isPresent());
-            GetDocumentResult first = client.getSearchClient().fetchModelDocument(new GetDocument("account", "Account", true, true));
+            GetDocumentResult first = client.getSearchClient().fetchModelDocument(new GetDocument("account", "$modelGraphComponents/Account", true, true));
             commit(app, new Create("account", "second"));
             doReturn(first).when(client.getSearchClient()).fetchModelDocument(any());
             var stale = assertThrows(EventSourcingException.class,
@@ -153,7 +153,7 @@ class ModelCurrentStateTest {
         try (Fluxzero app = app(client, serializer)) {
             commit(app, new Create("account", "original"));
             assertEquals("original", app.modelRepository().loadCurrentState("account", Account.class).get().value());
-            var changed = serializer.toDocument(new Account("account", "outside-commit"), "account", "Account",
+            var changed = serializer.toDocument(new Account("account", "outside-commit"), "account", "$modelGraphComponents/Account",
                                                 null, null, io.fluxzero.common.api.Metadata.empty());
             client.getSearchClient().index(java.util.List.of(changed), io.fluxzero.common.Guarantee.STORED, false).join();
             var failure = assertThrows(EventSourcingException.class,
@@ -161,7 +161,7 @@ class ModelCurrentStateTest {
             assertTrue(failure.getCause().getMessage().contains("no longer matches"));
             commit(app, new Create("account", "next-version"));
             assertEquals("next-version", app.modelRepository().loadCurrentState("account", Account.class).get().value());
-            client.getSearchClient().delete("account", "Account", io.fluxzero.common.Guarantee.STORED).join();
+            client.getSearchClient().delete("account", "$modelGraphComponents/Account", io.fluxzero.common.Guarantee.STORED).join();
             assertThrows(EventSourcingException.class,
                     () -> app.modelRepository().loadCurrentState("account", Account.class));
         }
@@ -182,7 +182,7 @@ class ModelCurrentStateTest {
         };
         try (Fluxzero writer = app(client, new JacksonSerializer()); Fluxzero reader = app(client, serializer)) {
             commit(writer, new Create("account", "original"));
-            var original = client.getSearchClient().fetchModelDocument(new GetDocument("account", "Account", true))
+            var original = client.getSearchClient().fetchModelDocument(new GetDocument("account", "$modelGraphComponents/Account", true))
                     .getDocument();
             assertEquals(String.valueOf(original.getTimestamp()),
                          reader.modelRepository().loadCurrentState("account", Account.class).get().value());
@@ -217,7 +217,7 @@ class ModelCurrentStateTest {
     @Model record ReplayOnly(@EntityId String id) {}
 
     record Create(String id, String value) {
-        @Apply Account apply() { return new Account(id, value); }
+        @Apply Account apply(@jakarta.annotation.Nullable Account existing) { return new Account(id, value); }
     }
 
     record Delete(String id) {

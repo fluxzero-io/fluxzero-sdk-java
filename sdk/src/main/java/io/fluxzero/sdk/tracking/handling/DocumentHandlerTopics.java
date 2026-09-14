@@ -35,6 +35,17 @@ public final class DocumentHandlerTopics {
      * collection selected by the handler, in that order.
      */
     public static String resolve(HandleDocument handleDocument, Executable executable) {
+        if (handleDocument != null && !handleDocument.disabled() && handleDocument.modelState() != Void.class) {
+            if (!handleDocument.value().isBlank() || handleDocument.modelGraph() != Void.class
+                || handleDocument.documentClass() != Void.class) {
+                throw new IllegalArgumentException("modelState cannot be combined with another document selector");
+            }
+            return EntityMetadata.validate(handleDocument.modelState()).modelSourceDocumentCollection(
+                            io.fluxzero.sdk.configuration.ApplicationProperties.getProperty(
+                                    io.fluxzero.sdk.configuration.ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""))
+                    .orElseThrow(() -> new IllegalArgumentException("Model has no maintained internal document source: "
+                                                                    + handleDocument.modelState().getName()));
+        }
         return Optional.ofNullable(handleDocument)
                 .filter(handler -> !handler.disabled())
                 .flatMap(handler -> Optional.ofNullable(handler.value()).filter(value -> !value.isBlank())

@@ -85,12 +85,20 @@ public class ModelCommitTarget {
     boolean cascadeDelete;
 
     /**
-     * Optional direct current-document mutation produced by this transition.
+     * Optional internal current-state source document produced by this transition.
      * <p>
      * The runtime applies it with the same assigned state index as this target. A missing mutation means that the model
-     * is not directly searchable; a mutation with a {@code null} document means delete.
+     * has no maintained document source; a mutation with a {@code null} document means delete.
      */
     ModelDocumentMutation document;
+
+    /**
+     * Independent, optional public document projection. It shares the source's lifecycle fence but is never used to
+     * reconstruct Model state or compose Graphs. A null document within the mutation deletes the projection.
+     * Requests carrying this field must use {@link CommitModelsWithDocumentProjections}.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    ModelDocumentMutation documentProjection;
 
     /**
      * Optional snapshot value produced when this transition is predicted to reach the model's configured snapshot

@@ -194,6 +194,15 @@ public final class MutationPlan {
             return compileMatcher(handler, parameterResolvers);
         }
 
+        private HandlerMatcher<Object, DeserializingMessage> compileCompatibilityMatcher(
+                EntityMetadata.HandlerMethod handler) {
+            var models = EntityMetadata.modelParameters(handler.executable()).parameters();
+            List<ParameterResolver<? super DeserializingMessage>> resolvers = new ArrayList<>();
+            resolvers.add((parameter, annotation) -> models.containsKey(parameter) ? message -> null : null);
+            resolvers.addAll(parameterResolvers);
+            return compileMatcher(handler, resolvers);
+        }
+
         private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
                 EntityMetadata.HandlerMethod handler,
                 List<ParameterResolver<? super DeserializingMessage>> resolvers) {
@@ -289,7 +298,10 @@ public final class MutationPlan {
                 validateApplyResult(handler);
                 return new CompiledHandler(
                         handler, compiler.compileMatcher(handler),
-                        EffectOverrides.of(handler.executable()));
+                        EffectOverrides.of(handler.executable()),
+                        handler.kind() == EntityMetadata.HandlerKind.APPLY
+                                ? compiler.compileCompatibilityMatcher(handler) : null,
+                        ApplyCompatibility.of(handler));
             }).toList());
         }
 
@@ -345,7 +357,31 @@ public final class MutationPlan {
     record CompiledHandler(
             EntityMetadata.HandlerMethod method,
             HandlerMatcher<Object, DeserializingMessage> matcher,
-            EffectOverrides effect) {
+            EffectOverrides effect,
+            HandlerMatcher<Object, DeserializingMessage> compatibilityMatcher,
+            ApplyCompatibility compatibility) {
+    }
+
+    record ApplyCompatibility(Class<?> factoryType, List<EntityMetadata.ModelParameter> required, boolean check) {
+        static ApplyCompatibility of(EntityMetadata.HandlerMethod handler) {
+            if (handler.kind() != EntityMetadata.HandlerKind.APPLY) {
+                return null;
+            }
+            Class<?> factoryType = handler.receiverModelType() == null && !handler.collectionApplyResult()
+                                   && !handler.dynamicApplyResult() && handler.targetModelTypes().size() == 1
+                    ? handler.targetModelTypes().getFirst() : null;
+            if (factoryType != null) {
+                Class<?> target = factoryType;
+                if (handler.modelParameters().stream().anyMatch(p -> EntityMetadata.compatibleTypes(p.modelType(), target))) {
+                    factoryType = null;
+                }
+            }
+            return new ApplyCompatibility(factoryType, handler.modelParameters().stream()
+                    .filter(p -> !p.entityWrapped() && !p.graphWrapped() && !p.collectionWrapped()
+                                 && !ReflectionUtils.isNullable(p.parameter())).toList(),
+                    !ReflectionUtils.getAnnotation(handler.executable(), Apply.class).orElseThrow()
+                            .disableCompatibilityCheck());
+        }
     }
 
     record AssertionField(EntityMetadata.Property property, Class<?> receiverModelType) {
@@ -633,6 +669,12 @@ public final class MutationPlan {
                     } else if (handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY) {
                         commit |= handler.emittedPayloadTypes().isEmpty();
                         for (Class<?> emitted : handler.emittedPayloadTypes()) {
+                            if (Graph.class.isAssignableFrom(emitted)) {
+                                commit = true;
+                                automatic &= automaticHandlingEnabled(handler);
+                                policies.add(ModelCommitPolicy.SYNC_AFTER_HANDLER);
+                                continue;
+                            }
                             PlanTraits nested = inspectPlanTraits(emitted, visiting);
                             commit |= nested.commit();
                             automatic &= nested.automatic();
@@ -990,6 +1032,7 @@ public final class MutationPlan {
 
         boolean isDirectSingleTarget() {
             return slots.size() == 1 && !slots.getFirst().collection
+                   && !slots.getFirst().optionalReference()
                    && (slots.getFirst().handler != null || !slots.getFirst().property.missing())
                    && deferred.isEmpty() && ancestors.isEmpty();
         }
@@ -1048,7 +1091,8 @@ public final class MutationPlan {
                 List<String> ids = resolveIds(input, payload, slot);
                 if (slot.parameter != null) {
                     DirectReferences resolved = slot.collection
-                            ? DirectReferences.collection(ids) : DirectReferences.scalar(ids.getFirst());
+                            ? DirectReferences.collection(ids)
+                            : DirectReferences.scalar(ids.isEmpty() ? null : ids.getFirst());
                     references.put(slot.parameter, resolved);
                 }
                 if (!deferred.isEmpty()) {
@@ -1124,6 +1168,12 @@ public final class MutationPlan {
             if (!ancestors.isEmpty()) {
                 addProspectiveParents(payload, result);
             }
+            if (replayTarget != null && handlerMethods.values().stream()
+                    .anyMatch(handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())) {
+                // Dynamic targets need not appear in the payload. Their stream supplies the authoritative
+                // before-value during replay, including earlier writes in this same commit.
+                merge(result, new ResolvedModel(replayTarget.modelId(), replayTarget.modelType(), Access.READ_WRITE, List.of()));
+            }
             return new Resolution(
                     List.copyOf(result.values()), unresolved,
                     unresolvedAncestors,
@@ -1169,12 +1219,18 @@ public final class MutationPlan {
                     ? DirectReferences.missing() : directReferences(message, slot.parameter);
             if (direct.present()) {
                 if (!slot.collection && direct.modelId() == null) {
+                    if (slot.optionalReference()) {
+                        return List.of();
+                    }
                     throw nullId(slot);
                 }
                 return slot.collection ? direct.modelIds() : List.of(direct.modelId());
             }
             Object raw = slot.property.read(payload);
             if (raw == null && !slot.collection) {
+                if (slot.optionalReference()) {
+                    return List.of();
+                }
                 throw nullId(slot);
             }
             return slot.collection
@@ -1373,6 +1429,10 @@ public final class MutationPlan {
 
         private void write() {
             access = access == Access.READ_ONLY ? Access.READ_WRITE : access;
+        }
+
+        private boolean optionalReference() {
+            return !access.writes() && parameter != null && ReflectionUtils.isNullable(parameter.parameter());
         }
     }
 

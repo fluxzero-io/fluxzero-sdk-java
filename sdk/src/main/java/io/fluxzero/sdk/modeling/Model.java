@@ -60,13 +60,17 @@ import java.lang.annotation.Target;
  * <h2>Example</h2>
  * <pre>{@code
  * @Model
- * public record Product(@EntityId ProductId productId, String name) {
+ * public record Product(@EntityId ProductId productId, ProductDetails details) {
  *     @Apply
  *     Product rename(RenameProduct command) {
- *         return new Product(productId, command.name());
+ *         return new Product(productId, details.withName(command.name()));
  *     }
  * }
  * }</pre>
+ * Here {@code ProductDetails} is an immutable business value with a copy method such as Lombok's generated
+ * {@code withName}. Use a cohesive details value even when the only descriptive field is a name; keep identity,
+ * relationships and simple status distinct. A plain details value needs neither {@code @Model} nor {@link Member}.
+ * A focused rename command may carry a scalar while replacing only that field in the existing details.
  * An update may instead create or update the model from a payload-side {@code @Apply}. When both sides define an
  * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
  * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.
@@ -132,7 +136,9 @@ public @interface Model {
      * <p>
      * The set must contain at least one unique value. When {@link ModelPersistence#EVENT_SOURCED EVENT_SOURCED} is
      * present, the event stream is authoritative. Otherwise {@link ModelPersistence#DOCUMENT DOCUMENT} is
-     * authoritative.
+     * authoritative. To use {@link Graph#previous()} for historical values, keep {@code EVENT_SOURCED} enabled:
+     * {@code DOCUMENT} alone stores current state, not previous versions. Adding {@code DOCUMENT} to event sourcing
+     * preserves history; replacing event sourcing with {@code DOCUMENT} does not.
      * <p>
      * This setting does not suppress storing or publishing events produced by {@link Apply} methods. A state-changing
      * event-sourced Model apply must store its reconstructing event; a {@code PUBLISH_ONLY} or
@@ -216,8 +222,9 @@ public @interface Model {
      * <p>
      * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Every direct
      * document uses the configured collection, which defaults to the resolved logical Model name. A reference-only
-     * document is excluded from unrestricted typed Model search while remaining available to Model loads, aliases,
-     * relationships and Graph composition. Timestamps default to the applied event timestamp when no paths are
+     * document is excluded from unrestricted typed Model search while remaining retrievable via relationships.
+     * Model loads, verified state and Graph composition use the separate internal source, unaffected by ordinary
+     * public document rewrites. Timestamps default to the applied event timestamp when no paths are
      * configured.
      */
     DocumentProjection document() default @DocumentProjection;
@@ -225,9 +232,8 @@ public @interface Model {
     /**
      * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
      * <p>
-     * Fluxzero retains the root's current document in its resolved direct collection when it has a document projection,
-     * irrespective of that document's public search visibility. A root without a direct document uses the same
-     * type-isolated private storage as other Graph-only Models. Only the separately named graph collection is allowed
+     * Fluxzero retains the root's current source in type-isolated internal storage, independently of any public
+     * document projection. Only the separately named whole-graph collection is allowed
      * to lag; its high-watermark is exposed through the model repository. The collection defaults to the resolved
      * direct-model collection plus {@code -graphs} when present, or to {@code <logical Model name>-graphs} otherwise.
      */

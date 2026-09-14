@@ -269,7 +269,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                     rootModelType.getName()
                     + " is not an independent model");
         }
-        String rootCollection = metadata.modelDocumentCollection(modelNamePrefix)
+        String rootCollection = metadata.modelSourceDocumentCollection(modelNamePrefix)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Graph search root %s has no current document"
                                 .formatted(rootModelType.getName())));

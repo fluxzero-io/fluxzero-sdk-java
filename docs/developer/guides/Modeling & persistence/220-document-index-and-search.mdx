@@ -155,9 +155,10 @@ reference-only:
 
 Fluxzero stores this document in its normal resolved collection, which defaults to `UserPreferences` and can be
 overridden with `DocumentProjection.collection`. This keeps existing collection names usable during migration.
-`loadModel(...)`, aliases, parent relationships and Graph composition still use it, while
-`Fluxzero.search(UserPreferences.class)` does not expose it. Without a separate Graph role the stored document has no
-summary/reversary, facets or sortables.
+Exact parent/ancestor queries can still retrieve this public projection, while unrestricted
+`Fluxzero.search(UserPreferences.class)` does not expose it. The public projection has no summary/reversary, facets
+or sortables, even with a Graph role. Model loads and Graph composition use a separate internal source;
+that source retains indexes when composition needs them. Public projection rewrites cannot alter it.
 
 ---
 
@@ -264,9 +265,9 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
         .fetch(100);
 ```
 
-This form requires a current document for the related Model. A direct `DOCUMENT` uses its resolved collection,
-irrespective of public search visibility. Without a direct document, an explicit
-`@Parent(pathInParent = "...")` or `materializeGraph = true` maintains a type-isolated private component document. The
+This form requires the related Model's internal current source. `DOCUMENT`, an explicit
+`@Parent(pathInParent = "...")` or `materializeGraph = true` maintains that source. It is separate from a public
+DOCUMENT projection and never reads an independently rewritten public document. The
 predicate applies to that Model's own fields, not to fields nested only in a materialized whole-Graph projection.
 
 The returned target also needs a current document. A public `DOCUMENT` projection works, and a private Graph-component

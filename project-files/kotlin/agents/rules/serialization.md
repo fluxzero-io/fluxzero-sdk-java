@@ -75,9 +75,9 @@ renaming a field).
 class ProjectUpcaster {
     @Upcast(type = "io.fluxzero.app.api.model.Project", revision = 1)
     fun upcastRev1(payload: ObjectNode): JsonNode {
-        if (!payload.has("details")) {
-            payload.putObject("details").put("name", "Untitled Project")
-        }
+        val name = payload.remove("name")
+        require(name != null && name.isTextual) { "Revision 1 requires a textual name" }
+        payload.putObject("details").set<JsonNode>("name", name)
         return payload
     }
 }
@@ -255,14 +255,32 @@ class LegacyProjectEndpoint {
 
 ## Testing Upcasters
 
+There are three distinct checks: conversion with `whenUpcasting`, current Model reconstruction with
+`givenModelEvents`, and a fresh application reading retained storage written by the actual old SDK/application.
+The last one must not use Given reseeding or hand-built storage requests. See [testing](testing.md).
+Moving `name` into `details.name` must preserve its value, not replace it with a default.
+
+Read-time upcasting does not change search indexes: an old stored `name` path remains the selector even when a returned
+object exposes `details.name`. Check both paths before and after deliberate migration. A complete-Graph
+`@HandleDocument(modelGraph = Project.class)` return migrates only the derived materialized Graph.
+For the internal source use `@HandleDocument(modelState = Project.class)` and return the upcast value unchanged
+(Kotlin: `Project::class`). This schema-only route rejects changed identity/state, null and split/drop upcasters;
+a higher schema revision is required. Full-head/body/proof compare-and-set skips stale rewrites after update,
+deletion or recreation. It advances neither Model history nor business state.
+The independent public DOCUMENT projection uses ordinary
+`@HandleDocument(documentClass = Project.class)` revision-aware handling; its writes cannot replace internal state.
+It remains parent/ancestor-queryable. Migrate sources before rebuilding Graphs and qualify each query path separately.
+See `/docs/sdk/models/migration-testing` for complete examples, custom serializer support and storage-upgrade limits.
+Keep `EVENT_SOURCED` and reconstructible history to prove `previous()` still retains historical business values.
+
 You can verify upcasters in a `TestFixture` by providing the old serialized form.
 
-**Sample: old-project-rev0.json**
+**Sample: old-project-rev1.json**
 
 ```json
 {
   "@class": "io.fluxzero.app.api.model.Project",
-  "@revision": 0,
+  "@revision": 1,
   "projectId": "PRJ-1",
   "name": "Legacy Name"
 }
@@ -284,9 +302,9 @@ one record; array failures report the zero-based element index and NDJSON failur
 ```kotlin
 @Test
 fun testProjectUpcasting() {
-    fixture.whenUpcasting("/projects/old-project-rev0.json")
-           .expectResult(Project::class)
-           .expectResult { project -> project.details.name == "Untitled Project" }
+    TestFixture.create().registerCasters(ProjectUpcaster())
+           .whenUpcasting<Project>("/projects/old-project-rev1.json")
+           .expectResult(Project(ProjectId("PRJ-1"), ProjectDetails("Legacy Name")))
 }
 ```
 
@@ -296,8 +314,10 @@ fun testProjectUpcasting() {
 
 ## Implementation Rules
 
-- **Registration**: All upcaster classes must be registered with Fluxzero or must be annotated with `@Component` when
-  Spring is used. The SDK auto-detects them during startup.
+- **Registration**: Spring registers caster beans automatically. Otherwise call `serializer.registerCasters(...)`;
+  in tests use `TestFixture.create().registerCasters(...)` before Given. `create(caster)` registers a handler, not a caster.
+- **Value preservation**: Moving `name` into `details` must retain its value and the Model ID. The resource and
+  caster above both use revision 1, leading to revision 2. Reject malformed required data instead of inventing a name.
 - **Placement**: Upcasters can be placed inside the class they transform (as a companion object method with
   `@JvmStatic` and `@Upcast`) or in a separate package. For shared logic, a separate upcaster component is often cleaner.
 - **Chain of Responsibility**: Fluxzero automatically chains upcasters. To move from Revision 0 to 2, the SDK will look
@@ -312,5 +332,6 @@ fun testProjectUpcasting() {
   `TestFixture.whenUpcasting` before production deployment. If deployment status is unclear, ask the user whether the app
   is already deployed before enforcing this check. Since historical messages are immutable, a faulty upcaster can be
   "fixed" with a new deployment without losing data.
-- **Idempotency**: Upcasters are called during deserialization. Ensure your logic is safe to run multiple times,
-  although the SDK typically handles the orchestration.
+- **Repeatability**: The same old data may be deserialized repeatedly. Keep upcasters deterministic and free of
+  external side effects. Each step consumes its declared input revision; it need not accept its own newer output
+  as if that output still had the old schema.

@@ -20,6 +20,8 @@ Typical checks:
 Use the fixture APIs rather than mocking internals:
 
 - `givenCommands`, `givenEvents`, `givenDocuments`, `givenStateful`, and schedule setup for preconditions.
+- `givenModelEvents` for synthetic Model reconstruction from supplied historical events, after `registerCasters`.
+  It uses current code and writes fresh fixture state; see reconstruction and Model migration testing for retained old storage.
 - `whenCommand`, `whenQuery`, `whenSearching`, `whenGet`/`whenPost`, time movement, and upcasting for behavior under test.
 - Then assertions for events, documents, command/query results, exceptions, search results, web responses, metrics, schedules, and outgoing web requests.
 
@@ -58,7 +60,12 @@ For WebSocket endpoints, register `@SocketEndpoint` classes by class and model s
 
 For generated OpenAPI or other discoverable contracts, request the served document through `TestFixture.whenGet(...)`, parse it, and assert paths, methods, operation IDs, request fields, and response schemas structurally. Reflection over `@ApiDoc` does not prove annotation processing or runtime route registration. Broad substring checks can pass when an operation is missing or bound to the wrong shape. Generated OpenAPI intentionally omits WebSocket lifecycle pseudo-methods; document that protocol separately and prove the socket route and delivery with WebSocket fixture scenarios.
 
-For schema evolution, read serialization. Increment `@Revision` on changed top-level payloads/documents and verify upcasters with `TestFixture.whenUpcasting(...)`.
+For schema evolution, read serialization. Increment `@Revision` on changed top-level payloads/documents and verify
+upcasters with `TestFixture.create().registerCasters(...).whenUpcasting(...)`. Preserve existing values when moving fields.
+For cleanup, `expectOnlyScheduledCommands` checks When-phase dispatch attempts, not the whole active set; use
+`expectOnlyActiveScheduledCommands` for active command payloads and `expectNoSchedules` for absence of both schedule kinds.
+The asynchronous local fixture waits only for accepted schedule work: a rejected old parent lifetime or ignored
+`ifAbsent` attempt neither replaces accepted pending work nor creates an additional consumer wait.
 
 For tracked handler failures that require compensation or a correction, use an asynchronous fixture and the error-corrections article. Assert the original `expectError(...)`, the triggered follow-up message, and its final observable result separately.
 

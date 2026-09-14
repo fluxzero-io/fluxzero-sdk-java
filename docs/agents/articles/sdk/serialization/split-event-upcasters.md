@@ -2,6 +2,11 @@ Use this for reconstruction from a serialized historical event, whether one old 
 several. Keep the caster pure and test the registered event deserialization path with a legacy `SerializedMessage`, not
 only an already-current Java object.
 
+For new v2 Models, start with the Model example in the reconstruction article: register casters, then call
+`givenModelEvents(id, oldSerializedEvent, ...)`. It also decodes input as an event stream before applying current
+events. The aggregate examples below remain for existing aggregate workflows. Neither Given route preserves an
+old writer's stored bytes; the Model migration article describes the retained-store test for that stronger claim.
+
 For this TestFixture setup, `givenAppliedEvents(..., SerializedMessage)` and `givenEvents(SerializedMessage)` deserialize the input as an event stream and flatten every result from a one-to-many upcaster.
 
 ## Choose the proof boundary

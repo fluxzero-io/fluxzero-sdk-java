@@ -19,6 +19,7 @@ import io.fluxzero.common.api.Command;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.beans.ConstructorProperties;
 
@@ -34,6 +35,7 @@ import java.beans.ConstructorProperties;
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
+@NonFinal
 public class AdoptModelMigration extends Command {
     @NonNull String modelId;
     @NonNull String collection;
@@ -64,4 +66,7 @@ public class AdoptModelMigration extends Command {
     public String routingKey() {
         return modelId;
     }
+
+    /** Internal source destination; older adoption requests share their production collection. */
+    public String sourceCollection() { return collection; }
 }

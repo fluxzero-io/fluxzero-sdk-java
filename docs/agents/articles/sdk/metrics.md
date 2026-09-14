@@ -50,6 +50,10 @@ command or domain event instead.
 
 ## Assert the metrics channel directly
 
+Parent-owned schedules emit `ScheduleAutoCancelled(scheduleId, messageId, deadline)` after actual removal from stored
+scheduling. It contains no payload or raw parent IDs. Publication is best effort and does not prove that an already
+delivered command was stopped; never use this metric as an exactly-once cleanup trigger.
+
 `TestFixture` collects metrics separately from commands, events, errors, and results:
 
 ```java

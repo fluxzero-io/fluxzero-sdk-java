@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.persisting.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
@@ -32,6 +33,7 @@ import java.lang.reflect.Parameter;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -147,6 +149,15 @@ public final class MaterializedGraphParameterResolver
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Materialized graph document %s has no typed graph manifest"
                                         .formatted(message.getMessageId())));
+        var source = DocumentMessageReader.graphSource(message);
+        if (source != null && (!Objects.equals(source.getData().getType(), message.getType())
+                || source.getData().getRevision() != message.getSerializedObject().getData().getRevision())) {
+            return MaterializedGraphFactory.create(new SerializedDocument(
+                    message.getMessageId(), start, end, message.getTopic(), source.getData(), null, Set.of(), Set.of()),
+                    manifest, message, rootType, documentSerializer, repositorySupplier, modelTypesSupplier.get(),
+                    pathOverrides, parseLong(message.getMetadata().get(
+                            ModelGraphDocumentManifest.PREVIOUS_STATE_INDEX_METADATA_KEY)));
+        }
         return MaterializedGraphFactory.create(
                 message.getPayloadAs(JsonNode.class),
                 message.getMessageId(), message.getTopic(),

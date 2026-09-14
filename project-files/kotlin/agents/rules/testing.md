@@ -122,10 +122,23 @@ Any effects introduced during this phase are **ignored** by the `Then` phase ass
 |:------------------------------|:---------------------------------------------------|
 | `givenCommands(...)`          | Issues commands before the test triggers.          |
 | `givenEvents(...)`            | Publishes events into the stream.                  |
-| `givenModelEvents(id, type, ...)` | Replays events into a specific model instance. |
+| `givenModelEvents(id, ...)` / `givenModelEvents(rawId, type, ...)` | Reconstructs a Model from supplied historical events using current code. |
 | `givenDocument(...)`          | Pre-populates the search index with documents.     |
 | `givenStateful(saga)`         | Pre-registers a stateful handler instance.         |
 | `givenExpiredSchedules(...)`  | Simulates timers that have already triggered.      |
+
+For serialized Model history, call `.registerCasters(...)` **before** `givenModelEvents(...)`. Supply the event
+payload, not a Model document. JSON resources with matching `@class`/`@revision` exercise deserialization/upcasting
+and the current `@Apply`; Given creates fresh commits/documents/relations and can notify observers.
+Use `Fluxzero.loadModel`/`loadGraph` in When and assert the reconstructed values and relationships. Keep event
+sourcing enabled for historical `previous()` values. A Model-state caster does not replace a caster on a changed
+historical creation event. See [serialization](serialization.md#testing-upcasters).
+
+This is synthetic reconstruction, not a byte-preserving old-store import. To qualify an actual migration, run the
+old application's ordinary Model writes with its pinned SDK, close its client, then connect a fresh candidate
+application to the same retained test store/namespace without any Given reseeding. Use separate application
+classpaths, register casters before reads, and verify old values, relations, indexes and historical reads. A fresh
+default fixture has fresh stores; an in-memory test server does not prove a database upgrade.
 
 <a name="when-phase"></a>
 
@@ -154,6 +167,16 @@ fixture.whenQuery(GetProject(projectId))
 <a name="then-phase"></a>
 
 ### Then Phase (Assertion)
+
+Schedule assertions have two independent dimensions: dispatch attempts versus active state, and ordinary schedules versus
+scheduled commands. `expectOnlyScheduledCommands(...)` unwraps commands **dispatched during When only**.
+`expectOnlyActiveScheduledCommands(...)` unwraps **all active commands**, including Given/earlier phases, and checks
+that none are left over. No arguments assert zero active commands; `expectNoSchedules()` checks both schedule kinds.
+For ID/deadline/payload together, pass a `java.util.function.Predicate<Schedule>`; a plain Schedule expectation
+does not compare its ID. The complete-active command helper requires a local scheduling client and explicitly
+rejects remote clients rather than asserting an unknown inventory is empty.
+The asynchronous local fixture waits for accepted schedule work, not rejected old-lifetime attempts or ignored
+`ifAbsent` requests. Those attempts remain observable in dispatch assertions but cannot replace accepted pending work.
 
 Assert and validate the outcomes of the `When` phase. Use **Error Interfaces** for clean exception assertions.
 

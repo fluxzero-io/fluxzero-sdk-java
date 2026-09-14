@@ -38,6 +38,11 @@ Fluxzero does not require controller, service and repository layers around this 
 First define an immutable model with a typed ID and a details value. The ordinary `ProjectId` and `ProjectDetails`
 value types are assumed below so the example can stay focused on Model behavior:
 
+`ProjectDetails` holds descriptive business data, even when it initially contains only the project's name.
+`projectId` remains identity, `ownerId` a relationship and `archived` current status. Plain details do not need
+`@Model` or `@Member`. See [Designing Model state](/docs/guides/modeling-and-persistence/model-state) for selection
+criteria, validation and a focused rename that retains other details. This tutorial uses the single-name variant.
+
 <Tabs>
   <TabItem label="Java">
 

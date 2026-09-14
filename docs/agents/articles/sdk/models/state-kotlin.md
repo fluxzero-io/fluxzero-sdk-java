@@ -15,6 +15,26 @@
    independently living state a member.
 8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
 
+## Choose details, configuration and state
+
+Business details copied into Model state belong in a cohesive immutable value object, even if it initially contains
+only `name`. Choose the group by domain meaning and shared validation, not by field count or Java/Kotlin type.
+
+| Kind of field | Put it where | Examples and boundary |
+| --- | --- | --- |
+| Descriptive business data | A details value object | `ProjectDetails(name, description)`; start with `ProjectDetails(name)` if that is all the product needs. |
+| Configuration / desired policy | A focused settings value object | `NotificationSettings` groups related choices; do not mix unrelated settings into descriptive details. |
+| Identity | On the Model, with a typed ID | `@EntityId ProjectId projectId` is not an editable detail. |
+| Relationships | An explicit typed reference on the Model | `ownerId` or `@Parent workspaceId`; a reference is not the related Model's details. |
+| Current status / control | A simple Model field, or a focused state value when several fields form one invariant | `archived`, `status`, `completedAt`; a business date such as a requested delivery date belongs with its business details instead. |
+| Execution bookkeeping | Separate from editable details | `attemptCount`, `lastAttemptAt`, `nextRunAt`; group as execution state if cohesive, or use a separate Model if it has its own lifecycle. |
+
+A boolean can be a user preference or observed state; a timestamp can be business input or execution bookkeeping.
+Their meaning decides placement. A details object is not a bag for every field left over after the ID.
+Use multiple small named values when the concepts differ. It has no independently addressable lifecycle:
+plain `ProjectDetails` needs neither `@Model`, `@EntityId` nor `@Member`. Replacing that value is a change to
+its owning Model, not a separate entity update. The Model/Member lifecycle rules still apply to actual entities.
+
 ## Define a model
 
 ```kotlin
@@ -24,10 +44,71 @@ data class Project(
     val details: ProjectDetails,
     val ownerId: UserId
 )
+
+data class ProjectDetails(
+    @field:NotBlank val name: String,
+    @field:Size(max = 500) val description: String?
+)
 ```
 
-Assume conventional typed `ProjectId` and `ProjectDetails` value types; do not expand obvious ID or details
-definitions unless the user asks for them.
+Kotlin uses `copy` and Jakarta Validation's `@field:` use-site targets. Required constructor values are non-null.
+`ProjectId` and `UserId` are application-owned typed IDs; `Sender` is the application's authenticated `User`
+implementation exposing `userId()`. Keep ordinary ID boilerplate out of feature examples.
+
+## Create and change details
+
+The creation command carries the whole details value and uses `@Valid` to cascade into its constraints.
+A focused `RenameProject(id, name)` is still the right contract for renaming: command shape expresses intent,
+not the stored object's shape. Validate its new name and replace only that field of the existing details.
+Keep the description, identity and owner unchanged; do not construct an otherwise empty replacement details object.
+Reserve whole-details replacement for an operation that intentionally edits the whole group.
+
+```kotlin
+data class CreateProject(
+    val projectId: ProjectId,
+    @field:Valid val details: ProjectDetails
+) {
+    @Apply
+    fun apply(sender: Sender) = Project(projectId, details, sender.userId())
+}
+
+data class RenameProject(
+    val projectId: ProjectId,
+    @field:NotBlank val name: String
+) {
+    @AssertLegal
+    fun assertOwner(project: Project, sender: Sender) {
+        if (project.ownerId != sender.userId()) {
+            throw UnauthorizedException("Not allowed to rename project")
+        }
+    }
+
+    @Apply
+    fun apply(project: Project) =
+        project.copy(details = project.details.copy(name = name))
+}
+```
+
+Bean constraints validate incoming values; `@AssertLegal` protects state-dependent rules such as ownership.
+`@Apply` only constructs the new immutable state. For a rule involving both the changed field and retained fields,
+validate that combined candidate in `@AssertLegal` as well; a field constraint alone cannot express that rule.
+The SDK does not automatically validate every returned Model. Enable cascaded bean validation at each input boundary
+that accepts details; simply annotating a field inside `ProjectDetails` does not cascade from an unannotated command.
+
+Validation assumes the payload can first be deserialized. The default serializer normalizes blank strings to null;
+a serialized blank for Kotlin's non-null `name` is rejected during deserialization, before bean validation.
+Do not assume that rejection has the same exception type as a locally validated command.
+
+This is a modeling convention, not a new SDK restriction. For already stored Models, moving `name` to `details.name`
+changes serialized shape and query paths: plan the appropriate event/document upcasting or migration rather than
+silently renaming fields in an existing application's history.
+
+## Storage is a separate choice
+
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
+replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
+substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
 
 The default above is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
 read requirement. Use the central matrix at `/docs/sdk/entities/graph-search`.
@@ -42,12 +123,15 @@ Important settings:
   transition.
 - `persistence`: selects a non-empty set of durable representations:
   - `[EVENT_SOURCED]` (default): reconstruct from Model events, without a direct document.
-  - `[EVENT_SOURCED, DOCUMENT]`: reconstruct from events and also maintain a current document.
-  - `[DOCUMENT]`: load authoritative current state from the current document.
+  - `[EVENT_SOURCED, DOCUMENT]`: reconstruct from events; maintain an internal source and separate public DOCUMENT projection.
+  - `[DOCUMENT]`: load authoritative state from the internal source, not an independently rewritten public projection.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
 - `document`: optional `DocumentProjection` configuration for the direct collection, timestamp paths, and public
   searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
-  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
+  remains parent/ancestor-queryable but has no public content indexes. The separate internal source supports Model
+  loads, verified state and Graph composition; a Graph role retains its own internal indexes. Public rewrites cannot
+  change that source. Use `@HandleDocument(modelState = T.class)` (Kotlin: `T::class`) for schema-only source reindexing;
+  `documentClass` selects the public projection and `modelGraph` the materialized Graph. See the migration guide.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.

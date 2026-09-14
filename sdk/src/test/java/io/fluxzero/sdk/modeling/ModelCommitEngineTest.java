@@ -1246,8 +1246,12 @@ class ModelCommitEngineTest {
     private record InterceptInventoryThenUpdate(OrderId orderId, InventoryId inventoryId) {
         @InterceptApply
         Object intercept(Inventory inventory) {
-            return new CreateOrder(orderId);
+            return new PutOrder(orderId);
         }
+    }
+
+    private record PutOrder(OrderId orderId) {
+        @Apply Order apply(Order existing) { return new Order(orderId, "created"); }
     }
 
     private record DeleteOrder(OrderId orderId) {

@@ -42,6 +42,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void independentDocumentsRetainBothRolesAndRelationshipReadsOnEveryTransport() throws Exception {
+        CommitModels original = commit("document-roles", false);
+        ModelCommitTarget target = original.singleTarget();
+        var document = new io.fluxzero.common.api.search.SerializedDocument(target.getModelId(), null, null, "source",
+                new io.fluxzero.common.api.Data<>(new byte[] {1}, "type", 0, "application/json"), null,
+                java.util.Set.of(), java.util.Set.of());
+        target = target.toBuilder().document(new ModelDocumentMutation("source", document))
+                .documentProjection(new ModelDocumentMutation("projection", document.withCollection("projection"))).build();
+        CommitModels base = new CommitModels(original.getCommitId(), original.getReadStateIndex(), original.getReadModelIds(),
+                List.of(original.getSubsteps().getFirst().toBuilder().targets(List.of(target)).build()),
+                original.getConflictPolicy(), original.getGuarantee(), false);
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(base));
+        CommitModels request = new CommitModelsWithDocumentProjections(new CommitModelsWithRelationships(base,
+                List.of(new ModelRelationshipRead("parent", ModelRelationshipRead.Direction.CHILDREN, "children"))));
+        assertEquals("commitModelsWithDocumentProjections", JsonUtils.valueToTree(request).get("@type").asText());
+        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(request))));
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class, codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+            assertEquals(request, decoded.getRequests().getFirst());
+        }
+    }
+
+    @Test
     void relationshipReadsUseADistinctLosslessWireType() throws Exception {
         CommitModels ordinary = commit("relationship-transport", false);
         CommitModels request = new CommitModelsWithRelationships(ordinary, List.of(

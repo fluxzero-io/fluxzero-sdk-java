@@ -190,7 +190,11 @@ Use this tree to find the correct manual for your current task, ordered by the r
 14. **Value Object Modeling (Details vs. Status)**: Model business details that map 1:1 into entity state as dedicated
     value objects (for example `TenantDetails`, `UserDetails`), even when there is only one field initially (like
     `name`). Keep top-level primitive/scalar fields for identifiers and simple status/control indicators (for example
-    IDs, enums, booleans, timestamps) that are intentionally changed by a single command.
+    IDs, enums, booleans, timestamps) that are intentionally changed by a single command. Classify by meaning, not
+    primitive type: a preference is configuration, a completion timestamp is status, and a requested delivery date
+    is business input. Group coherent configuration separately; do not mix execution bookkeeping into editable
+    details. Plain details need neither `@Model` nor `@Member`. A focused `RenameProject(id, name)` may still carry
+    a scalar and replace only that field in the existing details. See [field selection and examples](entities.md#choose-details-configuration-and-state).
 15. **Payload Purity**: Command/query payloads MUST NOT contain the sending user's ID. Handlers MUST inject `Sender`
     (`@Handle...`, `@AssertLegal`, `@Apply`) for user context.
 16. **Secure by Default**: Add `@RequiresUser` to your domain's `package-info.java` to protect all payloads within that

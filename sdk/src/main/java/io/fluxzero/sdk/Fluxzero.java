@@ -1147,9 +1147,9 @@ public interface Fluxzero extends AutoCloseable {
      * values remain lazy and may reuse an exact matching cached revision. This is not the document-only
      * {@link #loadCurrentModelState(String, Class)} read contract.
      * <p>
-     * Use this after a synchronous nested command when the remainder of the handler deliberately needs that command's
-     * updated Model state. Ordinary {@link #loadGraph(Object, Class)} reads remain coherent with the message being
-     * handled and are therefore preferred everywhere else.
+     * Use this when deliberately inspecting current intent, such as after a synchronous nested command or when
+     * reconciling schedules triggered by an older event. Ordinary {@link #loadGraph(Object, Class)} reads remain
+     * coherent with the message being handled and are preferred for event-bound comparisons and invariants.
      */
     static <T> Graph<T> loadCurrentGraph(Object modelId, Class<T> modelType) {
         return io.fluxzero.sdk.modeling.Graphs.lazyCurrent(

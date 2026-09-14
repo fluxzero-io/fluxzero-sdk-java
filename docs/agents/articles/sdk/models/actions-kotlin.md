@@ -5,7 +5,7 @@
 ```kotlin
 data class CreateProject(
     val projectId: ProjectId,
-    val details: ProjectDetails
+    @field:Valid val details: ProjectDetails
 ) {
     @Apply
     fun apply(sender: Sender) =
@@ -14,12 +14,12 @@ data class CreateProject(
 
 data class RenameProject(
     val projectId: ProjectId,
-    val name: String
+    @field:NotBlank val name: String
 ) {
     @Apply
     fun apply(project: Project) =
         project.copy(
-            details = project.details.withName(name)
+            details = project.details.copy(name = name)
         )
 }
 
@@ -39,6 +39,12 @@ Compatibility checks are inferred:
 - A nullable model parameter allows either state.
 - Use `disableCompatibilityCheck = true` only for deliberate advanced behavior.
 
+A mismatched factory/update rejects the action with the existing functional already-exists/not-found error; it does
+not silently succeed. A nullable current-state parameter expresses an intentional upsert. Disabling compatibility
+checks suppresses the rejection but does not turn a create-only factory into an overwrite. The existing
+`fluxzero.assert.apply-compatibility` property and its `.exception.already-exists` / `.exception.not-found` overrides
+also apply to Models. Accepted historical events retain their replay logic.
+
 Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
 Use an explicit handler only for real orchestration and call `Fluxzero.assertAndApply(command)` once.
 
@@ -53,15 +59,20 @@ call or wait on it inside `@Apply`; the apply has not returned its change yet.
 
 ## Assertions and interceptors
 
+Expected business refusals must be `FunctionalException` subclasses, not `IllegalStateException`,
+`IllegalArgumentException`, Kotlin `require`/`check`, or an undefined application error constant. Use
+`IllegalCommandException` for an invalid domain action, `UnauthorizedException` for an authorization refusal, and
+Bean Validation for malformed input. These distinguish an expected refusal from a technical failure.
+
 ```kotlin
 data class RenameProject(
     val projectId: ProjectId,
-    val name: String
+    @field:NotBlank val name: String
 ) {
     @AssertLegal
     fun assertOwner(project: Project, sender: Sender) {
         if (project.ownerId != sender.userId()) {
-            throw ProjectErrors.unauthorized
+            throw UnauthorizedException("Not allowed to rename project")
         }
     }
 
@@ -72,7 +83,7 @@ data class RenameProject(
     @Apply
     fun apply(project: Project) =
         project.copy(
-            details = project.details.withName(name)
+            details = project.details.copy(name = name)
         )
 }
 ```
@@ -85,6 +96,10 @@ relation. A directly supplied write-target ID keeps precedence; when none exists
 write identity without duplicating its ID in the command. Merely injecting an ancestor does not update it. Selection
 uses the pinned state before applying the changes, so a command may delete a child and update its parent atomically.
 Ambiguous ancestors must be qualified with `@Association("parentPath")`; replay retains the corresponding dependencies.
+
+A nullable read-only Model parameter also accepts a null identifying property, such as an optional enclosing
+folder ID. Both a missing Model at a non-null ID and a null reference inject null there. A write target still needs
+a non-null identity; nullable read support does not turn invalid writes or ambiguous ancestors into silent absence.
 
 Interception selects the payloads to which assertions apply:
 
@@ -140,7 +155,7 @@ data class ReserveStock(
     @AssertLegal
     fun assertAvailable(inventory: Inventory) {
         if (inventory.available < quantity) {
-            throw InventoryErrors.insufficientStock
+            throw IllegalCommandException("Insufficient stock")
         }
     }
 
@@ -164,6 +179,30 @@ fun debit(
     @Association("sourceId") source: Account
 ) = source.debit(amount)
 ```
+
+## Dynamic write targets
+
+A variable set of existing children can be updated by returning Models read from an injected Graph. For a `Child`
+with `childId`, `@Parent RootId rootId` and an integer `value`:
+
+```kotlin
+data class IncrementChildren(val rootId: RootId) {
+    @Apply
+    fun apply(root: Graph<Root>): List<Child> =
+        root.childModels(Child::class.java).map { it.copy(value = it.value + 1) }
+}
+```
+
+The SDK retains each inspected Model's own revision; the children need not share a revision or sequence number.
+The values must come from this evaluation's tracked Graph, not a detached search result or arbitrary current-state read.
+An identity not read in the evaluation remains a new create-if-absent target, never a blind overwrite.
+
+Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
+Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
+of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
+changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
+RETRY rereads the selected graph and reevaluates the operation on a conflict. Do not add manual `previousValues` fields
+to compensate for lost revisions; historical inspection through `previous()` requires `EVENT_SOURCED`.
 
 ## Batch-local command consistency
 

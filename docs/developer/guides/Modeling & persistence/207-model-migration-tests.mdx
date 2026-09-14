@@ -1,0 +1,275 @@
+---
+title: Testing Model migrations
+slug: docs/guides/modeling-and-persistence/model-migration-tests
+description: Preserve old values and qualify Model replay, retained storage and search-index migration
+sidebar:
+   order: 207
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Moving `Project.name` into `ProjectDetails.name` must preserve the existing name. It is a schema refactor, not a business
+rename. Keep the Model's logical `name`, identity and parent paths stable. Start with plain `@Model`; add `DOCUMENT` or
+a materialized Graph only when the queries under test require those representations.
+
+## Three separate proofs
+
+| Test | Proves | Does not prove |
+| --- | --- | --- |
+| `whenUpcasting(oldJson)` after `registerCasters` | Old type/revision converts to the expected current value | Model replay, old persisted bytes or indexes |
+| `givenModelEvents(id, oldEvent, ...)`, then load in When | Current event decoding/upcasting and `@Apply` reconstruction | Byte-preserving old storage or another application's restart |
+| Old writer → retained test store → fresh candidate reader, no Given reseeding | Reads the actual artifacts written across that boundary | Database upgrade unless the database/service is also exercised |
+
+`givenModelEvents` accepts a typed `Id<?>`, or a raw ID plus Model class, followed by Java events, serialized messages or
+JSON resources. Register casters first. It applies the supplied events with current code and creates fresh commits,
+documents and relations. It skips original command assertions/interceptors, but its Given work can still publish
+events and notify observers. A new default fixture creates new local stores. Neither re-seeding it nor continuing
+with `.andThen()` proves a persistence restart. Keep `givenAppliedEvents` for existing Aggregates.
+
+## Preserve the original fields
+
+Revision-1 `com.example.CreateProject` contains `projectId` and `name`. Revision 2 contains `projectId` and `details`:
+
+```json
+{
+  "@class": "com.example.CreateProject",
+  "@revision": 1,
+  "projectId": "project-1",
+  "name": "Legacy name"
+}
+```
+
+Save it as `src/test/resources/project/create-project-rev1.json`. The current message is
+`@Revision(2) record CreateProject(String projectId, ProjectDetails details)`; its `@Apply` returns
+`new Project(projectId, details)`. `Project` has `@Model`, `@EntityId String projectId` and `ProjectDetails details`;
+`ProjectDetails` is a plain value object containing `String name`.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    class CreateProjectUpcaster {
+        @Upcast(type = "com.example.CreateProject", revision = 1)
+        JsonNode fromRevision1(ObjectNode payload) {
+            JsonNode name = payload.remove("name");
+            if (name == null || !name.isTextual()) {
+                throw new IllegalArgumentException("Revision 1 requires a textual name");
+            }
+            payload.putObject("details").set("name", name);
+            return payload;
+        }
+    }
+
+    @Test
+    void reconstructsTheOldCreation() {
+        TestFixture.create().registerCasters(new CreateProjectUpcaster())
+                .givenModelEvents("project-1", Project.class, "/project/create-project-rev1.json")
+                .whenExecuting(fc -> assertEquals(
+                        new Project("project-1", new ProjectDetails("Legacy name")),
+                        Fluxzero.loadModel("project-1", Project.class).get()))
+                .expectNoEvents().expectNoErrors();
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    class CreateProjectUpcaster {
+        @Upcast(type = "com.example.CreateProject", revision = 1)
+        fun fromRevision1(payload: ObjectNode): JsonNode {
+            val name = payload.remove("name")
+            require(name != null && name.isTextual) { "Revision 1 requires a textual name" }
+            payload.putObject("details").set<JsonNode>("name", name)
+            return payload
+        }
+    }
+
+    @Test
+    fun reconstructsTheOldCreation() {
+        TestFixture.create().registerCasters(CreateProjectUpcaster())
+            .givenModelEvents("project-1", Project::class.java, "/project/create-project-rev1.json")
+            .whenExecuting {
+                assertEquals(Project("project-1", ProjectDetails("Legacy name")),
+                    Fluxzero.loadModel("project-1", Project::class.java).get())
+            }.expectNoEvents().expectNoErrors()
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+Use `io.fluxzero.common.serialization.Revision` and `io.fluxzero.sdk.common.serialization.casting.Upcast`.
+The caster consumes revision **1**, matching the resource, and yields **2**. Do not default a present name to
+`"Untitled"`. If absence is valid in the old schema, define and test that case deliberately; otherwise reject malformed
+data. Register a separate caster on each changed top-level event, snapshot or Model/document type. Annotating
+`ProjectDetails` alone cannot migrate every enclosing serialized type. An unchanged `RenameProject(id, name)` message
+can still wrap its name in details during current replay.
+
+Spring discovers caster beans; a standalone fixture does not. `TestFixture.create(caster)` registers handlers, not
+casters. The first test must call `.registerCasters(...)`, even if production uses `@Component`.
+
+## Qualify storage from the old application
+
+The SDK checkout contains a runnable legacy-schema writer at
+`docs/developer/examples/model-migration/LegacyModelWriter.java` and the retained-store reader test at
+`java-downstream-project/src/test/java/io/fluxzero/downstream/ModelMigrationDocumentationTest.java`.
+Use the source from the same SDK checkout/tag as this guide. The writer creates and renames a Project and creates a
+Note through the public `Fluxzero.assertAndApply(...)` Model command path; it never assembles storage requests.
+The reader verifies replay, `previous()`, verified
+current state, parent navigation and searches, and then rematerializes the derived Graph. Only one generation of each
+logical Model type is on each application's classpath.
+
+Run the source writer with the **old SDK dependency classpath**, including its transitive dependencies, against an
+isolated test endpoint/namespace that remains alive between writer and reader:
+
+```sh
+java --class-path "$WRITER_CLASSPATH" LegacyModelWriter.java "$TEST_URL" "$TEST_NAMESPACE"
+```
+
+In a Maven old-writer project pinned to the old SDK, `dependency:build-classpath -Dmdep.outputFile=writer-classpath.txt`
+produces that classpath; do not combine old and new SDK/common JARs. Preserve the old application artifacts as the most
+realistic writer when testing an actual deployed schema. The example assumes a local test endpoint; use the normal
+client/property configuration for credentials elsewhere and never aim an example migration at production.
+
+On the reader side, configure casters before building, create a new `WebSocketClient` to the same endpoint/namespace,
+and use `TestFixture.createAsync(builder, client)`. Do not call any Given storage-seeding methods. Closing the old
+application closes its client, **not the external test store**; do not try to reconnect through that closed client.
+Close the reader before the server. In a real deployment use distinct processes and the actual persistent database
+when claiming a service/database upgrade, not just an in-memory test server.
+
+Embedded TestServer creates document update logs lazily. The repository test opens the Graph collection's tracking
+endpoint before starting the old writer, using `getTrackingClient(DOCUMENT, collection).readFromIndex(0, 1)` on a
+temporary client. This starts no migration and rewrites no data; it ensures the writer's document updates are retained
+for the later consumer. Do not mistake an uninitialized in-memory update log for persisted database history.
+
+The repository test normally uses the candidate SDK for both JVMs and an old-schema writer: that proves a schema
+migration, not old-SDK compatibility. Set `-Dmigration.writer.classpath=/absolute/old-sdk-classpath` when running that
+test to qualify a pinned old SDK too. The value is a platform-separated **classpath string**, not the name of the text
+file containing it. For example, from a prebuilt SDK checkout:
+
+```sh
+./mvnw -pl java-downstream-project -Dtest=ModelMigrationDocumentationTest \
+  -Dmigration.writer.classpath="$WRITER_CLASSPATH" test
+```
+
+## Before and after search reindexing
+
+The executable example explicitly enables `DOCUMENT` for direct Project searches and materialization for Project
+Graphs. This is an example of two concrete query needs, not a general Model default. The Note's explicit `notes` parent
+path supplies its compositional document.
+
+After the old writer stores `name = "Renamed"`, and the new reader registers casters:
+
+| Read | Before stored projection migration | After materialized Graph migration |
+| --- | --- | --- |
+| `loadModel(id).get().details().name()` | `Renamed` through replay | Unchanged |
+| `loadModel(id).previous().get().details().name()` | `Legacy name` | Unchanged |
+| `loadCurrentModelState(id)` | Upcast maintained document at its verified head | Unchanged |
+| `loadCurrentGraph(id).children(Note.class)` | Finds the old parent relation | Unchanged |
+| `search(Project.class).match("Renamed", "name")` | Matches old stored path; returned object is upcast | Still matches: direct document was not rewritten |
+| `search(Project.class).match("Renamed", "details/name")` | No match | Still no match |
+| `searchGraph(Project.class).match("Renamed", "details/name")` | No match | Matches migrated Graph projection |
+
+Content selection happens **before deserialization**. A caster cannot make the server search an absent new index path.
+The same applies to `whereParent`/`whereAncestor` content queries on component documents. Identity/relationship
+navigation is independent of moving `name`; live search composition still uses the stored component paths.
+
+To migrate the materialized Graph, register the node casters and replay its document collection with this consumer:
+
+```java
+@Consumer(name = "project-graph-schema-2", minIndex = 0)
+class RematerializeProjects {
+    @HandleDocument(modelGraph = Project.class)
+    Graph<Project> migrate(Graph<Project> graph) { return graph; }
+}
+```
+
+If a node's Java type name changes, register a type alias too, even when its `Data` upcaster returns the new type name.
+The Graph replacement guard needs a content-independent rename mapping. A root must upcast to exactly one state;
+split/drop upcasting is valid for ordinary documents, not for a Graph's root state.
+
+Observe catch-up before enabling new predicates. Returning the complete Graph rewrites only the derived projection
+when a node changed serialized type or revision, with a manifest guard against overwriting a newer projection.
+Bump the node's revision for a JSON-shape migration; a JSON-only difference at the same type/revision does not
+trigger this rewrite. It does not
+migrate the source component documents or advance Model history. Rebuilding solely from old components can retain
+old paths; keep the migration consumer for the rollout window and verify behavior after subsequent writes too.
+
+## Reindex the three representations independently
+
+A Model commit maintains an internal current source and, when `DOCUMENT` is enabled, a **separate public projection**.
+Graph materialization adds a third representation. None of their reindexers advances Model history.
+
+| Handler selection | Reads/writes | Query paths it updates |
+| --- | --- | --- |
+| `@HandleDocument(documentClass = Project.class)` | Public DOCUMENT projection | `search(Project.class)`, including results selected by parent/ancestor ID |
+| `@HandleDocument(modelState = Project.class)` | Verified internal current source | Live Graph composition and related-content predicates such as `whereChild(Project.class, ...)` |
+| `@HandleDocument(modelGraph = Project.class)` | Complete materialized Graph | Stored `searchGraph(Project.class)` root/nested paths |
+
+After registering the value-preserving upcasters above and raising the Model schema revision, use explicit consumers:
+
+```java
+@Consumer(name = "project-source-schema-2", minIndex = 0)
+class ReindexProjectSources {
+    @HandleDocument(modelState = Project.class)
+    Project migrate(Project project) { return project; }
+}
+
+@Consumer(name = "project-public-schema-2", minIndex = 0)
+class ReindexProjectDocuments {
+    @HandleDocument(documentClass = Project.class)
+    Project migrate(Project project) { return project; }
+}
+```
+
+Kotlin has the same contract:
+
+```kotlin
+@Consumer(name = "project-source-schema-2", minIndex = 0)
+class ReindexProjectSources {
+    @HandleDocument(modelState = Project::class)
+    fun migrate(project: Project): Project = project
+}
+```
+
+The source handler receives the upcast value. Return it unchanged: identity, type and logical serialized state must
+remain equal, including for mutable objects. Returning `null`, splitting/dropping the upcast state or changing business
+data is rejected; use commands/`@Apply` for state changes or deletion. A higher schema revision is required for a
+rewrite. The built-in Jackson serializer captures an immutable logical snapshot; a custom `DocumentSerializer` must
+explicitly implement `modelStateSnapshot` to support this new route. Existing ordinary document handling is unaffected.
+
+Before invoking the handler the SDK inspects the verified current source. A delayed message whose upcast state no
+longer matches that source is not written. The eventual compare-and-set checks the full durable head, old proof and
+actual stored body atomically with the source/index/proof replacement. A concurrent update, deletion, recreation,
+untrusted document overwrite or prior schema rewrite makes the old request a successful no-op. No new Model version
+or domain event is produced. This guards the materialized source boundary; it is not a cross-database atomic snapshot
+of all Models. A void handler observes only and performs no rewrite.
+
+Ordinary public document handlers keep their normal revision-aware return/deletion semantics: they do **not** gain
+the Model-source compare-and-set contract. A stale ordinary projection writer may still need application-level
+coordination. Its writes cannot replace the internal source or certify Model state. Never index internal collections
+through ordinary `DocumentStore.index`.
+
+Migrate internal sources before rebuilding Graph projections, observe consumer catch-up, and test old/new paths
+separately for all three roles. Reindex each affected child's source too: rewriting only the root does not migrate
+child predicates. Verify a fresh reader can still load current state and historical `previous()` values afterward.
+
+Storage/configuration changes are separate migrations: this does not automatically backfill internal sources from
+older shared DOCUMENT storage, retire renamed collections, or migrate changes to persistence/name/path settings.
+The retained-storage example qualifies an old **schema** written in the separate-role format; it is not a blanket
+upgrade guarantee for older 2.0 candidates. Keep legacy data backed up and qualify its explicit migration/rebuild
+before upgrading. Do not infer that a new schema upcaster creates missing source documents.
+
+
+During a staged rollout, retain the old predicates, deliberately query both paths, or wait for migration before
+switching paths. Search results are current/projection state, not an event-bound snapshot or transaction readset. Use
+injected Models/Graphs for invariant checks, as explained in the [query guide](../model-query-guide).
+
+## Historical values and the remaining test matrix
+
+After migration, cold-load the Model and assert `previous()` still yields the original business value. Keep
+`EVENT_SOURCED` and reconstructible history for historical values. `DOCUMENT` alone is not a historical archive,
+even when its event policy also stores/publishes some events. `loadCurrentGraph` asks for current state; the Graph
+injected for an old event remains event-bound. Search does not replace either contract.
+
+Extend the executable recipe to snapshots, aliases, parent paths, document-only state, encryption/KV references,
+namespaces, mixed old/new writers and persistent-service upgrade boundaries actually used by your application.
+Without the source history/documents, replay cannot reconstruct them. Unknown types or missing historical state
+should fail visibly, not be silently skipped. The small example does not certify these unexercised cases.

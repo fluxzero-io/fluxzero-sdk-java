@@ -11,6 +11,11 @@ import { Aside } from '@astrojs/starlight/components';
 Every `@Model` has an independent persisted identity. Start with the default: event sourcing, without a direct
 document or periodic snapshots.
 
+Design the fields first: business details belong in a cohesive value object, even for one `name`; keep identity,
+relations, status and execution bookkeeping distinct. [Designing Model state](../model-state) explains the selection
+criteria and shows validated Java/Kotlin creation and targeted updates. A plain details value requires neither a
+separate Model nor `@Member`; its owner determines persistence.
+
 ```java
 @Model
 record Account(
@@ -56,6 +61,11 @@ is insufficient):
 
 ## Event-sourced models
 
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
+replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
+substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
+
 Event sourcing is the default:
 
 ```java
@@ -77,8 +87,8 @@ The set supports exactly the meaningful combinations:
 
 - `{EVENT_SOURCED}` reconstructs from events without a direct document; a separate Graph role may still maintain an
   internal current component document;
-- `{DOCUMENT}` loads from its authoritative current document;
-- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also maintains a current document.
+- `{DOCUMENT}` loads from its authoritative internal source and additionally maintains a public document projection;
+- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and maintains both the internal source and public projection.
 
 An empty set or duplicate representation is rejected during Model discovery.
 
@@ -104,7 +114,8 @@ configuration and value schema (including nested value types and upcasters).
 Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
 fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
 ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
-this fingerprint; maintaining a direct Model document does. Existing documents with no proof are not retroactively
+this fingerprint; maintaining an internal Model source does. Public DOCUMENT projections do not own that proof.
+Existing documents with no proof are not retroactively
 certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
 an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.
 
@@ -187,7 +198,7 @@ Select `DOCUMENT` to make the current direct document the normal load source:
         collection = "countries"))
 record Country(
         @EntityId CountryId countryId,
-        String name) {
+        CountryDetails details) {
 }
 ```
 
@@ -293,9 +304,18 @@ record LineItem(
 }
 ```
 
-The public document serves direct search, but event replay remains authoritative for loading the Model. With
-document-only persistence, the same current document is authoritative for loading. It is never the asynchronously
-stitched root Graph. Set `document.searchable = false` when the document should remain reference-only instead.
+The public document serves direct search; the separate internal source serves verified current-state reads, related
+content predicates and Graph composition. With document-only persistence, that **internal source** is authoritative
+for loading, not the public projection. With event sourcing, replay remains authoritative. Neither is the asynchronously
+stitched whole-Graph projection. Model commits maintain both roles; ordinary document indexing or
+`@HandleDocument(documentClass = LineItem.class)` affects only the public projection.
+Set `document.searchable = false` to keep the public projection retrieval-only, even if the internal Graph component
+requires indexes. Both remain current representations, not historical document archives.
+
+`search(LineItem.class).whereAncestor(orderId)` still returns the public LineItem projection when DOCUMENT is enabled.
+By contrast, the content inside `whereChild(LineItem.class, ...)` is tested against LineItem's internal source.
+For source schema migrations use `@HandleDocument(modelState = LineItem.class)`; see
+[Model migration tests](../model-migration-tests). Never write internal collections through ordinary indexing.
 
 Plain `EVENT_SOURCED` omits only this independent collection. A child with an explicit
 `@Parent(pathInParent = "...")` still supplies a private current document to virtual and materialized Graph composition.
@@ -327,8 +347,10 @@ Models use a shared current-state cache and an action-local cache:
 Use `FluxzeroBuilder.withModelCache(cache)` for a dedicated model cache, or
 `FluxzeroBuilder.disableAutomaticModelCaching()` to disable both shared model caching and its update tracker.
 
-The default `cachingDepth` retains the previous revision needed by common event-handler comparison logic. Configure a
-larger depth only when the application actively uses deeper `Graph.previous()` chains.
+The default `cachingDepth` keeps a previous revision cheaply available. It is a performance setting, not the source
+or retention limit of historical truth: `EVENT_SOURCED` can reconstruct earlier values after cache eviction. Increase
+the depth only when measured historical reads warrant it. `DOCUMENT` alone has no durable previous versions; do not
+make `previous()`-based business logic depend on a coincidentally warm cache.
 
 Disable shared caching with `cached = false`; action-local consistency remains available while evaluating one model
 action.

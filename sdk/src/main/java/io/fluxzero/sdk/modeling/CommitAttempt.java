@@ -48,6 +48,8 @@ public final class CommitAttempt {
     private ModelAncestorResolver.AncestorReads ancestorReads;
     private CommitAttempt graphReadOwner;
     private Map<String, Class<?>> graphReadTypes;
+    private Map<String, Entity<?>> graphReadEntities;
+    private Map<String, Entity<?>> graphOverlayEntities;
     private Set<String> graphApplyReads;
     private Set<ModelRelationshipRead> graphRelationships;
     private Set<ModelRelationshipRead> graphApplyRelationships;
@@ -56,6 +58,7 @@ public final class CommitAttempt {
     void resetGraphReads() {
         graphReadGeneration++;
         graphReadTypes = null;
+        graphReadEntities = null;
         graphApplyReads = null;
         graphRelationships = null;
         graphApplyRelationships = null;
@@ -148,6 +151,45 @@ public final class CommitAttempt {
         }
         replayGraphReads(graph, graph.context().readProof());
         recordGraphValue(context, graph.node().data().id(), graph.node().data().type());
+        // Keep the already loaded revision, not just its identity. A dynamic @Apply result may
+        // promote this read to a write; treating it as a new model loses its expected sequence.
+        if (graph.node().data().entityResolved) {
+            CommitAttempt owner = context.graphReadOwner;
+            synchronized (owner) {
+                if (owner.graphReadEntities == null) {
+                    owner.graphReadEntities = new LinkedHashMap<>();
+                }
+                owner.graphReadEntities.put(graph.node().data().id(), graph.node().data().entity());
+            }
+        }
+    }
+
+    Entity<?> graphReadEntity(String modelId) {
+        CommitAttempt owner = graphReadOwner;
+        if (owner == null) {
+            return null;
+        }
+        synchronized (owner) {
+            return owner.graphReadEntities == null ? null : owner.graphReadEntities.get(modelId);
+        }
+    }
+
+    /** Retains precommit stamps and deletion identities for graph reads in later substeps. */
+    void retainWriteOrigins(List<Change> changes) {
+        if (graphReadOwner == null || changes.isEmpty()) {
+            return;
+        }
+        synchronized (graphReadOwner) {
+            for (Change change : changes) {
+                Entity<?> origin = entities.get(change.modelId());
+                if (origin != null) {
+                    if (graphReadOwner.graphReadEntities == null) {
+                        graphReadOwner.graphReadEntities = new LinkedHashMap<>();
+                    }
+                    graphReadOwner.graphReadEntities.putIfAbsent(change.modelId(), origin);
+                }
+            }
+        }
     }
 
     private static void recordGraphValue(CommitAttempt context, String id, Class<?> type) {
@@ -465,6 +507,11 @@ public final class CommitAttempt {
         return entities;
     }
 
+    Map<String, Entity<?>> graphEntities() {
+        Map<String, Entity<?>> direct = entities();
+        return graphOverlayEntities == null ? direct : graphOverlayEntities;
+    }
+
     public DeserializingMessage attachTo(DeserializingMessage message) {
         return Objects.requireNonNull(message, "message").putContext(CommitAttempt.class, this);
     }
@@ -550,27 +597,49 @@ public final class CommitAttempt {
             return this;
         }
         LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(entities);
-        values.forEach((modelId, value) -> {
+        LinkedHashMap<String, Entity<?>> graphUpdated = graphOverlayEntities == null
+                ? null : new LinkedHashMap<>(graphOverlayEntities);
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            String modelId = entry.getKey();
+            Object value = entry.getValue();
             Entity<?> current = updated.get(modelId);
             MutationPlan.ResolvedModel target = target(modelId);
             if (current == null || target == null) {
-                return;
+                current = graphReadEntity(modelId);
+                if (current == null && value == null) {
+                    continue;
+                }
+                Class modelType = value == null ? current.type() : value.getClass();
+                if (current == null) {
+                    current = ImmutableModelRoot.initial(modelId, modelType,
+                            EntityMetadata.of(modelType).entityIdName(), null);
+                }
+                if (graphUpdated == null) { graphUpdated = new LinkedHashMap<>(); }
+                graphUpdated.put(modelId, withValue(current, modelType, value));
+                continue;
             }
             Class modelType = value == null ? target.modelType() : value.getClass();
-            Entity<?> entity = current instanceof ImmutableEntity<?> immutable
-                    ? immutable.toBuilder().type(modelType).value(value).build()
-                    : ImmutableEntity.builder()
-                            .id(current.id()).type(modelType).value(value)
-                            .idProperty(EntityMetadata.of(target.modelType()).entityIdName()).build();
-            updated.put(modelId, entity);
-        });
+            updated.put(modelId, withValue(current, modelType, value));
+        }
         CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
         result.resolution = resolution;
         result.entities = immutable(updated);
         result.graphReadOwner = graphReadOwner;
+        if (graphUpdated != null) {
+            graphUpdated.putAll(updated);
+            result.graphOverlayEntities = immutable(graphUpdated);
+        }
         result.ancestorReads = ancestorReads;
         return result;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static Entity<?> withValue(Entity<?> current, Class modelType, Object value) {
+        return current instanceof ImmutableEntity<?> immutable
+                ? immutable.toBuilder().type(modelType).value(value).build()
+                : ImmutableEntity.builder().id(current.id()).type(modelType).value(value)
+                        .idProperty(EntityMetadata.of(modelType).entityIdName()).build();
     }
 
     void evaluated(

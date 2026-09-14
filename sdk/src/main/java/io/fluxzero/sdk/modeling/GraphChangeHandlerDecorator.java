@@ -22,6 +22,7 @@ import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -30,6 +31,7 @@ import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -108,7 +111,7 @@ public final class GraphChangeHandlerDecorator {
                             for (Graph<?> graph : changedGraphs(
                                     message, graphHandler.modelType())) {
                                 if (!handled.add(new GraphKey(
-                                        graph.id().toString(), graph.type()))) {
+                                        graph.id().toString(), graph.type(), graph.stateIndex()))) {
                                     continue;
                                 }
                                 HandlerInvoker invoker = withGraph(
@@ -211,6 +214,27 @@ public final class GraphChangeHandlerDecorator {
                 MutationPlan.resolveReferencedModels(message.getPayload())) {
             payloadTypes.put(referenced.modelId(), referenced.modelType());
         }
+        List<Graph<T>> result = graphsForChange(change, rootType, repository, ancestors, payloadTypes, false);
+        List<Integer> cascades = ModelEventMetadata.cascadeSubsteps(message.getMetadata());
+        if (cascades.isEmpty()) {
+            return result;
+        }
+        result = new ArrayList<>(result);
+        for (int cascade : cascades) {
+            GetModelChangeResult deletion = fluxzero.client().forNamespace(namespace).getEventStoreClient()
+                    .getModelChange(new GetModelChange(commitId, cascade));
+            if (deletion.getEventIndex() != null || deletion.getStateIndex() <= change.getStateIndex()) {
+                throw new IllegalStateException("Model cascade reference does not identify a later internal change");
+            }
+            // Keep the cascade's own boundary, including surviving ancestors in shared graphs.
+            result.addAll(graphsForChange(deletion, rootType, repository, ancestors, payloadTypes, true));
+        }
+        return List.copyOf(result);
+    }
+
+    private static <T> List<Graph<T>> graphsForChange(GetModelChangeResult change, Class<T> rootType,
+                                                     ModelRepository repository, ModelAncestorResolver ancestors,
+                                                     Map<String, Class<?>> payloadTypes, boolean cascade) {
         List<ModelChangeTarget> targets = change.getTargets().isEmpty()
                 ? payloadTypes.entrySet().stream()
                         .map(entry -> new ModelChangeTarget(
@@ -226,6 +250,10 @@ public final class GraphChangeHandlerDecorator {
             Class<?> targetType = targetType(
                     target, payloadTypes, repository);
             if (targetType == null) {
+                addUnknownTargetAncestors(roots, target.getModelId(), rootType, repository, currentState);
+                if (previousState >= -1L) {
+                    addUnknownTargetAncestors(roots, target.getModelId(), rootType, repository, previousState);
+                }
                 continue;
             }
             if (rootType.isAssignableFrom(targetType)) {
@@ -243,14 +271,18 @@ public final class GraphChangeHandlerDecorator {
             }
         }
         List<Graph<T>> result = new ArrayList<>(roots.size());
+        Set<String> cascadeTargetIds = cascade ? new LinkedHashSet<>() : Set.of();
+        if (cascade) {
+            targets.forEach(target -> cascadeTargetIds.add(target.getModelId()));
+        }
         roots.forEach((rootId, concreteType) -> {
-            Graph<T> current = cast(repository.loadGraphAt(
-                    rootId, concreteType, currentState,
-                    Graph.Options.DEFAULT));
+            Graph<T> current = cast(Graphs.changedGraph(rootId, concreteType, currentState, repository));
             Graph<T> previous = previousState < -1L ? null
-                    : cast(repository.loadGraphAt(
-                            rootId, concreteType, previousState,
-                            Graph.Options.DEFAULT));
+                    : cast(Graphs.changedGraph(rootId, concreteType, previousState, repository));
+            if (cascade && !cascadeTargetIds.contains(rootId)
+                && current.isEmpty() && (previous == null || previous.isEmpty())) {
+                return; // The ordinary deletion already notified an explicitly deleted ancestor.
+            }
             if (previous != null
                 && previous.isEmpty()
                 && current.isPresent()) {
@@ -259,6 +291,30 @@ public final class GraphChangeHandlerDecorator {
             result.add(Graphs.withPrevious(current, previous));
         });
         return List.copyOf(result);
+    }
+
+    private static <T> void addUnknownTargetAncestors(Map<String, Class<? extends T>> roots, String targetId,
+                                                     Class<T> rootType, ModelRepository repository, long stateIndex) {
+        if (!(repository instanceof ModelGraphResolver resolver)) {
+            throw new UnsupportedOperationException("Unknown Graph-change targets require metadata-only ancestor resolution");
+        }
+        LinkedHashSet<String> visited = new LinkedHashSet<>();
+        List<String> frontier = List.of(targetId);
+        while (!frontier.isEmpty()) {
+            visited.addAll(frontier);
+            ModelGraphResolver.Relations relations = resolver.loadGraphRelations(frontier,
+                    ModelRelationshipRead.Direction.PARENTS, ModelReadBoundary.state(stateIndex, false), Map.of(), true);
+            if (!Objects.equals(relations.boundary().stateIndex(), stateIndex)) {
+                throw new IllegalStateException("Graph-change ancestors moved their pinned boundary");
+            }
+            relations.models().values().forEach(node -> {
+                if (!node.id().equals(targetId) && node.knownType() != null && rootType.isAssignableFrom(node.knownType())) {
+                    roots.putIfAbsent(node.id(), node.knownType().asSubclass(rootType));
+                }
+            });
+            frontier = relations.edges().stream().map(edge -> edge.getParentId())
+                    .filter(id -> !visited.contains(id)).distinct().toList();
+        }
     }
 
     private static Class<?> targetType(
@@ -270,7 +326,7 @@ public final class GraphChangeHandlerDecorator {
             return payloadTypes.get(target.getModelId());
         }
         if (repository instanceof ModelTypeResolver resolver) {
-            return resolver.modelType(target.getModelType(), target.getModelId());
+            return resolver.knownModelType(target.getModelType(), target.getModelId()).orElse(null);
         }
         throw new UnsupportedOperationException(
                 "Graph-change handlers require a Model repository with a logical type catalog");
@@ -347,7 +403,8 @@ public final class GraphChangeHandlerDecorator {
 
     private record GraphKey(
             String modelId,
-            Class<?> modelType) {
+            Class<?> modelType,
+            long stateIndex) {
     }
 
 }

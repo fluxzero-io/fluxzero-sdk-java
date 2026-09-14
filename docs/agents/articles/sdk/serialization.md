@@ -15,22 +15,30 @@ public record Project(ProjectId projectId, ProjectDetails details) {
 }
 ```
 
-Use `@Upcast` for old serialized objects. Upcasters work at the top-level stored type, not at arbitrary nested field paths. Register them as Spring `@Component` classes or explicit Fluxzero components.
+Use `@Upcast` for old serialized objects. Upcasters work at the top-level stored type, not at arbitrary nested field
+paths. Spring registers caster beans automatically. Outside Spring, call `serializer.registerCasters(...)`; in a
+fixture, call `TestFixture.create().registerCasters(...)` before supplying old data. Passing a caster to
+`TestFixture.create(caster)` only registers a handler, not its caster methods.
 
 Use an `ObjectNode` upcaster when only JSON shape changes:
 
 ```java
-@Component
 class ProjectUpcaster {
     @Upcast(type = "com.example.project.api.model.Project", revision = 1)
     JsonNode fromRevision1(ObjectNode payload) {
-        if (!payload.has("details")) {
-            payload.putObject("details").put("name", "Untitled");
+        JsonNode name = payload.remove("name");
+        if (name == null || !name.isTextual()) {
+            throw new IllegalArgumentException("Revision 1 requires a textual name");
         }
+        payload.putObject("details").set("name", name);
         return payload;
     }
 }
 ```
+
+This is a `name` → `details.name` refactor, not a request to rename existing projects. Preserve the stored name,
+identity and unrelated fields. Only introduce a default for genuinely missing data when the old schema permits that
+absence and the domain explicitly defines the default. Do not replace a known value with `"Untitled"`.
 
 Use a full `Data<JsonNode>` upcaster when a revision migration also changes the type, revision, or format. For a
 pure compatible class/package rename, follow the type-aliases article instead:
@@ -56,6 +64,7 @@ Test with old serialized JSON:
 {
   "@class": "com.example.project.api.model.Project",
   "@revision": 1,
+  "projectId": "project-1",
   "name": "Legacy name"
 }
 ```
@@ -65,11 +74,27 @@ the upcaster. A plain field named `revision` remains payload data. The revisione
 NDJSON and fixture versus direct `JsonUtils` resource reads.
 
 ```java
-fixture.whenUpcasting("/project/project-rev1.json")
-        .expectResult(Project.class)
-        .expectResult(project -> project.details().name().equals("Untitled"));
+TestFixture.create().registerCasters(new ProjectUpcaster())
+        .whenUpcasting("/project/project-rev1.json")
+        .expectResult(new Project(new ProjectId("project-1"), new ProjectDetails("Legacy name")));
 ```
+
+The example's current `Project` is revision **2**, the resource is revision **1**, and the caster consumes revision
+**1**. `ProjectDetails` is `record ProjectDetails(String name) {}`; the application's `ProjectId` is an `Id<Project>`.
+For Kotlin use `.registerCasters(ProjectUpcaster())` and `.expectResult(Project(ProjectId("project-1"),
+ProjectDetails("Legacy name")))`; class matchers take `Project::class.java`, not `Project::class`.
+
+Test event replay separately: register a caster for each changed historical `@Apply` event and use
+`givenModelEvents(modelId, oldSerializedEvent, ...)`. A Model-state caster alone does not migrate its creation event.
+The Model migration and reconstruction articles distinguish caster tests, synthetic event application and retained
+storage written by an older SDK.
 
 `@Downcast` is for versioned API responses or compatibility adapters and is usually invoked manually with `Fluxzero.downcast(...)`. Do not use downcasting to mutate the stored event stream.
 
-Documents can be rebuilt after schema/index changes. Pair the upcaster or revision change with a replay consumer that returns the document so the store writes the current representation.
+Read-time upcasting does not rewrite stored JSON or search indexes. Ordinary derived documents can be reindexed by a
+revision-aware `@HandleDocument` migration. A materialized Model Graph has its own complete-Graph return contract.
+For internal sources use `@HandleDocument(modelState = Project.class)` and return the upcast value unchanged:
+identity/state changes and split/drop upcasts are rejected; a full-head/body/proof guard skips stale rewrites.
+The independent public DOCUMENT projection uses ordinary `documentClass` handling and stays ancestor-queryable.
+Do not use ordinary writes to replace internal Model state. Follow the Model migration recipe for
+before/after queries and the distinction between these representations.

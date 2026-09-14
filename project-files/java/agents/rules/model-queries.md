@@ -6,10 +6,11 @@ uses the word “search”.
 
 ## Five independent choices
 
-1. **Load source:** `EVENT_SOURCED` makes events authoritative; `DOCUMENT` alone makes the current Model document
-   authoritative. With both, events remain authoritative for `loadModel` and identity-based Graph values.
-2. **Current Model document:** explicit `DOCUMENT` maintains one. An explicit child composition path or
-   `materializeGraph = true` also maintains a current component document, without changing the load source.
+1. **Load source:** `EVENT_SOURCED` makes events authoritative; `DOCUMENT` alone loads the verified internal
+   current Model source. With both, events remain authoritative for `loadModel` and identity-based Graph values.
+2. **Independent documents:** `DOCUMENT` maintains a public document projection **and a separate internal Model
+   source**. An explicit child composition path or `materializeGraph = true` also maintains an internal component,
+   without requiring a public projection or changing the load source. Plain event sourcing adds neither.
 3. **Search visibility:** `document.searchable` controls unrestricted typed `search(T.class)`. Internal component
    documents are available to relationship queries, but do not open unrestricted typed Model search.
 4. **Graph shape:** `@Parent` creates a durable relationship. `pathInParent` additionally places that child in a
@@ -30,10 +31,10 @@ needs a suitable document for the **related type**. A known related ID needs no 
 | --- | --- | --- | --- | --- | --- | --- |
 | Plain `@Model`; no composition role | Event replay | None | Empty | Rejected: no target document | Rejected: no related document | Rejected: no root document |
 | `@Model` with explicit `@Parent(pathInParent = "items")` | Event replay | Internal, indexed component | Empty | Yes, including target content filters | Yes | Live composition from this component as root |
-| `@Model(persistence = {EVENT_SOURCED, DOCUMENT})` | Event replay | Direct, indexed | Yes | Yes | Yes | Live, unless materialization also enabled |
-| `@Model(persistence = DOCUMENT)` | Direct document | Direct, indexed | Yes | Yes | Yes | Live, unless materialization also enabled |
-| `DOCUMENT` with `document = @DocumentProjection(searchable = false)`; no separate Graph role | Depends on whether `EVENT_SOURCED` is also present | Direct, retrieval-only; no summary, facets or sortables | Empty | Yes for retrieval; do not rely on indexed content filters | No portable indexed content search | Live from the retained document; no materialized projection |
-| Same reference-only document **with** explicit composition path or materialization | Same | Direct document with independently required component indexes | Empty | Yes, including indexed content filters | Yes | Live or configured materialized projection |
+| `@Model(persistence = {EVENT_SOURCED, DOCUMENT})` | Event replay | Separate indexed source and public projection | Yes, public projection | Yes, public projection | Yes, internal source | Live from internal sources, unless materialization enabled |
+| `@Model(persistence = DOCUMENT)` | Internal source document | Separate indexed source and public projection | Yes, public projection | Yes, public projection | Yes, internal source | Live from internal sources, unless materialization enabled |
+| `DOCUMENT` with `document = @DocumentProjection(searchable = false)`; no separate Graph role | Event replay or internal source | Separate retrieval-only source and public projection; no summary, facets or sortables | Empty | Yes, public projection; no indexed text filters | No portable indexed content search | Live from internal source; no materialized projection |
+| Same reference-only document **with** explicit composition path or materialization | Same | Indexed internal component; public projection still retrieval-only | Empty | Yes, public projection; still no indexed text filters | Yes, indexed internal source | Live or configured materialized projection |
 | `@Model(materializeGraph = true)` without `DOCUMENT` | Event replay | Internal, indexed root component **plus separate Graph document** | Empty | Yes | Yes, on the root component—not the whole Graph | Materialized by default; `true` forces live |
 
 “Empty” describes the unrestricted typed Model API, not deletion or lack of stored state. Collection-name/low-level
@@ -137,7 +138,12 @@ List<Order> ordersWithOpenLines = Fluxzero.search(Order.class)
         .fetchAll();
 ```
 
-These examples combine the direct Order document above with the LineItem component document. `whereParent` and
+These examples return the public Order projection or internal-only LineItem component. Their related content
+predicates always inspect the related Model's **internal source**, not its public projection or composed Graph.
+Ordinary filters after the selector inspect the **returned document**. Thus
+`search(Order.class).whereChild(LineItem.class, match(...)).match(...)` tests internal LineItem state first
+and public Order projection state last. Independent public reindexing does not change those internal predicates.
+`whereParent` and
 `whereChild` use one edge; `whereAncestor` and `whereDescendant` support deeper traversal. They select matching
 related document IDs first, traverse relationships, and then fetch/filter target documents. They do not replay Models.
 
@@ -162,7 +168,8 @@ Missing indexes do **not** ban every possible content test: operators such as `e
 predicates and certain substring patterns can deliberately fall back to entry scans. These are not equivalent to
 indexed text/facet/sort capabilities, and this fix does not promise complete SQL/LocalClient parity for every boolean
 combination. Use an indexed component or public direct document for predictable indexed content selection. A
-composition role retains its needed indexes even if the direct document remains reference-only.
+composition role retains its needed indexes in the separate internal source; it does not make a reference-only
+public projection indexed. Parent/ancestor selectors still return that public projection when `DOCUMENT` is enabled.
 
 ### I need to query whole Graphs
 
@@ -241,7 +248,10 @@ indexed server-side count, and is not a transaction-safe quota check. Do not use
 | `searchGraph(T.class)` with materialization | Document-backed `Graph<T>` | Stored projection version, possibly behind current state; combining current relationship predicates with it can mix selection and result versions |
 | `loadCurrentModelState(id)` | Read-only `ModelState<T>` | Verifies one current document against its durable head; no replay, no event boundary, no commit readset |
 
-Successful **Model commit completion** includes its direct/component document writes. Pending changes before that
+Successful **Model commit completion** includes both configured source and public document writes. Ordinary public
+projection updates are independent: they neither change Model state nor invalidate its verification proof.
+Use `@HandleDocument(modelState = T.class)` for guarded internal schema reindexing; see the migration guide.
+No document copies are kept solely for historical reads. Pending changes before that
 completion are not promised to appear in search. Concurrent writers may change documents between related selection,
 relationship traversal and result fetching, or between pages. A search Graph's manifest/state index is not a proof
 that all current source reads formed one atomic snapshot. A previously returned Graph/value does not auto-refresh.

@@ -140,7 +140,7 @@ public final class ModelCommitValidator {
                     }
                     if (target.isDelete() || target.isUpdateRelationships()
                         || target.isCascadeDelete()
-                        || target.getDocument() != null || target.getSnapshot() != null
+                        || target.getDocument() != null || target.getDocumentProjection() != null || target.getSnapshot() != null
                         || target.getRelationships() == null || !target.getRelationships().isEmpty()
                         || target.getAliases() != null) {
                         throw new IllegalArgumentException(
@@ -177,7 +177,21 @@ public final class ModelCommitValidator {
                             "Target model %s supplies relationships without update intent"
                                     .formatted(target.getModelId()));
                 }
-                validateDocument(target);
+                validateDocument(target, target.getDocument());
+                if (target.getDocumentProjection() != null) {
+                    if (!(commit instanceof CommitModelsWithDocumentProjections) || commit.isMigration()) {
+                        throw new IllegalArgumentException("Independent document projections require a projection-aware, non-migration commit");
+                    }
+                    if (target.getDocument() == null || target.getDocument().getCollection()
+                            .equals(target.getDocumentProjection().getCollection())) {
+                        throw new IllegalArgumentException("A document projection requires a separate internal Model source");
+                    }
+                    validateDocument(target, target.getDocumentProjection());
+                    if ((target.getDocument().getDocument() == null) != target.isDelete()
+                        || (target.getDocumentProjection().getDocument() == null) != target.isDelete()) {
+                        throw new IllegalArgumentException("Source and projection must follow the Model lifecycle");
+                    }
+                }
                 validateSnapshot(target);
                 validateAliases(target);
                 Set<RelationshipKey> relationships =
@@ -204,16 +218,16 @@ public final class ModelCommitValidator {
         }
     }
 
-    private static void validateDocument(ModelCommitTarget target) {
-        if (target.getDocument() == null) {
+    private static void validateDocument(ModelCommitTarget target, ModelDocumentMutation mutation) {
+        if (mutation == null) {
             return;
         }
-        String collection = target.getDocument().getCollection();
+        String collection = mutation.getCollection();
         if (collection == null || collection.isBlank()) {
             throw new IllegalArgumentException(
                     "Target model %s has a blank document collection".formatted(target.getModelId()));
         }
-        var document = target.getDocument().getDocument();
+        var document = mutation.getDocument();
         if (document != null) {
             if (!target.getModelId().equals(document.getId())) {
                 throw new IllegalArgumentException(
@@ -503,7 +517,7 @@ public final class ModelCommitValidator {
             || target.isDelete() || target.isUpdateRelationships()
             || target.getRelationships() == null || !target.getRelationships().isEmpty()
             || target.getAliases() != null
-            || target.getDocument() != null || target.getSnapshot() != null
+            || target.getDocument() != null || target.getDocumentProjection() != null || target.getSnapshot() != null
             || !java.util.Objects.equals(
                     target.getModelId(), commit.getReadModelIds().getFirst())) {
             return false;

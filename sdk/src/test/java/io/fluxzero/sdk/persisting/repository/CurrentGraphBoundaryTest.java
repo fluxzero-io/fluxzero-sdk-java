@@ -178,6 +178,6 @@ class CurrentGraphBoundaryTest {
     }
 
     record UpsertChild(String childId, String rootId) {
-        @Apply FreshnessChild apply() { return new FreshnessChild(childId, rootId); }
+        @Apply FreshnessChild apply(@jakarta.annotation.Nullable FreshnessChild existing) { return new FreshnessChild(childId, rootId); }
     }
 }

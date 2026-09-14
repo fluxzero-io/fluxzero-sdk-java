@@ -35,7 +35,14 @@ Fluxzero.cancelSchedule(expiryId)
 </TabItem>
 </Tabs>
 
-Here's an example that schedules a termination event 30 days after an account is closed:
+For Model workflows, use [current-state schedule reconciliation](./085-model-schedule-reconciliation.mdx): a sole
+`Graph<Child>` handler sees cascade deletion too, and `loadCurrentGraph` prevents old events from restoring stale work.
+
+The snippets below illustrate scheduling API calls only. A production consumer must also recheck current intent before
+creating a schedule, and a delivered command must reject stale work. Blindly replaying `AccountClosed` after reopening
+would otherwise restore a schedule that no longer belongs.
+
+Here's an API-only example that schedules a termination event 30 days after an account is closed:
 
 <Tabs>
 <TabItem value="Java" label="Java">
@@ -96,6 +103,11 @@ class UserLifecycleHandler {
 ---
 
 ## Scheduling commands
+
+When the payload declares `@Parent`, the schedule belongs to that already committed Model's lifetime. Direct
+`@Apply → null`, cascade deletion and hard erasure asynchronously cancel it. See
+[parent-owned schedules](./086-parent-owned-schedules.mdx) for explicit `Schedule.withParents(...)`, replacement
+and periodic-continuation semantics. Cancellation cannot recall delivered commands.
 
 You can also schedule commands directly using `scheduleCommand(...)`.
 

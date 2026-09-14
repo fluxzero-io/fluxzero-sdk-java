@@ -53,6 +53,118 @@ import static org.mockito.Mockito.when;
 class GraphTest {
 
     @Test
+    void explicitMissingPreviousDoesNotFallBackToEntityHistory() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root value = new Root(new RootId("creation"), "created");
+        Entity<Root> current = entity(value.id(), Root.class, value);
+        Entity<Root> emptyBeforeCreation = entity(value.id(), Root.class, null);
+        when(current.previous()).thenReturn(emptyBeforeCreation);
+
+        Graph<Root> graph = Graphs.withPrevious(Graphs.lazy(current, 42L, repository), null);
+
+        assertNull(graph.previous());
+        assertEquals(List.of(graph), graph.revisions().toList());
+        verify(current, never()).previous();
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void derivedViewsRetainExplicitMissingPrevious() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root value = new Root(new RootId("creation-views"), "created");
+        Entity<Root> current = entity(value.id(), Root.class, value);
+        Entity<Root> emptyBeforeCreation = entity(value.id(), Root.class, null);
+        when(current.previous()).thenReturn(emptyBeforeCreation);
+        Graph<Root> graph = Graphs.withPrevious(Graphs.compose(
+                value.id().toString(), 42L, Map.of(value.id().toString(), current), List.of(), repository, false), null);
+
+        for (Graph<Root> view : List.of(graph, Graphs.mapValues(graph, Graph::get),
+                Graphs.remapPaths(graph, Map.of("children", "items")), Graphs.withContext(graph, List.of("context")),
+                Graphs.filterBranches(graph, ignored -> true), Graphs.selectPaths(graph, List.of("children")))) {
+            assertNull(view.previous());
+        }
+        verify(current, never()).previous();
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void explicitPreviousBoundaryDoesNotInventHistoryForAnAddedChild() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("membership-history"), "root");
+        Child childValue = new Child(new ChildId("membership-history"), rootValue.id(), "child");
+        Child unrelatedValue = new Child(new ChildId("alias-collision"), rootValue.id(), "unrelated");
+        Entity<Root> root = entity(rootValue.id(), Root.class, rootValue);
+        Entity<Child> child = entity(childValue.id(), Child.class, childValue);
+        Entity<Child> unrelated = entity(unrelatedValue.id(), Child.class, unrelatedValue,
+                List.of(childValue.id().toString()));
+        Entity<Child> emptyBeforeCreation = entity(childValue.id(), Child.class, null);
+        when(child.previous()).thenReturn(emptyBeforeCreation);
+        Graph<Root> before = Graphs.compose(rootValue.id().toString(), 41L,
+                Map.of(rootValue.id().toString(), root, unrelatedValue.id().toString(), unrelated),
+                List.of(new ModelGraphEdge(unrelatedValue.id().toString(), rootValue.id().toString(),
+                        Root.class.getName(), "children", 0L, null, false)), repository, false);
+        Graph<Root> current = Graphs.compose(rootValue.id().toString(), 42L,
+                Map.of(rootValue.id().toString(), root, childValue.id().toString(), child),
+                List.of(new ModelGraphEdge(childValue.id().toString(), rootValue.id().toString(),
+                        Root.class.getName(), "children", 0L, null, false)), repository, false);
+
+        Graph<Root> changed = Graphs.withPrevious(current, before);
+
+        assertSame(before, changed.previous());
+        assertNull(changed.children(Child.class).getFirst().previous());
+        verify(child, never()).previous();
+        verify(unrelated, never()).aliases();
+        verifyNoInteractions(repository);
+    }
+
+    @Test
+    void lazyExpansionRetainsExplicitMissingPrevious() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("lazy-creation"), "root");
+        Child childValue = new Child(new ChildId("lazy-creation"), rootValue.id(), "child");
+        Entity<Root> root = entity(rootValue.id(), Root.class, rootValue);
+        Entity<Child> child = entity(childValue.id(), Child.class, childValue);
+        Entity<Root> emptyRoot = entity(rootValue.id(), Root.class, null);
+        Entity<Child> emptyChild = entity(childValue.id(), Child.class, null);
+        when(root.previous()).thenReturn(emptyRoot);
+        when(child.previous()).thenReturn(emptyChild);
+        Graph<Root> complete = Graphs.compose(rootValue.id().toString(), 42L,
+                Map.of(rootValue.id().toString(), root, childValue.id().toString(), child),
+                List.of(new ModelGraphEdge(childValue.id().toString(), rootValue.id().toString(),
+                        Root.class.getName(), "children", 0L, null, false)), repository, false);
+        when(repository.loadGraph(rootValue.id().toString(), Root.class,
+                ModelReadBoundary.current(), Graph.Options.DEFAULT)).thenReturn(complete);
+        Graph<Root> changed = Graphs.withPrevious(Graphs.lazy(root, 42L, repository), null);
+
+        assertNull(changed.children().getFirst().previous());
+        assertNull(changed.children(Child.class).getFirst().root().previous());
+        assertNull(Graphs.filterBranches(changed, ignored -> true).previous());
+        assertNull(Graphs.selectPaths(changed, List.of("children")).children().getFirst().previous());
+        verify(root, never()).previous();
+        verify(child, never()).previous();
+    }
+
+    @Test
+    void changingOrLoadingAnotherRevisionDoesNotInheritTheChangeBoundary() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root value = new Root(new RootId("new-revision"), "created");
+        Root next = new Root(value.id(), "updated");
+        Entity<Root> current = entity(value.id(), Root.class, value);
+        Entity<Root> updated = entity(value.id(), Root.class, next);
+        Object event = new Object();
+        when(current.apply(event)).thenReturn(updated);
+        when(updated.previous()).thenReturn(current);
+        Graph<Root> historical = Graphs.lazy(updated, 43L, repository);
+        when(repository.loadGraphAt(value.id().toString(), Root.class, 43L, Graph.Options.DEFAULT))
+                .thenReturn(historical);
+        Graph<Root> changed = Graphs.withPrevious(Graphs.lazy(current, 42L, repository), null);
+
+        assertNull(changed.previous());
+        assertEquals(value, changed.apply(event).previous().get());
+        assertEquals(value, changed.atStateIndex(43L).previous().get());
+    }
+
+    @Test
     void valueAndHistoryOperationsDoNotMaterializeRelationships() {
         ModelRepository repository = mock(ModelRepository.class);
         @SuppressWarnings("unchecked")

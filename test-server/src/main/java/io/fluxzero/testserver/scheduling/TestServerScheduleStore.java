@@ -32,6 +32,7 @@ import lombok.experimental.Delegate;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
 
@@ -58,6 +59,15 @@ public class TestServerScheduleStore implements MessageStore, SchedulingClient {
             Arrays.stream(schedules).mapToLong(SerializedSchedule::getTimestamp).filter(t -> t > now)
                     .map(IndexUtils::indexFromMillis).findFirst().ifPresent(this::rescheduleNextDeadline);
         }
+    }
+
+    @Override
+    public synchronized CompletableFuture<Void> scheduleBoundToParents(
+            Guarantee guarantee, Map<String, Long> parents, SerializedSchedule... schedules) {
+        return delegate.scheduleBoundToParents(guarantee, parents, schedules).thenRun(() ->
+                Arrays.stream(schedules).mapToLong(SerializedSchedule::getTimestamp)
+                        .filter(t -> t > Fluxzero.currentClock().millis())
+                        .map(IndexUtils::indexFromMillis).min().ifPresent(this::rescheduleNextDeadline));
     }
 
     @Override
