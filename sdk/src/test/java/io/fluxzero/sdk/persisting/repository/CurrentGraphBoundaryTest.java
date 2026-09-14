@@ -15,11 +15,15 @@
  */
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -33,6 +37,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
@@ -44,6 +49,92 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CurrentGraphBoundaryTest {
+    @ParameterizedTest
+    @EnumSource(value = ModelConflictPolicy.class, names = {"ACCEPT", "FAIL", "RETRY"})
+    void nextCommandObservesAnotherApplicationsCommitDuringTheReceivedBatch(
+            ModelConflictPolicy policy) throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(policy,
+                        io.fluxzero.sdk.modeling.ModelConflictResolver.retryIfAllowed(), 3).build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try {
+                assertTrue(((DefaultModelRepository) app.modelRepository()).cacheTrackingReadiness()
+                                   .get(5, TimeUnit.SECONDS));
+                commit(app, new CreateRoot("root"));
+                var serializer = new JacksonSerializer();
+                List<DeserializingMessage> received = List.of(
+                        new ObserveRoot("root", 1, List.of()),
+                        new ObserveRoot("root", 1, List.of("child")))
+                        .stream().map(payload -> new DeserializingMessage(
+                                new Message(payload), MessageType.COMMAND, serializer)).toList();
+                app.apply(fc -> {
+                    DeserializingMessage.forEachInBatch(received, message -> {
+                        if (DeserializingMessage.getMessageBatchIndex() == 1) {
+                            // This writer belongs to another repository, not this command's pending overlay.
+                            CompletableFuture.runAsync(() -> commit(writer, new UpsertChild("child", "root")),
+                                    task -> Thread.ofVirtual().name("external-model-writer").start(task))
+                                    .orTimeout(5, TimeUnit.SECONDS).join();
+                        }
+                        fc.executeModelCommit(new Message(message.getPayload())).join();
+                    });
+                    return null;
+                });
+            } finally {
+                client.releaseUpdates.complete(null);
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"version,ACCEPT", "version,RETRY", "version,FAIL",
+                "add,ACCEPT", "add,RETRY", "add,FAIL",
+                "remove,ACCEPT", "remove,RETRY", "remove,FAIL",
+                "reparent,ACCEPT", "reparent,RETRY", "reparent,FAIL"})
+    void receivedBatchDoesNotShareItsFirstCommandsGraphBoundary(
+            String change, ModelConflictPolicy policy) throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(policy,
+                        io.fluxzero.sdk.modeling.ModelConflictResolver.retryIfAllowed(), 3).build(client)) {
+            try {
+                assertTrue(((DefaultModelRepository) app.modelRepository()).cacheTrackingReadiness()
+                                   .get(5, TimeUnit.SECONDS));
+                commit(app, new CreateRoot("root"));
+                commit(app, new CreateRoot("other"));
+                List<Object> before = change.equals("remove") || change.equals("reparent")
+                        ? List.of("child") : List.of();
+                if (!before.isEmpty()) {
+                    commit(app, new UpsertChild("child", "root"));
+                }
+                Object update = switch (change) {
+                    case "version" -> new UpdateRoot("root");
+                    case "add" -> new UpsertChild("child", "root");
+                    case "remove" -> new DeleteChild("child");
+                    default -> new UpsertChild("child", "other");
+                };
+                List<Object> after = change.equals("add") ? List.of("child") : List.of();
+                var serializer = new JacksonSerializer();
+                // All three commands are available before processing starts, but are not one transaction.
+                List<DeserializingMessage> received = List.of(
+                        new ObserveRoot("root", 1, before), update,
+                        new ObserveRoot("root", change.equals("version") ? 2 : 1, after))
+                        .stream().map(payload -> new DeserializingMessage(
+                                new Message(payload), MessageType.COMMAND, serializer)).toList();
+                app.apply(fc -> {
+                    DeserializingMessage.forEachInBatch(received, message -> {
+                        // Completion before the next invocation is intentional: successful writes are
+                        // no longer pending overlays. The later Graph must observe them in storage.
+                        fc.executeModelCommit(new Message(message.getPayload())).join();
+                    });
+                    return null;
+                });
+            } finally {
+                client.releaseUpdates.complete(null);
+            }
+        }
+    }
+
     @Test
     void cachedMissingDocumentMustRecheckANewlyAssignedWritableAlias() throws Exception {
         var client = LocalClient.newInstance();
@@ -298,6 +389,14 @@ class CurrentGraphBoundaryTest {
 
     record UpdateRoot(String rootId) {
         @Apply FreshnessRoot apply(FreshnessRoot root) { return new FreshnessRoot(rootId, root.version() + 1); }
+    }
+
+    record ObserveRoot(String rootId, int version, List<Object> expectedChildren) {
+        @AssertLegal void check(Graph<FreshnessRoot> root) {
+            assertEquals(version, root.get().version());
+            assertEquals(expectedChildren, root.children(FreshnessChild.class).stream().map(Graph::id).toList());
+        }
+        @Apply FreshnessRoot apply(FreshnessRoot root) { return root; }
     }
 
     record RequireMembership(String rootId, List<Object> expected) {
