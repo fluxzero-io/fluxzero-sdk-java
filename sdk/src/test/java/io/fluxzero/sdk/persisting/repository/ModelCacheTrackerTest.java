@@ -35,9 +35,12 @@ import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Duration;
 import java.util.AbstractList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -1263,6 +1266,92 @@ class ModelCacheTrackerTest {
             assertEquals(
                     0, refreshCount.get());
         } finally {
+            cache.close();
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false,false", "true,false,false", "false,true,false", "false,false,true"})
+    void localCommitCanRestoreItsKnownEntryBeforeTheTrackedPageFinishes(
+            boolean newerUpdate, boolean hardDelete, boolean forget) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        var polls = polls(eventStore);
+        ModelCache cache = new ModelCache(new DefaultCache());
+        Entity<?> initial = modelEntity(10L);
+        Entity<?> committed = modelEntity(11L);
+        cache.put("sample-1", initial);
+        AtomicInteger refreshCount = new AtomicInteger();
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        List<ModelCommitTargetResult> blockingTargets = new AbstractList<>() {
+            @Override
+            public int size() {
+                return 1;
+            }
+
+            @Override
+            public ModelCommitTargetResult get(int index) {
+                processing.countDown();
+                awaitLatch(proceed);
+                return new ModelCommitTargetResult("unrelated", 0L, true);
+            }
+        };
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            refreshCount.incrementAndGet();
+            return new ModelCacheTracker.RefreshedBatch(boundary, Map.of("sample-1", modelEntity(boundary)));
+        })) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            var page = awaitNext(polls);
+            assertSame(initial, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            Runnable completeLocalCommit = tracker.beginLocalCommit(List.of("sample-1"));
+            List<ModelUpdate> updates = new ArrayList<>(List.of(
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "local", 0, 11L, null,
+                                    List.of(new ModelCommitTargetResult("sample-1", 1L, true))),
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "unrelated", 0, 12L, null, blockingTargets)));
+            if (newerUpdate || hardDelete) {
+                updates.add(new ModelUpdate(hardDelete ? ModelUpdateKind.HARD_DELETE : ModelUpdateKind.COMMIT,
+                                            "later", 0, 13L, null,
+                                            hardDelete ? List.of()
+                                                    : List.of(new ModelCommitTargetResult("sample-1", 2L, true))));
+            }
+            long pageBoundary = newerUpdate || hardDelete ? 13L : 12L;
+            page.complete(new TrackModelUpdatesResult(1L, pageBoundary, pageBoundary, pageBoundary, updates));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+
+            // The tracker already marked this local target stale, but has not finished the unrelated target.
+            cache.put("sample-1", committed);
+            if (forget) {
+                tracker.forget("sample-1");
+            }
+            tracker.committed("sample-1", SampleModel.class, 11L);
+            completeLocalCommit.run();
+            if (hardDelete || forget) {
+                assertNull(tracker.currentVersion("sample-1", SampleModel.class));
+            } else {
+                var current = tracker.currentVersion("sample-1", SampleModel.class);
+                assertNotNull(current, "An authoritative local revision must not wait for an unrelated page suffix");
+                assertSame(committed, current.entity());
+                assertEquals(11L, current.modelStateIndex());
+            }
+            assertEquals(0, refreshCount.get());
+
+            proceed.countDown();
+            awaitNext(polls);
+            if (hardDelete || forget) {
+                assertNull(tracker.currentVersion("sample-1", SampleModel.class));
+                if (hardDelete) {
+                    assertNull(cache.get("sample-1"));
+                }
+            } else if (newerUpdate) {
+                assertEquals(13L, ((io.fluxzero.sdk.modeling.ModelRoot<?>)
+                        awaitCurrent(tracker, "sample-1", SampleModel.class)).stateIndex());
+                assertTrue(refreshCount.get() > 0);
+            } else {
+                assertSame(committed, tracker.current("sample-1", SampleModel.class));
+                assertEquals(0, refreshCount.get());
+            }
+        } finally {
+            proceed.countDown();
             cache.close();
         }
     }

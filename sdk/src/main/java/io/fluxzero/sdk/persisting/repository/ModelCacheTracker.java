@@ -328,7 +328,7 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     void loaded(String modelId, Class<?> modelType, long readStateIndex, ModelCache.Stamp stamp) {
-        publish(modelId, modelType, readStateIndex, true, null, stamp);
+        publish(modelId, modelType, readStateIndex, true, null, stamp, false);
     }
 
     private Entry publish(
@@ -336,7 +336,7 @@ final class ModelCacheTracker implements AutoCloseable {
             Class<?> modelType,
             long readStateIndex,
             boolean requireGlobalBoundary) {
-        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, null, cache.stamp(modelId));
+        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, null, cache.stamp(modelId), false);
     }
 
     private Entry publish(
@@ -345,11 +345,12 @@ final class ModelCacheTracker implements AutoCloseable {
             long readStateIndex,
             boolean requireGlobalBoundary,
             Entry expectedEntry) {
-        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, expectedEntry, cache.stamp(modelId));
+        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, expectedEntry,
+                       cache.stamp(modelId), false);
     }
 
     private Entry publish(String modelId, Class<?> modelType, long readStateIndex, boolean requireGlobalBoundary,
-                          Entry expectedEntry, ModelCache.Stamp stamp) {
+                          Entry expectedEntry, ModelCache.Stamp stamp, boolean localCommit) {
         if (closed.get() || unsupported || !cache.isCurrent(stamp)) {
             return null;
         }
@@ -371,7 +372,7 @@ final class ModelCacheTracker implements AutoCloseable {
                                 modelId,
                                 modelType,
                                 readStateIndex,
-                                requireGlobalBoundary, expectedEntry, stamp);
+                                requireGlobalBoundary, expectedEntry, stamp, localCommit);
                     }
                 });
             }
@@ -380,12 +381,17 @@ final class ModelCacheTracker implements AutoCloseable {
         boolean created = false;
         Entry entry;
         synchronized (publicationMonitor) {
+            entry = expectedEntry == null ? entries.get(modelId) : expectedEntry;
             CompletableFuture<Void> page = processingPage;
-            if (page != null && !page.isDone()) {
-                // An absent entry may already have missed its target in this page. It cannot inherit that cursor.
+            if (page != null && !page.isDone()
+                && !(localCommit && entry != null && entry.loaded && !entry.retired
+                     && entry.pendingLocalCommits.get() > 0
+                     && readStateIndex >= entry.latestUpdate && readStateIndex >= entry.latestLocalCommit)) {
+                // New entries may have missed an earlier target in this page. Only an already loaded entry's
+                // authoritative local commit can advance here: visited newer updates remain fenced below, and
+                // unvisited updates will still reach that same entry before the page publishes its cursor.
                 return null;
             }
-            entry = expectedEntry == null ? entries.get(modelId) : expectedEntry;
             if (entry == null) {
                 Entry candidate = new Entry();
                 // Preserve this admission floor through refreshes while document materialization lags.
@@ -408,6 +414,9 @@ final class ModelCacheTracker implements AutoCloseable {
                     Math.max(
                             entry.validThrough,
                             readStateIndex);
+            if (localCommit) {
+                entry.latestLocalCommit = Math.max(entry.latestLocalCommit, readStateIndex);
+            }
             entry.stale =
                     entry.latestUpdate > readStateIndex
                     || entry.latestLocalCommit > readStateIndex
@@ -475,13 +484,9 @@ final class ModelCacheTracker implements AutoCloseable {
                 }
             }
         }
-        Entry entry = publish(
+        publish(
                 modelId, modelType,
-                stateIndex, false, null, stamp);
-        if (entry != null) {
-            entry.latestLocalCommit = Math.max(
-                    entry.latestLocalCommit, stateIndex);
-        }
+                stateIndex, false, null, stamp, true);
     }
 
     /**
@@ -966,7 +971,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 targets.forEach((modelId, modelType) -> {
                     Entry expected = targetEntries.get(modelId);
                     if (publish(modelId, modelType, refreshed.readStateIndex(), false, expected,
-                                tokens.get(modelId).published()) == null) {
+                                tokens.get(modelId).published(), false) == null) {
                         // A successful read can lose its publication race. Readers waiting on this attempt must
                         // still be released to take the ordinary cache-miss path.
                         CompletableFuture<Void> waiter;
