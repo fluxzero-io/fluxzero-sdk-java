@@ -64,8 +64,7 @@ data class CreateUser(
 ) {
     @AssertTrue(message = "Username must not be the same as email")
     fun isUsernameValid(): Boolean {
-        // NOTE: Null-checks are not needed here; Fluxzero ensures @NotBlank/@NotNull 
-        // fields in details are validated before this method is even called.
+        // Pure method: normal payload validation retains required-field failures.
         return details.username != details.email
     }
 }
@@ -85,6 +84,35 @@ data class CreateUser(@field:NotBlank val userId: String) {
 
 If a constrained method declares parameters that cannot be resolved for the current validation run, Fluxzero skips that
 method instead of failing validation. Keep always-required checks on fields or no-argument constraint methods.
+
+### Fields before method constraints
+
+The default Fluxzero payload validator checks field constraints, including container-element constraints and
+field-based `@Valid` cascades, before the containing object's method constraints. Pure constraint methods may
+dereference values required by active field constraints without repeating null guards. For example:
+
+```kotlin
+data class ConfigureReminder(@field:NotNull val delay: Duration) {
+    @AssertTrue(message = "Choose a non-negative delay.")
+    fun hasNonNegativeDelay(): Boolean = !delay.isNegative
+}
+```
+
+For collections, require both the container and its elements, for example
+`@field:NotNull @field:Valid val reminders: List<@NotNull ReminderDetails>` (emit JVM type annotations with `-Xemit-jvm-type-annotations`). `@Valid` checks a present nested value; it does not
+make a missing value or element invalid. Use `@NotNull` or the appropriate field constraint separately.
+Optional values still need a null-aware rule. Conditionally required values need a combination rule.
+
+This applies to automatic payload validation and `assertValid`/`checkValidity`/`isValid` with the default validator.
+It is not a promise that a method is never called for invalid input: after finding field failures, the validator may
+try method constraints again to collect additional violations, suppressing failures from that diagnostic pass.
+Keep constraint methods pure. The raw `getConstraintViolations`/Jakarta `validate` APIs do not suppress such method
+exceptions; use the normal payload-validation API for this contract.
+
+Only constraints in the active groups and reached through enabled cascades establish these preconditions.
+A requirement in a later group-sequence stage cannot protect a method in an earlier stage. Method-level
+`@Valid` return values are not prevalidated fields. A replacement validator owns its own ordering and failure behavior.
+
 
 ### @ValidateWith
 
