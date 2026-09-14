@@ -59,6 +59,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         super(EVENT, messageExpiration);
     }
 
+    /** Clears aggregate events, relationships and the published event log. */
+    public synchronized void clearData() {
+        appliedEvents.clear();
+        relationships.clear();
+        super.truncate();
+    }
+
     @Override
     public CompletableFuture<Void> storeEvents(String aggregateId, List<SerializedMessage> events, boolean storeOnly,
                                                Guarantee guarantee) {

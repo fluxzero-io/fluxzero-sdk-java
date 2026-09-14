@@ -230,7 +230,7 @@ public class TestServer {
         router = deploy(namespace -> new SchedulingEndpoint(state.client(namespace).getSchedulingClient(),
                                                             commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", schedulingPath()), router);
-        router = deploy(namespace -> new ConsumerEndpoint((MessageStore) state.client(namespace).getSchedulingClient(), SCHEDULE,
+        router = deploy(namespace -> new ConsumerEndpoint(state.scheduleMaintenance(namespace), SCHEDULE,
                                                           commandIdempotencyStore)
                                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)),
                         format("/%s/", trackingPath(SCHEDULE)), router);
@@ -242,6 +242,8 @@ public class TestServer {
             throw new IllegalStateException("Failed to start Fluxzero test server on port " + port, e);
         }
 
+        server.setAttribute(ServerState.class.getName(), state);
+        server.setAttribute(CommandIdempotencyStore.class.getName(), commandIdempotencyStore);
         int localPort = getLocalPort(server, port);
         AtomicBoolean commandIdempotencyStoreClosed = new AtomicBoolean();
         registerRuntimeLifecycle(server, localPort, commandIdempotencyStore, commandIdempotencyStoreClosed,
@@ -327,11 +329,35 @@ public class TestServer {
         }
     }
 
+    /**
+     * Truncates all stored Testserver data without stopping the server or closing its connections.
+     * Clears message logs, consumer positions, documents, aggregate histories and relationships, schedules,
+     * key-values and cached command results across all namespaces and custom topics. Active writers may
+     * immediately create new data; this is not a transaction across stores. Client-side application caches
+     * and external databases are outside the Testserver and are not affected.
+     *
+     * @param server the running server returned by {@link #startServer(int)}
+     * @throws IllegalArgumentException if the server is not a running TestServer instance
+     */
+    public static void truncateData(Server server) {
+        if (server == null || !server.isStarted()
+            || !(server.getAttribute(ServerState.class.getName()) instanceof ServerState state)) {
+            throw new IllegalArgumentException("A running TestServer instance is required");
+        }
+        // Event sourcing can publish events before any gateway or tracking endpoint has been opened.
+        state.clients.forEach(client -> state.messageLogs.add(
+                ((LocalTrackingClient) client.getTrackingClient(EVENT)).getMessageLogMaintenance()));
+        List.copyOf(state.messageLogs).forEach(log -> log.truncate().join());
+        state.clients.forEach(client -> ((TestServerProject) client).clearData());
+        ((CommandIdempotencyStore) server.getAttribute(CommandIdempotencyStore.class.getName())).clearResults();
+    }
+
     static MessageStore getMetricsMessageStore(String namespace) {
         return latestState.getMessageStore(namespace, METRICS);
     }
 
     private static class ServerState {
+        private final Set<MessageLogMaintenance> messageLogs = ConcurrentHashMap.newKeySet();
         private final MemoizingFunction<String, Client> clients;
         private final MemoizingFunction<String, MetricsLog> metricsLogSupplier;
 
@@ -352,6 +378,15 @@ public class TestServer {
             return metricsLogSupplier.apply(namespace);
         }
 
+        private MessageLogMaintenance scheduleMaintenance(String namespace) {
+            var store = (MessageStore) client(namespace).getSchedulingClient();
+            var positions = new io.fluxzero.common.tracking.InMemoryPositionStore();
+            var result = new MessageLogMaintenance(store, positions,
+                    new io.fluxzero.common.tracking.DefaultTrackingStrategy(store, positions));
+            messageLogs.add(result);
+            return result;
+        }
+
         private MessageStore getMessageStore(String namespace, MessageType messageType) {
             return getMessageStore(namespace, messageType, null);
         }
@@ -368,7 +403,9 @@ public class TestServer {
                                                                String topic) {
             var client = client(namespace).getTrackingClient(messageType, topic);
             if (client instanceof LocalTrackingClient localTrackingClient) {
-                return localTrackingClient.getMessageLogMaintenance();
+                MessageLogMaintenance maintenance = localTrackingClient.getMessageLogMaintenance();
+                messageLogs.add(maintenance);
+                return maintenance;
             }
             if (client instanceof HasMessageStore hasMessageStore) {
                 throw new IllegalStateException("Tracking client with message store has no message log maintenance: "
@@ -418,11 +455,22 @@ public class TestServer {
     static class TestServerProject implements Client {
         @Delegate
         private final LocalClient delegate;
+        private final Set<TestServerScheduleStore> schedules = ConcurrentHashMap.newKeySet();
+
+        void clearData() {
+            ((io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient) delegate.getEventStoreClient())
+                    .getMessageStore().clearData();
+            ((io.fluxzero.sdk.persisting.search.client.InMemorySearchStore) delegate.getSearchClient()).clearData();
+            ((io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore) delegate.getKeyValueClient()).clearData();
+            schedules.forEach(TestServerScheduleStore::truncate);
+        }
 
         @Override
         public SchedulingClient getSchedulingClient() {
-            return new TestServerScheduleStore(
+            var store = new TestServerScheduleStore(
                     ((LocalSchedulingClient) delegate.getSchedulingClient()).getMessageStore());
+            schedules.add(store);
+            return store;
         }
     }
 

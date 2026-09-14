@@ -99,6 +99,17 @@ public class InMemorySearchStore implements SearchClient {
     @Setter
     private Duration retentionTime;
 
+    /** Clears documents, collection logs and audit trails while retaining registered monitors. */
+    public synchronized void clearData() {
+        var previousCollections = List.copyOf(collections);
+        documents.clear();
+        messageLogs.clear();
+        collections.clear();
+        auditTrails.clear();
+        nextIndex.set(0L);
+        previousCollections.forEach(collection -> notifyMonitors(collection, List.of()));
+    }
+
     @Override
     public List<SearchCollection> getSearchCollections() {
         return collections.stream()

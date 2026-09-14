@@ -6311,3 +6311,16 @@ site on release.
 ## Publishing SDK releases
 
 See [releasing the SDK](docs/releasing.md) for Maven deployment commands and GitHub OIDC publication.
+
+### Truncating local Testserver data
+
+An embedded Testserver can clear all stored data without restarting its process or changing ports:
+
+```java
+TestServer.truncateData(server);
+```
+
+Pass the running server returned by `TestServer.startServer(...)`. This clears message logs, consumer positions,
+documents, aggregate histories and relationships, schedules, key-values and cached command results across namespaces
+and custom topics. Active writers can immediately create new data; the operation is not atomic across stores.
+Application-side caches and external databases are unaffected. Garbage collection is left to the host.

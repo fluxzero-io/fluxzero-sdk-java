@@ -39,6 +39,11 @@ public class InMemoryKeyValueStore implements KeyValueClient {
         values = map;
     }
 
+    /** Clears all stored values while keeping this client usable. */
+    public void clearData() {
+        values.clear();
+    }
+
     @Override
     public CompletableFuture<Void> putValue(String key, Data<byte[]> value, Guarantee guarantee) {
         values.put(key, value);

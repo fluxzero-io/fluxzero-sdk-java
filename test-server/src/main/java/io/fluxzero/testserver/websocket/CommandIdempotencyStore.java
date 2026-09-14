@@ -100,6 +100,14 @@ public class CommandIdempotencyStore implements AutoCloseable {
         }
     }
 
+    /** Discards cached command results while retaining active connection bookkeeping. */
+    public void clearResults() {
+        clients.values().forEach(client -> {
+            client.results.clear();
+            client.completedResults.clear();
+        });
+    }
+
     @Override
     public void close() {
         cleanupScheduler.shutdown();
