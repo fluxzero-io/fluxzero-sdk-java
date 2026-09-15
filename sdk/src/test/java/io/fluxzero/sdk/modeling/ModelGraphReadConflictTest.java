@@ -57,6 +57,261 @@ class ModelGraphReadConflictTest {
     private static final AtomicReference<Graph<Aliased>> absentAliasGraph = new AtomicReference<>();
 
     @ParameterizedTest
+    @CsvSource({"typed,value", "typed,id", "typed,children", "untyped,value", "untyped,id", "current,value"})
+    void missingAliasAssignmentInvalidatesTheRead(String route, String access) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new ChangeAlias("owner", "old", null, "typed"));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt") && once.compareAndSet(false, true)) {
+                    commit(app, new ChangeAlias("owner", "free", "old", "typed"));
+                }
+            };
+            attempts.set(0);
+            var failure = assertThrows(CompletionException.class,
+                    () -> commit(app, new RequireAbsentAlias("receipt", route, access)));
+            assertInstanceOf(IllegalCommandException.class, rootCause(failure));
+            assertEquals(2, attempts.get());
+        }
+    }
+
+    record RequireAbsentAlias(String receiptId, String route, String access) {
+        @AssertLegal void check() {
+            attempts.incrementAndGet();
+            Graph<?> graph = switch (route) {
+                case "untyped" -> Fluxzero.loadGraph("free");
+                case "current" -> Fluxzero.loadCurrentGraph("free", Aliased.class);
+                default -> Fluxzero.loadGraph("free", Aliased.class);
+            };
+            if (access.equals("children")) { graph.children(); }
+            boolean absent = access.equals("id") ? graph.id().equals("free") : graph.get() == null;
+            if (!absent) { throw new IllegalCommandException("Alias is occupied"); }
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) Receipt apply() { return new Receipt(receiptId, 0); }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"remove,value", "remove,id", "remove,children", "remove,current",
+            "reassign,value", "reassign,id", "remove,sequence", "remove,revision", "remove,event", "remove,time"})
+    void positiveAliasSelectionIsProtectedEvenWithoutReadingItsValue(String change, String access) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new ChangeAlias("owner", "selected", null, "typed"));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt") && once.compareAndSet(false, true)) {
+                    assertTrue(request.getReadAliasIds().contains("selected"), request::toString);
+                    commit(app, new ChangeAlias("owner", "old", "selected", "typed"));
+                    if (change.equals("reassign")) {
+                        commit(app, new ChangeAlias("second", "selected", null, "typed"));
+                    }
+                }
+            };
+            attempts.set(0);
+            commit(app, new ObserveAlias("receipt", access));
+            assertEquals(2, attempts.get());
+        }
+    }
+
+    record ObserveAlias(String receiptId, String access) {
+        @AssertLegal void check() {
+            attempts.incrementAndGet();
+            Graph<Aliased> graph = Fluxzero.loadGraph("selected", Aliased.class);
+            switch (access) {
+                case "id" -> graph.id();
+                case "children" -> graph.children();
+                case "current" -> graph.current();
+                case "sequence" -> graph.sequenceNumber();
+                case "revision" -> graph.revisionStateIndex();
+                case "event" -> graph.lastEventId();
+                case "time" -> graph.timestamp();
+                default -> graph.get();
+            }
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) Receipt apply() { return new Receipt(receiptId, 0); }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "true,false", "false,true", "true,true"})
+    void injectedGraphRetainsItsAliasBinding(boolean present, boolean collection) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new ChangeAlias("owner", present ? "selected" : "old", null, "typed"));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt") && once.compareAndSet(false, true)) {
+                    commit(app, new ChangeAlias("owner", present ? "old" : "selected",
+                                                present ? "selected" : "old", "typed"));
+                }
+            };
+            attempts.set(0);
+            commit(app, collection ? new ObserveAliasCollection("receipt", List.of("selected"))
+                    : new ObserveInjectedAlias("receipt", "selected"));
+            assertEquals(2, attempts.get());
+        }
+    }
+    record ObserveInjectedAlias(String receiptId, String aliasId) {
+        @AssertLegal void check(Graph<Aliased> graph) { attempts.incrementAndGet(); graph.get(); }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) Receipt apply() { return new Receipt(receiptId, 0); }
+    }
+    record ObserveAliasCollection(String receiptId, List<String> aliasIds) {
+        @AssertLegal void check(@Association("aliasIds") List<Graph<Aliased>> graphs) {
+            attempts.incrementAndGet();
+            assertEquals(1, graphs.size());
+            graphs.getFirst().get();
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) Receipt apply() { return new Receipt(receiptId, 0); }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void acceptRebasesOnlyApplyAliasReads(boolean applyRead) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.ACCEPT, context -> ModelConflictResolver.Resolution.RETRY,
+                                                3).build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new ChangeAlias("owner", "selected", null, "typed"));
+            commit(app, new RetryReceipt("receipt", 0));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt") && once.compareAndSet(false, true)) {
+                    assertEquals(applyRead, request.getReadAliasIds().contains("selected"));
+                    commit(writer, new ChangeAlias("owner", "old", "selected", "typed"));
+                    commit(writer, new ChangeAlias("second", "selected", null, "typed"));
+                }
+            };
+            attempts.set(0);
+            commit(app, applyRead ? new ApplyAlias("receipt") : new AssertAlias("receipt"));
+            assertEquals(applyRead ? 2 : 1, attempts.get());
+            assertEquals(applyRead ? 2 : 0,
+                    app.apply(fc -> Fluxzero.loadModel("receipt", Receipt.class).get().observed()).intValue());
+        }
+    }
+    record ApplyAlias(String receiptId) {
+        @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT) Receipt apply(@jakarta.annotation.Nullable Receipt existing) {
+            attempts.incrementAndGet();
+            return new Receipt(receiptId, Fluxzero.loadGraph("selected", Aliased.class).id().equals("owner") ? 1 : 2);
+        }
+    }
+    record AssertAlias(String receiptId) {
+        @AssertLegal void check() { attempts.incrementAndGet(); Fluxzero.loadGraph("selected", Aliased.class).id(); }
+        @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT) Receipt apply(@jakarta.annotation.Nullable Receipt existing) {
+            return new Receipt(receiptId, 0);
+        }
+    }
+
+    @Test
+    void canonicalApplyBindingDoesNotInheritANestedAssertionAlias() {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.ACCEPT, context -> ModelConflictResolver.Resolution.RETRY,
+                                                3).build(client)) {
+            commit(app, new ChangeAlias("owner", "selected", null, "typed"));
+            commit(app, new RetryReceipt("receipt", 0));
+            AtomicBoolean checked = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt")) {
+                    assertEquals(ModelConflictPolicy.ACCEPT, request.getConflictPolicy());
+                    assertTrue(request.getReadAliasIds().isEmpty(), request::toString);
+                    checked.set(true);
+                }
+            };
+            commit(app, new CanonicalAfterAliasCheck("receipt", "owner"));
+            assertTrue(checked.get());
+        }
+    }
+    record CanonicalAfterAliasCheck(String receiptId, String aliasId) {
+        @AssertLegal void check() { Fluxzero.assertLegal(new AliasGuard("selected")); }
+        @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT)
+        Receipt apply(Receipt receipt, Aliased canonical) { return new Receipt(receiptId, canonical.alias().length()); }
+    }
+    record AliasGuard(String aliasId) {
+        @AssertLegal void check(Graph<Aliased> graph) { assertEquals("owner", graph.id()); }
+    }
+
+    @Test
+    void injectedAliasReadsSeeTheirOwnStagedRemoval() {
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(new GateClient())) {
+            commit(app, new ChangeAlias("owner", "selected", null, "typed"));
+            commit(app, new RenameAndCheckAlias("owner"));
+        }
+    }
+    record RenameAndCheckAlias(String aliasId) {
+        @AssertLegal void before() { Fluxzero.assertLegal(new AliasExpectation("selected", "owner")); }
+        @Apply Aliased apply(Aliased previous) { return new Aliased(aliasId, "old"); }
+        @AssertLegal(afterHandler = true) void after() { Fluxzero.assertLegal(new AliasExpectation("selected", null)); }
+    }
+    record AliasExpectation(String aliasId, String expected) {
+        @AssertLegal void check(Graph<Aliased> graph) {
+            assertEquals(expected, graph.get() == null ? null : graph.get().aliasId());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void injectedAliasReadsSeeTheirOwnStagedAssignment(boolean previouslyPresent) {
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(new GateClient())) {
+            commit(app, new ChangeAlias("owner", previouslyPresent ? "selected" : "old", null, "typed"));
+            commit(app, new ChangeAlias("second", "other", null, "typed"));
+            commit(app, new ReassignAndCheckAlias(List.of("owner", "second"), previouslyPresent));
+        }
+    }
+    record ReassignAndCheckAlias(List<String> ids, boolean previouslyPresent) {
+        @AssertLegal void before() {
+            Fluxzero.assertLegal(new AliasExpectation("selected", previouslyPresent ? "owner" : null));
+        }
+        @Apply List<Graph<Aliased>> apply(@Association("ids") List<Graph<Aliased>> graphs) {
+            return graphs.stream().map(graph -> graph.update(value -> new Aliased(value.aliasId(),
+                    value.aliasId().equals("second") ? "selected" : "old"))).toList();
+        }
+        @AssertLegal(afterHandler = true) void after() { Fluxzero.assertLegal(new AliasExpectation("selected", "second")); }
+    }
+
+    @Test
+    void injectedAliasCollectionsPreserveIndependentBindingsAfterASwap() {
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(new GateClient())) {
+            commit(app, new ChangeAlias("owner", "alpha", null, "typed"));
+            commit(app, new ChangeAlias("second", "beta", null, "typed"));
+            commit(app, new SwapAndCheckAliases(List.of("owner", "second")));
+        }
+    }
+    record SwapAndCheckAliases(List<String> ids) {
+        @AssertLegal void before() { Fluxzero.assertLegal(new AliasListExpectation(List.of("alpha", "beta"), ids)); }
+        @Apply List<Graph<Aliased>> apply(@Association("ids") List<Graph<Aliased>> graphs) {
+            return graphs.stream().map(graph -> graph.update(value -> new Aliased(value.aliasId(),
+                    value.aliasId().equals("second") ? "alpha" : "beta"))).toList();
+        }
+        @AssertLegal(afterHandler = true) void after() {
+            Fluxzero.assertLegal(new AliasListExpectation(List.of("alpha", "beta"), ids.reversed()));
+        }
+    }
+    record AliasListExpectation(List<String> aliases, List<String> expected) {
+        @AssertLegal void check(@Association("aliases") List<Graph<Aliased>> graphs) {
+            assertEquals(expected, graphs.stream().map(graph -> graph.get().aliasId()).toList());
+        }
+    }
+
+    @Test
+    void injectedDeletedCanonicalIdentityStillShadowsAStagedAlias() {
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(new GateClient())) {
+            commit(app, new ChangeAlias("selected", "other", null, "typed"));
+            commit(app, new ChangeAlias("selected", null, "other", "typed"));
+            commit(app, new ChangeAlias("owner", "old", null, "typed"));
+            commit(app, new CheckDeletedCanonical("owner"));
+        }
+    }
+    record CheckDeletedCanonical(String aliasId) {
+        @AssertLegal void before() { Fluxzero.assertLegal(new AliasExpectation("selected", null)); }
+        @Apply Aliased apply(Aliased previous) { return new Aliased(aliasId, "selected"); }
+        @AssertLegal(afterHandler = true) void after() {
+            assertNull(Fluxzero.loadGraph("selected", Aliased.class).get());
+            Fluxzero.assertLegal(new AliasExpectation("selected", null));
+        }
+    }
+
+    @ParameterizedTest
     @CsvSource({"0,false", "0,true", "1,false", "1,true", "2,false", "2,true"})
     void currentKeepsExactMissingIdentityWhenAnAliasIsAssigned(int readOrder, boolean committed) {
         try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(new GateClient())) {

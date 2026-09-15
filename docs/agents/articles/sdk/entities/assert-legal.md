@@ -94,7 +94,9 @@ freshness request or retry is made merely to see whether newer state might permi
 Outside mutations, ordinary Model-event reads use the event's boundary; explicit current Graph reads open a fresh
 storage-verified view. Inside mutations, current shortcuts never create a second snapshot. Do not hand detached
 Graphs from a separate query or earlier operation to an invariant and assume their old reads become protected.
-Canonical Model IDs are the invariant binding; alias lookups do not add transaction-level alias-mapping protection.
+Consumed Graph alias lookups also protect the selected mapping (including absence), canonical-ID precedence and
+the selected owner's head. This includes `id()` and relation-only access. Exact-ID reads do not depend on aliases;
+merely creating an unused Graph does not add a lookup dependency. `ACCEPT` retains only apply-time dependencies.
 
 SDK rc.13 and earlier do not attach manual Graph loads or separately invoked assertion helpers to the active
 readset; use direct injection there. The corrected behavior above applies after that fix. Reproduce invariants with

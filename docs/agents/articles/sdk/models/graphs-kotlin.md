@@ -218,8 +218,10 @@ retain their existing loading behavior and cannot promise unknown-type-safe sele
 
 The default repository resolves lazy root aliases from head metadata without replay. Initial lookup uses the
 current alias table even for historical Model reads; the selected canonical ID or absence then remains fixed
-with the value/relationship boundary. Alias reassignment cannot redirect that Graph. This does not add
-transaction-level alias-mapping conflict detection. Root lookup errors are not empty child collections.
+with the value/relationship boundary. Alias reassignment cannot redirect that Graph. Inside a Model mutation,
+consumed alias lookups also participate in commit conflict detection, including absent aliases, `id()` and
+relation-only access. Exact-ID reads remain independent of alias mappings. Root lookup errors are not empty child
+collections. This does not add historical alias reconstruction; the initial lookup still uses the current mapping.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 

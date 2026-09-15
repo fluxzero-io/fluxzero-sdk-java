@@ -1013,10 +1013,16 @@ final class ModelReplayCursor {
         List<MutationPlan.ResolvedModel> canonicalTargets =
                 new ArrayList<>(resolution.models().size());
         boolean aliasesResolved = false;
+        Map<String, String> aliasReads = null;
         for (MutationPlan.ResolvedModel target : resolution.models()) {
             Entity<?> entity = loaded.get(target.modelId());
             String resolvedId = entity != null && entity.isPresent() && entity.id() != null
                     ? entity.id().toString() : target.modelId();
+            if (!target.access().writes() && (!resolvedId.equals(target.modelId())
+                    || entity != null && entity.isEmpty() && EntityMetadata.of(target.modelType()).hasAliases())) {
+                if (aliasReads == null) { aliasReads = new LinkedHashMap<>(); }
+                aliasReads.put(target.modelId(), resolvedId);
+            }
             if (!resolvedId.equals(target.modelId())) {
                 if (target.access().writes()) {
                     throw new EventSourcingException(
@@ -1055,7 +1061,8 @@ final class ModelReplayCursor {
                 }
             }
         }
-        return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads);
+        return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads)
+                .withAliasResolutions(aliasReads == null ? Map.of() : aliasReads);
     }
 
     private static final class IncompleteDocumentBoundaryException

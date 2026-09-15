@@ -83,8 +83,10 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  *
  * Metadata-first child selection does not reconstruct selected child values. The default repository also resolves
  * lazy root aliases from head metadata without replay. Initial alias lookup uses the current alias table, including
- * for historical reads; the resulting identity (or absence), values and relationships then stay pinned. This does not
- * introduce transaction-level alias-mapping conflict detection. Custom repositories may retain value-based lookup.
+ * for historical reads; the resulting identity (or absence), values and relationships then stay pinned. Consumed
+ * alias lookups inside a Model mutation also participate in commit conflict detection, including missing aliases
+ * and metadata-only navigation. Exact-ID reads do not acquire alias dependencies. Custom repositories may retain
+ * value-based lookup.
  * Remote alias navigation requires a Runtime transport that preserves canonical IDs in alias heads.
  *
  * @param <T> model value type at the current graph placement

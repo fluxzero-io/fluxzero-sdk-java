@@ -24,6 +24,8 @@ For SDK v2 Models, start with plain `@Model`: [design cohesive details and state
 For concurrent invariants, distinguish [read boundaries and commit dependencies](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx#model-read-boundaries):
 manual Graph reads inside a Model mutation share its snapshot and readset; event reads, explicit current reads outside
 mutations and document search have different guarantees.
+Consumed Graph alias lookups also protect alias assignment/removal and canonical-ID precedence at commit;
+exact-ID reads remain independent of aliases.
 
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,

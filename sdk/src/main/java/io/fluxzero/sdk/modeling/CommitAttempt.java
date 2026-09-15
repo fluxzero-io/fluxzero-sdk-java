@@ -47,6 +47,8 @@ public final class CommitAttempt {
     private volatile CommitAttempt activeGraphInvocation;
     private List<GraphReadProof> graphCaptures;
     private ModelAncestorResolver.AncestorReads ancestorReads;
+    private Map<String, String> aliasResolutions = Map.of();
+    private Map<String, String> aliasSelections = Map.of();
     private CommitAttempt graphReadOwner;
     private ModelReducer.SubstepResolver readResolver;
     private Map<String, Class<?>> graphReadTypes;
@@ -55,6 +57,10 @@ public final class CommitAttempt {
     private Set<String> graphApplyReads;
     private Set<ModelRelationshipRead> graphRelationships;
     private Set<ModelRelationshipRead> graphApplyRelationships;
+    private Set<String> graphAliases;
+    private Set<String> graphApplyAliases;
+    private Set<String> graphAliasHeads;
+    private Set<String> graphApplyAliasHeads;
     private long graphReadGeneration;
 
     void resetGraphReads() {
@@ -64,6 +70,7 @@ public final class CommitAttempt {
         graphApplyReads = null;
         graphRelationships = null;
         graphApplyRelationships = null;
+        graphAliases = graphApplyAliases = graphAliasHeads = graphApplyAliasHeads = null;
     }
 
     void readResolver(ModelReducer.SubstepResolver resolver) {
@@ -126,6 +133,29 @@ public final class CommitAttempt {
         return ancestorReads;
     }
 
+    /** Retains the lookup names that resolved injected read-only targets, including unresolved aliases. */
+    public CommitAttempt withAliasResolutions(Map<String, String> aliases) {
+        aliasResolutions = Map.copyOf(aliases);
+        aliasSelections = aliasResolutions;
+        return this;
+    }
+
+    /** Internal loading provenance, separate from the canonically keyed loaded Models. */
+    public Map<String, String> aliasResolutions() { return aliasResolutions; }
+
+    GraphReadProof injectedAliasReadProof(String modelId) {
+        if (graphReadOwner == null || aliasResolutions.isEmpty()) { return null; }
+        GraphReadProof proof = null;
+        for (var entry : aliasResolutions.entrySet()) {
+            if (aliasSelections.get(entry.getKey()).equals(modelId)) {
+                if (proof == null) { proof = new GraphReadProof(graphReadOwner); }
+                proof.aliases.add(new AliasRead(entry.getKey(), entry.getValue()));
+                if (!entry.getValue().equals(modelId)) { proof.aliases.add(new AliasRead(entry.getKey(), modelId)); }
+            }
+        }
+        return proof;
+    }
+
     void recordAncestorReads(boolean apply) {
         if (ancestorReads == null || graphReadOwner == null) {
             return;
@@ -180,7 +210,9 @@ public final class CommitAttempt {
             throw graph.node().data().unknownType();
         }
         replayGraphReads(graph, graph.context().readProof());
-        recordGraphValue(context, graph.node().data().id(), graph.node().data().type());
+        String modelId = graph.node().data().id();
+        graphAliasRead(graph);
+        recordGraphValue(context, modelId, graph.node().data().type());
         // Keep the already loaded revision, not just its identity. A dynamic @Apply result may
         // promote this read to a write; treating it as a new model loses its expected sequence.
         if (graph.node().data().entityResolved) {
@@ -248,7 +280,72 @@ public final class CommitAttempt {
             return;
         }
         replayGraphReads(graph, graph.context().readProof());
+        graphAliasRead(graph);
         recordGraphRelationship(context, new ModelRelationshipRead(graph.id().toString(), direction, path));
+    }
+
+    static void graphAliasRead(GraphView<?> graph) {
+        replayGraphReads(graph, graph.context().readProof());
+        if (!graph.state().hasAliasReads()) { return; }
+        CommitAttempt context = graphReadContext(graph);
+        if (context != null) {
+            graph.state().readAliases((alias, owner) -> recordGraphAlias(context, alias, owner));
+        }
+    }
+
+    static GraphReadProof aliasReadProof(GraphView<?> graph) {
+        GraphReadProof retained = graph.context().readProof();
+        if (!graph.state().hasAliasReads() && retained == null) { return null; }
+        CommitAttempt context = graphReadContext(graph);
+        if (context == null) { return null; }
+        if (!graph.state().hasAliasReads()) { return retained; }
+        GraphReadProof proof = new GraphReadProof(context.graphReadOwner);
+        graph.state().readAliases((alias, owner) -> {
+            proof.aliases.add(new AliasRead(alias, owner));
+            recordGraphAlias(context, alias, owner);
+        });
+        return mergeGraphReads(retained, proof);
+    }
+
+    static GraphReadProof mergeGraphReads(GraphReadProof first, GraphReadProof second) {
+        if (first == null || first == second) { return second; }
+        if (second == null) { return first; }
+        if (first.owner != second.owner || first.generation != second.generation) {
+            throw new IllegalStateException("Cannot combine Graph reads from different commit attempts");
+        }
+        GraphReadProof result = new GraphReadProof(first.owner);
+        result.values.putAll(first.values);
+        result.values.putAll(second.values);
+        result.relationships.addAll(first.relationships);
+        result.relationships.addAll(second.relationships);
+        result.aliases.addAll(first.aliases);
+        result.aliases.addAll(second.aliases);
+        return result;
+    }
+
+    private static void recordGraphAlias(CommitAttempt context, String alias, String resolvedId) {
+        CommitAttempt owner = context.graphReadOwner;
+        synchronized (owner) {
+            if (owner.graphAliases == null) {
+                owner.graphAliases = new LinkedHashSet<>();
+                owner.graphApplyAliases = new LinkedHashSet<>();
+                owner.graphAliasHeads = new LinkedHashSet<>();
+                owner.graphApplyAliasHeads = new LinkedHashSet<>();
+            }
+            owner.graphAliases.add(alias);
+            owner.graphAliasHeads.add(alias);
+            owner.graphAliasHeads.add(resolvedId);
+            if (context.readCollector != null) {
+                owner.graphApplyAliases.add(alias);
+                owner.graphApplyAliasHeads.add(alias);
+                owner.graphApplyAliasHeads.add(resolvedId);
+            }
+            if (owner.graphCaptures != null) {
+                for (GraphReadProof capture : owner.graphCaptures) {
+                    capture.aliases.add(new AliasRead(alias, resolvedId));
+                }
+            }
+        }
     }
 
     private static void recordGraphRelationship(CommitAttempt context, ModelRelationshipRead read) {
@@ -292,12 +389,15 @@ public final class CommitAttempt {
         private final long generation;
         private final Map<String, Class<?>> values = new LinkedHashMap<>();
         private final Set<ModelRelationshipRead> relationships = new LinkedHashSet<>();
+        private final Set<AliasRead> aliases = new LinkedHashSet<>();
 
         private GraphReadProof(CommitAttempt owner) {
             this.owner = owner;
             generation = owner.graphReadGeneration;
         }
     }
+
+    private record AliasRead(String alias, String owner) {}
 
     static <T> T captureGraphReads(GraphView<?> graph, Supplier<T> action, Consumer<GraphReadProof> result) {
         CommitAttempt context = graphReadContext(graph);
@@ -332,6 +432,7 @@ public final class CommitAttempt {
             synchronized (proof.owner) {
                 proof.values.forEach((id, type) -> recordGraphValue(context, id, type));
                 proof.relationships.forEach(read -> recordGraphRelationship(context, read));
+                proof.aliases.forEach(read -> recordGraphAlias(context, read.alias(), read.owner()));
             }
         }
     }
@@ -369,6 +470,13 @@ public final class CommitAttempt {
         Set<ModelRelationshipRead> reads =
                 ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT
                         ? graphApplyRelationships : graphRelationships;
+        return reads == null ? List.of() : List.copyOf(reads);
+    }
+
+    /** Returns consumed alias lookups, excluding assertion-only lookups for ACCEPT. */
+    public List<String> readAliasIds(ModelConflictPolicy policy) {
+        Set<String> reads = ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT
+                ? graphApplyAliases : graphAliases;
         return reads == null ? List.of() : List.copyOf(reads);
     }
 
@@ -530,6 +638,12 @@ public final class CommitAttempt {
         return entities.get(modelId);
     }
 
+    /** Resolves a read binding without weakening the exact identity contract of entity(String). */
+    Entity<?> resolveRead(String modelId) {
+        return aliasSelections.isEmpty() ? entity(modelId)
+                : recordRead(entities.get(aliasSelections.getOrDefault(modelId, modelId)));
+    }
+
     public Map<String, Entity<?>> entities() {
         if (readCollector != null) {
             readCollector.addAll(entities.keySet());
@@ -589,6 +703,14 @@ public final class CommitAttempt {
     private Entity<?> recordRead(Entity<?> entity) {
         if (readCollector != null && entity != null) {
             readCollector.add(entity.id().toString());
+        }
+        if (graphReadOwner != null && entity != null && !aliasResolutions.isEmpty()) {
+            aliasResolutions.forEach((alias, owner) -> {
+                if (aliasSelections.get(alias).equals(entity.id().toString())) {
+                    recordGraphAlias(this, alias, owner);
+                    if (!owner.equals(entity.id().toString())) { recordGraphAlias(this, alias, entity.id().toString()); }
+                }
+            });
         }
         return entity;
     }
@@ -663,7 +785,62 @@ public final class CommitAttempt {
             result.graphOverlayEntities = immutable(graphUpdated);
         }
         result.ancestorReads = ancestorReads;
+        result.aliasResolutions = aliasResolutions;
+        result.aliasSelections = aliasSelections;
+        result.overlayAliasSelections(values);
         return result;
+    }
+
+    /** Keep durable lookup proof while rebinding reads to aliases changed by earlier local substeps. */
+    private void overlayAliasSelections(Map<String, Object> values) {
+        if (aliasResolutions.isEmpty()) { return; }
+        LinkedHashMap<String, Entity<?>> available = new LinkedHashMap<>(graphEntities());
+        List<MutationPlan.ResolvedModel> targets = new ArrayList<>(resolution.models());
+        Map<String, String> selections = new LinkedHashMap<>(aliasSelections);
+        for (var binding : aliasResolutions.entrySet()) {
+            String alias = binding.getKey();
+            String selectedId = aliasSelections.get(alias);
+            Entity<?> exact = entities.get(alias);
+            if (alias.equals(binding.getValue()) && exact != null && exact.sequenceNumber() >= 0L) { continue; }
+            for (int i = 0; i < targets.size(); i++) {
+                MutationPlan.ResolvedModel target = resolution.models().get(i);
+                if (!target.modelId().equals(selectedId) || target.access().writes()) { continue; }
+                Entity<?> selected = null;
+                EntityMetadata metadata = EntityMetadata.of(target.modelType());
+                for (var staged : values.entrySet()) {
+                    if (staged.getValue() != null && target.modelType().isInstance(staged.getValue())
+                        && (staged.getKey().equals(alias) || declaresAlias(staged.getValue(), alias))) {
+                        selected = available.get(staged.getKey());
+                        if (staged.getKey().equals(alias)) { break; }
+                    }
+                }
+                if (selected == null && values.containsKey(binding.getValue())) {
+                    Object ownerValue = values.get(binding.getValue());
+                    if (!declaresAlias(ownerValue, alias)) {
+                        selected = ImmutableModelRoot.initial(alias, target.modelType(), metadata.entityIdName(), null);
+                    }
+                }
+                if (selected != null) {
+                    String nextId = selected.id().toString();
+                    available.put(nextId, selected);
+                    selections.put(alias, nextId);
+                    targets.set(i, new MutationPlan.ResolvedModel(nextId, target.modelType(), target.access(),
+                                                                 target.sourceProperties()));
+                }
+            }
+        }
+        LinkedHashMap<String, Entity<?>> selectedEntities = new LinkedHashMap<>();
+        targets.forEach(target -> selectedEntities.put(target.modelId(), available.get(target.modelId())));
+        resolution = resolution.withResolvedModels(targets);
+        entities = immutable(selectedEntities);
+        graphOverlayEntities = immutable(available);
+        aliasSelections = Map.copyOf(selections);
+    }
+
+    private static boolean declaresAlias(Object value, String alias) {
+        if (value == null) { return false; }
+        List<String> aliases = EntityMetadata.of(value.getClass()).aliases(value);
+        return aliases != null && aliases.contains(alias);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -721,7 +898,13 @@ public final class CommitAttempt {
 
     /** Reads needed to preserve this policy's evaluation: ACCEPT only reapplies its original steps. */
     public List<String> readModelIds(ModelConflictPolicy policy) {
-        return ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT ? applyReadModelIds : readModelIds;
+        boolean apply = ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT;
+        List<String> reads = apply ? applyReadModelIds : readModelIds;
+        Set<String> aliasHeads = apply ? graphApplyAliasHeads : graphAliasHeads;
+        if (aliasHeads == null || aliasHeads.isEmpty()) { return reads; }
+        Set<String> combined = new LinkedHashSet<>(reads);
+        combined.addAll(aliasHeads);
+        return List.copyOf(combined);
     }
 
     Map<String, Class<?>> readModelTypes() {

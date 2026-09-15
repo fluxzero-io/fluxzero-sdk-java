@@ -308,7 +308,7 @@ public final class ModelBatchScope {
                 return exact;
             }
             Entity<?> overlay = overlayIdentity(requestedId, type, String.valueOf(durable.id()),
-                                                 exact == null && durable.isPresent());
+                                                 exact == null && (durable.isPresent() || durable.sequenceNumber() >= 0L));
             return overlay == null ? durable : overlay;
         }
 

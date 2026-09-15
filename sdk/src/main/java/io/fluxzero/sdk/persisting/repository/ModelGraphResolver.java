@@ -132,6 +132,8 @@ public interface ModelGraphResolver {
     /** One resolved identity and lazy value at a shared boundary; absent identities must not be resolved again. */
     record Identity(String modelId, boolean present, ModelReadBoundary boundary, boolean historical,
                     Supplier<Entity<?>> entity) {
+        /** Whether head metadata establishes this identity, including a canonical deletion tombstone. */
+        public boolean hasIdentity() { return present || entity instanceof HeadValue value && value.head() != null; }
     }
 
     /** Reconstructs explicitly requested values together; unrelated metadata nodes must remain unloaded. */

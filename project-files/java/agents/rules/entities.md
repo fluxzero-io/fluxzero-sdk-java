@@ -576,7 +576,9 @@ nodes do not hide known descendants. Values remain lazy and pinned; injected mem
 empty selections, participate in conflict handling. Full materialization still requires the value/replay contracts.
 Lazy root aliases resolve through head metadata without replay in the default repository. The initial lookup uses
 the current alias table, even for historical reads; its canonical ID or absence and value/relationship boundary
-then stay pinned. This is not a new transaction-level alias-mapping conflict dependency.
+then stay pinned. Inside a Model mutation, consumed alias lookups participate in commit conflict detection,
+including missing aliases, `id()` and relation-only access. Exact-ID reads do not depend on alias mappings.
+This does not introduce historical alias reconstruction. `ACCEPT` retains only apply-time dependencies.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 

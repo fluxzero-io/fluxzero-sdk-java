@@ -54,6 +54,7 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -132,10 +133,10 @@ public final class Graphs {
             ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(boundary).withValues(models);
             String primary = requestedType == Object.class ? modelId.toString()
                     : EntityMetadata.validate(requestedType).repositoryId(modelId);
-            Entity<?> overlay = snapshot.overlayIdentity(primary, requestedType, identity.modelId(), identity.present());
+            Entity<?> overlay = snapshot.overlayIdentity(primary, requestedType, identity.modelId(), identity.hasIdentity());
             if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(modelId.toString())) {
                 Entity<?> alias = snapshot.overlayIdentity(modelId.toString(), requestedType,
-                                                           identity.modelId(), identity.present());
+                                                           identity.modelId(), identity.hasIdentity());
                 if (alias != null && alias.isPresent()) { overlay = alias; }
             }
             Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue head ? head.type() : requestedType;
@@ -143,6 +144,7 @@ public final class Graphs {
                     ? GraphState.identity(identity.modelId(), identity.modelId(), true, type, repository, boundary, models)
                             .retainIdentity(identity)
                     : GraphState.entity(overlay, context.readStateIndex(), repository, models, false, true, boundary, Map.of());
+            state.trackLookup(modelId, primary, requestedType);
             return context.trackGraph(state.valueHistory(false).batchSnapshot(snapshot).root(), repository);
         }
         if (repository instanceof ModelGraphResolver resolver) {
@@ -171,9 +173,9 @@ public final class Graphs {
         String primary = exact || expected == Object.class ? requested.toString()
                 : EntityMetadata.validate(expected).repositoryId(requested);
         Entity<?> overlay = exact ? snapshot.overlayExactIdentity(primary, expected)
-                : snapshot.overlayIdentity(primary, expected, identity.modelId(), identity.present());
+                : snapshot.overlayIdentity(primary, expected, identity.modelId(), identity.hasIdentity());
         if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(requested.toString())) {
-            Entity<?> alias = snapshot.overlayIdentity(requested.toString(), expected, identity.modelId(), identity.present());
+            Entity<?> alias = snapshot.overlayIdentity(requested.toString(), expected, identity.modelId(), identity.hasIdentity());
             if (alias != null && alias.isPresent()) {
                 overlay = alias;
             }
@@ -231,6 +233,7 @@ public final class Graphs {
         GraphState state = loaded != null && type.isAssignableFrom(loaded.type())
                 ? GraphState.entity(loaded, context.readStateIndex(), repository, models, false, true, boundary, Map.of())
                 : GraphState.identity(requestedId, repositoryId, exact, type, repository, boundary, models);
+        if (!exact && (loaded == null || loaded.isEmpty())) { state.trackLookup(requestedId, repositoryId, type); }
         return context.trackGraph(state.valueHistory(false).batchSnapshot(
                 ((ModelGraphResolver) repository).graphStagedValues(boundary).withValues(models)).root(), repository);
     }
@@ -242,7 +245,8 @@ public final class Graphs {
                 context.mutationContext() ? ModelReadBoundary.state(context.readStateIndex(), true)
                         : handlerBoundary(context.readStateIndex()), Map.of());
         if (context.mutationContext()) { state.valueHistory(false); }
-        return context.trackGraph(state.root(), repository);
+        return withReadProof(context.trackGraph(state.root(), repository),
+                             context.injectedAliasReadProof(entity.id().toString()));
     }
 
     /** Keeps complete-change views lazy at their exact boundary, including unknown descendants. */
@@ -509,6 +513,12 @@ public final class Graphs {
         return source.context().withReadContext(reads).view(source.node());
     }
 
+    static <T> Graph<T> withReadProof(Graph<T> graph, CommitAttempt.GraphReadProof proof) {
+        if (proof == null) { return graph; }
+        GraphView<T> source = adapt(graph);
+        return source.context().withReadProof(proof).view(source.node());
+    }
+
     /** Returns a graph view containing matching branches and the ancestors required to reach them. */
     public static <T> Graph<T> filterBranches(Graph<T> graph, Predicate<? super Graph<?>> predicate) {
         Objects.requireNonNull(predicate, "predicate");
@@ -739,6 +749,41 @@ final class GraphState {
     private volatile Navigation navigation;
     private volatile ModelGraphResolver.Value sourceRead;
     private volatile ModelGraphResolver.Identity identityRead;
+    private AliasLookup aliasLookup;
+
+    /** Keep the requested lookup separate from the canonical identity, also in normalized untyped views. */
+    GraphState trackLookup(Object requested, String primary, Class<?> type) {
+        aliasLookup = new AliasLookup(this, requested.toString(), primary, type);
+        return this;
+    }
+
+    void readAliases(BiConsumer<String, String> consumer) {
+        if (aliasLookup != null) { aliasLookup.read(consumer); }
+    }
+
+    boolean hasAliasReads() { return aliasLookup != null; }
+
+    private record AliasLookup(GraphState source, String requested, String primary, Class<?> type) {
+        void read(BiConsumer<String, String> consumer) {
+            NodeData data = source.root.data();
+            ModelGraphResolver.Identity identity = source.identityRead;
+            ModelGraphResolver.Value value = source.sourceRead;
+            // Merely constructing a typed Graph (or reading an ID which does not resolve aliases) is not a read.
+            if (identity == null && value == null && !data.entityResolved) { return; }
+            String resolved = data.id();
+            String durable = identity != null ? identity.modelId()
+                    : value != null ? value.entity().id().toString() : resolved;
+            boolean present = identity != null ? identity.present()
+                    : value != null ? value.entity().isPresent() : data.entity().isPresent();
+            if (present && primary.equals(durable)) { return; }
+            consumer.accept(primary, durable);
+            if (!resolved.equals(durable)) { consumer.accept(primary, resolved); }
+            if (!primary.equals(requested) && EntityMetadata.of(type).hasAliases()) {
+                consumer.accept(requested, durable);
+                if (!resolved.equals(durable)) { consumer.accept(requested, resolved); }
+            }
+        }
+    }
 
     private GraphState(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
@@ -1200,11 +1245,11 @@ final class GraphState {
             return null;
         }
         Entity<?> overlay = identity.exact() ? snapshot.overlayExactIdentity(node.id, node.type())
-                : snapshot.overlayIdentity(node.id, node.type(), loaded.modelId(), loaded.present());
+                : snapshot.overlayIdentity(node.id, node.type(), loaded.modelId(), loaded.hasIdentity());
         boolean present = overlay == null ? loaded.present() : overlay.isPresent();
         if (!identity.exact() && !present && !node.id.equals(identity.requestedId().toString())) {
             Entity<?> alias = snapshot.overlayIdentity(identity.requestedId().toString(), node.type(),
-                                                       loaded.modelId(), loaded.present());
+                                                       loaded.modelId(), loaded.hasIdentity());
             if (alias != null && alias.isPresent()) {
                 overlay = alias;
             }
@@ -1834,6 +1879,13 @@ final class GraphState {
                     mappedValues, readProof, reads);
         }
 
+        ViewContext withReadProof(CommitAttempt.GraphReadProof proof) {
+            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty,
+                    previousSpecified, previousRoot,
+                    (graph, reads) -> Graphs.withReadProof(Graphs.cast(decorator.apply(graph, reads)), proof),
+                    mappedValues, CommitAttempt.mergeGraphReads(readProof, proof), readContext);
+        }
+
         boolean mappedValues() {
             return mappedValues;
         }
@@ -1954,7 +2006,7 @@ final class GraphState {
             return new ViewContext(state, (node, reads) -> retained.contains(node) ? source.value.apply(node, reads) : null, path, values,
                                    contextFallback, retained, selection, true, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph, reads)), predicate),
-                                   mappedValues, proof == null ? readProof : proof, readContext);
+                                   mappedValues, CommitAttempt.mergeGraphReads(readProof, proof), readContext);
         }
 
         ViewContext select(Node root, Set<String> selected) {
@@ -2086,7 +2138,8 @@ final class GraphView<T> implements Graph<T> {
     }
 
     Graph<?> expanded() {
-        return context.decorateExpanded(state.expand(node), node);
+        Graph<?> result = context.decorateExpanded(state.expand(node), node);
+        return Graphs.withReadProof(result, CommitAttempt.aliasReadProof(this));
     }
 
     @Override
@@ -2112,7 +2165,9 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public Object id() {
-        return node.data().id();
+        Object id = node.data().id();
+        CommitAttempt.graphAliasRead(this);
+        return id;
     }
 
     @Override
@@ -2127,12 +2182,14 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public String modelName() {
+        CommitAttempt.graphAliasRead(this);
         return node.data().modelName();
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public Optional<Class<T>> knownType() {
+        CommitAttempt.graphAliasRead(this);
         return Optional.ofNullable((Class<T>) node.data().type());
     }
 
@@ -2575,15 +2632,18 @@ final class GraphView<T> implements Graph<T> {
             Function<Entity<T>, Entity<T>> entityOperation, Function<Graph<T>, Graph<T>> graphOperation,
             boolean staged) {
         Entity<?> raw = node.data().entity();
+        CommitAttempt.graphAliasRead(this);
+        CommitAttempt.GraphReadProof aliasProof = CommitAttempt.aliasReadProof(this);
         if (raw == null) {
-            return Graphs.cast(context.decorate(graphOperation.apply((Graph<T>) node.data().durable())));
+            return Graphs.withReadProof(Graphs.cast(context.decorate(
+                    graphOperation.apply((Graph<T>) node.data().durable()))), aliasProof);
         }
         Entity<T> current = (Entity<T>) raw;
         Entity<T> next = entityOperation.apply(current);
         Graph<T> result = staged
                 ? state.replace(next, entity -> entityOperation.apply((Entity<T>) entity))
                 : state.replaceUnstaged(next);
-        return Graphs.cast(context.decorate(result));
+        return Graphs.withReadProof(Graphs.cast(context.decorate(result)), aliasProof);
     }
 
     @Override
@@ -2642,7 +2702,10 @@ final class GraphView<T> implements Graph<T> {
         if (!(state.repository() instanceof ModelGraphResolver)) {
             throw new UnsupportedOperationException("Graph.current() requires a current-read-capable Model repository");
         }
-        return Graphs.current(node.data().id(true), knownType().orElseThrow(), state.repository());
+        String id = node.data().id(true);
+        CommitAttempt.graphAliasRead(this);
+        return Graphs.withReadProof(Graphs.current(id, knownType().orElseThrow(), state.repository()),
+                                   CommitAttempt.aliasReadProof(this));
     }
 
     @Override

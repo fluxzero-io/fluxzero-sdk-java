@@ -342,15 +342,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             ModelCommitAssignment.Description description =
                     ModelCommitAssignment.describe(commit);
-            CommitModelsResult conflict = ModelCommitConflicts.result(
-                    commit,
-                    ModelCommitConflicts.detect(
+            var headConflicts = ModelCommitConflicts.detect(
                             commit, modelHeads,
                             ModelStreamHead::sequenceNumber,
                             ModelStreamHead::stateIndex,
                             modelRelationStateIndices,
-                            description.cascadeRootIds()),
-                    modelStateIndex);
+                            description.cascadeRootIds());
+            if (!commit.getReadAliasIds().isEmpty()) {
+                headConflicts = ModelCommitConflicts.detectAliases(commit, headConflicts, alias -> {
+                    ModelStreamHead head = modelHeads.get(alias);
+                    if (head == null) {
+                        String owner = modelAliases.get(alias);
+                        head = owner == null ? null : modelHeads.get(owner);
+                    }
+                    return head == null ? -1L : head.stateIndex();
+                });
+            }
+            CommitModelsResult conflict = ModelCommitConflicts.result(commit, headConflicts, modelStateIndex);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }

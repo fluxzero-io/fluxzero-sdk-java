@@ -146,6 +146,78 @@ class GraphReadTrackingTest {
     }
 
     @Test
+    void expandedAliasProofEntersTheApplySetWithoutRerunningTheFilter() {
+        graph(); // Bind the attempt while keeping this source initially unexpanded.
+        ModelReadBoundary boundary = ModelReadBoundary.state(42L, true);
+        Graph<Node> source = attempt.trackGraph(GraphState.entity(parent, 42L, repository,
+                Map.of("parent", parent), false, true, boundary, Map.of())
+                .trackLookup("selected", "selected", Node.class).root(), repository);
+        when(repository.loadGraph("parent", Node.class, boundary, Graph.Options.DEFAULT))
+                .thenReturn(Graphs.compose("parent", 42L, Map.of("parent", parent, "child", child),
+                        List.of(new ModelGraphEdge("child", "parent", Node.class.getName(), "children", 0L, null, false)),
+                        repository, true));
+        AtomicInteger calls = new AtomicInteger();
+        Graph<Node> filtered = read(() -> Graphs.filterBranches(source, node -> {
+            calls.incrementAndGet();
+            return false;
+        }));
+        int count = calls.get();
+        assertEquals(List.of("selected"), attempt.readAliasIds(ModelConflictPolicy.RETRY));
+        assertTrue(attempt.readAliasIds(ModelConflictPolicy.ACCEPT).isEmpty());
+        attempt.collectReads(new HashSet<>());
+        read(filtered::children);
+        assertEquals(count, calls.get());
+        assertEquals(List.of("selected"), attempt.readAliasIds(ModelConflictPolicy.ACCEPT));
+        assertTrue(attempt.readModelIds(ModelConflictPolicy.ACCEPT).containsAll(List.of("selected", "parent")));
+    }
+
+    @Test
+    void staticallyKnownAliasTypeAndNameDoNotResolveTheModel() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        attempt.bindGraphReads(attempt);
+        Graph<AliasedNode> graph = attempt.trackGraph(GraphState.identity("selected", "selected", false,
+                AliasedNode.class, source, ModelReadBoundary.state(42L, true), Map.of())
+                .trackLookup("selected", "selected", AliasedNode.class).root(), source);
+        assertEquals(AliasedNode.class, read(() -> graph.knownType().orElseThrow()));
+        assertEquals("AliasedNode", read(graph::modelName));
+        assertTrue(attempt.readAliasIds(ModelConflictPolicy.RETRY).isEmpty());
+        org.mockito.Mockito.verifyNoInteractions(source);
+    }
+
+    @Model record AliasedNode(@EntityId String id, @Alias String name) {}
+
+    @Test
+    void injectedAliasSelectionEntersTheApplySetWhenTheInjectedViewIsConsumed() {
+        attempt.bindGraphReads(attempt);
+        attempt.withAliasResolutions(Map.of("selected", "parent"));
+        Graph<Node> graph = Graphs.lazy(parent, attempt, repository);
+        read(graph::get);
+        assertTrue(attempt.readAliasIds(ModelConflictPolicy.ACCEPT).isEmpty());
+        attempt.collectReads(new HashSet<>());
+        read(graph::get);
+        assertEquals(List.of("selected"), attempt.readAliasIds(ModelConflictPolicy.ACCEPT));
+    }
+
+    @Test
+    void currentAliasSelectionEntersTheApplySetWhenTheCurrentViewIsConsumed() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        ModelReducer.SubstepResolver resolver = mock(ModelReducer.SubstepResolver.class);
+        when(resolver.repository()).thenReturn(source);
+        attempt.bindGraphReads(attempt);
+        attempt.readResolver(resolver);
+        ModelReadBoundary boundary = ModelReadBoundary.state(42L, true);
+        when(source.graphStagedValues(boundary)).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        Graph<Node> graph = attempt.trackGraph(GraphState.entity(parent, 42L, source,
+                Map.of("parent", parent), false, true, boundary, Map.of())
+                .trackLookup("selected", "selected", Node.class).root(), source);
+        Graph<Node> current = read(() -> graph.current().current());
+        assertTrue(attempt.readAliasIds(ModelConflictPolicy.ACCEPT).isEmpty());
+        attempt.collectReads(new HashSet<>());
+        read(current::get);
+        assertEquals(List.of("selected"), attempt.readAliasIds(ModelConflictPolicy.ACCEPT));
+    }
+
+    @Test
     void cachedMapperReadsEnterTheApplySetWithoutRerunningTheMapper() {
         Graph<Node> graph = graph();
         AtomicInteger calls = new AtomicInteger();

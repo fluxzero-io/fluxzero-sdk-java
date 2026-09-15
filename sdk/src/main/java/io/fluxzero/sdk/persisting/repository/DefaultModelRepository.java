@@ -23,6 +23,7 @@ import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsWithRelationships;
+import io.fluxzero.common.api.modeling.CommitModelsWithAliasReads;
 import io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
@@ -2145,6 +2146,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (hasDocumentProjections) {
                 commit = new CommitModelsWithDocumentProjections(commit);
             }
+            var aliasReads = evaluation.readAliasIds(conflictPolicy);
+            if (!aliasReads.isEmpty()) {
+                commit = new CommitModelsWithAliasReads(commit, aliasReads);
+            }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
@@ -2173,6 +2178,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             if (candidate instanceof CommitModelsWithDocumentProjections) {
                 commit = new CommitModelsWithDocumentProjections(commit);
+            }
+            if (!candidate.getReadAliasIds().isEmpty()) {
+                commit = new CommitModelsWithAliasReads(commit, candidate.getReadAliasIds());
             }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }

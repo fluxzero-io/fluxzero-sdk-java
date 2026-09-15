@@ -164,7 +164,10 @@ retain their existing loading behavior and cannot promise unknown-type-safe sele
 The default repository resolves lazy root aliases through head metadata without replay. Initial lookup uses the
 current alias table, also when reading historical Model state. The selected canonical ID (or absence) then stays
 fixed together with the value/relationship boundary: reassigning the alias cannot redirect an existing Graph.
-This preserves snapshot identity; it does not add transaction-level alias-mapping conflict detection.
+Inside a Model mutation, consuming an alias lookup also records a commit dependency, including a missing alias
+or an identity-/relationship-only read. Alias assignment, removal, reassignment and canonical-ID shadowing are
+validated atomically; exact-ID reads do not depend on aliases. No historical alias table is implied: the initial
+lookup still uses the current mapping. `RETRY` reevaluates a successful stale decision; `FAIL` rejects its commit.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 
