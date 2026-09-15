@@ -23,6 +23,9 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
 
+import java.net.BindException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
@@ -32,10 +35,34 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JettyWebsocketRouterTest {
+
+    @Test
+    void portOnlyStartupRetainsWildcardBinding() throws Exception {
+        Server server = new JettyWebsocketRouter().start(0);
+        try {
+            assertEquals("0.0.0.0", ((ServerConnector) server.getConnectors()[0]).getHost());
+        } finally {
+            server.stop();
+        }
+    }
+
+    @Test
+    void explicitLoopbackListenerCannotBeShadowedByAnotherLoopbackService() throws Exception {
+        Server server = new JettyWebsocketRouter().start(new InetSocketAddress("127.0.0.1", 0));
+        try (ServerSocket other = new ServerSocket()) {
+            other.setReuseAddress(true);
+            assertThrows(BindException.class,
+                         () -> other.bind(new InetSocketAddress("127.0.0.1", getLocalPort(server))));
+        } finally {
+            server.stop();
+        }
+    }
 
     @Test
     void stopsEndpointsWhenServerStopsWithoutRegisteringJettyShutdownHook() throws Exception {
@@ -45,7 +72,7 @@ class JettyWebsocketRouterTest {
         JettyWebsocketRouter router = WebsocketDeploymentUtils.deploy(
                 ignored -> new TrackingEndpoint(endpointOpened, endpointClosed, endpointStopped), "/test",
                 new JettyWebsocketRouter());
-        Server server = router.start(0);
+        Server server = router.start(new InetSocketAddress("127.0.0.1", 0));
 
         try {
             assertFalse(server.getStopAtShutdown());
@@ -64,7 +91,7 @@ class JettyWebsocketRouterTest {
         return new JdkWebsocketConnector().connect(new NoOpClientEndpoint(),
                                                    new WebsocketConnectionOptions(
                                                            Map.of(), Map.of(), Duration.ofSeconds(5), List.of()),
-                                                   URI.create("ws://localhost:" + getLocalPort(server)
+                                                   URI.create("ws://127.0.0.1:" + getLocalPort(server)
                                                               + "/test?clientId=test-client&clientName=test-client"));
     }
 

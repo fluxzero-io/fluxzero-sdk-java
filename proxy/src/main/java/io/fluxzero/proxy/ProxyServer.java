@@ -212,6 +212,19 @@ public class ProxyServer implements Registration {
      * @return a ProxyServer instance representing the started proxy server and owned embedded resources
      */
     public static ProxyServer start(ProxyServerConfig config) {
+        return start(config, "0.0.0.0");
+    }
+
+    /**
+     * Starts an embedded proxy on an explicit interface, with the port and backend settings from {@code config}.
+     * Use {@code "127.0.0.1"} for isolated loopback tests; other overloads retain their all-interface binding.
+     * The returned proxy owns its client and forward consumer and must be stopped with {@link #cancel()}.
+     *
+     * @param config proxy configuration
+     * @param host interface address to bind
+     * @return the started proxy
+     */
+    public static ProxyServer start(ProxyServerConfig config, String host) {
         Client client = createClient(config);
         ForwardProxyConsumer.Lifecycle forwardProxyConsumer = null;
         try {
@@ -219,7 +232,7 @@ public class ProxyServer implements Registration {
             ProxyServer proxyServer = startHttpProxyOnly(
                     config.port(), new ProxyRequestHandler(client), forwardProxyConsumer,
                     forwardProxyConsumer::force, idempotent(client::shutDown), config.gracefulShutdown(),
-                    LifecycleState.STARTING, config.healthEndpoint(), "0.0.0.0");
+                    LifecycleState.STARTING, config.healthEndpoint(), host);
             proxyServer.probeRuntimeReadiness(client);
             logStarted(proxyServer);
             return proxyServer;
