@@ -1,4 +1,4 @@
-Use web handlers as transport adapters. Domain behavior should already exist as commands, queries, and tests. This page covers inbound application endpoints; use one-way outbound HTTP for processor calls and webhooks published through `WebRequestGateway`.
+Use web handlers as transport adapters. Domain behavior should already exist as commands, queries, and tests. This page covers inbound application endpoints; use `/docs/sdk/web/outbound-requests` for third-party request/response calls, webhooks, credential masking, retry settings and the explicit native-transport alternative.
 
 ```java
 @Component

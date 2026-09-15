@@ -8,9 +8,9 @@ sidebar:
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
+Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`. Use it for external integrations so request auditability, correlation, configurable retries and fixture tests remain part of the application. An ordinary integration does not need its own JDK, Spring or third-party HTTP client.
 
-Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
+By default, Fluxzero logs outbound requests as `WebRequest` messages. These are then handled by:
 
 - A **local handler** if the URL is **relative**, or
 - A **connected remote client or proxy** if the URL is **absolute**
@@ -24,7 +24,7 @@ Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` mes
 
 ```java
 WebRequest request = WebRequest.get("https://api.example.com/data")
-        .header("Authorization", "Bearer token123")
+        .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
         .build();
 
 WebResponse response = Fluxzero.get()
@@ -38,7 +38,7 @@ String body = response.getBodyString();
 
 ```kotlin
 val request = WebRequest.get("https://api.example.com/data")
-    .header("Authorization", "Bearer token123")
+    .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
     .build()
 
 val response = Fluxzero.get()
@@ -51,8 +51,24 @@ val body = response.bodyString
 </Tabs>
 
 <Aside type="tip">
-All outbound requests are logged as `WebRequest` messages and fully traceable within the Fluxzero Runtime.
+The default proxy route logs outbound requests and responses for tracing. Standard credential headers are masked in visible Auditlog records. Explicit native transport bypasses this message audit route; see below.
 </Aside>
+
+---
+
+## Credentials and visible audit logs
+
+Fluxzero Auditlog automatically replaces standard credential-header values such as `Authorization`,
+`Proxy-Authorization`, `X-Api-Key`, `Cookie` and `Set-Cookie` with `<value scrambled>` in visible web request/response
+records. Matching is case-insensitive, and downloads through Auditlog apply the same filtering. Requests remain
+auditable without exposing these bearer tokens or API keys in the visible logs. Using such a header is not a reason
+to replace the gateway or opt into native execution.
+
+The example resolves the credential from `partner.api.token` through `ApplicationProperties`; its conventional
+environment variable is `PARTNER_API_TOKEN`. Keep it in runtime configuration instead of source code.
+
+This is Auditlog projection/response masking: the original credential still reaches the HTTP transport. It does not
+promise removal of secrets from arbitrary URLs, bodies, custom fields or application-written logs.
 
 ---
 
@@ -109,11 +125,61 @@ Fluxzero.get().webRequestGateway()
 Flux distinguishes between relative and absolute URLs:
 
 - **Absolute URLs** (e.g., `https://api.example.com/...`)
-  → Sent via the Flux **Web Proxy** and executed externally
+  → Sent via the Flux **Web Proxy** by default; explicit native settings execute directly from the application
 - **Relative URLs** (e.g., `/internal/task`)
   → Routed to local handlers in other connected Flux apps
 
 This enables request-response flows across distributed services without coupling.
+
+---
+
+## Timeouts, retries and an explicit native alternative
+
+Waiting for the response is independent of transport: `sendAndWait` blocks the caller, while `send` returns a future.
+Pass `WebRequestSettings` to either method (or to `Fluxzero.sendWebRequestAndWait`) to configure the request:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+WebRequestSettings settings = WebRequestSettings.builder()
+        .timeout(Duration.ofSeconds(5))
+        .maxRetries(2)
+        .retryDelay(Duration.ofMillis(250))
+        .retryableStatusCodes(Set.of(502, 503, 504))
+        .build();
+WebResponse response = Fluxzero.sendWebRequestAndWait(request, settings);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val settings = WebRequestSettings.builder()
+    .timeout(Duration.ofSeconds(5))
+    .maxRetries(2)
+    .retryDelay(Duration.ofMillis(250))
+    .retryableStatusCodes(setOf(502, 503, 504))
+    .build()
+val response = Fluxzero.sendWebRequestAndWait(request, settings)
+```
+
+  </TabItem>
+</Tabs>
+
+`maxRetries` counts additional attempts and defaults to zero. Transport failures and selected statuses can trigger
+retries; all attempts and `retryDelay` share the overall `timeout`. Inspect the returned status before decoding the
+body. Retry writes only when their semantics or an external idempotency contract make repetition safe. Domain polling
+and reconciliation are separate from these transport retries.
+
+Use `.useNativeHttpClient(true)` only for a deliberate requirement to execute an absolute HTTP(S) request directly
+from the application. It still uses the SDK gateway and its timeout/retry configuration, but bypasses WebRequest and
+WebResponse message logging, local web handlers, dispatch interceptors and consumer isolation. This trades away the
+normal message audit route and is not necessary merely because a request contains authentication headers.
+
+`TestFixture` still handles native-configured requests through registered remote stubs and preserves retry counts and
+retryable statuses without real retry delays. This preserves the gateway test boundary; it does not qualify real
+network or proxy behavior.
 
 ---
 
@@ -144,7 +210,7 @@ val settings = WebRequestSettings.builder()
   </TabItem>
 </Tabs>
 
-This allows you to:
+On the default proxy route, this allows you to:
 
 - Isolate third-party API traffic (e.g., apply rate limits)
 - Use different retry or error-handling strategies
@@ -222,7 +288,7 @@ This enables full end-to-end testing of flows that depend on external APIs—wit
 ## Summary
 
 - ✅ Use `WebRequest` for all outbound HTTP calls
-- ✅ Requests are routed based on the URL (relative → internal, absolute → proxy)
-- ✅ All traffic is logged and observable
+- ✅ Default routing follows the URL (relative → internal, absolute → proxy); native execution is explicit
+- ✅ Default proxy traffic is auditable, with standard credentials masked in visible Auditlog records
 - ✅ Supports retries, timeouts, and consumer-based isolation
 - ✅ Easily mock remote endpoints in tests

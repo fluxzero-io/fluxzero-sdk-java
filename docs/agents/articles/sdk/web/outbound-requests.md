@@ -1,4 +1,72 @@
-Use `WebRequestGateway` for auditable outbound HTTP through the Fluxzero runtime proxy. One-way processor submissions and compensations are messages; they are not inbound endpoint handlers.
+Use `WebRequestGateway` for outbound HTTP integrations. Keep requests in Fluxzero's normal message/proxy route by
+default: it preserves auditability and correlation, supports configured transport retries, and lets `TestFixture`
+assert requests and supply remote responses. Do not build a separate JDK, Spring or third-party HTTP client for an
+ordinary integration. HTTP effects belong after the domain commit; keep them out of replayable Model applies.
+
+## Credentials remain hidden in visible audit logs
+
+Fluxzero Auditlog automatically replaces standard credential-header values such as `Authorization`,
+`Proxy-Authorization`, `X-Api-Key`, `Cookie` and `Set-Cookie` with `<value scrambled>` in visible web request/response
+logs. Header matching is case-insensitive. The same filtering applies to downloads through Auditlog. A bearer token
+or API key in a standard header is therefore not a reason to bypass the auditable gateway or select native HTTP.
+
+Resolve credentials through `ApplicationProperties` and send them in the external API's required header. This masking
+belongs to Auditlog's projections and responses; the HTTP transport still receives the original credentials. It is
+not a promise that secrets placed in arbitrary URLs, bodies, custom fields or application-written logs are removed.
+
+## Await a third-party response
+
+Use `sendAndWait` when the application needs the returned status or data, for example when reading an external
+snapshot. `send` provides the corresponding future. Both use the same gateway; waiting is not a transport choice.
+
+```java
+WebRequest request = WebRequest.get("https://partner.example/api/devices")
+        .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+        .build();
+WebRequestSettings settings = WebRequestSettings.builder()
+        .timeout(Duration.ofSeconds(5))
+        .maxRetries(2)
+        .retryDelay(Duration.ofMillis(250))
+        .retryableStatusCodes(Set.of(502, 503, 504))
+        .build();
+WebResponse response = Fluxzero.sendWebRequestAndWait(request, settings);
+```
+
+```kotlin
+val request = WebRequest.get("https://partner.example/api/devices")
+    .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+    .build()
+val settings = WebRequestSettings.builder()
+    .timeout(Duration.ofSeconds(5))
+    .maxRetries(2)
+    .retryDelay(Duration.ofMillis(250))
+    .retryableStatusCodes(setOf(502, 503, 504))
+    .build()
+val response = Fluxzero.sendWebRequestAndWait(request, settings)
+```
+
+Configure `partner.api.token` through the normal property sources (`PARTNER_API_TOKEN` is the conventional environment
+variable). Inspect the response status before mapping its body to the external contract. An HTTP success is a
+transport/service outcome; it is not automatically a later business or physical-device confirmation.
+
+`maxRetries` counts additional attempts and defaults to zero. Transport failures and configured HTTP statuses can
+trigger retries within the overall `timeout`; `retryDelay` consumes that same budget. Retry writes only when the
+operation is idempotent or the external API supplies an appropriate idempotency contract. Keep domain polling or
+reconciliation separate from these transport retries.
+
+## Choose native transport only deliberately
+
+`WebRequestSettings.builder().useNativeHttpClient(true)` keeps the SDK API but executes an absolute HTTP(S) request
+from the application instead of publishing it to the proxy. It bypasses the WebRequest/WebResponse message audit
+route, local web handlers, dispatch interceptors and consumer isolation. It is not needed merely because the API
+uses a bearer token. Choose it only for an explicit transport requirement that accepts those differences.
+
+`TestFixture` can still route native-configured requests to registered remote handlers; it retains retry counts and
+retryable statuses without real retry delays. Use the same production gateway in tests. Ordinary integration tests
+should assert exact requests and use absolute `@HandleGet`/`@HandlePost` stubs; reserve real-network tests for wire,
+TLS or proxy behavior that the fixture does not exercise. See `/docs/sdk/testing/external-backends` and
+`/docs/sdk/tracking`. Give a remote stub its own consumer when the caller waits for its response; do not change
+production consumer defaults only to make a test pass.
 
 ## Build an exact one-way POST
 

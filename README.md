@@ -17,6 +17,10 @@ Use the SDK to describe a feature with plain messages, immutable models, and sma
 
 Fluxzero handles delivery, routing, persistence, retries, and observability around that code. You can test complete product flows locally with `TestFixture` and run the same application behavior on Fluxzero.
 
+For external APIs, use the [WebRequest gateway](docs/developer/guides/Messaging/150-sending-web-requests.mdx) with
+request auditability, configurable retries and fixture-based tests. Standard API-key and authorization headers are
+masked in visible Auditlog records; authenticated calls do not require a separate HTTP client.
+
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 
 For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.

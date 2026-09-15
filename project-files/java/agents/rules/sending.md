@@ -262,19 +262,37 @@ void onSchedule(RefreshData schedule) {
 
 ## External Web Requests
 
-Use `WebRequest` to interact with external HTTP APIs.
+Use `WebRequest` and `WebRequestGateway` for external HTTP APIs. The default message/proxy route preserves
+auditability and correlation and supports configurable retries and `TestFixture` assertions/stubs. Do not replace
+it with a separate HTTP client for an ordinary integration.
+
+Fluxzero Auditlog masks standard credential headers such as `Authorization` and `X-Api-Key` case-insensitively as
+`<value scrambled>` in visible records and Auditlog downloads. Authenticated requests therefore remain auditable
+without showing these secrets. Resolve credentials through `ApplicationProperties` and use the API's required
+header. This is visible-log masking, not deletion from the HTTP transport or a guarantee for arbitrary secret fields
+or application-written logs.
+
+Pass `WebRequestSettings` to `Fluxzero.sendWebRequestAndWait(request, settings)` or the gateway's `send`/`sendAndWait`.
+`timeout` bounds all attempts, `maxRetries` counts additional attempts (default zero), and `retryDelay` plus
+`retryableStatusCodes` select retry behavior. Repeat writes only with appropriate idempotent semantics.
+
+`useNativeHttpClient(true)` is an explicit direct-transport alternative in the same SDK API. It bypasses message
+logging, local handlers, dispatch interceptors and consumer isolation; do not select it merely to hide credentials.
+TestFixture still routes native-configured requests to remote stubs and applies retry counts/statuses without real
+delays. Use fixture web assertions and absolute `@HandleGet`/`@HandlePost` handlers for ordinary integration tests.
 
 **Example: POST to External API**
 
 [//]: # (@formatter:off)
 ```java
 WebResponse response = Fluxzero.sendWebRequestAndWait(
-    WebRequest.post(ApplicationProperties.require("stripe.url"))
-              .payload(paymentDetails)
+    WebRequest.post(ApplicationProperties.requireProperty("stripe.url"))
+              .contentType("application/json")
+              .body(paymentDetails)
               .build()
 );
 
-if (response.isSuccess()) {
+if (response.getStatus() >= 200 && response.getStatus() < 300) {
     String stripeId = response.getPayloadAs(String.class);
 }
 ```

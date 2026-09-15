@@ -3191,7 +3191,7 @@
           "path": "/docs/recipes/add-authenticated-frontend"
         },
         {
-          "description": "One-way absolute HTTP requests through WebRequestGateway",
+          "description": "Outbound APIs with auditable requests, masked credentials, retries and native transport",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
@@ -3214,8 +3214,8 @@
     },
     {
       "path": "/docs/sdk/web/outbound-requests",
-      "title": "One-Way Outbound HTTP Requests",
-      "summary": "Publish an absolute JSON HTTP POST for a processor integration with WebRequest.post and WebRequestGateway.sendAndForget, choose SENT or STORED, and assert the exact request without treating its HTTP response as a business decision.",
+      "title": "Outbound HTTP Integrations",
+      "summary": "Use WebRequestGateway for auditable third-party GET/POST calls, masked API-key headers, configured retries and fixture tests; choose native transport only deliberately.",
       "source": "articles/sdk/web/outbound-requests.md",
       "symbols": [
         "HTTP request web client one-way endpoint",
@@ -3229,7 +3229,18 @@
         "Guarantee.SENT",
         "Guarantee.STORED",
         "application/json",
-        "expectWebRequest"
+        "expectWebRequest",
+        "WebRequestGateway",
+        "WebRequestSettings",
+        "Fluxzero.sendWebRequestAndWait",
+        "sendWebRequestAndWait",
+        "useNativeHttpClient",
+        "maxRetries",
+        "retryDelay",
+        "retryableStatusCodes",
+        "Authorization",
+        "X-Api-Key",
+        "API key bearer token visible audit logs credentials masking"
       ],
       "links": [
         {
@@ -3259,6 +3270,14 @@
         {
           "description": "exact outbound requests in a coordinated workflow",
           "path": "/docs/sdk/testing/durable-coordinated-workflow"
+        },
+        {
+          "description": "Mock third-party responses and assert exact gateway requests",
+          "path": "/docs/sdk/testing/external-backends"
+        },
+        {
+          "description": "Choose explicit consumers for independent remote test handlers",
+          "path": "/docs/sdk/tracking"
         }
       ]
     },
@@ -5356,12 +5375,12 @@
           "path": "/docs/sdk/testing"
         },
         {
-          "description": "Publish one-way absolute outbound HTTP requests",
+          "description": "Choose gateway transport, credential masking and retry settings",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
-          "description": "Choose advanced HTTP transport and forwarding behavior",
-          "path": "/docs/sdk/web/advanced-transport"
+          "description": "Choose explicit consumers for independent remote test handlers",
+          "path": "/docs/sdk/tracking"
         },
         {
           "description": "Assert exact effects and isolate one action",
