@@ -169,7 +169,7 @@ public class ProxyServer implements Registration {
             proxyServer = startHttpProxyOnly(
                     getConfiguredPort(), new ProxyRequestHandler(client), forwardProxy, forwardProxy::force,
                     Registration.noOp(), true, LifecycleState.STARTING,
-                    getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT));
+                    getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT), "0.0.0.0");
             proxyServer.probeRuntimeReadiness(client);
         } catch (RuntimeException | Error e) {
             forwardProxy.force();
@@ -219,7 +219,7 @@ public class ProxyServer implements Registration {
             ProxyServer proxyServer = startHttpProxyOnly(
                     config.port(), new ProxyRequestHandler(client), forwardProxyConsumer,
                     forwardProxyConsumer::force, idempotent(client::shutDown), config.gracefulShutdown(),
-                    LifecycleState.STARTING, config.healthEndpoint());
+                    LifecycleState.STARTING, config.healthEndpoint(), "0.0.0.0");
             proxyServer.probeRuntimeReadiness(client);
             logStarted(proxyServer);
             return proxyServer;
@@ -237,12 +237,14 @@ public class ProxyServer implements Registration {
     }
 
     /**
-     * Starts only the HTTP proxy surface for tests and embedded callers that provide their own forwarding lifecycle.
+     * Starts a loopback-only HTTP surface for in-process tests with their own forwarding lifecycle.
+     * Binding the exact client address prevents wildcard/specific-address port sharing on macOS.
      */
     static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler) {
         return startHttpProxyOnly(port, proxyHandler, Registration.noOp(), () -> {}, Registration.noOp(),
                                   false, LifecycleState.READY,
-                                  getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT));
+                                  getProperty("PROXY_HEALTH_ENDPOINT", ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT),
+                                  "127.0.0.1");
     }
 
     private static void logStarted(ProxyServer proxyServer) {
@@ -255,7 +257,7 @@ public class ProxyServer implements Registration {
     private static ProxyServer startHttpProxyOnly(int port, ProxyRequestHandler proxyHandler,
                                                  Registration shutdownRegistration, Runnable forceShutdown,
                                                  Registration ownedClientShutdown, boolean gracefulShutdown,
-                                                 LifecycleState initialState, String healthEndpoint) {
+                                                 LifecycleState initialState, String healthEndpoint, String host) {
         Server server = new Server(createThreadPool());
         server.setStopAtShutdown(false);
         // Standalone proxy shutdown remains graceful; tests use the HTTP-only helper with immediate Jetty stop.
@@ -271,7 +273,7 @@ public class ProxyServer implements Registration {
                 server,
                 new HttpConnectionFactory(httpConfiguration),
                 new HTTP2CServerConnectionFactory(httpConfiguration));
-        connector.setHost("0.0.0.0");
+        connector.setHost(host);
         connector.setPort(port);
         connector.setIdleTimeout(getLongProperty(IDLE_TIMEOUT_MILLIS_PROPERTY, DEFAULT_IDLE_TIMEOUT_MILLIS));
         server.addConnector(connector);

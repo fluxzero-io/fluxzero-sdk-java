@@ -132,6 +132,25 @@ class ProxyServerTest {
     class Basic {
 
         @Test
+        void httpOnlyProxyCannotShareAnOccupiedLoopbackPort() throws Exception {
+            try (ServerSocket occupied = new ServerSocket()) {
+                occupied.setReuseAddress(true);
+                occupied.bind(new InetSocketAddress("127.0.0.1", 0));
+                var unexpected = new java.util.concurrent.atomic.AtomicReference<ProxyServer>();
+                try {
+                    // macOS permits wildcard and specific-address listeners to share a port with SO_REUSEADDR.
+                    // Clients targeting loopback would then reach the unrelated, more specific listener.
+                    Throwable failure = assertThrows(IllegalStateException.class, () -> unexpected.set(ProxyServer.startHttpProxyOnly(
+                            occupied.getLocalPort(), new ProxyRequestHandler(testFixture.getFluxzero().client()))));
+                    while (failure.getCause() != null) { failure = failure.getCause(); }
+                    org.junit.jupiter.api.Assertions.assertInstanceOf(java.net.BindException.class, failure);
+                } finally {
+                    if (unexpected.get() != null) { unexpected.get().cancel(); }
+                }
+            }
+        }
+
+        @Test
         void healthCheck() {
             testFixture.whenApplying(fc -> httpClient.send(
                             newBuilder(URI.create(format("http://localhost:%s/proxy/health", proxyPort))).GET()
