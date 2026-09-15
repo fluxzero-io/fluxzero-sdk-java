@@ -21,6 +21,7 @@ import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 
 import java.lang.reflect.Executable;
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ public final class CommitAttempt {
     private List<GraphReadProof> graphCaptures;
     private ModelAncestorResolver.AncestorReads ancestorReads;
     private CommitAttempt graphReadOwner;
+    private ModelReducer.SubstepResolver readResolver;
     private Map<String, Class<?>> graphReadTypes;
     private Map<String, Entity<?>> graphReadEntities;
     private Map<String, Entity<?>> graphOverlayEntities;
@@ -64,7 +66,35 @@ public final class CommitAttempt {
         graphApplyRelationships = null;
     }
 
-    <T> Graph<T> trackGraph(Graph<T> graph, ModelRepository repository) {
+    void readResolver(ModelReducer.SubstepResolver resolver) {
+        readResolver = resolver;
+    }
+
+    /** Returns this repository's active mutation read context, never an event-replay or escaped async context. */
+    public static CommitAttempt currentReadContext(ModelRepository repository) {
+        CommitAttempt context = graphInvocation.get();
+        if (Entity.isLoading() || context == null || context.graphReadOwner == null
+            || context.graphReadOwner.readResolver == null) { return null; }
+        ModelRepository owner = context.graphReadOwner.readResolver.repository();
+        return owner == repository || owner instanceof DefaultModelRepository standard
+                                     && standard.sharesReadContext(repository) ? context : null;
+    }
+
+    boolean mutationContext() { return graphReadOwner != null && !Entity.isLoading(); }
+
+    ModelReducer.SubstepResolver readResolver() {
+        return graphReadOwner.readResolver;
+    }
+
+    void joinReads(CommitAttempt parent) {
+        readCollector = parent.readCollector;
+        bindGraphReads(parent.graphReadOwner);
+        targets().forEach(target -> recordGraphValue(this, target.modelId(), target.modelType()));
+        recordAncestorReads(readCollector != null);
+    }
+
+    /** Attaches the same attempt provenance to a repository-created Graph without changing its snapshot. */
+    public <T> Graph<T> trackGraph(Graph<T> graph, ModelRepository repository) {
         return graphReadOwner == null ? graph : Graphs.withReadContext(graph,
                 new GraphReadContext(graphReadOwner, graphReadOwner.graphReadGeneration, repository, readStateIndex));
     }
@@ -507,7 +537,8 @@ public final class CommitAttempt {
         return entities;
     }
 
-    Map<String, Entity<?>> graphEntities() {
+    /** Loaded and staged values visible to Graph reads at this attempt's boundary. */
+    public Map<String, Entity<?>> graphEntities() {
         Map<String, Entity<?>> direct = entities();
         return graphOverlayEntities == null ? direct : graphOverlayEntities;
     }
@@ -626,6 +657,7 @@ public final class CommitAttempt {
         result.resolution = resolution;
         result.entities = immutable(updated);
         result.graphReadOwner = graphReadOwner;
+        result.readCollector = readCollector;
         if (graphUpdated != null) {
             graphUpdated.putAll(updated);
             result.graphOverlayEntities = immutable(graphUpdated);

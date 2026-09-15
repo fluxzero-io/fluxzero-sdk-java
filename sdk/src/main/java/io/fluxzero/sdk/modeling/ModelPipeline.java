@@ -222,6 +222,11 @@ final class ModelPipeline {
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
+            CommitAttempt parent = CommitAttempt.currentReadContext(repository);
+            if (parent != null) {
+                ModelReducer.assertWithin(message, parent);
+                return COMPLETED_VOID;
+            }
             return execute(new ExecutionRequest(message, null, -1, Mode.ASSERT), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
@@ -990,6 +995,9 @@ final class ModelPipeline {
     }
 
     private final class CommitLoader implements ModelReducer.SubstepResolver {
+        @Override
+        public DefaultModelRepository repository() { return repository; }
+
         private Long pinnedStateIndex;
         private final boolean applyOnly;
         private final boolean migration;
@@ -1084,6 +1092,15 @@ final class ModelPipeline {
                             applyOnly);
             return new ModelReducer.ResolvedSubstep(
                     resolve(resolution, boundary, stagedValues), definition.reducer());
+        }
+
+        @Override
+        public ModelReducer.ResolvedSubstep resolveAssertion(
+                DeserializingMessage message, CommitAttempt context, Map<String, Object> values) {
+            MutationPlan definition = definitionFor(message.getPayloadClass());
+            MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
+            return new ModelReducer.ResolvedSubstep(
+                    resolve(resolution, context.readStateIndex(), values), definition.reducer());
         }
 
         @Override

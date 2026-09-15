@@ -21,6 +21,10 @@ Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concep
 
 For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
 
+For concurrent invariants, distinguish [read boundaries and commit dependencies](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx#model-read-boundaries):
+manual Graph reads inside a Model mutation share its snapshot and readset; event reads, explicit current reads outside
+mutations and document search have different guarantees.
+
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
 derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.

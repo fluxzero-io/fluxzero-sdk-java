@@ -79,11 +79,16 @@ public final class Graphs {
     /** Creates a detached graph whose model and relationship state remain lazy. */
     public static <T> Graph<T> lazy(Object modelId, Class<T> modelType, ModelRepository repository) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
+        Graph<T> mutation = inMutation(modelId, metadata.repositoryId(modelId), false, modelType, repository);
+        if (mutation != null) { return mutation; }
         return GraphState.identity(modelId, metadata.repositoryId(modelId), false, modelType, repository).root();
     }
 
     /** Creates a graph whose root deliberately resolves to the latest state instead of a handler boundary. */
     public static <T> Graph<T> lazyCurrent(Object modelId, Class<T> modelType, ModelRepository repository) {
+        Graph<T> mutation = inMutation(modelId, EntityMetadata.validate(modelType).repositoryId(modelId),
+                                       false, modelType, repository);
+        if (mutation != null) { return mutation; }
         if (repository instanceof ModelGraphResolver resolver) {
             ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
             ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(modelId, modelType);
@@ -111,6 +116,35 @@ public final class Graphs {
 
     /** Discovers an untyped root from its head while leaving its authoritative value lazy. */
     public static Graph<?> lazy(Object modelId, ModelRepository repository) {
+        Class<?> requestedType = modelId instanceof Id<?> id ? id.getType() : Object.class;
+        CommitAttempt context = CommitAttempt.currentReadContext(repository);
+        if (context != null) {
+            if (!(repository instanceof ModelGraphResolver resolver)) {
+                throw new UnsupportedOperationException("Transactional Graph reads require a ModelGraphResolver");
+            }
+            ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), true);
+            ModelGraphResolver.Identity identity = resolver.resolveGraphIdentity(
+                    modelId, false, requestedType, boundary, false);
+            if (identity == null) {
+                throw new UnsupportedOperationException("Transactional untyped Graph reads require identity metadata");
+            }
+            Map<String, Entity<?>> models = context.graphEntities();
+            ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(boundary).withValues(models);
+            String primary = requestedType == Object.class ? modelId.toString()
+                    : EntityMetadata.validate(requestedType).repositoryId(modelId);
+            Entity<?> overlay = snapshot.overlayIdentity(primary, requestedType, identity.modelId(), identity.present());
+            if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(modelId.toString())) {
+                Entity<?> alias = snapshot.overlayIdentity(modelId.toString(), requestedType,
+                                                           identity.modelId(), identity.present());
+                if (alias != null && alias.isPresent()) { overlay = alias; }
+            }
+            Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue head ? head.type() : requestedType;
+            GraphState state = overlay == null
+                    ? GraphState.identity(identity.modelId(), identity.modelId(), true, type, repository, boundary, models)
+                            .retainIdentity(identity)
+                    : GraphState.entity(overlay, context.readStateIndex(), repository, models, false, true, boundary, Map.of());
+            return context.trackGraph(state.valueHistory(false).batchSnapshot(snapshot).root(), repository);
+        }
         if (repository instanceof ModelGraphResolver resolver) {
             ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
             Class<?> expected = modelId instanceof Id<?> id ? id.getType() : Object.class;
@@ -157,10 +191,14 @@ public final class Graphs {
     /** Creates a detached graph for an exact persisted identity. */
     public static <T> Graph<T> lazyRepositoryId(
             String repositoryId, Class<T> modelType, ModelRepository repository) {
+        Graph<T> mutation = inMutation(repositoryId, repositoryId, true, modelType, repository);
+        if (mutation != null) { return mutation; }
         return GraphState.identity(repositoryId, repositoryId, true, modelType, repository).root();
     }
 
     static <T> Graph<T> current(String repositoryId, Class<T> modelType, ModelRepository repository) {
+        Graph<T> mutation = inMutation(repositoryId, repositoryId, true, modelType, repository);
+        if (mutation != null) { return mutation; }
         if (repository instanceof ModelGraphResolver resolver && EntityMetadata.of(modelType).isModel()) {
             ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
             ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(repositoryId, true, modelType);
@@ -175,14 +213,36 @@ public final class Graphs {
     public static <T> Graph<T> lazy(
             Object parentId, Class<?> parentType, Object modelId, Class<T> modelType, ModelRepository repository) {
         String repositoryId = EntityMetadata.validate(modelType).repositoryId(modelId, parentId, parentType);
+        Graph<T> mutation = inMutation(modelId, repositoryId, true, modelType, repository);
+        if (mutation != null) { return mutation; }
         return GraphState.identity(modelId, repositoryId, true, modelType, repository).root();
+    }
+
+    private static <T> Graph<T> inMutation(Object requestedId, String repositoryId, boolean exact,
+                                          Class<T> type, ModelRepository repository) {
+        CommitAttempt context = CommitAttempt.currentReadContext(repository);
+        if (context == null) { return null; }
+        if (!(repository instanceof ModelGraphResolver)) {
+            throw new UnsupportedOperationException("Transactional Graph reads require a ModelGraphResolver");
+        }
+        Map<String, Entity<?>> models = context.graphEntities();
+        Entity<?> loaded = models.get(repositoryId);
+        ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), true);
+        GraphState state = loaded != null && type.isAssignableFrom(loaded.type())
+                ? GraphState.entity(loaded, context.readStateIndex(), repository, models, false, true, boundary, Map.of())
+                : GraphState.identity(requestedId, repositoryId, exact, type, repository, boundary, models);
+        return context.trackGraph(state.valueHistory(false).batchSnapshot(
+                ((ModelGraphResolver) repository).graphStagedValues(boundary).withValues(models)).root(), repository);
     }
 
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
     static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
-        return context.trackGraph(GraphState.entity(
+        GraphState state = GraphState.entity(
                 entity, context.readStateIndex(), repository, context.graphEntities(), false, true,
-                handlerBoundary(context.readStateIndex()), Map.of()).root(), repository);
+                context.mutationContext() ? ModelReadBoundary.state(context.readStateIndex(), true)
+                        : handlerBoundary(context.readStateIndex()), Map.of());
+        if (context.mutationContext()) { state.valueHistory(false); }
+        return context.trackGraph(state.root(), repository);
     }
 
     /** Keeps complete-change views lazy at their exact boundary, including unknown descendants. */
@@ -749,12 +809,18 @@ final class GraphState {
 
     static GraphState identity(
             Object requestedId, String repositoryId, boolean exact, Class<?> modelType, ModelRepository repository) {
+        return identity(requestedId, repositoryId, exact, modelType, repository, ModelReadBoundary.current(), Map.of());
+    }
+
+    static GraphState identity(Object requestedId, String repositoryId, boolean exact, Class<?> modelType,
+                                ModelRepository repository, ModelReadBoundary boundary, Map<String, Entity<?>> models) {
         Identity identity = new Identity(requestedId, repositoryId, exact, modelType, true);
         NodeData data = NodeData.identity(
                 repositoryId, modelType, requestedId, exact,
                 !exact && EntityMetadata.of(modelType).hasAliases());
         Node root = new Node(data, null, null, true);
-        return indexed(-1L, repository, false, false, false, ModelReadBoundary.current(), Map.of(), List.of(), Map.of(),
+        return indexed(boundary.stateIndex() == null ? -1L : boundary.stateIndex(), repository, false, false,
+                       boundary.stateIndex() != null, boundary, models, List.of(), Map.of(),
                        List.of(root), Map.of(), root, identity);
     }
 
@@ -1124,14 +1190,19 @@ final class GraphState {
     private ModelGraphResolver.Identity resolveSourceIdentity(
             NodeData node, ModelBatchScope.Snapshot snapshot, ModelReadBoundary selected) {
         NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
-        ModelGraphResolver.Identity loaded = ((ModelGraphResolver) repository).resolveGraphIdentity(
-                identity.exact() ? node.id : identity.requestedId(), identity.exact(), node.type(), selected);
+        ModelGraphResolver resolver = (ModelGraphResolver) repository;
+        ModelGraphResolver.Identity loaded = exactBoundary && !historicalValues
+                ? resolver.resolveGraphIdentity(identity.exact() ? node.id : identity.requestedId(),
+                        identity.exact(), node.type(), selected, false)
+                : resolver.resolveGraphIdentity(identity.exact() ? node.id : identity.requestedId(),
+                        identity.exact(), node.type(), selected);
         if (loaded == null) {
             return null;
         }
-        Entity<?> overlay = snapshot.overlayIdentity(node.id, node.type(), loaded.modelId(), loaded.present());
+        Entity<?> overlay = identity.exact() ? snapshot.overlayExactIdentity(node.id, node.type())
+                : snapshot.overlayIdentity(node.id, node.type(), loaded.modelId(), loaded.present());
         boolean present = overlay == null ? loaded.present() : overlay.isPresent();
-        if (!present && !node.id.equals(identity.requestedId().toString())) {
+        if (!identity.exact() && !present && !node.id.equals(identity.requestedId().toString())) {
             Entity<?> alias = snapshot.overlayIdentity(identity.requestedId().toString(), node.type(),
                                                        loaded.modelId(), loaded.present());
             if (alias != null && alias.isPresent()) {
@@ -1148,6 +1219,12 @@ final class GraphState {
         if (identityRead != null) {
             return identityRead.entity().get();
         }
+        if (exactBoundary && !historicalValues && node.resolution instanceof NodeData.LazyIdentity identity
+            && identity.exact()) {
+            // An exact current view must not redirect an absent ID through a durable or staged alias.
+            ModelGraphResolver.Identity resolved = sourceIdentity(node);
+            if (resolved != null) { return resolved.entity().get(); }
+        }
         if (navigation != null) {
             return navigation.sourceValue(node);
         }
@@ -1156,8 +1233,11 @@ final class GraphState {
             initialSnapshot = resolver.graphStagedValues(boundary);
         }
         NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
-        ModelGraphResolver.Value loaded = resolver.loadGraphValue(
-                identity.exact() ? node.id : identity.requestedId(), identity.exact(), node.type(), boundary);
+        ModelGraphResolver.Value loaded = exactBoundary && !historicalValues
+                ? resolver.loadGraphValue(identity.exact() ? node.id : identity.requestedId(), identity.exact(),
+                                          node.type(), boundary, false)
+                : resolver.loadGraphValue(identity.exact() ? node.id : identity.requestedId(), identity.exact(),
+                                          node.type(), boundary);
         Entity<?> entity = overlaySource(initialSnapshot, node, identity, loaded.entity());
         sourceRead = loaded;
         historicalValues = loaded.historical();
@@ -1166,7 +1246,9 @@ final class GraphState {
 
     private Entity<?> overlaySource(ModelBatchScope.Snapshot snapshot, NodeData node,
                                     NodeData.LazyIdentity identity, Entity<?> durable) {
-        Entity<?> entity = snapshot.overlay(node.id, node.type(), durable);
+        Entity<?> overlay = identity.exact() ? snapshot.overlayExactIdentity(node.id, node.type()) : null;
+        Entity<?> entity = identity.exact() ? (overlay == null ? durable : overlay)
+                : snapshot.overlay(node.id, node.type(), durable);
         if (!identity.exact() && entity.isEmpty() && !node.id.equals(identity.requestedId().toString())) {
             Entity<?> alias = snapshot.overlay(identity.requestedId().toString(), node.type(), durable);
             if (alias.isPresent()) {
@@ -1618,7 +1700,9 @@ final class GraphState {
                     if (!node.entityResolved) {
                         if (node.resolution instanceof NodeData.Metadata metadata) {
                             node.entity = Objects.requireNonNull(metadata.node().entity().get(), "Resolved graph entity");
-                        } else if (state.identityRead != null && node == state.root.data()) {
+                        } else if (node == state.root.data() && (state.identityRead != null
+                                || state.exactBoundary && !state.historicalValues
+                                   && node.resolution instanceof NodeData.LazyIdentity identity && identity.exact())) {
                             node.entity = state.sourceValue(node);
                         } else if (state.navigation != null && state.navigation.boundary.stateIndex() != null) {
                             ModelGraphResolver.ModelNode metadata = state.navigation.model(node.id);

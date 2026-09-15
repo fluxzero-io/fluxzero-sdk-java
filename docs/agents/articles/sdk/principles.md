@@ -1,5 +1,9 @@
 Build Fluxzero applications from the inside out. Start with command intent and domain state, add handlers and tests, then add projections/search, and expose web endpoints last.
 
+For concurrent Model invariants, use the binding and read-boundary example at `/docs/sdk/entities/assert-legal`.
+Identify the Model values/relations, ID source and conflict policy; neither `@AssertLegal`, current reads nor RETRY
+make arbitrary search or helper I/O transactional. Resolve an unclear binding before adding an application workaround.
+
 Core rules for agents:
 
 - Put commands, queries, and typed IDs in an `api` package; put Models and value objects in `api.model`; keep handlers and endpoints near the domain package.

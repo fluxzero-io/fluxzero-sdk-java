@@ -1116,7 +1116,8 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor
      * lookup can normally resolve directly from stored relationship identities.
-     * Outside historical event handling, the default repository establishes the snapshot at storage on the first
+     * Within a Model mutation this joins the active attempt's pinned boundary, staged state and inspected readset.
+     * Otherwise, outside historical event handling, the default repository establishes the snapshot at storage on the first
      * storage read, independently of the root cache and whether value or relationships are requested first.
      */
     static <T> Graph<T> loadGraph(Id<T> modelId) {
@@ -1128,6 +1129,7 @@ public interface Fluxzero extends AutoCloseable {
      * Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The default repository
      * discovers its type from the head and pins the boundary during this call, without replaying the root value.
      * The root Model contract must be locally known. Custom repositories may retain value-based discovery.
+     * Within a Model mutation this uses that attempt's pinned boundary, staged state and inspected readset.
      */
     static Graph<?> loadGraph(Object modelId) {
         return io.fluxzero.sdk.modeling.Graphs.lazy(modelId, currentModelRepository());
@@ -1135,7 +1137,8 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Lazily loads an independently stored model by ID and expected type as a relationship graph.
-     * The default repository establishes a new nonhistorical snapshot at storage on the first storage read.
+     * Within a Model mutation this shares its pinned boundary, staged state and inspected readset. Otherwise the
+     * default repository establishes a new nonhistorical snapshot at storage on the first storage read.
      * The resulting Graph stays pinned; later commits require a new view.
      */
     static <T> Graph<T> loadGraph(Object modelId, Class<T> modelType) {
@@ -1146,7 +1149,9 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or
      * notification handler's historical read boundary.
-     * The default repository pins a fresh storage boundary with a head-only read during this call, even when the
+     * Within a Model mutation this shares the active attempt's boundary, staged state and inspected readset instead
+     * of opening a newer snapshot. Outside mutations the default repository pins a fresh storage boundary with a
+     * head-only read during this call, even when the
      * root is cached: its relationships may have changed after the cache's observation boundary. Authoritative
      * values remain lazy and may reuse an exact matching cached revision. This is not the document-only
      * {@link #loadCurrentModelState(String, Class)} read contract.

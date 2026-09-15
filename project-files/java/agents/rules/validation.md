@@ -1,5 +1,10 @@
 # Validation & Security
 
+For concurrent Model invariants, read [Model state and protection boundaries](https://fluxzero.io/docs/guides/modeling-and-persistence/model-state-boundaries/).
+Identify the Model values/relations, ID source and conflict policy. Inject the Model/Graph or load its Graph within
+the mutation. Search, arbitrary manual Model reads and standalone assertions are not automatic commit dependencies.
+An unclear binding must be resolved before adding an application workaround.
+
 Fluxzero provides a multi-layered approach to security and validation, ensuring that business logic is protected and
 data is filtered according to user permissions before it ever reaches the network or the client.
 

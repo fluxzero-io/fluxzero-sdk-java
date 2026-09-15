@@ -20,7 +20,7 @@ and requires create-only assertions when appropriate. ACCEPT validates apply dep
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
-Injected Graph reads also count: values/type/alias/revision reads protect Model heads; child collections (including empty
+Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
 Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8
 SDK/Runtime. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through

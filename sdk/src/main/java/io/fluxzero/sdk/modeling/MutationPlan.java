@@ -1188,7 +1188,8 @@ public final class MutationPlan {
                             dependency.dependency.handler(), explicitType))
                     .map(PlannedAncestor::dependency)
                     .filter(dependency -> !compatibleExplicit(
-                            dependency.modelType(), explicitType)).toList();
+                            dependency.modelType(), explicitType))
+                    .filter(dependency -> !bindMetadataReference(input, dependency, result, references)).toList();
             if (replayTarget != null && ancestorRoots != null) {
                 List<AncestorDependency> matching = unresolvedAncestors.stream()
                         .filter(dependency -> EntityMetadata.compatibleTypes(
@@ -1230,6 +1231,31 @@ public final class MutationPlan {
                     List.copyOf(result.values()), unresolved,
                     unresolvedAncestors,
                     references);
+        }
+
+        private boolean bindMetadataReference(Object input, AncestorDependency dependency,
+                                               Map<String, ResolvedModel> models,
+                                               Map<EntityMetadata.ModelParameter, DirectReferences> references) {
+            if (!(input instanceof HasMessage message) || dependency.association() == null) { return false; }
+            EntityMetadata.HandlerMethod handler = handlerMethods.get(dependency.handler());
+            if (handler == null) { return false; }
+            for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
+                if (parameter.modelType() != dependency.modelType()
+                    || !Objects.equals(parameter.associationProperty(), dependency.association())
+                    || !metadataContains(message, parameter)) { continue; }
+                DirectReferences direct = directReferences(message, parameter);
+                references.put(parameter, direct);
+                if (direct.modelId() == null) {
+                    if (dependency.required()) {
+                        throw new IllegalStateException("Metadata Model ID '%s' is null".formatted(dependency.association()));
+                    }
+                } else {
+                    merge(models, new ResolvedModel(direct.modelId(), dependency.modelType(), dependency.access(),
+                                                     List.of(dependency.association())));
+                }
+                return true;
+            }
+            return false;
         }
 
         private void addProspectiveParents(

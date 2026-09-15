@@ -123,13 +123,12 @@ Graph<Line> line = Fluxzero.loadGraph(
 All non-null parents must resolve to one unambiguous nearest parent. Parent-scoped identity is unsuitable for a model
 that moves while retaining its identity, because changing the parent changes the persisted identity.
 
-Open `graph.current()` for the same Model at a new current boundary without replacing the historical Graph.
-It retains the exact repository ID and owning repository/namespace, including affixes and parent scope. The result
-pins its new boundary during the call, stays lazy and captures the current message-batch overlay; it is not a live view.
-A moved node gets current parents; a deleted Model is empty. Filters, mapped values, staged Graph edits and response
-context are not copied. Reapply presentation/content filters to the new view. Unknown nodes and custom repositories
-without exact-current support fail explicitly. Keep invariant checks on injected Graphs: the fresh view does not inherit
-their transactional read provenance.
+Open `graph.current()` for the same Model without replacing the original Graph. Outside mutations it pins a new
+current boundary during the call and captures pending batch changes; inside a mutation it shares that attempt's
+boundary, staged values and read dependencies. It retains exact identity and owning repository/namespace, including
+affixes and parent scope. A moved node gets the parents at that selected boundary; a deleted Model is empty. Filters,
+mapped values, uncommitted edits on the source Graph and response context are not copied. Reapply presentation filters.
+Unknown nodes and custom repositories without the required current-read capability fail explicitly.
 
 See [Model recipes](./197-model-recipes.mdx) for examples, including direct companion loads by parent ID and Model type.
 

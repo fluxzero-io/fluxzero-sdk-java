@@ -254,6 +254,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
+    /** Whether two repository views address the same application-owned Model state and exact namespace. */
+    public boolean sharesReadContext(ModelRepository other) {
+        return this == other || other instanceof DefaultModelRepository that
+                && cacheOwner == that.cacheOwner && Objects.equals(client.namespace(), that.client.namespace());
+    }
+
     /**
      * Binds background cache replay to this repository's owning application, including namespace views. Builders
      * configure this before exposing the repository. Standalone repositories do not infer ownership from callers.
@@ -913,6 +919,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private ModelGraphResolver.Identity graphIdentity(
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected) {
+        return resolveGraphIdentity(modelId, exact, modelType, selected, selected.historical());
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected, boolean historical) {
         if (modelType != Object.class) {
             modelName(modelType);
         }
@@ -921,10 +933,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         // A root's cached revision cannot establish a current relationship boundary. The head read
         // pins the complete view; its value supplier can still reuse that exact cached revision.
         ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
-                                                                        selected.historical(), modelCacheTracker);
+                                                                        historical, modelCacheTracker, exact);
         if (!exact && !result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
             ModelGraphResolver.Identity alias = replayCursor.graphIdentity(
-                    modelId.toString(), modelType, result.boundary(), selected.historical(), modelCacheTracker);
+                    modelId.toString(), modelType, result.boundary(), historical, modelCacheTracker);
             if (alias.present()) {
                 result = alias;
             }
@@ -934,14 +946,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private ModelGraphResolver.Value graphValue(
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        return loadGraphValue(modelId, exact, modelType, boundary, boundary.historical());
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadGraphValue(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         String primary = exact ? modelId.toString() : metadata.repositoryId(modelId);
         ModelGraphResolver.Value result = replayCursor.graphValue(primary, modelType, boundary, modelCacheTracker,
-                                                                  boundary.historical());
+                                                                  historical);
         if (!exact && result.entity().isEmpty() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
             ModelGraphResolver.Value alias = replayCursor.graphValue(
-                    modelId.toString(), modelType, result.boundary(), modelCacheTracker, boundary.historical());
+                    modelId.toString(), modelType, result.boundary(), modelCacheTracker, historical);
             if (alias.entity().isPresent()) {
                 result = alias;
             }
@@ -1105,14 +1123,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch) {
         modelName(rootType);
         EntityMetadata.validate(rootType);
+        CommitAttempt mutation = boundary.historical() ? null : CommitAttempt.currentReadContext(this);
         Map<String, Entity<?>> staged =
                 includeMessageBatch
                         ? ModelBatchScope.currentValues(
                                 messageBatchNamespace(), modelDefinitionCompiler)
                         : Map.of();
-        Graph<T> result = replayCursor.graph(
-                rootId, rootType, options, boundary,
-                messageBatchNamespace(), staged);
+        Graph<T> result;
+        if (mutation == null) {
+            result = replayCursor.graph(rootId, rootType, options, boundary, messageBatchNamespace(), staged);
+        } else {
+            Map<String, Entity<?>> overlay = new LinkedHashMap<>(staged);
+            overlay.putAll(mutation.graphEntities());
+            result = mutation.trackGraph(replayCursor.graphAtBoundary(
+                    rootId, rootType, options, ModelReadBoundary.state(mutation.readStateIndex(), true),
+                    messageBatchNamespace(), overlay, false), this);
+        }
         pin(handlerBoundary, result.stateIndex());
         return result;
     }
@@ -1140,6 +1166,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private PinnedBoundary handlerBoundary() {
+        if (CommitAttempt.currentReadContext(this) != null) { return null; }
         DeserializingMessage current =
                 DeserializingMessage.getCurrent();
         if (current == null

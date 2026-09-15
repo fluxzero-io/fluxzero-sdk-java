@@ -50,6 +50,49 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CurrentGraphBoundaryTest {
+    @Test
+    void ordinaryCachedMutationAddsNoFreshnessRead() throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try {
+                var repository = (DefaultModelRepository) app.modelRepository();
+                assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+                commit(app, new CreateRoot("root"));
+                repository.load("root", FreshnessRoot.class);
+                client.eventQueries.clear();
+                commit(app, new UpdateRoot("root"));
+                assertTrue(client.eventQueries.isEmpty(), "A successful ordinary cachehit needs no upfront read-RPC");
+            } finally { client.releaseUpdates.complete(null); }
+        }
+    }
+
+    @Test
+    void staleFunctionalRejectionIsNotRefreshedOrRetried() throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero reader = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try {
+                var repository = (DefaultModelRepository) reader.modelRepository();
+                assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+                commit(reader, new CreateRoot("root"));
+                repository.load("root", FreshnessRoot.class);
+                commit(writer, new UpdateRoot("root"));
+                client.eventQueries.clear();
+                Throwable failure = assertThrows(Exception.class, () -> commit(reader, new RequireUpdatedRoot("root")));
+                while (failure.getCause() != null) { failure = failure.getCause(); }
+                assertInstanceOf(io.fluxzero.sdk.tracking.handling.IllegalCommandException.class, failure);
+                assertTrue(client.eventQueries.isEmpty(), "An early rejection must not trigger storage verification");
+            } finally { client.releaseUpdates.complete(null); }
+        }
+    }
+
+    record RequireUpdatedRoot(String rootId) {
+        @AssertLegal void check(FreshnessRoot root) {
+            if (root.version() < 2) { throw new io.fluxzero.sdk.tracking.handling.IllegalCommandException("Old root"); }
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) FreshnessRoot apply(FreshnessRoot root) { return root; }
+    }
+
     @ParameterizedTest
     @EnumSource(value = ModelConflictPolicy.class, names = {"ACCEPT", "FAIL", "RETRY"})
     void nextCommandObservesAnotherApplicationsCommitDuringTheReceivedBatch(

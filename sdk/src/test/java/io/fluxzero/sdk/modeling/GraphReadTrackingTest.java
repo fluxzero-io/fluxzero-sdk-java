@@ -47,6 +47,20 @@ class GraphReadTrackingTest {
     interface NavigableRepository extends ModelRepository, ModelGraphResolver {}
 
     @Test
+    void pinnedCurrentExactValueRetainsCustomResolverWithoutIdentityMetadata() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        ModelReadBoundary boundary = ModelReadBoundary.state(42L, true);
+        Entity<Node> root = entity("parent", new Node("parent", "root"));
+        when(source.graphStagedValues(boundary)).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        when(source.loadGraphValue("parent", true, Node.class, boundary, false))
+                .thenReturn(new ModelGraphResolver.Value(root, boundary, false));
+        Graph<?> graph = GraphState.identity("parent", "parent", true, Node.class, source, boundary, Map.of())
+                .valueHistory(false).root();
+        assertEquals(root.get(), graph.get());
+        verify(source).loadGraphValue("parent", true, Node.class, boundary, false);
+    }
+
+    @Test
     void changedGraphPreservesHistoricalNavigationMode() {
         NavigableRepository source = mock(NavigableRepository.class);
         ModelReadBoundary boundary = ModelReadBoundary.state(42L, false);

@@ -54,7 +54,8 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * is itself a graph view, so root, parent, history and update operations remain available without exposing the
  * persistence-only {@link Entity} wrapper.
  * <p>
- * When injected into a Model evaluation, inspected values and relationship collections become conflict dependencies.
+ * When injected or synchronously loaded within a Model evaluation, inspected values and relationship collections
+ * become conflict dependencies on that evaluation's pinned boundary and owning repository/namespace.
  * Empty child collections and examined/rejected filter candidates count too; merely loading a graph does not protect
  * every descendant. Cached transformations retain their read evidence. Reads, including joined parallel scans, must
  * finish within the synchronous evaluation. Explicit historical views and unrelated repository/search reads are not
@@ -738,8 +739,9 @@ public interface Graph<T> {
      * response context are not carried over: reapply those deliberately to the new view.</p>
      * <p>Requires a locally known Model type and repository support for exact-identity current reads. Custom Graphs
      * may override this method; the default fails rather than silently switching repositories or read boundaries.</p>
-     * <p>Like an explicit current load, this view does not inherit the original injected Graph's transaction read
-     * provenance. Use injected Models/Graphs for invariant checks, and current views for deliberate reconciliation.</p>
+     * <p>Within a mutation on this repository/namespace, the view joins that active attempt's pinned boundary,
+     * staged values and inspected read dependencies; it does not open a second snapshot. Outside mutations it has
+     * no transaction provenance and deliberately opens the fresh boundary described above.</p>
      *
      * @throws UnsupportedOperationException if this Graph or its repository cannot open such a view
      * @throws IllegalStateException if this node's Model type is unknown locally

@@ -240,9 +240,10 @@ indexed server-side count, and is not a transaction-safe quota check. Do not use
 
 | Read | Result | State and consistency boundary |
 | --- | --- | --- |
-| `loadModel(id)` | `Entity<T>`; `.get()` gives `T` | Authoritative load path, with cache and applicable handler boundary |
-| Injected `Graph<T>` / `loadGraph(id)` | Lazy relationship Graph | Event-bound in Model-event handling; transactional injections track inspected values/memberships. Outside such a context, resolves current state when its lazy boundary is established |
-| `loadCurrentGraph(id)` | Lazy relationship Graph | Fresh head-only storage boundary pinned during the call, even with a cached root; not the old event's boundary. Values remain lazy and authoritative, not a no-replay API |
+| `loadModel(id)` | `Entity<T>`; `.get()` gives `T` | Authoritative load path, with cache and applicable handler boundary; an arbitrary manual Model load does not itself register a commit dependency |
+| Injected `T` / `Graph<T>` in a mutation | Selected value / lazy Graph | Attempt boundary; protects injected values and inspected Graph memberships at commit |
+| `loadGraph(id)` | Lazy relationship Graph | In a mutation: same attempt boundary, staged state and inspected read dependencies. In Model-event handling: event-bound. Otherwise: storage-verified when its lazy boundary is established |
+| `loadCurrentGraph(id)` / `graph.current()` | Lazy relationship Graph | In a mutation: same attempt and readset, not a newer snapshot. Otherwise: fresh storage boundary pinned during the call, not the old event's boundary. Values remain lazy and authoritative, not a no-replay API |
 | `search(T.class)` with/without relationships | Current document values | Search-visible committed documents, not event-bound state and not transaction read dependencies |
 | `searchGraph(T.class, true)` | Document-backed `Graph<T>` | On-demand composition of current documents/relations; not an authoritative historical reconstruction or a verified multi-model snapshot |
 | `searchGraph(T.class)` with materialization | Document-backed `Graph<T>` | Stored projection version, possibly behind current state; combining current relationship predicates with it can mix selection and result versions |
