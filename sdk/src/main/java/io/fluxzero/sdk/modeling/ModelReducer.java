@@ -480,13 +480,15 @@ public final class ModelReducer {
                     visited = new IdentityHashMap<>();
                 }
                 visited.put(receiver, Boolean.TRUE);
-                assertResult(result, message, context, after, visited, 0, assertionLoader);
+                assertResult(result, message, context, after, visited, 0, assertionLoader,
+                             new MutationPlan.AssertionScope(message, null));
             }
         }
     }
 
     private void assertResult(Object value, DeserializingMessage message, CommitAttempt context, boolean after,
-                              IdentityHashMap<Object, Boolean> visited, int depth, AssertionLoader assertionLoader) {
+                              IdentityHashMap<Object, Boolean> visited, int depth, AssertionLoader assertionLoader,
+                              MutationPlan.AssertionScope parentScope) {
         if (value == null || visited.put(value, Boolean.TRUE) != null) {
             return;
         }
@@ -495,11 +497,12 @@ public final class ModelReducer {
         }
         if (value instanceof Collection<?> collection) {
             for (Object element : collection) {
-                assertResult(element, message, context, after, visited, depth + 1, assertionLoader);
+                assertResult(element, message, context, after, visited, depth + 1, assertionLoader, parentScope);
             }
             return;
         }
         MutationPlan.AssertionPlan plan = compiler.assertions(value.getClass());
+        MutationPlan.AssertionScope scope = new MutationPlan.AssertionScope(message.withPayload(value), parentScope);
         for (MutationPlan.Assertion assertion : after ? plan.after() : plan.before()) {
             Object result;
             CommitAttempt assertionContext = context;
@@ -510,7 +513,7 @@ public final class ModelReducer {
                         continue;
                     }
                     if (assertionLoader != null && !assertion.handler().method().modelParameters().isEmpty()) {
-                        assertionContext = assertionLoader.load(message,
+                        assertionContext = assertionLoader.load(message, scope,
                                 EntityMetadata.modelParameters(assertion.handler().method().executable()), context);
                     }
                     assertionContext.attachTo(message);
@@ -526,7 +529,7 @@ public final class ModelReducer {
                 CommitAttempt resultContext = assertionContext;
                 Object assertionResult = result;
                 CommitAttempt.withGraphReads(resultContext, () -> {
-                    assertResult(assertionResult, message, resultContext, after, visited, depth + 1, assertionLoader);
+                    assertResult(assertionResult, message, resultContext, after, visited, depth + 1, assertionLoader, scope);
                     return null;
                 });
             } finally {
@@ -1002,9 +1005,9 @@ public final class ModelReducer {
                 }
 
                 AssertionLoader assertionLoader = mode.assertions && resolved.reducer().recursiveAssertions
-                        ? (message, parameters, assertionContext) -> {
+                        ? (message, guard, parameters, assertionContext) -> {
                             CommitAttempt loaded = resolver.resolveAssertion(
-                                    message, parameters, assertionContext, stagedValues);
+                                    message, guard, parameters, assertionContext, stagedValues);
                             loaded.bindGraphReads(attempt);
                             if (loaded.readStateIndex() != assertionContext.readStateIndex()) {
                                 throw new IllegalStateException("Nested assertion changed the pinned model read boundary");
@@ -1196,7 +1199,8 @@ public final class ModelReducer {
 
     @FunctionalInterface
     private interface AssertionLoader {
-        CommitAttempt load(DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+        CommitAttempt load(DeserializingMessage message, MutationPlan.AssertionScope scope,
+                           EntityMetadata.ExecutableParameters parameters,
                            CommitAttempt context);
     }
 
@@ -1208,7 +1212,8 @@ public final class ModelReducer {
                 Map<String, Object> stagedValues);
 
         default CommitAttempt resolveAssertion(
-                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                DeserializingMessage message, MutationPlan.AssertionScope scope,
+                EntityMetadata.ExecutableParameters parameters,
                 CommitAttempt context, Map<String, Object> stagedValues) {
             return context;
         }

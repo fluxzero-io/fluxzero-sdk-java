@@ -884,7 +884,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
         PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
         ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
-        ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected, true);
+        ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected);
         pin(handlerBoundary, result.boundary().stateIndex());
         return result;
     }
@@ -903,7 +903,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return replayCursor.graphIdentity(modelId.toString(), modelType, ModelReadBoundary.current().forRequest(),
                                                false, modelCacheTracker, true);
         }
-        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest(), false);
+        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest());
     }
 
     @Override
@@ -912,22 +912,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private ModelGraphResolver.Identity graphIdentity(
-            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected, boolean allowCachedBoundary) {
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected) {
         if (modelType != Object.class) {
             modelName(modelType);
         }
         EntityMetadata metadata = EntityMetadata.of(modelType);
         String primary = exact || modelType == Object.class ? modelId.toString() : metadata.repositoryId(modelId);
-        if (allowCachedBoundary && !selected.historical() && !selected.before() && modelCacheTracker != null
-            && metadata.rootConfiguration().filter(c -> c.cached() && c.eventSourced()).isPresent()) {
-            modelCacheTracker.prepare();
-            ModelCacheTracker.CurrentModel current = modelCacheTracker.peekCurrentVersion(primary, modelType);
-            if (current != null && !(current.entity().isEmpty() && metadata.hasAliases())) {
-                Entity<?> entity = current.entity();
-                return new ModelGraphResolver.Identity(entity.id().toString(), entity.isPresent(),
-                        selected.resolved(current.validThrough()), false, () -> entity);
-            }
-        }
+        // A root's cached revision cannot establish a current relationship boundary. The head read
+        // pins the complete view; its value supplier can still reuse that exact cached revision.
         ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
                                                                         selected.historical(), modelCacheTracker);
         if (!exact && !result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {

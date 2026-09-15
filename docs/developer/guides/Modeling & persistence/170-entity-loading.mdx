@@ -64,6 +64,11 @@ immediately; an untyped value may be an alias and therefore resolves the source 
 relationship identities and materializes only the selected ancestor value, so
 `graph.ancestorModel(Organisation.class)` need not load the source or intervening location and connection values.
 
+Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of
+the cached root. Reading `get()` before `children(...)` does not hide already committed relationship changes.
+Typed lazy loads pin on their first storage read; untyped loads pin when resolving the root identity. Once pinned,
+a Graph remains a snapshot, not a live view of later commits.
+
 An untyped ID can be loaded by supplying the model class explicitly:
 
 ```java

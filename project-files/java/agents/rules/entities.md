@@ -302,6 +302,12 @@ Return a validation object (or collection) from `@AssertLegal` to run its matchi
 payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
 and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
 
+Model references are selected per parameter: first from the nested validator, then enclosing validators, and finally
+the triggering payload. A returned `RemainingItem(otherItemId)` therefore validates that other item; a reference-less
+validator returned by it inherits that selection. Explicit nulls and empty collections do not fall back. Explicit
+`@Association` metadata retains its normal precedence for that parameter without replacing unrelated selections.
+Ancestors are resolved from the selected references. The original command remains available as a payload parameter.
+
 Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
 delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
 validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
@@ -520,6 +526,11 @@ Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or
 command, or when a tracked scheduling consumer must decide which deadlines still belong to a Model despite handling
 an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
 before/after processing on injected Models/Graphs; do not use current loading as the default route.
+
+Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of a
+cached root. Reading `get()` before `children(...)` therefore does not hide already committed relation changes.
+Typed lazy loads pin on their first storage read; an untyped load pins when it resolves the root identity.
+Once pinned, that Graph stays on its snapshot: use a new view to observe later commits.
 
 A newly evaluated Model operation with injected Graph dependencies establishes its initial read boundary at storage,
 even when the root Model is already cached. A root's cached revision alone cannot prove that no child was added,

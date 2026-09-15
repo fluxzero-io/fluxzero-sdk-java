@@ -531,11 +531,16 @@ public final class MutationPlan {
     static Resolution bind(
             DeserializingMessage message,
             EntityMetadata.ExecutableParameters plan) {
+        return bind(message, plan, null);
+    }
+
+    static Resolution bind(DeserializingMessage message, EntityMetadata.ExecutableParameters plan,
+                           AssertionScope scope) {
         Map<String, ResolvedModel> targets = new LinkedHashMap<>();
         Set<AncestorDependency> ancestors = new LinkedHashSet<>();
         LinkedHashMap<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
         for (EntityMetadata.ModelParameter parameter : plan.values()) {
-            DirectReferences direct = directReferences(message, parameter);
+            DirectReferences direct = scope == null ? directReferences(message, parameter) : scope.references(parameter);
             references.put(parameter, direct);
             if (parameter.collectionWrapped()) {
                 if (direct.present()) {
@@ -557,10 +562,57 @@ public final class MutationPlan {
             }
         }
         if (!ancestors.isEmpty()) {
-            resolveReferencedModels(message.getPayload()).forEach(target -> merge(targets, target));
+            (scope == null ? resolveReferencedModels(message.getPayload()) : scope.ancestorRoots(plan))
+                    .forEach(target -> merge(targets, target));
         }
         return new Resolution(
                 List.copyOf(targets.values()), List.of(), List.copyOf(ancestors), references);
+    }
+
+    /** Nested validators select references per parameter, without replacing the original invocation payload. */
+    record AssertionScope(DeserializingMessage message, AssertionScope parent) {
+        DirectReferences references(EntityMetadata.ModelParameter parameter) {
+            for (AssertionScope scope = this; scope != null; scope = scope.parent) {
+                DirectReferences result = directReferences(scope.message, parameter);
+                if (result.present()) {
+                    return result;
+                }
+            }
+            return DirectReferences.missing();
+        }
+
+        List<ResolvedModel> ancestorRoots(EntityMetadata.ExecutableParameters plan) {
+            for (AssertionScope scope = this; scope != null; scope = scope.parent) {
+                if (scope.ownsReferences(plan)) {
+                    // A declared null reference must not fall back to a different outer ancestor.
+                    return resolveReferencedModels(scope.message.getPayload());
+                }
+            }
+            return List.of();
+        }
+
+        boolean hasNestedAncestorRoots(EntityMetadata.ExecutableParameters plan) {
+            for (AssertionScope scope = this; scope.parent != null; scope = scope.parent) {
+                if (scope.ownsReferences(plan)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean ownsReferences(EntityMetadata.ExecutableParameters plan) {
+            if (!referencedModelTypes(message.getPayloadClass()).isEmpty()) {
+                return true;
+            }
+            Object value = payload(message.getPayload());
+            if (value == null) {
+                return false;
+            }
+            Payload properties = Payload.of(value.getClass());
+            return plan.values().stream().anyMatch(parameter -> parameter.collectionWrapped()
+                    ? properties.collection(parameter.modelType(), parameter.associationProperty()) != null
+                    : properties.direct(parameter.modelType(), parameter.associationProperty()) != null);
+        }
     }
 
     /** Application-bound definitions invalidated together when model registration changes. */

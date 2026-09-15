@@ -1116,6 +1116,8 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor
      * lookup can normally resolve directly from stored relationship identities.
+     * Outside historical event handling, the default repository establishes the snapshot at storage on the first
+     * storage read, independently of the root cache and whether value or relationships are requested first.
      */
     static <T> Graph<T> loadGraph(Id<T> modelId) {
         return io.fluxzero.sdk.modeling.Graphs.lazy(
@@ -1133,6 +1135,8 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Lazily loads an independently stored model by ID and expected type as a relationship graph.
+     * The default repository establishes a new nonhistorical snapshot at storage on the first storage read.
+     * The resulting Graph stays pinned; later commits require a new view.
      */
     static <T> Graph<T> loadGraph(Object modelId, Class<T> modelType) {
         return io.fluxzero.sdk.modeling.Graphs.lazy(

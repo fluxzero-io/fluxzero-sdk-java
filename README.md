@@ -32,6 +32,7 @@ while Graph composition and related-content predicates use the internal source. 
 [migration guide](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) for independent reindexing.
 Choose [Graph relationships](docs/developer/guides/Modeling%20%26%20persistence/190-nested-entities.mdx) separately from ownership: a plain typed ID is only a reference; `@Parent` registers an edge, with cascade deletion configurable per relation.
 See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
+Returned validation objects can select their own Model dependencies while retaining the triggering command context.
 
 [Parent-owned schedules](docs/developer/guides/Messaging/086-parent-owned-schedules.mdx) use `@Parent` or
 `Schedule.withParents(...)` to cancel delayed work automatically when a committed Model is deleted.

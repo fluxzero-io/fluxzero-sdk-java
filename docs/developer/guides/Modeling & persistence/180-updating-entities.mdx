@@ -337,6 +337,14 @@ The nested object is the assertion receiver, not a replacement payload. Addition
 ancestors and `List<Graph<T>>` associations, use the same pinned read boundary. RETRY and FAIL protect these reads;
 ACCEPT rebase and event replay do not rerun the checks.
 
+Model selection is resolved per parameter from the nearest validator declaring a reference, then enclosing validators,
+and finally the triggering payload. A command for item A may return
+`RemainingItem(itemBId)`: the nested check then injects B, even if both payloads name their ID property `itemId`.
+If that validator returns another reference-less validator, it still selects B. The original command, metadata and
+user remain injectable. Explicit nulls and empty ID collections are intentional selections, not fallback requests;
+association metadata retains its normal precedence for that parameter without changing unrelated selections.
+Ancestor injection follows the selected references rather than borrowing an outer validator's different parent.
+
 Return values are visited in the returning method's phase: before-methods visit nested before-methods; after-methods
 visit nested after-methods against the fully composed state. A no-arg accessor is still a method and is not invoked
 again in the other phase. To expose one validator in both phases, use an `@AssertLegal` field (or an annotated record

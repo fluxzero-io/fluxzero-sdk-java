@@ -113,6 +113,11 @@ command, or when a tracked scheduling consumer must decide which deadlines still
 an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
 before/after processing on injected Models/Graphs; do not use current loading as the default route.
 
+Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of a
+cached root. Reading `get()` before `children(...)` therefore does not hide already committed relation changes.
+Typed lazy loads pin on their first storage read; an untyped load pins when it resolves the root identity.
+Once pinned, that Graph stays on its snapshot: use a new view to observe later commits.
+
 A newly evaluated Model operation with injected Graph dependencies establishes its initial read boundary at storage,
 even when the root Model is already cached. A root's cached revision alone cannot prove that no child was added,
 removed or moved. Relationships remain lazy, and once selected the boundary stays pinned through the evaluation;

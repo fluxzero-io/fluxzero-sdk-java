@@ -1217,8 +1217,12 @@ final class ModelReplayCursor {
         }
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 id, type, MutationPlan.Access.READ_ONLY, List.of(metadata.entityId().orElseThrow().name()));
-        CommitAttempt loaded = context(new MutationPlan.Resolution(List.of(target), List.of()), boundary,
-                                       Map.of(), null, cacheTracker, true);
+        MutationPlan.Resolution resolution = new MutationPlan.Resolution(List.of(target), List.of());
+        // Value-first Graph access must observe the same kind of fresh boundary as relationship-first
+        // access. A validated cached suffix remains usable, but its old global cursor is not the view.
+        CommitAttempt loaded = boundary.historical()
+                ? context(resolution, boundary, Map.of(), null, cacheTracker, true)
+                : contextAtStorage(resolution, Map.of(), null, cacheTracker);
         Entity<?> entity = loaded.entity(loaded.targets().getFirst().modelId());
         if (boundary.before()) {
             entity = beforeBoundary(entity, loaded.readStateIndex());

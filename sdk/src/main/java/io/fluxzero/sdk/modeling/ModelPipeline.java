@@ -1088,15 +1088,25 @@ final class ModelPipeline {
 
         @Override
         public CommitAttempt resolveAssertion(
-                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                DeserializingMessage message, MutationPlan.AssertionScope scope,
+                EntityMetadata.ExecutableParameters parameters,
                 CommitAttempt context, Map<String, Object> stagedValues) {
-            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters);
+            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters, scope);
+            boolean scopedAncestors = scope.hasNestedAncestorRoots(parameters);
             LinkedHashMap<String, MutationPlan.ResolvedModel> targets = new LinkedHashMap<>();
-            context.targets().forEach(target -> MutationPlan.merge(targets, target));
+            if (!scopedAncestors) {
+                context.targets().stream().filter(target -> parameters.values().stream().noneMatch(parameter ->
+                        EntityMetadata.compatibleTypes(parameter.modelType(), target.modelType())
+                        && (parameter.associationProperty() == null
+                            || target.sourceProperties().contains(parameter.associationProperty()))
+                        && bound.references().get(parameter).present()))
+                        .forEach(target -> MutationPlan.merge(targets, target));
+            }
             bound.models().forEach(target -> MutationPlan.merge(targets, target));
             MutationPlan.Resolution resolution = new MutationPlan.Resolution(
                     List.copyOf(targets.values()), List.of(), bound.ancestorDependencies().stream()
-                    .filter(dependency -> context.resolve(dependency.modelType(), dependency.association()) == null)
+                    .filter(dependency -> scopedAncestors
+                                          || context.resolve(dependency.modelType(), dependency.association()) == null)
                     .toList(), bound.references());
             Map<String, Object> values = new LinkedHashMap<>(stagedValues);
             context.entities().forEach((id, entity) -> values.put(id, entity.get()));

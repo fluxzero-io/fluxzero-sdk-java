@@ -154,6 +154,12 @@ Return a validation object (or collection) from `@AssertLegal` to run its matchi
 payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
 and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
 
+Model references are selected per parameter: first from the nested validator, then enclosing validators, and finally
+the triggering payload. A returned `RemainingItem(otherItemId)` therefore validates that other item; a reference-less
+validator returned by it inherits that selection. Explicit nulls and empty collections do not fall back. Explicit
+`@Association` metadata retains its normal precedence for that parameter without replacing unrelated selections.
+Ancestors are resolved from the selected references. The original command remains available as a payload parameter.
+
 Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
 delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
 validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
