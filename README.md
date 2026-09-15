@@ -17,9 +17,10 @@ Use the SDK to describe a feature with plain messages, immutable models, and sma
 
 Fluxzero handles delivery, routing, persistence, retries, and observability around that code. You can test complete product flows locally with `TestFixture` and run the same application behavior on Fluxzero.
 
-For external APIs, use the [WebRequest gateway](docs/developer/guides/Messaging/150-sending-web-requests.mdx) with
-request auditability, configurable retries and fixture-based tests. Standard API-key and authorization headers are
-masked in visible Auditlog records; authenticated calls do not require a separate HTTP client.
+For external APIs, give each interaction a local command or query whose handler calls the
+[WebRequest gateway](docs/developer/guides/Messaging/150-sending-web-requests.mdx). No injected API-service bean or
+`@TrackSelf` is required for request auditability, configurable HTTP retries and fixture-based tests. Standard API-key
+and authorization headers are masked in visible Auditlog records; authenticated calls do not require a separate HTTP client.
 
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 

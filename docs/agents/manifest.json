@@ -227,6 +227,10 @@
         {
           "description": "Choose details and state fields, with validated Kotlin creation and rename",
           "path": "/docs/sdk/models/state-kotlin"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
         }
       ]
     },
@@ -1465,6 +1469,10 @@
         {
           "description": "synchronous and asynchronous fixture behavior",
           "path": "/docs/sdk/testing"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
         }
       ]
     },
@@ -1558,6 +1566,14 @@
         {
           "description": "Add a typed read-only query and test it",
           "path": "/docs/recipes/add-query"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
+        },
+        {
+          "description": "Test actual local queries with a remote endpoint stub",
+          "path": "/docs/sdk/testing/external-backends"
         }
       ]
     },
@@ -2174,6 +2190,10 @@
         {
           "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
           "path": "/docs/sdk/messages/local-only"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
         }
       ]
     },
@@ -2657,7 +2677,7 @@
           "path": "/docs/sdk/workflows/business-compensation"
         },
         {
-          "description": "one-way outbound requests and guarantees",
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
@@ -3215,7 +3235,7 @@
     {
       "path": "/docs/sdk/web/outbound-requests",
       "title": "Outbound HTTP Integrations",
-      "summary": "Use WebRequestGateway for auditable third-party GET/POST calls, masked API-key headers, configured retries and fixture tests; choose native transport only deliberately.",
+      "summary": "Give each external API interaction a local command/query with its WebRequestGateway call in the handler; avoid unnecessary bean injection and tracking while preserving HTTP audit, configured retries and endpoint-stub tests.",
       "source": "articles/sdk/web/outbound-requests.md",
       "symbols": [
         "HTTP request web client one-way endpoint",
@@ -3240,7 +3260,15 @@
         "retryableStatusCodes",
         "Authorization",
         "X-Api-Key",
-        "API key bearer token visible audit logs credentials masking"
+        "API key bearer token visible audit logs credentials masking",
+        "local self-handling external API integration",
+        "@HandleCommand",
+        "@HandleQuery",
+        "@TrackSelf",
+        "@Consumer",
+        "bean injection API service",
+        "Fluxzero.queryAndWait",
+        "Fluxzero.sendCommandAndWait"
       ],
       "links": [
         {
@@ -3272,12 +3300,20 @@
           "path": "/docs/sdk/testing/durable-coordinated-workflow"
         },
         {
-          "description": "Mock third-party responses and assert exact gateway requests",
+          "description": "Test local integration commands/queries by stubbing only the remote endpoint",
           "path": "/docs/sdk/testing/external-backends"
         },
         {
           "description": "Choose explicit consumers for independent remote test handlers",
           "path": "/docs/sdk/tracking"
+        },
+        {
+          "description": "Choose immediate local self-handling or a deliberately tracked operation",
+          "path": "/docs/sdk/messages/commands/self-handling"
+        },
+        {
+          "description": "Choose immediate local self-handling or a deliberately tracked operation",
+          "path": "/docs/sdk/messages/queries/self-handling"
         }
       ]
     },
@@ -4936,7 +4972,7 @@
           "path": "/docs/sdk/testing"
         },
         {
-          "description": "absolute processor URL validation and outbound request publishing",
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
@@ -5359,15 +5395,20 @@
     {
       "path": "/docs/sdk/testing/external-backends",
       "title": "Testing Outbound Backend Integrations",
-      "summary": "Test one-way outbound publication or request-response backend calls through the observable web gateway boundary.",
+      "summary": "Exercise actual local integration commands/queries without injected service mocks; register remote endpoint stubs and assert exact outbound requests and mapped responses.",
       "source": "articles/sdk/testing/external-backends.md",
       "symbols": [
         "expectWebRequest",
         "WebRequestGateway",
         "WebRequest",
         "WebResponse",
-        "registerWebResponse",
-        "whenWebRequest"
+        "whenWebRequest",
+        "expectOnlyWebRequests",
+        "whenCommand",
+        "whenQuery",
+        "@HandleGet",
+        "@HandlePost",
+        "local integration endpoint stub no bean injection"
       ],
       "links": [
         {
@@ -5385,6 +5426,14 @@
         {
           "description": "Assert exact effects and isolate one action",
           "path": "/docs/sdk/testing/scenario-phases"
+        },
+        {
+          "description": "Dispatch ordinary local payloads without explicit handler registration",
+          "path": "/docs/sdk/messages/commands/self-handling"
+        },
+        {
+          "description": "Dispatch ordinary local payloads without explicit handler registration",
+          "path": "/docs/sdk/messages/queries/self-handling"
         }
       ]
     },

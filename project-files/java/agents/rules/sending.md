@@ -281,22 +281,77 @@ logging, local handlers, dispatch interceptors and consumer isolation; do not se
 TestFixture still routes native-configured requests to remote stubs and applies retry counts/statuses without real
 delays. Use fixture web assertions and absolute `@HandleGet`/`@HandlePost` handlers for ordinary integration tests.
 
-**Example: POST to External API**
+### Give each external interaction a local command or query
 
-[//]: # (@formatter:off)
+Use a named command for an external action and a typed query (`Request<T>`) for an external read. Put the actual
+`WebRequestGateway` call in the payload's `@HandleCommand` or `@HandleQuery` method. Other handlers invoke the
+operation through `Fluxzero.sendCommandAndWait(...)` or `Fluxzero.queryAndWait(...)`, just like other application
+behavior. Choose command versus query by the operation's meaning, not only its HTTP verb.
+
+These self-handlers run locally by default. They need no `@TrackSelf`, `@Consumer`, `@Component`, extra
+`@LocalHandler`, injected API-service bean, or explicit handler registration. Dispatch the payload; do not call its
+`handle()` method directly.
+
+The example partner API returns an order as JSON, with HTTP 200 for lookup and 201 for creation:
+
 ```java
-WebResponse response = Fluxzero.sendWebRequestAndWait(
-    WebRequest.post(ApplicationProperties.requireProperty("stripe.url"))
-              .contentType("application/json")
-              .body(paymentDetails)
-              .build()
-);
-
-if (response.getStatus() >= 200 && response.getStatus() < 300) {
-    String stripeId = response.getPayloadAs(String.class);
+public record GetPartnerOrder(@NotNull UUID orderId) implements Request<PartnerOrder> {
+    @HandleQuery
+    PartnerOrder handle() {
+        var request = WebRequest.get("https://partner.example/api/orders/" + orderId)
+                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+                .build();
+        var response = Fluxzero.sendWebRequestAndWait(request);
+        if (response.getStatus() != 200) {
+            throw new IllegalStateException("Order lookup returned HTTP " + response.getStatus());
+        }
+        return response.getPayloadAs(PartnerOrder.class);
+    }
 }
+
+public record PlacePartnerOrder(@NotNull @Valid OrderDetails details) implements Request<PartnerOrder> {
+    @HandleCommand
+    PartnerOrder handle() {
+        var request = WebRequest.post("https://partner.example/api/orders")
+                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+                .contentType("application/json")
+                .body(details)
+                .build();
+        var response = Fluxzero.sendWebRequestAndWait(request);
+        if (response.getStatus() != 201) {
+            throw new IllegalStateException("Order placement returned HTTP " + response.getStatus());
+        }
+        return response.getPayloadAs(PartnerOrder.class);
+    }
+}
+
+public record OrderDetails(@NotBlank String productCode, @Positive int quantity) {}
+public record PartnerOrder(UUID orderId, String status) {}
 ```
-[//]: # (@formatter:on)
+
+```java
+PartnerOrder existing = Fluxzero.queryAndWait(new GetPartnerOrder(orderId));
+PartnerOrder placed = Fluxzero.sendCommandAndWait(
+        new PlacePartnerOrder(new OrderDetails("book", 2)));
+```
+
+Shared URL construction, headers, settings and response mapping may live in a small helper, interface or base class.
+Keep each operation recognizable as its own command/query; do not replace them with a generic HTTP-command envelope
+or require callers to inject an API service. Resolve configuration through `ApplicationProperties` at this integration
+boundary. If settings need parsing, a typed settings value can be loaded here without making it a bean. The fixed
+example URLs stand in for a configured, validated endpoint; validate the configured endpoint before constructing requests.
+
+A local command/query and its outgoing HTTP request have separate delivery rules. Local self-handling does **not**
+select native HTTP: the nested `WebRequest` still uses the auditable proxy route and configured transport retries.
+The local command/query itself is not a persisted job and has no independent tracker retry. Add `@TrackSelf` only
+when that operation itself must arrive through the Runtime, have a durable consumer position, or be replayed/retried
+independently. Add `@Consumer` only for a required tracking configuration. Neither is needed merely to call an API.
+
+For an external write that depends on committed Model state, a registered post-commit event handler can dispatch the
+local command and wait for its outcome. Let failures reach that caller's error/retry policy. Local dispatch does not
+make HTTP part of the Model transaction: do not perform external I/O in `@Apply` or send the write from a mutation
+handler while its changes are still pending. Read-only external queries may run from ordinary query/orchestration
+handlers; their results are not replayable Model state until explicitly recorded.
 
 ---
 

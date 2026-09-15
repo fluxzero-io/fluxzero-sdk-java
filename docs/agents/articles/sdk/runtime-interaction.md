@@ -38,4 +38,8 @@ Boundaries:
 
 Replay safety depends on side effects. Before adding replay logic, identify the consumer, handler, side effect type, idempotency risk, replay window, live-processing plan, and success signal. Ask the user before replaying handlers with unclear external or business impact.
 
-Use Fluxzero web request/proxy handling for outgoing integrations by default. Read one-way outbound HTTP for absolute URLs, explicit JSON content type, `WebRequestGateway.sendAndForget`, and `SENT` versus `STORED`. Direct networking can be used when explicitly required, but keep idempotency and tracking implications visible in the code review.
+Use a local command/query whose handler calls the Fluxzero web gateway for each outgoing integration operation.
+Local dispatch needs no `@TrackSelf`, `@Consumer` or injected API-service bean; the nested HTTP request still follows
+the normal audit/proxy route. Read `/docs/sdk/web/outbound-requests` for awaited and one-way calls, explicit JSON
+content type, transport retries and `SENT` versus `STORED`. Direct networking can be used when explicitly required,
+but keep audit, idempotency and tracking implications visible in the code review.

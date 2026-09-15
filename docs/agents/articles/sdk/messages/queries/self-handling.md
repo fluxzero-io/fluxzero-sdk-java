@@ -19,6 +19,11 @@ TestFixture.create()
 
 Do not register `GetProject.class` merely to make `whenQuery(...)` work. The local registry inspects the query payload itself.
 
+Use the same pattern for external reads: put the `WebRequestGateway` call and response mapping in `@HandleQuery`,
+then invoke the operation through `Fluxzero.queryAndWait(...)`. No injected API-service bean, `@Consumer` or
+`@TrackSelf` is needed. Local query dispatch leaves the nested HTTP request's audit and configured retries intact.
+See `/docs/sdk/web/outbound-requests` and `/docs/sdk/testing/external-backends` for Java/Kotlin examples.
+
 ## Tracked self-handling queries
 
 Add `@TrackSelf` when the query must be published and processed by tracking rather than handled immediately. Spring detects scanned `@TrackSelf` types and installs a payload-class filter. Outside Spring, register them explicitly. Use an asynchronous fixture when the test must exercise tracked consumption:

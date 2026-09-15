@@ -22,6 +22,10 @@ Core rules for agents:
 - Use `Fluxzero.currentTime()` or injected time for deterministic code.
 - Use `Fluxzero.search(...)` for filtering and sorting instead of reimplementing it in clients.
 - Prefer dedicated queries over static utility methods for reusable reads.
+- Give each external API interaction a local self-handling command or query and put its `WebRequestGateway` call in
+  `@HandleCommand`/`@HandleQuery`. Dispatch that operation through Fluxzero rather than injecting an API-service bean.
+  No `@TrackSelf` or `@Consumer` is needed merely for HTTP audit, retries or fixture tests; those annotations select a
+  separate tracked delivery contract. Read `/docs/sdk/web/outbound-requests` for the complete pattern.
 - Use `TestFixture` as the main verification boundary and do not use Mockito for core Fluxzero behavior.
 - Implement only the commands, queries, endpoints, and abstractions required by the product behavior. Do not add speculative admin operations, wrapper annotations, or planning artifacts to the finished application.
 

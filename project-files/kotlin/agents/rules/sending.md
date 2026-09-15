@@ -260,20 +260,73 @@ logging, local handlers, dispatch interceptors and consumer isolation; do not se
 TestFixture still routes native-configured requests to remote stubs and applies retry counts/statuses without real
 delays. Use fixture web assertions and absolute `@HandleGet`/`@HandlePost` handlers for ordinary integration tests.
 
-**Example: POST to External API**
+### Give each external interaction a local command or query
+
+Use a named command for an external action and a typed query (`Request<T>`) for an external read. Put the actual
+`WebRequestGateway` call in the payload's `@HandleCommand` or `@HandleQuery` method. Other handlers invoke the
+operation through `Fluxzero.sendCommandAndWait(...)` or `Fluxzero.queryAndWait(...)`, just like other application
+behavior. Choose command versus query by the operation's meaning, not only its HTTP verb.
+
+These self-handlers run locally by default. They need no `@TrackSelf`, `@Consumer`, `@Component`, extra
+`@LocalHandler`, injected API-service bean, or explicit handler registration. Dispatch the payload; do not call its
+`handle()` method directly.
+
+The example partner API returns an order as JSON, with HTTP 200 for lookup and 201 for creation:
 
 ```kotlin
-val response: WebResponse = Fluxzero.sendWebRequestAndWait(
-    WebRequest.post(ApplicationProperties.requireProperty("stripe.url"))
-              .contentType("application/json")
-              .body(paymentDetails)
-              .build()
-)
-
-if (response.status >= 200 && response.status < 300) {
-    val stripeId: String = response.getPayloadAs(String::class.java)
+data class GetPartnerOrder(@field:NotNull val orderId: UUID) : Request<PartnerOrder> {
+    @HandleQuery
+    fun handle(): PartnerOrder {
+        val request = WebRequest.get("https://partner.example/api/orders/$orderId")
+            .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+            .build()
+        val response = Fluxzero.sendWebRequestAndWait(request)
+        check(response.status == 200) { "Order lookup returned HTTP ${response.status}" }
+        return response.getPayloadAs(PartnerOrder::class.java)
+    }
 }
+
+data class PlacePartnerOrder(@field:NotNull @field:Valid val details: OrderDetails) : Request<PartnerOrder> {
+    @HandleCommand
+    fun handle(): PartnerOrder {
+        val request = WebRequest.post("https://partner.example/api/orders")
+            .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+            .contentType("application/json")
+            .body(details)
+            .build()
+        val response = Fluxzero.sendWebRequestAndWait(request)
+        check(response.status == 201) { "Order placement returned HTTP ${response.status}" }
+        return response.getPayloadAs(PartnerOrder::class.java)
+    }
+}
+
+data class OrderDetails(@field:NotBlank val productCode: String, @field:Positive val quantity: Int)
+data class PartnerOrder(val orderId: UUID, val status: String)
 ```
+
+```kotlin
+val existing: PartnerOrder = Fluxzero.queryAndWait(GetPartnerOrder(orderId))
+val placed: PartnerOrder = Fluxzero.sendCommandAndWait(
+    PlacePartnerOrder(OrderDetails("book", 2)))
+```
+
+Shared URL construction, headers, settings and response mapping may live in a small helper, interface or base class.
+Keep each operation recognizable as its own command/query; do not replace them with a generic HTTP-command envelope
+or require callers to inject an API service. Resolve configuration through `ApplicationProperties` at this integration
+boundary. If settings need parsing, a typed settings value can be loaded here without making it a bean. The fixed
+example URLs stand in for a configured, validated endpoint; validate the configured endpoint before constructing requests.
+
+A local command/query and its outgoing HTTP request have separate delivery rules. Local self-handling does **not**
+select native HTTP: the nested `WebRequest` still uses the auditable proxy route and configured transport retries.
+The local command/query itself is not a persisted job and has no independent tracker retry. Add `@TrackSelf` only
+when that operation itself must arrive through the Runtime, have a durable consumer position, or be replayed/retried
+independently. Add `@Consumer` only for a required tracking configuration. Neither is needed merely to call an API.
+
+For an external write that depends on committed Model state, a registered post-commit event handler can dispatch the
+local command and wait for its outcome. Let failures reach that caller's error/retry policy. Local dispatch does not
+make HTTP part of the Model transaction: do not perform external I/O in `@Apply` or send the write from a mutation
+handler while its changes are still pending. Read-only external queries may run from ordinary query/orchestration
+handlers; their results are not replayable Model state until explicitly recorded.
 
 ---
 

@@ -393,7 +393,12 @@ The following table summarizes how handlers are categorized and configured:
 |                                 | **Self-Handling**: `@TrackSelf`         | Isolated via `@Consumer`.                           |
 |                                 | **Stateful**: `@Stateful`               | For sagas and long-running processes.               |
 | **Local** (Sync/In-thread)      | **Standalone**: `@LocalHandler`         | Handled in the publication thread.                  |
-|                                 | **Self-Handling**: Plain `@HandleQuery` | Optionally add `@LocalHandler` for settings.        |
+|                                 | **Self-Handling**: Plain `@HandleCommand` or `@HandleQuery` | Optionally add `@LocalHandler` for settings.        |
+
+Use a local self-handling command/query for each external API interaction. Put its web request in the handler;
+callers dispatch the payload through Fluxzero. No injected API-service bean, `@TrackSelf`, `@Consumer` or explicit
+payload registration is required. Local dispatch leaves HTTP audit and configured transport retries intact. See
+[External Web Requests](sending.md#web-sending) for examples and the separate tracked-delivery choice.
 
 ### Handler Parameters
 

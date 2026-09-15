@@ -1,7 +1,119 @@
 Use `WebRequestGateway` for outbound HTTP integrations. Keep requests in Fluxzero's normal message/proxy route by
 default: it preserves auditability and correlation, supports configured transport retries, and lets `TestFixture`
 assert requests and supply remote responses. Do not build a separate JDK, Spring or third-party HTTP client for an
-ordinary integration. HTTP effects belong after the domain commit; keep them out of replayable Model applies.
+ordinary integration. External writes that depend on a domain change belong after its commit; keep all HTTP calls out
+of replayable Model applies.
+
+## Give each external interaction a local command or query
+
+Use a named command for an external action and a typed query (`Request<T>`) for an external read. Put the actual
+`WebRequestGateway` call in the payload's `@HandleCommand` or `@HandleQuery` method. Other handlers invoke the
+operation through `Fluxzero.sendCommandAndWait(...)` or `Fluxzero.queryAndWait(...)`, just like other application
+behavior. Choose command versus query by the operation's meaning, not only its HTTP verb.
+
+These self-handlers run locally by default. They need no `@TrackSelf`, `@Consumer`, `@Component`, extra
+`@LocalHandler`, injected API-service bean, or explicit handler registration. Dispatch the payload; do not call its
+`handle()` method directly.
+
+The example partner API returns an order as JSON, with HTTP 200 for lookup and 201 for creation:
+
+```java
+public record GetPartnerOrder(@NotNull UUID orderId) implements Request<PartnerOrder> {
+    @HandleQuery
+    PartnerOrder handle() {
+        var request = WebRequest.get("https://partner.example/api/orders/" + orderId)
+                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+                .build();
+        var response = Fluxzero.sendWebRequestAndWait(request);
+        if (response.getStatus() != 200) {
+            throw new IllegalStateException("Order lookup returned HTTP " + response.getStatus());
+        }
+        return response.getPayloadAs(PartnerOrder.class);
+    }
+}
+
+public record PlacePartnerOrder(@NotNull @Valid OrderDetails details) implements Request<PartnerOrder> {
+    @HandleCommand
+    PartnerOrder handle() {
+        var request = WebRequest.post("https://partner.example/api/orders")
+                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+                .contentType("application/json")
+                .body(details)
+                .build();
+        var response = Fluxzero.sendWebRequestAndWait(request);
+        if (response.getStatus() != 201) {
+            throw new IllegalStateException("Order placement returned HTTP " + response.getStatus());
+        }
+        return response.getPayloadAs(PartnerOrder.class);
+    }
+}
+
+public record OrderDetails(@NotBlank String productCode, @Positive int quantity) {}
+public record PartnerOrder(UUID orderId, String status) {}
+```
+
+```kotlin
+data class GetPartnerOrder(@field:NotNull val orderId: UUID) : Request<PartnerOrder> {
+    @HandleQuery
+    fun handle(): PartnerOrder {
+        val request = WebRequest.get("https://partner.example/api/orders/$orderId")
+            .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+            .build()
+        val response = Fluxzero.sendWebRequestAndWait(request)
+        check(response.status == 200) { "Order lookup returned HTTP ${response.status}" }
+        return response.getPayloadAs(PartnerOrder::class.java)
+    }
+}
+
+data class PlacePartnerOrder(@field:NotNull @field:Valid val details: OrderDetails) : Request<PartnerOrder> {
+    @HandleCommand
+    fun handle(): PartnerOrder {
+        val request = WebRequest.post("https://partner.example/api/orders")
+            .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+            .contentType("application/json")
+            .body(details)
+            .build()
+        val response = Fluxzero.sendWebRequestAndWait(request)
+        check(response.status == 201) { "Order placement returned HTTP ${response.status}" }
+        return response.getPayloadAs(PartnerOrder::class.java)
+    }
+}
+
+data class OrderDetails(@field:NotBlank val productCode: String, @field:Positive val quantity: Int)
+data class PartnerOrder(val orderId: UUID, val status: String)
+```
+
+Call them from application code in an active Fluxzero context:
+
+```java
+PartnerOrder existing = Fluxzero.queryAndWait(new GetPartnerOrder(orderId));
+PartnerOrder placed = Fluxzero.sendCommandAndWait(
+        new PlacePartnerOrder(new OrderDetails("book", 2)));
+```
+
+```kotlin
+val existing: PartnerOrder = Fluxzero.queryAndWait(GetPartnerOrder(orderId))
+val placed: PartnerOrder = Fluxzero.sendCommandAndWait(
+    PlacePartnerOrder(OrderDetails("book", 2)))
+```
+
+Shared URL construction, headers, settings and response mapping may live in a small helper, interface or base class.
+Keep each operation recognizable as its own command/query; do not replace them with a generic HTTP-command envelope
+or require callers to inject an API service. Resolve configuration through `ApplicationProperties` at this integration
+boundary. If settings need parsing, a typed settings value can be loaded here without making it a bean. The fixed
+example URLs stand in for a configured, validated endpoint; see the URL guidance below.
+
+A local command/query and its outgoing HTTP request have separate delivery rules. Local self-handling does **not**
+select native HTTP: the nested `WebRequest` still uses the auditable proxy route and configured transport retries.
+The local command/query itself is not a persisted job and has no independent tracker retry. Add `@TrackSelf` only
+when that operation itself must arrive through the Runtime, have a durable consumer position, or be replayed/retried
+independently. Add `@Consumer` only for a required tracking configuration. Neither is needed merely to call an API.
+
+For an external write that depends on committed Model state, a registered post-commit event handler can dispatch the
+local command and wait for its outcome. Let failures reach that caller's error/retry policy. Local dispatch does not
+make HTTP part of the Model transaction: do not perform external I/O in `@Apply` or send the write from a mutation
+handler while its changes are still pending. Read-only external queries may run from ordinary query/orchestration
+handlers; their results are not replayable Model state until explicitly recorded.
 
 ## Credentials remain hidden in visible audit logs
 
@@ -19,10 +131,9 @@ not a promise that secrets placed in arbitrary URLs, bodies, custom fields or ap
 Use `sendAndWait` when the application needs the returned status or data, for example when reading an external
 snapshot. `send` provides the corresponding future. Both use the same gateway; waiting is not a transport choice.
 
+For example, configure the read handler's gateway call with an explicit retry budget:
+
 ```java
-WebRequest request = WebRequest.get("https://partner.example/api/devices")
-        .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
-        .build();
 WebRequestSettings settings = WebRequestSettings.builder()
         .timeout(Duration.ofSeconds(5))
         .maxRetries(2)
@@ -33,9 +144,6 @@ WebResponse response = Fluxzero.sendWebRequestAndWait(request, settings);
 ```
 
 ```kotlin
-val request = WebRequest.get("https://partner.example/api/devices")
-    .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
-    .build()
 val settings = WebRequestSettings.builder()
     .timeout(Duration.ofSeconds(5))
     .maxRetries(2)
@@ -83,15 +191,18 @@ record ProcessingSubmission(
         String outputFormat) {
 }
 
-void submit(URI processorBaseUrl, ProcessingSubmission body) {
-    WebRequest request = WebRequest.post(
-                    appendPath(processorBaseUrl, "jobs"))
-            .contentType("application/json")
-            .body(body)
-            .build();
+public record SubmitProcessing(@NotNull @Valid ProcessingSubmission details) {
+    @HandleCommand
+    void handle() {
+        URI baseUrl = requiredAbsoluteUri("processor.base-url");
+        WebRequest request = WebRequest.post(appendPath(baseUrl, "jobs"))
+                .contentType("application/json")
+                .body(details)
+                .build();
 
-    Fluxzero.get().webRequestGateway()
-            .sendAndForget(Guarantee.STORED, request);
+        Fluxzero.get().webRequestGateway()
+                .sendAndForget(Guarantee.STORED, request);
+    }
 }
 
 static String appendPath(URI base, String operation) {
@@ -102,6 +213,10 @@ static String appendPath(URI base, String operation) {
     return value + "/" + operation;
 }
 ```
+
+Here `processor.base-url` (environment variable `PROCESSOR_BASE_URL`) is required configuration. The static helpers
+illustrate shared request construction; they can live in the same enclosing class or a small integration helper.
+Dispatch `SubmitProcessing` through `Fluxzero.sendCommandAndWait(...)` from the post-commit caller.
 
 Do not use `base.resolve("jobs")` blindly: when the configured base is `https://processor.test/api` without a trailing slash, URI resolution replaces `api` and produces `https://processor.test/jobs`. Normalize or append deliberately so the configured base path is preserved.
 
@@ -118,13 +233,16 @@ request processing still normally produces and appends a `WebResponse` to the We
 
 Tracked consumers await send-and-forget futures started during a batch by default (`awaitSendAndForgetFutures = true`). Keep that default unless independent completion is intentional.
 
-Do not use `sendAndWait` when the HTTP response is only transport acknowledgement. A `2xx` processor response is not a processing confirmation unless the processor contract explicitly says so. Model the later business decision as its own correlated message.
+Use `sendAndWait` when the caller needs to inspect the HTTP acknowledgement or detect an immediate rejection. Use
+`sendAndForget` when it deliberately does not await that outcome. Neither makes a `2xx` processor response a later
+processing confirmation unless the processor contract says so; model that later decision as its own correlated message.
 
 Delivery is at-least-once. Use the persisted processing or compensation reference as the processor's stable idempotency key, and keep the logical-once decision in workflow state.
 
 ## Validate configured URLs
 
-Resolve required properties into typed settings once:
+Keep required URL parsing at the integration/configuration boundary. The local command can call this helper; no
+settings bean is required. For startup validation, use the same parser from application bootstrap:
 
 ```java
 static URI requiredAbsoluteUri(String property) {
