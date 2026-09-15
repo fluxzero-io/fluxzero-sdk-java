@@ -731,8 +731,13 @@ class ProxyServerTest {
                         .whenApplying(fc -> httpClient.send(
                                 newBuilder(URI.create(format(
                                         "http://localhost:%s/configured-timeout", configuredPort)))
-                                        .GET().build(), BodyHandlers.ofString()).body())
-                        .expectResult("configured");
+                                        .GET().build(), BodyHandlers.ofString()))
+                        .<java.net.http.HttpResponse<String>>expectResult(response -> {
+                            assertEquals(200, response.statusCode(), () -> "Unexpected proxy response: "
+                                    + response.version() + " " + response.headers().map() + " " + response.body());
+                            return "configured".equals(response.body());
+                        })
+                        .expectNoErrors();
             } finally {
                 if (configuredProxyServer != null) {
                     configuredProxyServer.cancel();
@@ -2178,7 +2183,9 @@ class ProxyServerTest {
                 testFixture
                         .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
                         .verifyResult(resp -> {
-                            assertEquals(413, resp.statusCode());
+                            assertEquals(413, resp.statusCode(), () -> "Unexpected proxy response: "
+                                    + resp.version() + " " + resp.headers().map() + " " + resp.body()
+                                    + " handler=" + proxyRequestHandler.diagnostics);
                             assertEquals("Request body is too large", resp.body());
                             assertEquals(List.of("https://app.example.com"),
                                          resp.headers().allValues("Access-Control-Allow-Origin"));
@@ -2187,6 +2194,31 @@ class ProxyServerTest {
                         });
             } finally {
                 proxyRequestHandler.setMaxRequestBodySize(ProxyServer.DEFAULT_MAX_REQUEST_BODY_SIZE);
+            }
+        }
+
+        @Test
+        void oversizedBodyIsRejectedBeforeItArrivesWithOrWithoutUpgradeHeaders() throws Exception {
+            proxyRequestHandler.setMaxRequestBodySize(8);
+            for (boolean upgrade : List.of(false, true)) {
+                try (Socket socket = new Socket("127.0.0.1", proxyPort)) {
+                    socket.setSoTimeout(3000);
+                    String headers = "POST /too-large HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n"
+                            + "Origin: https://app.example.com\r\n"
+                            + (upgrade ? "Connection: Upgrade, HTTP2-Settings\r\nUpgrade: h2c\r\nHTTP2-Settings: AAMAAABk\r\n"
+                                       : "Connection: close\r\n") + "\r\n";
+                    socket.getOutputStream().write(headers.getBytes(StandardCharsets.US_ASCII));
+                    socket.getOutputStream().flush();
+                    // Deliberately do not send the announced body: rejection must not wait for it.
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+                    assertEquals("HTTP/1.1 413 Payload Too Large", reader.readLine());
+                    List<String> responseHeaders = new ArrayList<>();
+                    for (String line; (line = reader.readLine()) != null && !line.isEmpty(); ) {
+                        responseHeaders.add(line);
+                    }
+                    assertTrue(responseHeaders.stream().anyMatch(line -> line.equalsIgnoreCase(
+                            "Access-Control-Allow-Origin: https://app.example.com")), responseHeaders::toString);
+                }
             }
         }
 
@@ -2382,6 +2414,26 @@ class ProxyServerTest {
 
     private static class TestProxyRequestHandler extends ProxyRequestHandler {
         private volatile CountDownLatch responseFailure = new CountDownLatch(0);
+        final List<String> diagnostics = new CopyOnWriteArrayList<>();
+
+        @Override
+        public boolean handle(org.eclipse.jetty.server.Request request, org.eclipse.jetty.server.Response response,
+                              org.eclipse.jetty.util.Callback callback) {
+            diagnostics.add("handle " + request.getMethod() + " " + request.getHttpURI());
+            return super.handle(request, response, new org.eclipse.jetty.util.Callback.Nested(callback) {
+                @Override public void failed(Throwable failure) {
+                    diagnostics.add("failed " + failure);
+                    log.error("Proxy test callback failed", failure);
+                    super.failed(failure);
+                }
+            });
+        }
+
+        @Override
+        protected void sendResponse(JettyExchange exchange, int status, String body) {
+            diagnostics.add("response " + status);
+            super.sendResponse(exchange, status, body);
+        }
 
         TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client) {
             super(client);
