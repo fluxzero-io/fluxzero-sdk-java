@@ -1148,6 +1148,10 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
                                                boolean historical, ModelCacheTracker cacheTracker, boolean exact) {
+        Entity<?> cached = cachedGraphValue(requestedId, type, boundary, historical, cacheTracker);
+        if (cached != null) {
+            return new ModelGraphResolver.Identity(requestedId, true, boundary, false, () -> cached);
+        }
         LoadResult loaded = loadHeads(List.of(requestedId), boundary);
         ModelHeadState resolved = loaded.heads().get(requestedId);
         ModelHeadState head = exact && resolved != null && !requestedId.equals(resolved.getModelId()) ? null : resolved;
@@ -1208,6 +1212,10 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Value graphValue(String id, Class<?> type, ModelReadBoundary boundary,
                                         ModelCacheTracker cacheTracker, boolean historical) {
+        Entity<?> cached = cachedGraphValue(id, type, boundary, historical, cacheTracker);
+        if (cached != null) {
+            return new ModelGraphResolver.Value(cached, boundary, false);
+        }
         EntityMetadata metadata = EntityMetadata.validate(type);
         if (!metadata.rootConfiguration().orElseThrow().eventSourced()) {
             LoadResult heads = loadHeads(List.of(id), boundary);
@@ -1235,6 +1243,23 @@ final class ModelReplayCursor {
             entity = beforeBoundary(entity, loaded.readStateIndex());
         }
         return new ModelGraphResolver.Value(entity, boundary.resolved(loaded.readStateIndex()), historical);
+    }
+
+    private Entity<?> cachedGraphValue(String id, Class<?> type, ModelReadBoundary boundary,
+                                        boolean historical, ModelCacheTracker cacheTracker) {
+        if (cacheTracker != null && !historical && !boundary.before() && boundary.stateIndex() != null
+            && boundary.commitId() == null && boundary.eventIndex() == null
+            && type != Object.class && EntityMetadata.validate(type).rootConfiguration().orElseThrow().eventSourced()) {
+            ModelCacheTracker.CurrentModel cached = cacheTracker.peekCurrentVersion(id, type);
+            if (cached != null && cached.entity() instanceof ModelRoot<?> && cached.entity().isPresent()
+                && id.equals(cached.entity().id().toString())
+                && cached.modelStateIndex() <= boundary.stateIndex() && boundary.stateIndex() <= cached.validThrough()) {
+                // The mutation already owns a boundary. Reuse only a canonical value proved valid at that exact
+                // boundary, never a root revision as evidence of namespace freshness or an alias mapping.
+                return cached.entity();
+            }
+        }
+        return null;
     }
 
     Map<String, Entity<?>> graphValues(Map<String, Class<?>> types, ModelReadBoundary boundary,

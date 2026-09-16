@@ -78,6 +78,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -93,6 +94,71 @@ import static org.mockito.Mockito.when;
 class ModelReplayCursorTest {
 
     private static final ThreadLocal<String> replayContextMarker = ThreadLocalContext.create();
+
+    @ParameterizedTest
+    @ValueSource(longs = {10L, 20L, 30L})
+    void pinnedCurrentGraphReusesCanonicalCacheProofWithoutHeadRead(long boundary) {
+        EventStoreClient client = mock(EventStoreClient.class);
+        ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        var root = ImmutableModelRoot.<CachedReplayModel>builder().id("cached").type(CachedReplayModel.class)
+                .value(new CachedReplayModel("cached")).stateIndex(10L).sequenceNumber(0L).build();
+        when(tracker.peekCurrentVersion("cached", CachedReplayModel.class))
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L));
+        ModelReplayCursor cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class),
+                mock(EntityHelper.class), new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null);
+
+        var identity = cursor.graphIdentity("cached", CachedReplayModel.class,
+                ModelReadBoundary.state(boundary, true), false, tracker);
+
+        assertEquals("cached", identity.modelId());
+        assertTrue(identity.present());
+        assertEquals(boundary, identity.boundary().stateIndex());
+        assertSame(root, identity.entity().get());
+        var value = cursor.graphValue("cached", CachedReplayModel.class,
+                ModelReadBoundary.state(boundary, true), tracker, false);
+        assertEquals(boundary, value.boundary().stateIndex());
+        assertSame(root, value.entity());
+        verifyNoInteractions(client);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"older-proof", "newer-value", "alias", "missing", "no-proof",
+                           "current", "historical", "before", "commit", "event"})
+    void graphIdentityDoesNotSubstituteAnUnprovedCacheBoundary(String mode) {
+        EventStoreClient client = mock(EventStoreClient.class);
+        ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        var root = ImmutableModelRoot.<CachedReplayModel>builder()
+                .id(mode.equals("alias") ? "owner" : "cached").type(CachedReplayModel.class)
+                .value(mode.equals("missing") ? null : new CachedReplayModel("cached"))
+                .stateIndex(mode.equals("newer-value") ? 21L : 10L).sequenceNumber(0L).build();
+        when(tracker.peekCurrentVersion("cached", CachedReplayModel.class)).thenReturn(mode.equals("no-proof") ? null
+                : new ModelCacheTracker.CurrentModel(root, mode.equals("older-proof") ? 19L : 30L, root.stateIndex()));
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(request.getRequestId(), 20L, List.of(),
+                    List.of(new ModelEventStream("cached", null, List.of())));
+        });
+        ModelReplayCursor cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class),
+                mock(EntityHelper.class), new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null);
+        ModelReadBoundary boundary = switch (mode) {
+            case "current" -> ModelReadBoundary.current();
+            case "before" -> ModelReadBoundary.at(20L).asBefore();
+            case "commit" -> ModelReadBoundary.commit("commit", 0).resolved(20L);
+            case "event" -> ModelReadBoundary.event(1L).resolved(20L);
+            default -> ModelReadBoundary.state(20L, true);
+        };
+
+        var identity = cursor.graphIdentity("cached", CachedReplayModel.class, boundary,
+                mode.equals("historical"), tracker);
+
+        assertFalse(identity.present());
+        verify(client).getModelEvents(any());
+
+        var value = cursor.graphValue("cached", CachedReplayModel.class, boundary,
+                tracker, mode.equals("historical"));
+        assertTrue(value.entity().isEmpty());
+        verify(client, times(2)).getModelEvents(any());
+    }
 
     @ParameterizedTest
     @ValueSource(ints = {1, 64, 129})
@@ -134,6 +200,68 @@ class ModelReplayCursorTest {
             verifyNoInteractions(serializer, helper);
         }
     }
+
+    @Test
+    void cachedCurrentGraphDoesNotInventCompleteHistoricalDocumentHistory() {
+        String id = "mixed";
+        var root = ImmutableModelRoot.<CachedMixedModel>builder().id(id).type(CachedMixedModel.class)
+                .value(new CachedMixedModel(id)).stateIndex(10L).sequenceNumber(1L).build();
+        ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        when(tracker.peekCurrentVersion(id, CachedMixedModel.class))
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 30L, 10L));
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(request.getRequestId(), 20L, List.of(), List.of(new ModelEventStream(
+                    id, new ModelHeadState(id, CachedMixedModel.class.getSimpleName(), 1L, 10L, false, false), List.of())));
+        });
+        ModelTypeResolver types = new ModelTypeResolver() {
+            @Override public String modelName(Class<?> type) { return type.getSimpleName(); }
+            @Override public Class<?> modelType(String name, String modelId) { return CachedMixedModel.class; }
+        };
+        ModelReplayCursor cursor = new ModelReplayCursor(client, new JacksonSerializer(), mock(EntityHelper.class),
+                new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null,
+                ModelReplayCursor.EventBoundaryBarrier.NONE, types);
+        var boundary = ModelReadBoundary.at(20L);
+
+        assertSame(root, cursor.graphValue(id, CachedMixedModel.class, boundary, tracker, false).entity());
+        assertSame(root, cursor.graphIdentity(id, CachedMixedModel.class, boundary, false, tracker).entity().get());
+        verifyNoInteractions(client);
+        assertThrows(EventSourcingException.class,
+                () -> cursor.graphValue(id, CachedMixedModel.class, boundary, tracker, true));
+        assertThrows(EventSourcingException.class,
+                () -> cursor.graphIdentity(id, CachedMixedModel.class, boundary, true, tracker).entity().get());
+    }
+
+    @Test
+    void documentOnlyGraphDoesNotReuseAnEventSourcedCacheProof() {
+        String id = "document";
+        var head = directDocumentHead(id, 1L, 10L);
+        var root = ImmutableModelRoot.<CurrentDocument>builder().id(id).type(CurrentDocument.class)
+                .value(new CurrentDocument(id, "current")).stateIndex(10L).sequenceNumber(1L).build();
+        ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        ModelReplayCursor.DocumentReader documents = mock(ModelReplayCursor.DocumentReader.class);
+        when(documents.load(id, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(root, head));
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(request.getRequestId(), 20L, List.of(),
+                    List.of(new ModelEventStream(id, head, List.of())));
+        });
+        ModelReplayCursor cursor = new ModelReplayCursor(client, new JacksonSerializer(), mock(EntityHelper.class),
+                new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, documents, null,
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
+
+        assertEquals(root.get(), cursor.graphValue(id, CurrentDocument.class, ModelReadBoundary.at(20L),
+                                                   tracker, false).entity().get());
+        verify(client).getModelEvents(any());
+        verify(documents).load(id, CurrentDocument.class, false);
+        verifyNoInteractions(tracker);
+    }
+
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    private record CachedMixedModel(@EntityId String id) {}
 
     @ParameterizedTest
     @ValueSource(strings = {"incomplete", "deleted", "future", "behind", "wrong-stream", "wrong-boundary"})

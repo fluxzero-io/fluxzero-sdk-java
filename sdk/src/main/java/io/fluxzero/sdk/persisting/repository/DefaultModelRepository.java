@@ -245,6 +245,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     protected ModelRepository createForNamespace(String namespace) {
         Client namespacedClient = client.forNamespace(namespace);
         DocumentStore namespacedDocumentStore = documentStore.forNamespace(namespace);
+        if (namespacedClient == client && namespacedDocumentStore == documentStore) {
+            return this;
+        }
         DefaultModelRepository result = new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
                 snapshotSerializer, cacheSource, modelDefinitionCompiler,
