@@ -1,0 +1,119 @@
+{
+  "name" : "CommitModelsWithDocumentProjections",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Commits internal Model sources and independent document projections together. Its distinct wire type ensures\n older runtimes reject these writes instead of silently dropping the projection. Relationship reads remain mandatory\n dependencies when present.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.CommitModels",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "readRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections.readRelationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommitModelsWithDocumentProjections",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections#CommitModelsWithDocumentProjections",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "CommitModelsWithDocumentProjections",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections#CommitModelsWithDocumentProjections",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"commitId\",\"readStateIndex\",\"readModelIds\",\"substeps\",\"conflictPolicy\",\"guarantee\",\"possibleDuplicate\",\"migration\",\"readRelationships\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readModelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "substeps",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitStep>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "possibleDuplicate",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRelationships",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

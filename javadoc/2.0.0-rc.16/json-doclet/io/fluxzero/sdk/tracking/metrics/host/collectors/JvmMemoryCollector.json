@@ -1,0 +1,88 @@
+{
+  "name" : "JvmMemoryCollector",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.collectors",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Collector for JVM memory metrics using JMX.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector<io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics>" ],
+  "fields" : [ {
+    "name" : "memoryMXBean",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector.memoryMXBean",
+    "type" : "java.lang.management.MemoryMXBean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "memoryPoolMXBeans",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector.memoryPoolMXBeans",
+    "type" : "java.util.List<java.lang.management.MemoryPoolMXBean>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "JvmMemoryCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector#JvmMemoryCollector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collect",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector#collect",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isAvailable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector#isAvailable",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toPoolMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector#toPoolMetrics",
+    "returnType" : "io.fluxzero.sdk.tracking.metrics.host.events.JvmMemoryMetrics.MemoryPoolMetrics",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "pool",
+      "type" : "java.lang.management.MemoryPoolMXBean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

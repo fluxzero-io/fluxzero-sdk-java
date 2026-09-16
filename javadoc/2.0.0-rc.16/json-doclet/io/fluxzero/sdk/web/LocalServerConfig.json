@@ -1,0 +1,56 @@
+{
+  "name" : "LocalServerConfig",
+  "qualifiedName" : "io.fluxzero.sdk.web.LocalServerConfig",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  } ],
+  "documentation" : " Configuration for the local HTTP server used to handle {@code WebRequest} messages outside of Fluxzero's own\n web handling framework.\n <p>\n This configuration is primarily intended for users who prefer to delegate web request handling to a custom or\n third-party locally running HTTP server (e.g., Spring MVC, Javalin, etc.) instead of the built-in Fluxzero web\n stack.\n <p>\n <strong>Note:</strong> This feature is not commonly used and may be deprecated or removed in future versions.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "ignore404",
+    "qualifiedName" : "io.fluxzero.sdk.web.LocalServerConfig.ignore404",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Whether to ignore 404 (Not Found) responses for unmatched requests.\n <p>\n If {@code true}, 404s returned by the local server will be ignored by the dispatcher. Defaults to {@code true}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "port",
+    "qualifiedName" : "io.fluxzero.sdk.web.LocalServerConfig.port",
+    "type" : "java.lang.@lombok.NonNull Integer",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The port number on which the local server should listen.\n <p>\n Required to forward web requests to the external server.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LocalServerConfig",
+    "qualifiedName" : "io.fluxzero.sdk.web.LocalServerConfig#LocalServerConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,153 @@
+{
+  "name" : "MemoryPressureEvictionCandidate",
+  "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate",
+  "packageName" : "io.fluxzero.common.caching",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cache",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate.cache",
+    "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport<?,?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate.key",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "lastAccess",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate.lastAccess",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MemoryPressureEvictionCandidate",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#MemoryPressureEvictionCandidate",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cache",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport<?,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastAccess",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cache",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#cache",
+    "returnType" : "io.fluxzero.common.caching.MemoryAwareCacheSupport<?,?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#key",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "lastAccess",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#lastAccess",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "cache",
+    "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport<?,?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "key",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "lastAccess",
+    "type" : "long",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

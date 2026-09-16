@@ -1,0 +1,297 @@
+{
+  "name" : "ParentReference",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "apiDoc",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.apiDoc",
+    "type" : "io.fluxzero.sdk.web.ApiDoc",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deleteOnParentDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.deleteOnParentDeletion",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parentModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.parentModelTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pathInParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.pathInParent",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "property",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.property",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ParentReference",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#ParentReference",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "property",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathInParent",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parentModelTypes",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "apiDoc",
+      "type" : "io.fluxzero.sdk.web.ApiDoc",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deleteOnParentDeletion",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apiDoc",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#apiDoc",
+    "returnType" : "io.fluxzero.sdk.web.ApiDoc",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "automaticallyComposed",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#automaticallyComposed",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteOnParentDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#deleteOnParentDeletion",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parentModelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#parentModelType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the statically unique parent type, or {@code null} for untyped and polymorphic references. "
+  }, {
+    "name" : "parentModelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#parentModelType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the concrete parent model type for one runtime parent ID.\n"
+  }, {
+    "name" : "parentModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#parentModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "pathInParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#pathInParent",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "property",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#property",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#read",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "repositoryId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#repositoryId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the parent's exact persisted identity for a functional parent ID value. "
+  }, {
+    "name" : "supports",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#supports",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether this reference can point to the supplied parent model type. "
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "apiDoc",
+    "type" : "io.fluxzero.sdk.web.ApiDoc",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "deleteOnParentDeletion",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parentModelTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "pathInParent",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "property",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

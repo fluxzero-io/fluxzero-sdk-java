@@ -1,0 +1,39 @@
+{
+  "name" : "GetAggregateIds",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIds",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Request to retrieve all aggregate identifiers associated with a given entity ID.\n <p>\n In Fluxzero, entities may be referenced across multiple aggregates. This request returns\n a mapping from aggregate type to aggregate ID for each aggregate that is related to the given entity ID.\n <p>\n This is typically used in systems that maintain cross-aggregate relationships or need\n to route updates based on entity identity.\n\n @see GetAggregateIdsResult\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "entityId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIds.entityId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The ID of the entity for which to fetch related aggregate IDs.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetAggregateIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIds#GetAggregateIds",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

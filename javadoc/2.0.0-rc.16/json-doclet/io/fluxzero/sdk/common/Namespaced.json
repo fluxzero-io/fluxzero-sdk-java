@@ -1,0 +1,61 @@
+{
+  "name" : "Namespaced",
+  "qualifiedName" : "io.fluxzero.sdk.common.Namespaced",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "forApplicationNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.Namespaced#forApplicationNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the resource scoped to the namespace configured for this application.\n\n @return the resource associated with the application namespace\n"
+  }, {
+    "name" : "forDefaultNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.Namespaced#forDefaultNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {
+        "forRemoval" : "false"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the resource scoped to the namespace configured for this application.\n\n @return the resource associated with the application namespace\n @deprecated use {@link #forApplicationNamespace()}; {@code null} selects the application namespace, which need\n not be the Fluxzero default namespace\n"
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.Namespaced#forNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the resource scoped to the specified namespace. Passing {@code null} selects the namespace configured\n for this application.\n\n @param namespace the namespace to which the returned resource is scoped, or {@code null} for the application\n namespace\n @return the resource associated with the specified namespace\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

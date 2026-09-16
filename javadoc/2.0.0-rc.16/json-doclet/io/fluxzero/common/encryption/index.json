@@ -1,0 +1,29 @@
+{
+  "package" : {
+    "name" : "encryption",
+    "qualifiedName" : "io.fluxzero.common.encryption",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ChaCha20Poly1305Encryption.json",
+    "name" : "ChaCha20Poly1305Encryption",
+    "qualifiedName" : "io.fluxzero.common.encryption.ChaCha20Poly1305Encryption",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultEncryption.json",
+    "name" : "DefaultEncryption",
+    "qualifiedName" : "io.fluxzero.common.encryption.DefaultEncryption",
+    "kind" : "class"
+  }, {
+    "file" : "Encryption.json",
+    "name" : "Encryption",
+    "qualifiedName" : "io.fluxzero.common.encryption.Encryption",
+    "kind" : "interface"
+  }, {
+    "file" : "NoOpEncryption.json",
+    "name" : "NoOpEncryption",
+    "qualifiedName" : "io.fluxzero.common.encryption.NoOpEncryption",
+    "kind" : "enum"
+  } ],
+  "subdirectories" : [ ]
+}

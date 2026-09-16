@@ -1,0 +1,55 @@
+{
+  "name" : "FacetStats",
+  "qualifiedName" : "io.fluxzero.common.api.search.FacetStats",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents the count of documents matching a specific facet value.\n <p>\n These statistics are typically returned by a {@link io.fluxzero.common.api.search.GetFacetStatsResult}\n in response to a {@link io.fluxzero.common.api.search.GetFacetStats} request.\n <p>\n Facet statistics are computed by the backing document store for fields annotated with {@link Facet},\n making them fast to compute even on large datasets.\n\n @see io.fluxzero.common.api.search.GetFacetStats\n @see io.fluxzero.common.api.search.GetFacetStatsResult\n @see Facet\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "count",
+    "qualifiedName" : "io.fluxzero.common.api.search.FacetStats.count",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The number of documents that have the specified facet {@link #value} at the given {@link #name} path.\n",
+    "constantValue" : null
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.common.api.search.FacetStats.name",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The name of the facet field, typically matching a path in the document that was annotated with {@link Facet}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.api.search.FacetStats.value",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The specific value of the facet for which the count applies.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FacetStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.FacetStats#FacetStats",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

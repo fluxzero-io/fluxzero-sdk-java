@@ -1,0 +1,65 @@
+{
+  "name" : "RootKind",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootKind",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.EntityMetadata.RootKind>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "RootKind",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootKind#RootKind",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootKind#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootKind",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootKind#values",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootKind[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "AGGREGATE",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootKind.AGGREGATE",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "MODEL",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootKind.MODEL",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

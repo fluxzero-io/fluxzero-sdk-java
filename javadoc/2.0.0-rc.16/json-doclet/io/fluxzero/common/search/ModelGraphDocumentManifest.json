@@ -1,0 +1,524 @@
+{
+  "name" : "ModelGraphDocumentManifest",
+  "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Hidden structural description carried by a composed independent-model graph document.\n <p>\n The visible document remains ordinary nested JSON. This compact, dictionary-encoded manifest preserves exact node\n identities, logical Model names, serializer payload types, revisions and placements so SDK clients can reconstruct\n and independently upcast a typed lazy graph without guessing schema information from JSON paths. Parent nodes\n always precede their children. Logical names deliberately remain separate from serializer types so a Java\n class/package rename does not change durable Model identity.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "CURRENT_VERSION",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.CURRENT_VERSION",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Current manifest format version. ",
+    "constantValue" : 3
+  }, {
+    "name" : "FACET_NAME",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.FACET_NAME",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Internal facet marker that lets document trackers avoid inspecting ordinary document payloads. ",
+    "constantValue" : "$fluxzeroModelGraph"
+  }, {
+    "name" : "METADATA_KEY",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.METADATA_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Reserved document-metadata key containing the manifest. ",
+    "constantValue" : "$fluxzeroModelGraph"
+  }, {
+    "name" : "PREVIOUS_STATE_INDEX_METADATA_KEY",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.PREVIOUS_STATE_INDEX_METADATA_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Reserved tombstone metadata containing the last materialized state boundary before deletion. ",
+    "constantValue" : "$fluxzeroModelGraphPreviousStateIndex"
+  }, {
+    "name" : "TOMBSTONE_METADATA_KEY",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Reserved metadata marker for a deleted materialized graph root. ",
+    "constantValue" : "$fluxzeroModelGraphTombstone"
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.modelTypes",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "m"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nodes",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.nodes",
+    "type" : "java.util.List<io.fluxzero.common.search.ModelGraphDocumentManifest.Node>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "n"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationshipPaths",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.relationshipPaths",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "r"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.stateIndex",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "s"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "types",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.types",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "t"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest.version",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "v"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelGraphDocumentManifest",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#ModelGraphDocumentManifest",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "version",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "v"
+        }
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "s"
+        }
+      } ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "m"
+        }
+      } ]
+    }, {
+      "name" : "types",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "t"
+        }
+      } ]
+    }, {
+      "name" : "relationshipPaths",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "r"
+        }
+      } ]
+    }, {
+      "name" : "nodes",
+      "type" : "java.util.List<io.fluxzero.common.search.ModelGraphDocumentManifest.Node>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "n"
+        }
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ModelGraphDocumentManifest",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#ModelGraphDocumentManifest",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "types",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationshipPaths",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nodes",
+      "type" : "java.util.List<io.fluxzero.common.search.ModelGraphDocumentManifest.Node>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "from",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#from",
+    "returnType" : "java.util.Optional<io.fluxzero.common.search.ModelGraphDocumentManifest>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads the manifest from document metadata when present. "
+  }, {
+    "name" : "from",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#from",
+    "returnType" : "java.util.Optional<io.fluxzero.common.search.ModelGraphDocumentManifest>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads the manifest from a composed graph document when present. "
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isGraphDocument",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#isGraphDocument",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether a document advertises the hidden typed-graph manifest without decoding its metadata. "
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#modelType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentManifest.Node",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the stable logical Model name referenced by a node. "
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#modelTypes",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "m"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nodes",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#nodes",
+    "returnType" : "java.util.List<io.fluxzero.common.search.ModelGraphDocumentManifest.Node>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "n"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "relationshipPath",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#relationshipPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentManifest.Node",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the relationship path referenced by a non-root node. "
+  }, {
+    "name" : "relationshipPaths",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#relationshipPaths",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "r"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#serialize",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Serializes this manifest for hidden search-document metadata. "
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#stateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "s"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#type",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentManifest.Node",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the serializer payload type referenced by a node. "
+  }, {
+    "name" : "types",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#types",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "t"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest#version",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "v"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "modelTypes",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "nodes",
+    "type" : "java.util.List<io.fluxzero.common.search.ModelGraphDocumentManifest.Node>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "relationshipPaths",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "stateIndex",
+    "type" : "long",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "types",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "version",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ {
+    "name" : "Node",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest$Node",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

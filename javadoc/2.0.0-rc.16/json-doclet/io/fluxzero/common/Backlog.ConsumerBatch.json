@@ -1,0 +1,153 @@
+{
+  "name" : "ConsumerBatch",
+  "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "constructionError",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch.constructionError",
+    "type" : "java.lang.Throwable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "slices",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch.slices",
+    "type" : "java.util.List<io.fluxzero.common.Backlog.SubmissionSlice<T>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch.values",
+    "type" : "java.util.List<T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConsumerBatch",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#ConsumerBatch",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.List<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "slices",
+      "type" : "java.util.List<io.fluxzero.common.Backlog.SubmissionSlice<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constructionError",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "constructionError",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#constructionError",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "slices",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#slices",
+    "returnType" : "java.util.List<io.fluxzero.common.Backlog.SubmissionSlice<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch#values",
+    "returnType" : "java.util.List<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "constructionError",
+    "type" : "java.lang.Throwable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "slices",
+    "type" : "java.util.List<io.fluxzero.common.Backlog.SubmissionSlice<T>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "type" : "java.util.List<T>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}
