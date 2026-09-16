@@ -1,0 +1,38 @@
+{
+  "name" : "DocumentStoreException",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStoreException",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " This class represents an exception that is thrown by the {@link DocumentStore} when a document store operation\n fails.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "DocumentStoreException",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStoreException#DocumentStoreException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

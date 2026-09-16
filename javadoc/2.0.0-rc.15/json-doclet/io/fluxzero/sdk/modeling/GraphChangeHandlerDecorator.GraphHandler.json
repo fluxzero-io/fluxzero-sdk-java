@@ -1,0 +1,153 @@
+{
+  "name" : "GraphHandler",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler.executable",
+    "type" : "java.lang.reflect.Executable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler.modelType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler.parameter",
+    "type" : "java.lang.reflect.Parameter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GraphHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#GraphHandler",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#executable",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#modelType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#parameter",
+    "returnType" : "java.lang.reflect.Parameter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator$GraphHandler#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "executable",
+    "type" : "java.lang.reflect.Executable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelType",
+    "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parameter",
+    "type" : "java.lang.reflect.Parameter",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

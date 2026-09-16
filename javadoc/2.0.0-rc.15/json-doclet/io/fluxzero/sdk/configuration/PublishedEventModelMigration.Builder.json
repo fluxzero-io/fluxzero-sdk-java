@@ -1,0 +1,199 @@
+{
+  "name" : "Builder",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder",
+  "packageName" : "io.fluxzero.sdk.configuration",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Builder for one isolated published-event Model migration application. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxFetchSize",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder.maxFetchSize",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelPackages",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder.modelPackages",
+    "type" : "java.util.LinkedHashSet<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder.modelTypes",
+    "type" : "java.util.LinkedHashSet<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder.name",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Builder",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#Builder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "build",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#build",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Builds the isolated migration application and validates its complete Model catalog. "
+  }, {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#client",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sets the low-level client owned and closed by the migration application. "
+  }, {
+    "name" : "maxFetchSize",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#maxFetchSize",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxFetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Overrides the conservative replay batch size. Ordering and tracker count remain fixed. "
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#modelTypes",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "Adds explicit Model roots to the migration catalog. "
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#modelTypes",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds explicit Model roots to the migration catalog. "
+  }, {
+    "name" : "modelsInPackage",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#modelsInPackage",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "packageName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Discovers registered Model roots in this package and its subpackages. "
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#name",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sets the stable durable consumer name. "
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder#serializer",
+    "returnType" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration.Builder",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the serializer and upcaster chain for legacy events, Model snapshots and documents. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,69 @@
+{
+  "name" : "DiskCollector",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.collectors",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Collector for disk space metrics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector<io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics>" ],
+  "fields" : [ {
+    "name" : "paths",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector.paths",
+    "type" : "java.util.List<java.nio.file.Path>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DiskCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector#DiskCollector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "paths",
+      "type" : "java.util.List<java.nio.file.Path>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collect",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector#collect",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.metrics.host.events.DiskMetrics>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isAvailable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector#isAvailable",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

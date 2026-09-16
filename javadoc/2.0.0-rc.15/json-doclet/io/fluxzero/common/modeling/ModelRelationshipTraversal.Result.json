@@ -1,0 +1,140 @@
+{
+  "name" : "Result",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Ordered traversal result, including edges only when an edge mapper was supplied. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "edges",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result.edges",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelIds",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result.modelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Result",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#Result",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "edges",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "edges",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#edges",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelIds",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#modelIds",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "without",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipTraversal$Result#without",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns all discovered model IDs except the supplied roots. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "edges",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

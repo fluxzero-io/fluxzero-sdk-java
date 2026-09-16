@@ -1,0 +1,95 @@
+{
+  "name" : "CascadedModelDeletion",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Internal reconstructing event stored for models deleted through an owning {@link Parent} relationship.\n <p>\n The payload is intentionally stable because event-sourced descendant streams retain it. It is never globally\n published and applications do not need an {@link io.fluxzero.sdk.persisting.eventsourcing.Apply @Apply} handler for\n it; the model repository interprets it as a logical deletion during replay.\n\n @param parentIds deleted parent model IDs which caused this cascade step\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "parentIds",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion.parentIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CascadedModelDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion#CascadedModelDeletion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parentIds",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion#parentIds",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CascadedModelDeletion#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "parentIds",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

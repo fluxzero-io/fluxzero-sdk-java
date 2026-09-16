@@ -1,0 +1,154 @@
+{
+  "package" : {
+    "name" : "proxy",
+    "qualifiedName" : "io.fluxzero.proxy",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ForwardProxyConsumer.json",
+    "name" : "ForwardProxyConsumer",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer",
+    "kind" : "class"
+  }, {
+    "file" : "ForwardProxyConsumer.ActiveRequest.json",
+    "name" : "ForwardProxyConsumer.ActiveRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ActiveRequest",
+    "kind" : "record"
+  }, {
+    "file" : "ForwardProxyConsumer.CancellableResponseFuture.json",
+    "name" : "ForwardProxyConsumer.CancellableResponseFuture",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture",
+    "kind" : "class"
+  }, {
+    "file" : "ForwardProxyConsumer.HttpOutcome.json",
+    "name" : "ForwardProxyConsumer.HttpOutcome",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome",
+    "kind" : "record"
+  }, {
+    "file" : "ForwardProxyConsumer.Lifecycle.json",
+    "name" : "ForwardProxyConsumer.Lifecycle",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$Lifecycle",
+    "kind" : "class"
+  }, {
+    "file" : "ForwardProxyConsumer.RedirectClients.json",
+    "name" : "ForwardProxyConsumer.RedirectClients",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients",
+    "kind" : "class"
+  }, {
+    "file" : "ForwardProxyConsumer.RequestState.json",
+    "name" : "ForwardProxyConsumer.RequestState",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RequestState",
+    "kind" : "enum"
+  }, {
+    "file" : "ForwardProxyConsumer.ScheduledRequest.json",
+    "name" : "ForwardProxyConsumer.ScheduledRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest",
+    "kind" : "class"
+  }, {
+    "file" : "JettyProxyWebsocketAdapter.json",
+    "name" : "JettyProxyWebsocketAdapter",
+    "qualifiedName" : "io.fluxzero.proxy.JettyProxyWebsocketAdapter",
+    "kind" : "class"
+  }, {
+    "file" : "JwtVerifier.json",
+    "name" : "JwtVerifier",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier",
+    "kind" : "class"
+  }, {
+    "file" : "JwtVerifier.JwtClaims.json",
+    "name" : "JwtVerifier.JwtClaims",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier$JwtClaims",
+    "kind" : "class"
+  }, {
+    "file" : "NamespaceSelector.json",
+    "name" : "NamespaceSelector",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector",
+    "kind" : "class"
+  }, {
+    "file" : "NamespaceSelector.HeaderMode.json",
+    "name" : "NamespaceSelector.HeaderMode",
+    "qualifiedName" : "io.fluxzero.proxy.NamespaceSelector$HeaderMode",
+    "kind" : "enum"
+  }, {
+    "file" : "ProxyRequestHandler.json",
+    "name" : "ProxyRequestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.CancellableRequestHandler.json",
+    "name" : "ProxyRequestHandler.CancellableRequestHandler",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$CancellableRequestHandler",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.ChunkAccumulator.json",
+    "name" : "ProxyRequestHandler.ChunkAccumulator",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.ChunkedProxyRequest.json",
+    "name" : "ProxyRequestHandler.ChunkedProxyRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkedProxyRequest",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.InFlightWebRequestLimiter.json",
+    "name" : "ProxyRequestHandler.InFlightWebRequestLimiter",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.InFlightWebRequestLimiter.Permit.json",
+    "name" : "ProxyRequestHandler.InFlightWebRequestLimiter.Permit",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit",
+    "kind" : "record"
+  }, {
+    "file" : "ProxyRequestHandler.JettyExchange.json",
+    "name" : "ProxyRequestHandler.JettyExchange",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$JettyExchange",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyRequestHandler.ProxyResponseContext.json",
+    "name" : "ProxyRequestHandler.ProxyResponseContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ProxyResponseContext",
+    "kind" : "class"
+  }, {
+    "file" : "ProxySerializer.json",
+    "name" : "ProxySerializer",
+    "qualifiedName" : "io.fluxzero.proxy.ProxySerializer",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyServer.json",
+    "name" : "ProxyServer",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyServer.LifecycleState.json",
+    "name" : "ProxyServer.LifecycleState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer$LifecycleState",
+    "kind" : "enum"
+  }, {
+    "file" : "ProxyServerConfig.json",
+    "name" : "ProxyServerConfig",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig",
+    "kind" : "record"
+  }, {
+    "file" : "ProxyWebsocketBackpressureEvent.json",
+    "name" : "ProxyWebsocketBackpressureEvent",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketBackpressureEvent",
+    "kind" : "record"
+  }, {
+    "file" : "ProxyWebsocketEndpoint.json",
+    "name" : "ProxyWebsocketEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyWebsocketEndpoint.KeepAliveState.json",
+    "name" : "ProxyWebsocketEndpoint.KeepAliveState",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$KeepAliveState",
+    "kind" : "class"
+  }, {
+    "file" : "ProxyWebsocketEndpoint.SessionContext.json",
+    "name" : "ProxyWebsocketEndpoint.SessionContext",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint$SessionContext",
+    "kind" : "record"
+  } ],
+  "subdirectories" : [ ]
+}
