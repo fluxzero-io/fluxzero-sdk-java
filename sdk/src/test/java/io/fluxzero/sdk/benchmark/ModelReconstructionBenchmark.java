@@ -85,6 +85,7 @@ public class ModelReconstructionBenchmark {
                                                 .serialize(fluxzero.serializer()))
                                  .targets(List.of(ModelCommitTarget.builder()
                                                           .modelId(id.toString())
+                                                          .modelType(Counter.class.getSimpleName())
                                                           .storeEvent(true)
                                                           .updateState(true)
                                                           .relationships(List.of())
