@@ -266,6 +266,8 @@ when a Project deletion caused it. No parent-specific cleanup handler or extra p
 The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
 boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving
 shared ancestors also observe removal; an already deleted ancestor is not notified twice for the same deletion.
+The cascaded child's `previous()` retains the state before its own deletion substep: its value is available, but
+an ancestor already deleted in an earlier substep is no longer reachable. It does not rewind the whole commit.
 This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
 physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
 

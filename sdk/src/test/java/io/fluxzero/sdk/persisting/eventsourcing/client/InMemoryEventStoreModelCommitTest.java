@@ -1229,6 +1229,12 @@ class InMemoryEventStoreModelCommitTest {
                                 List.of("child-1"), ModelReadBoundary.state(1L, false),
                                 1, 10, 0, 0L))
                         .getEdges().getFirst().getParentId());
+        assertEquals("parent-1", store.getModelGraph(GetModelGraph.ancestors(
+                        List.of("child-1"), ModelReadBoundary.state(2L, false).asBefore(),
+                        1, 10, 0, 0L)).getEdges().getFirst().getParentId());
+        assertTrue(store.getModelGraph(GetModelGraph.ancestors(
+                        List.of("child-1"), ModelReadBoundary.state(2L, false),
+                        1, 10, 0, 0L)).getEdges().isEmpty());
 
         ModelCommitTarget ordinaryChildUpdate =
                 storedTarget("child-1");

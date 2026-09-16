@@ -1076,7 +1076,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
         AncestorResolution resolved = resolveAncestors(
                 request,
-                boundary.forRequest(),
+                boundary.withoutMessageBatch(),
                 stagedValues, boundary.includeMessageBatch(),
                 false, !all, all,
                 UNBOUNDED, UNBOUNDED);

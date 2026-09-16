@@ -1041,6 +1041,7 @@ public final class MutationPlan {
         private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
         private final Supplier<List<Slot>> ancestorRoots;
         private final Slot routingTarget;
+        private volatile ReplayBinding replayBinding;
 
         private TargetPlan(
                 Class<?> payloadType,
@@ -1132,6 +1133,7 @@ public final class MutationPlan {
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
+            Property replayBinding = replayTarget == null ? null : replayBinding(replayTarget);
             for (Slot slot : slots) {
                 if (!acceptsExplicitTarget(slot.handler, explicitType)
                     || slot.handler == null && explicitType != null && !compatibleExplicit(slot.modelType, explicitType)
@@ -1140,7 +1142,9 @@ public final class MutationPlan {
                     || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
                 }
-                List<String> ids = resolveIds(input, payload, slot);
+                List<String> ids = slot.property.equals(replayBinding)
+                                   && slot.requestedType.isAssignableFrom(replayTarget.modelType())
+                        ? List.of(replayTarget.modelId()) : resolveIds(input, payload, slot);
                 if (slot.parameter != null) {
                     DirectReferences resolved = slot.collection
                             ? DirectReferences.collection(ids)
@@ -1151,7 +1155,10 @@ public final class MutationPlan {
                     slotIds.put(slot, ids);
                 }
                 ids.forEach(id -> merge(result, new ResolvedModel(
-                        id, slot.modelType, slot.access, List.of(slot.property.name()))));
+                        id, replayTarget != null && id.equals(replayTarget.modelId())
+                            && slot.requestedType.isAssignableFrom(replayTarget.modelType())
+                                ? replayTarget.modelType() : slot.modelType,
+                        slot.access, List.of(slot.property.name()))));
             }
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
@@ -1231,6 +1238,39 @@ public final class MutationPlan {
                     List.copyOf(result.values()), unresolved,
                     unresolvedAncestors,
                     references);
+        }
+
+        private Property replayBinding(ResolvedModel target) {
+            ReplayBinding cached = replayBinding;
+            if (cached != null && cached.modelType() == target.modelType()) {
+                return cached.property();
+            }
+            Property property = computeReplayBinding(target.modelType());
+            replayBinding = new ReplayBinding(target.modelType(), property);
+            return property;
+        }
+
+        private Property computeReplayBinding(Class<?> modelType) {
+            // A single stream-bound reference may have been selected through Graph.assertAndApply.
+            // Do not collapse distinct same-type readers or collections onto that write target.
+            if (handlerMethods.values().stream().anyMatch(
+                    handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())) {
+                return null;
+            }
+            List<Slot> matching = slots.stream()
+                    .filter(slot -> EntityMetadata.compatibleTypes(slot.requestedType, modelType)).toList();
+            if (matching.isEmpty() || matching.stream().noneMatch(slot -> slot.access.writes())
+                || matching.stream().anyMatch(slot -> slot.collection || slot.property.missing()
+                        || !slot.requestedType.isAssignableFrom(modelType))
+                || matching.stream().map(slot -> slot.property).distinct().count() != 1
+                || ancestors.stream().anyMatch(ancestor -> EntityMetadata.compatibleTypes(
+                        ancestor.dependency().modelType(), modelType))) {
+                return null;
+            }
+            return matching.getFirst().property;
+        }
+
+        private record ReplayBinding(Class<?> modelType, Property property) {
         }
 
         private boolean bindMetadataReference(Object input, AncestorDependency dependency,
@@ -1473,6 +1513,7 @@ public final class MutationPlan {
     }
 
     private static final class Slot {
+        private final Class<?> requestedType;
         private final Class<?> modelType;
         private final EntityMetadata metadata;
         private final Property property;
@@ -1492,6 +1533,7 @@ public final class MutationPlan {
                 boolean receiver,
                 boolean apply,
                 EntityMetadata.ModelParameter parameter) {
+            this.requestedType = requestedType;
             this.modelType = collection || property.missing() ? requestedType
                     : property.modelType().filter(requestedType::isAssignableFrom)
                             .filter(type -> EntityMetadata.of(type).isModel()).orElse(requestedType);

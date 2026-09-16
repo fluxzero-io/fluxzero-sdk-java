@@ -1155,10 +1155,13 @@ final class GraphState {
         String modelId = entity.id().toString();
         updated.put(modelId, entity);
         LinkedHashMap<String, GraphMutation> changes = new LinkedHashMap<>(stagedChanges);
-        Long expectedStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= 0L
-                ? root.stateIndex() : stateIndex() >= 0L ? stateIndex() : null;
+        long graphStateIndex = stateIndex();
+        Long readStateIndex = graphStateIndex >= 0L ? graphStateIndex : null;
+        // A missing Model has head -1 even when its Graph was read from a non-empty namespace.
+        // Keep that absence proof distinct from the snapshot used to resolve the commit.
+        Long expectedStateIndex = entity instanceof ModelRoot<?> root ? root.stateIndex() : readStateIndex;
         GraphMutation addition = new GraphMutation(
-                modelId, entity.type(), expectedStateIndex, entity.get(), replay);
+                modelId, entity.type(), expectedStateIndex, readStateIndex, entity.get(), replay);
         changes.merge(modelId, addition, GraphMutation::then);
         return GraphState.entity(entity, stateIndex(), repository, updated, historical,
                                  exactBoundary || navigation != null, boundary(), changes)

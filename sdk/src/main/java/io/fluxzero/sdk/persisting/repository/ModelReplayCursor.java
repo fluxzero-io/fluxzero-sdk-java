@@ -1348,7 +1348,8 @@ final class ModelReplayCursor {
                 nodes.put(id, new ModelGraphResolver.ModelNode(
                         id, modelTypeResolver.modelName(overlay.type()), overlay.type(), () -> overlay));
             } else if (head != null && (direction != ModelRelationshipRead.Direction.PARENTS
-                                       || roots.contains(id) || !head.isDeleted())) {
+                                       || roots.contains(id) || !head.isDeleted()
+                                       || boundary.before() && head.getStateIndex() == stateIndex)) {
                 String name = head.getModelType();
                 Class<?> type = modelTypeResolver.knownModelType(name, id).orElse(null);
                 if (type != null) {

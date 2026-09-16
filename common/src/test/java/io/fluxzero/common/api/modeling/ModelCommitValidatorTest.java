@@ -256,6 +256,10 @@ class ModelCommitValidatorTest {
                 GetModelGraph.ancestors(
                         List.of("child-1"), ModelReadBoundary.current(),
                         -1, -1, 0, 0L)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                GetModelGraph.ancestors(
+                        List.of("child-1"), ModelReadBoundary.state(2L, false).asBefore(),
+                        -1, -1, 0, 0L)));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> ModelCommitValidator.validate(

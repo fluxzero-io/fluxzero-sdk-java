@@ -340,9 +340,6 @@ public final class ModelCommitValidator {
             }
         }
         boolean ancestors = request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS;
-        if (ancestors && request.getBoundary().before()) {
-            throw new IllegalArgumentException("Model ancestor graphs do not support before-boundaries");
-        }
         if (ancestors && request.isComposableOnly()) {
             throw new IllegalArgumentException("Composable-only traversal is only supported for descendant graphs");
         }

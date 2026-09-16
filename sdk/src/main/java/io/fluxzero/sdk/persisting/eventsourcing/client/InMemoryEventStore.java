@@ -1759,7 +1759,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return ModelRelationshipQueries.graph(
                 request, boundary, exactBoundary,
                 frontier -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS
-                        ? relationshipsByChildren(frontier, boundary)
+                        ? relationshipsByChildren(frontier, boundary, before)
                         : relationshipsByParents(frontier, boundary, before),
                 this::getModelEvents);
     }
@@ -1863,10 +1863,15 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private List<MutableModelRelationship> relationshipsByChildren(
             Collection<String> childIds,
             long stateIndex) {
+        return relationshipsByChildren(childIds, stateIndex, false);
+    }
+
+    private List<MutableModelRelationship> relationshipsByChildren(
+            Collection<String> childIds, long stateIndex, boolean before) {
         Set<String> children = Set.copyOf(childIds);
         return modelRelationshipHistory.stream()
                 .filter(relation -> children.contains(relation.childId())
-                                    && relation.isValidAt(stateIndex))
+                                    && (before ? relation.isValidBefore(stateIndex) : relation.isValidAt(stateIndex)))
                 .toList();
     }
 

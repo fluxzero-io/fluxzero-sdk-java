@@ -198,6 +198,84 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void explicitGraphCreationAfterAnotherCommitPreservesTheAbsentHead() {
+        for (boolean async : List.of(false, true)) {
+            for (boolean document : List.of(false, true)) {
+                TestFixture fixture = async ? TestFixture.createAsync() : TestFixture.create();
+                fixture.givenCommands(new CreateAccount(new AccountId("unrelated"), 1))
+                        .whenExecuting(ignored -> {
+                            if (document) {
+                                InventoryId id = new InventoryId("created-after-other");
+                                Fluxzero.loadGraph(id).update(value -> new Inventory(id, 41)).commit();
+                            } else {
+                                AccountId id = new AccountId("created-after-other");
+                                Fluxzero.loadGraph(id).update(value -> new Account(id, 41)).commit();
+                            }
+                        })
+                        .expectSuccessfulResult()
+                        .expectNoErrors()
+                        .expectThat(fluxzero -> {
+                            fluxzero.cache().clear();
+                            if (document) {
+                                assertEquals(41, Fluxzero.loadModel(new InventoryId("created-after-other"))
+                                        .get().available());
+                            } else {
+                                assertEquals(41, Fluxzero.loadModel(new AccountId("created-after-other"))
+                                        .get().balance());
+                            }
+                        });
+            }
+        }
+    }
+
+    @Test
+    void absentGraphCreationCannotOverwriteAConcurrentCreate() {
+        AccountId id = new AccountId("concurrent-graph-create");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(new AccountId("unrelated"), 1))
+                .whenExecuting(ignored -> {
+                    Graph<Account> staged = Fluxzero.loadGraph(id)
+                            .update(value -> new Account(id, value == null ? 1 : value.balance() + 1));
+                    Fluxzero.sendCommandAndWait(new CreateAccount(id, 41));
+                    staged.commit();
+                })
+                .expectExceptionalResult(ModelCommitConflictException.class)
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(41, Fluxzero.loadModel(id).get().balance());
+                });
+    }
+
+    @Test
+    void returningAnEmptyGraphAfterAnotherCommitPreservesTheAbsentHead() {
+        TestFixture.create()
+                .givenCommands(new CreateAccount(new AccountId("unrelated"), 1))
+                .whenCommand(new ReturnEmptyGraph(new AccountId("absent")))
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(ignored -> assertNull(Fluxzero.loadModel(new AccountId("absent")).get()));
+    }
+
+    @Test
+    void existingGraphUpdateReevaluatesAfterAConcurrentUpdate() {
+        AccountId id = new AccountId("concurrent-graph-update");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(id, 10), new CreateAccount(new AccountId("unrelated"), 1))
+                .whenExecuting(ignored -> {
+                    Graph<Account> staged = Fluxzero.loadGraph(id)
+                            .update(value -> new Account(id, value.balance() + 1));
+                    Fluxzero.sendCommandAndWait(new ApplyTargetedCredit(id, 30));
+                    staged.commit();
+                })
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(41, Fluxzero.loadModel(id).get().balance());
+                });
+    }
+
+    @Test
     void graphAssertAndApplyRetainsTheSelectedIdentityAcrossInterception() {
         AccountId payloadId = new AccountId("targeted-payload");
         AccountId selectedId = new AccountId("targeted-selected");
@@ -282,9 +360,57 @@ class ModelCommitHandlerIntegrationTest {
                 .whenExecuting(ignored -> Fluxzero.loadGraph("selected", SpecialCounter.class)
                         .assertAndApply(event))
                 .expectEvents(event)
-                .expectThat(fluxzero -> assertEquals(
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(
                         SpecialCounter.builder().counterId("selected").value(5).marker("special").build(),
-                        fluxzero.modelRepository().load("selected", SpecialCounter.class).get()));
+                        fluxzero.modelRepository().load("selected", SpecialCounter.class).get());
+                });
+    }
+
+    @Test
+    void replayRetainsAnExplicitBaseGraphDespiteATypedSubtypeId() {
+        SpecialCounterId id = new SpecialCounterId("explicit-base");
+        TestFixture.create(BaseCounter.class)
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id.getId(), BaseCounter.class)
+                        .assertAndApply(new CreateBaseThroughSubtypeId(id, 8)))
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(BaseCounter.builder().counterId(id.getId()).value(8).build(),
+                                 Fluxzero.loadModel(id.getId(), BaseCounter.class).get());
+                });
+    }
+
+    @Test
+    void coldReplayPreservesAHistoricalSiblingRead() {
+        AccountId target = new AccountId("replay-target");
+        AccountId source = new AccountId("replay-source");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(target, 1), new CreateAccount(source, 10))
+                .whenExecuting(ignored -> {
+                    Fluxzero.sendCommandAndWait(new CopyAccountBalance(target, source));
+                    Fluxzero.sendCommandAndWait(new ApplyTargetedCredit(source, 20));
+                })
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    long boundary = Fluxzero.loadCurrentGraph(source).revisionStateIndex();
+                    assertEquals(10, fluxzero.modelRepository().loadGraphAt(target, boundary).get().balance());
+                    assertEquals(30, Fluxzero.loadModel(source).get().balance());
+                });
+    }
+
+    @Test
+    void replayDoesNotWidenAnExplicitSubtypeParameter() {
+        var target = new MutationPlan.ResolvedModel("base", BaseCounter.class,
+                                                    MutationPlan.Access.READ_WRITE, List.of());
+        MutationPlan.Resolution resolution = MutationPlan.compile(
+                ReadSpecialCounter.class, EntityMetadata.of(ReadSpecialCounter.class).handlerMethods())
+                .resolveReplay(new ReadSpecialCounter("base"), target);
+        assertEquals(SpecialCounter.class, resolution.models().getFirst().modelType());
     }
 
     @Test
@@ -2823,6 +2949,28 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
+    private record CreateBaseThroughSubtypeId(SpecialCounterId counterId, int value) {
+        @Apply
+        BaseCounter apply(Graph<BaseCounter> graph) {
+            return BaseCounter.builder().counterId(graph.id().toString()).value(value).build();
+        }
+    }
+
+    private record ReadSpecialCounter(String counterId) {
+        @Apply
+        SpecialCounter apply(SpecialCounter counter) {
+            return counter;
+        }
+    }
+
+    private record CopyAccountBalance(AccountId accountId, AccountId sourceId) {
+        @Apply
+        Account apply(@io.fluxzero.sdk.tracking.handling.Association("accountId") Account account,
+                      @io.fluxzero.sdk.tracking.handling.Association("sourceId") Account source) {
+            return new Account(account.accountId(), source.balance());
+        }
+    }
+
     private static final AtomicReference<String> ASYNC_COMMIT_METADATA =
             new AtomicReference<>();
 
@@ -2882,6 +3030,13 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         Account apply(Account account) {
             return null;
+        }
+    }
+
+    private record ReturnEmptyGraph(AccountId accountId) {
+        @InterceptApply
+        Graph<Account> apply(Graph<Account> account) {
+            return account;
         }
     }
 

@@ -881,6 +881,22 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
+    void modelAncestorsBeforeBoundariesRoundTrip() throws Exception {
+        for (ModelReadBoundary boundary : List.of(ModelReadBoundary.at(42L),
+                                                  ModelReadBoundary.commit("commit-991", 3),
+                                                  ModelReadBoundary.event(991L))) {
+            GetModelGraph request = GetModelGraph.ancestors(
+                    List.of("line-1", "line-2"), boundary.asBefore(), 12, 1_000, 0, 0L);
+            for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+                GetModelGraph decoded = assertInstanceOf(GetModelGraph.class, roundTrip(codec, request));
+                assertEquals(boundary.asBefore(), decoded.getBoundary());
+                assertEquals(request.getModelIds(), decoded.getModelIds());
+                assertEquals(GetModelGraph.TraversalDirection.ANCESTORS, decoded.getDirection());
+            }
+        }
+    }
+
+    @Test
     void modelChangeRoundTripsExactTargetsAndBoundary()
             throws Exception {
         GetModelChange request = new GetModelChange(

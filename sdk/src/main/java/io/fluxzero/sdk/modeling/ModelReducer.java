@@ -979,7 +979,7 @@ public final class ModelReducer {
                                         graphMutation.modelType(),
                                         stateIndexPinned
                                                 ? Long.valueOf(readStateIndex)
-                                                : graphMutation.expectedStateIndex(),
+                                                : graphMutation.readStateIndex(),
                                         stagedValues),
                         "Substep resolver returned null")
                         : prepared;
@@ -1228,7 +1228,7 @@ public final class ModelReducer {
                             .formatted(modelType.getName()));
         }
         return List.of(new GraphMutation(
-                modelId, modelType, graph.stateIndex(), null,
+                modelId, modelType, graph.revisionStateIndex(), graph.stateIndex(), null,
                 current -> current.update(ignored -> null)));
     }
 
