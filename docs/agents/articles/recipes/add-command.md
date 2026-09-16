@@ -1,6 +1,6 @@
 To add a command:
 
-1. Name the payload imperatively, for example `CreateProject`.
+1. Identify the owning domain and put the payload in its `api` package, following `/docs/sdk/project-setup/package-structure` or the existing application convention. Name it imperatively, for example `CreateProject`.
 2. Include a typed Model ID and validated details.
 3. Use automatic Model command handling; add `@HandleCommand` only for real orchestration.
 4. Add `@Apply` methods for create/update/delete state.

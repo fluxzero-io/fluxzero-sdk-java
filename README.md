@@ -22,6 +22,10 @@ For external APIs, give each interaction a local command or query whose handler 
 `@TrackSelf` is required for request auditability, configurable HTTP retries and fixture-based tests. Standard API-key
 and authorization headers are masked in visible Auditlog records; authenticated calls do not require a separate HTTP client.
 
+Before adding application classes, choose their owning domains and follow the
+[application package structure](docs/developer/getting-started/package-structure.mdx), including the example tree
+and the final layout check.
+
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 
 For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.

@@ -5,7 +5,7 @@ This is the SDK documentation graph. Its content can be read locally or served t
 For application work, prefer this order:
 
 1. Read the SDK overview.
-2. Model commands and independent `@Model` state, legal assertions, and handlers.
+2. Before creating application files, choose owning domains and package paths with `/docs/sdk/project-setup/package-structure`; then model commands, independent `@Model` state, legal assertions and handlers.
 3. Test behavior locally with `TestFixture`.
 4. Add search/read models and thin web endpoints.
 5. Read cloud pages only when the user asks about publishing or demo deployment.

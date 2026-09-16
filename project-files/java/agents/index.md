@@ -9,6 +9,9 @@ source of truth for its evolving commands and dev-server configuration; see [Loc
 The Guidelines manual contains a **Task Decision Tree** to help you find specific implementation details in the other
 manuals as you need them.
 
+Before adding application files, read [Project Structure Rules](rules/guidelines.md#project-structure-rules),
+choose concrete domain/package paths and apply its final layout check after implementation.
+
 ## Recommended Reading Strategy
 
 1. **[Guidelines](rules/guidelines.md)**: **Read this first.** It covers the philosophy, core principles, and how to use

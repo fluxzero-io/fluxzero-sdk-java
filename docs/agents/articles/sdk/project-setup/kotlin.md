@@ -1,5 +1,8 @@
 Use this for Kotlin source layout after `fz init --template flux-basic-kotlin` has generated the project, or when validating an existing Kotlin build. Treat the starter packages and handlers as replaceable scaffolding.
 
+Before creating application files, read `/docs/sdk/project-setup/package-structure` for the domain-first rules,
+a two-domain example tree and the final layout check. `<domain>` below is a business area, not a literal global package.
+
 Recommended folders:
 
 ```text

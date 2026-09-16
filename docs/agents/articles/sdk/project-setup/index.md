@@ -32,6 +32,6 @@ Recommended agent flow:
 1. For a new project, read CLI generation and create the Java or Kotlin starter with the selected build tool.
 2. Ensure the JDK declared by the generated project is available; use its wrappers instead of installing Maven or Gradle globally.
 3. Read either Maven setup or Gradle setup to validate or repair the generated build. For Maven, read reproducible model guidance before changing the parent/BOM shape.
-4. Read Java or Kotlin project shape.
+4. Read `/docs/sdk/project-setup/package-structure` and Java or Kotlin project shape. Identify owning domains and concrete package paths before adding product classes.
 5. Read local runtime and the development loop before starting or observing the development stack.
 6. Continue with the create-app recipe, replace starter behavior, then add product commands, queries, and tests.

@@ -20,15 +20,26 @@ Ask your coding agent to implement each section. The tutorial also doubles as a 
 Have your coding agent start with the Basic Starter for Java or Kotlin from [Installation](/docs/getting-started/installation). A small domain
 can use this layout:
 
+Use `project.api` for messages and IDs, and `project.api.model` for state and values. Kotlin uses the same packages
+with `.kt` files; tests mirror the `project` domain. See [Application package structure](/docs/getting-started/package-structure)
+for a two-domain example and the checks to make before creating files and before finishing.
+
 ```text
 io.fluxzero.todo
 └── project
-    ├── Project.java
-    ├── Task.java
-    ├── CreateProject.java
-    ├── AddTask.java
-    ├── CompleteTask.java
-    └── ProjectQueries.java
+    ├── ProjectQueries.java
+    └── api
+        ├── CreateProject.java
+        ├── AddTask.java
+        ├── CompleteTask.java
+        ├── FindOpenTasks.java
+        ├── ProjectId.java
+        ├── TaskId.java
+        └── model
+            ├── Project.java
+            ├── ProjectDetails.java
+            ├── Task.java
+            └── TaskDetails.java
 ```
 
 Fluxzero does not require controller, service and repository layers around this code.

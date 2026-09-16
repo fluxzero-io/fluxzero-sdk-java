@@ -45,12 +45,12 @@ Use the SDK version resolved by the project and documentation for that exact ver
 Inspect the complete generated tree before editing. Then:
 
 1. Keep the selected wrapper and build system; remove the unused alternative only when the product or repository convention requires a single build.
-2. Replace generic package names, descriptions, example payloads, routes, and tests with the product's terminology and behavior.
+2. Read `/docs/sdk/project-setup/package-structure` and map the first product types to concrete domain packages. Replace generic package names, descriptions, example payloads, routes and tests with the product's terminology and behavior.
 3. Remove starter behavior that the product does not need. Do not expose example endpoints merely because they compile.
 4. Add only required SDK, authentication, UI, or third-party dependencies.
 5. Implement a narrow end-to-end product slice with Fluxzero commands, state, queries, and behavior tests before broadening the surface.
 6. Use the Fluxzero dev environment's structured compile/reload/test feedback while editing, inspect served routes or
-   API documents when HTTP is promised, and review the final tree for leftover starter names. Use one direct wrapper
+   API documents when HTTP is promised, and review the final tree for leftover starter names and compliance with the chosen domain package layout. Use one direct wrapper
    test only for an explicit full-suite/CI boundary or documented fallback.
 
 The generated project contains `.fluxzero/dev.yaml` defaults and small agent instructions. The installed integration's

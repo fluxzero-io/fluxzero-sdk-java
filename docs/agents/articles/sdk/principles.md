@@ -2,7 +2,7 @@ Build Fluxzero applications from the inside out. Start with command intent and d
 
 Core rules for agents:
 
-- Put commands, queries, and typed IDs in an `api` package; put Models and value objects in `api.model`; keep handlers and endpoints near the domain package.
+- Before creating application classes, read `/docs/sdk/project-setup/package-structure` and choose concrete owning domains and package paths. Put commands, queries and typed IDs in `<domain>.api`, Models and values in `<domain>.api.model`, and separate handlers/endpoints in `<domain>`. Recheck the changed tree before finishing; follow established conventions in existing applications.
 - Keep Model state immutable. Choose independent lifecycle boundaries with `@Model` plus `@Parent`; reserve `@Member` for root-owned state. Use Java records for payloads and value objects where possible.
 - Choose Graph relations first, then deletion policy per relation. A plain typed ID registers no Graph edge;
   `@Parent` registers one with cascade deletion by default; `@Parent(deleteOnParentDeletion = false)` expresses

@@ -72,6 +72,10 @@
         {
           "description": "Cloud packaging and demo deployment orientation",
           "path": "/docs/cloud"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -185,13 +189,17 @@
         {
           "description": "Look up curated application-facing SDK symbols and exact packages",
           "path": "/docs/sdk/reference"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
     {
       "path": "/docs/sdk/principles",
       "title": "SDK Principles",
-      "summary": "Core SDK principles, including cohesive details value objects versus configuration, identity, status and execution state.",
+      "summary": "Core SDK principles, including domain-first package structure and cohesive details versus identity, status and execution state.",
       "source": "articles/sdk/principles.md",
       "symbols": [
         "@Apply",
@@ -231,13 +239,17 @@
         {
           "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
           "path": "/docs/sdk/web/outbound-requests"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
     {
       "path": "/docs/sdk/project-setup",
       "title": "Project Setup",
-      "summary": "Generate a Java/Kotlin starter with the Fluxzero CLI, align its SDK version with these manuals, and adapt it to the product requirements.",
+      "summary": "Generate a Java/Kotlin starter, choose domain-first package paths before creating files, and align the build with its SDK version.",
       "source": "articles/sdk/project-setup/index.md",
       "symbols": [
         "fz init",
@@ -305,6 +317,10 @@
         {
           "description": "Observe edits without duplicating builds, tests, apps, or watchers",
           "path": "/docs/sdk/development/agent-loop"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -359,6 +375,10 @@
         {
           "description": "Use the generated dev configuration and agent-owned feedback loop",
           "path": "/docs/sdk/development"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -574,6 +594,50 @@
       ]
     },
     {
+      "path": "/docs/sdk/project-setup/package-structure",
+      "title": "Application Package Structure",
+      "summary": "Choose domain-first Java/Kotlin packages before creating files; place messages and IDs in api, state in api.model, and verify the example tree before finishing.",
+      "source": "articles/sdk/project-setup/package-structure.md",
+      "symbols": [
+        "package structure",
+        "package layout",
+        "package organization",
+        "package organisation",
+        "folder structure",
+        "directory layout",
+        "domain-first",
+        "package by feature",
+        "api",
+        "api.model",
+        "commands",
+        "queries",
+        "typed IDs",
+        "package-info.java"
+      ],
+      "links": [
+        {
+          "description": "Configure a Java or Kotlin Fluxzero project",
+          "path": "/docs/sdk/project-setup"
+        },
+        {
+          "description": "Java source roots and package annotations",
+          "path": "/docs/sdk/project-setup/java"
+        },
+        {
+          "description": "Kotlin source roots and package annotations",
+          "path": "/docs/sdk/project-setup/kotlin"
+        },
+        {
+          "description": "Build the first application slice",
+          "path": "/docs/recipes/create-app"
+        },
+        {
+          "description": "Preserve registered type names and aliases when moving existing classes",
+          "path": "/docs/sdk/serialization/registered-type-names"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/project-setup/java",
       "title": "Java Project Shape",
       "summary": "Java-specific source layout, package annotations, annotation processing, and the Spring Boot entry point.",
@@ -628,6 +692,10 @@
         {
           "description": "Resolve unique simple names and suffixes and preserve generated module indexes.",
           "path": "/docs/sdk/serialization/registered-type-names"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -720,6 +788,10 @@
         {
           "description": "Resolve unique simple names and suffixes and preserve generated module indexes.",
           "path": "/docs/sdk/serialization/registered-type-names"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -6001,12 +6073,12 @@
     {
       "path": "/docs/recipes/create-app",
       "title": "Recipe: Create An App",
-      "summary": "Start from an empty or existing project with package layout, one aggregate, one command, and a focused TestFixture test.",
+      "summary": "Choose domain packages before creating files, then build one Model, one command and a focused TestFixture test; review the final tree.",
       "source": "articles/recipes/create-app.md",
       "symbols": [
         "SpringApplication",
         "FluxzeroSpringConfig",
-        "@Aggregate",
+        "@Model",
         "pom.xml",
         "mvn wrapper:wrapper",
         "build.gradle.kts"
@@ -6039,6 +6111,10 @@
         {
           "description": "Resolve application properties namespaces and runtime URLs",
           "path": "/docs/sdk/configuration"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -6081,6 +6157,10 @@
         {
           "description": "Define typed entity IDs and routing keys",
           "path": "/docs/sdk/entities/ids"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
