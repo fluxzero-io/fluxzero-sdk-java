@@ -198,10 +198,10 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * settings may override this policy. Rejecting policies roll back the complete runtime action before invoking
      * {@code resolver}. A resolver-requested retry performs a fresh pinned model load and is bounded by
      * {@code maxRetries}. If this method is not called, properties {@code fluxzero.model.conflictPolicy} and
-     * {@code fluxzero.model.maxConflictRetries} are consulted. The policy defaults to {@code RETRY} from
-     * {@code fluxzero.defaults.version = 2026.09.09}, or {@code ACCEPT} in compatibility mode, with three retries.
-     * Under these implicit defaults, first creations fail on conflict rather than becoming upserts. An explicitly
-     * selected {@code RETRY} also applies to creation and therefore requires create-only assertions where appropriate.
+     * {@code fluxzero.model.maxConflictRetries} are consulted. The policy defaults to {@code RETRY} with three retries,
+     * for both updates and creations, independently of the defaults version. Factory compatibility still rejects an
+     * occupied target after retry; nullable existing-Model applies are a separate upsert choice. The conventional
+     * environment variables are {@code FLUXZERO_MODEL_CONFLICT_POLICY} and {@code FLUXZERO_MODEL_MAX_CONFLICT_RETRIES}.
      *
      * @param policy conflict policy sent with model commits
      * @param resolver client-side decision after a rolled-back conflict

@@ -68,7 +68,6 @@ final class ModelPipeline {
     private final DefaultModelRepository repository;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
-    private final ModelConflictPolicy creationConflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
@@ -87,7 +86,6 @@ final class ModelPipeline {
             DispatchInterceptor eventDispatchInterceptor,
             String source,
             ModelConflictPolicy conflictPolicy,
-            ModelConflictPolicy creationConflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
@@ -97,7 +95,6 @@ final class ModelPipeline {
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
-        this.creationConflictPolicy = ModelConflictPolicy.resolve(creationConflictPolicy);
         this.conflictResolver = Objects.requireNonNull(conflictResolver, "conflictResolver");
         if (maxConflictRetries < 0) {
             throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
@@ -428,7 +425,7 @@ final class ModelPipeline {
             boolean migration,
             boolean existingEvent) {
         ModelConflictPolicy effectiveConflictPolicy =
-                evaluation.conflictPolicy(conflictPolicy, creationConflictPolicy);
+                evaluation.conflictPolicy(conflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                 ? Retry.accepting((result, current) -> {
                     try {
@@ -732,10 +729,7 @@ final class ModelPipeline {
                     ModelBatchScope.withMessageDependency(
                             message,
                             () -> expandCascadeDeletes(
-                                    ModelReducer.apply(
-                                            new CommitAttempt(),
-                                            List.of(message),
-                                            new CommitLoader(retryStateIndex)))));
+                                    ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict))));
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }

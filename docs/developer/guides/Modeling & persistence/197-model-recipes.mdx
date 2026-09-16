@@ -221,7 +221,13 @@ A child-stored `primary` flag is a valid alternative when that better expresses 
 | Preview immediate legality | `Fluxzero.assertLegal(command)` | Interceptors and before-assertions, no applies/commit |
 | Execute a local Model action | `Fluxzero.assertAndApply(command)` | Full Model pipeline; one atomic multi-Model action |
 | Dispatch a command and await its result | `Fluxzero.sendCommandAndWait(command)` | Normal dispatch, routing and handler selection |
-| Apply specifically to one Model | `graph.assertAndApply(command)` | Target-specific Model pipeline, not all targets in the payload |
+| Apply specifically to one Model | `graph.assertAndApply(command)` | Selected writes and Model-owned handlers; all applicable command assertions |
+
+The Graph target restricts writes, not the command's business conditions. A Reservation command's
+`@AssertLegal` that reads `Graph<Product>` still runs, even when only the Reservation is selected. Its Product
+reads participate in RETRY/FAIL conflict checks; before/after assertions and nested validation keep their normal
+timing. This does not widen the apply scope; Model-owned handlers retain their existing target filtering.
+Bind the Product ID normally; a missing or ambiguous required binding is an error, not permission to skip the check.
 
 A successful preflight is not a reservation or guarantee: state may change afterward, and `afterHandler` checks have
 not run. For ordinary execution, call the execution API once; it performs the checks itself. Do not routinely call

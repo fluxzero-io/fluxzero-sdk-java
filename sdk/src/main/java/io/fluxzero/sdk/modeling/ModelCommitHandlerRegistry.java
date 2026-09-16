@@ -64,8 +64,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     /**
      * Creates the automatic model registration facade and its single execution pipeline.
-     * {@code creationConflictPolicy} is the inherited policy for targets first created by an attempt;
-     * explicit Model/Apply policies still take precedence.
      * The command dispatch interceptor finalizes deferred external-only side effects when a durable Model handler
      * is actually selected; ordinary local handlers keep their dispatch-local state.
      */
@@ -81,7 +79,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerDecorator handlerDecorator,
             ModelConflictPolicy conflictPolicy,
-            ModelConflictPolicy creationConflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             AutomaticModelHandling automaticHandling,
@@ -96,7 +93,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         this.pipeline = new ModelPipeline(
                 repository, eventStoreClient, serializer, snapshotSerializer,
                 documentSerializer, eventDispatchInterceptor, source,
-                conflictPolicy, creationConflictPolicy, conflictResolver, maxConflictRetries,
+                conflictPolicy, conflictResolver, maxConflictRetries,
                 graphProjectionCompletion, definitions::get,
                 () -> localHandlingEnabled);
         this.decoratedHandler = handlerDecorator.wrap(pipeline.handler(null));

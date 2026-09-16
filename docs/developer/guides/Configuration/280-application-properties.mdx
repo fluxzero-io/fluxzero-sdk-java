@@ -111,6 +111,9 @@ complete behavior.
 compatibility behavior when the property is absent. Use `yyyy.MM.dd` values. Each version includes the defaults from
 earlier versions, and each behavior can still be overridden with its dedicated property.
 
+Independent Model conflict handling is not version-gated: it defaults to `RETRY` for updates and creations.
+Use `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`) for an explicit `ACCEPT` or `FAIL` policy.
+
 | Defaults version | Equivalent property | What changes |
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |

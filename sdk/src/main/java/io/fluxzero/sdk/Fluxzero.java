@@ -607,8 +607,9 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Runs and commits an update against the explicitly selected model graph, independently of any model ID carried by
-     * the update payload. Interceptors, assertions, applies, event publication, conflict handling and commit guarantees
-     * are otherwise identical to {@link #assertAndApply(Object)}.
+     * the update payload. Applies remain scoped to that Model type; Model-owned handlers retain their target filtering.
+     * Assertions on the effective update payload also run when they read other Model types, with those dependencies participating
+     * in conflict handling. Event publication and commit guarantees otherwise match {@link #assertAndApply(Object)}.
      * <p>
      * Prefer {@link Graph#assertAndApply(Object)} in application code. This overload owns the direct model-pipeline
      * bridge used by that convenience.

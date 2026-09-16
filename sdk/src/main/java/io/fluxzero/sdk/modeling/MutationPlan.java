@@ -1719,6 +1719,11 @@ public final class MutationPlan {
         if (explicitType == null || handler == null) {
             return true;
         }
+        // Payload assertions constrain the command, not the types they read. Model-owned
+        // assertions (including static ones) retain their existing target filtering.
+        if (handler.kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL && !handler.modelHandler()) {
+            return true;
+        }
         if (handler.kind() == EntityMetadata.HandlerKind.APPLY
             && !handler.targetModelTypes().isEmpty()) {
             return handler.targetModelTypes().stream()

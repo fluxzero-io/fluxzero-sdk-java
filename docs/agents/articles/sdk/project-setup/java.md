@@ -67,5 +67,5 @@ fluxzero.defaults.version=2026.09.10
 Continue with the create-app recipe once the source layout compiles.
 
 Preserve an existing application's defaults marker and explicit feature overrides unless changing them is part of
-the requested migration. This marker enables Model RETRY defaults (2026.09.09) and automatic routing (2026.09.10);
+the requested migration. This marker enables automatic Model routing (2026.09.10); Model RETRY is unconditional;
 the Model conflicts article explains their dedicated overrides and unchanged create-if-absent semantics.

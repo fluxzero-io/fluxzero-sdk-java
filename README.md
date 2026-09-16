@@ -26,6 +26,10 @@ manual Graph reads inside a Model mutation share its snapshot and readset; event
 mutations and document search have different guarantees.
 Consumed Graph alias lookups also protect alias assignment/removal and canonical-ID precedence at commit;
 exact-ID reads remain independent of aliases.
+Model conflict handling defaults to `RETRY` for updates and creations, independently of `fluxzero.defaults.version`;
+choose `FAIL` or `ACCEPT` explicitly with `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`).
+Retry preserves create-only checks. A targeted `graph.assertAndApply(command)` limits writes, not the command's
+cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/conflicts.md).
 
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,

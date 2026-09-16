@@ -851,7 +851,7 @@ class GraphMetadataNavigationTest {
                     io.fluxzero.sdk.publishing.DispatchInterceptor.noOp, "prefetch-test", List.of(),
                     io.fluxzero.sdk.tracking.handling.HandlerDecorator.noOp,
                     io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY,
-                    io.fluxzero.common.api.modeling.ModelConflictPolicy.FAIL, ModelConflictResolver.retryIfAllowed(),
+                    ModelConflictResolver.retryIfAllowed(),
                     3, AutomaticModelHandling.ENABLED, GraphProjectionCompletion.ASYNC)) {
                 var handler = registry.createHandler(IncrementRoot.class,
                         io.fluxzero.common.handling.HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();

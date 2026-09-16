@@ -78,7 +78,9 @@ class ModelCommitHandlerIntegrationTest {
     @Timeout(10)
     void acceptRebasesWhenAnAssertionLoadedRootChangesItsApplyAncestor() {
         for (boolean initiallyMissing : List.of(false, true)) {
-            TestFixture fixture = TestFixture.create();
+            TestFixture fixture = TestFixture.create(DefaultFluxzero.builder().configureModelConflictHandling(
+                    io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
+                    ModelConflictResolver.retryIfAllowed(), 3));
             fixture.givenCommands(new CreateAncestorCustomer("customer-before", "before"),
                                   new CreateAncestorCustomer("customer-after", "after"),
                                   new SetAncestorOrder("selection-order", initiallyMissing ? null : "customer-before"),
@@ -2747,6 +2749,11 @@ class ModelCommitHandlerIntegrationTest {
         @AssertLegal
         void assertNotSelected(SetExplicitValue command) {
             throw new AssertionError("Assertion for an unselected model type was invoked");
+        }
+
+        @AssertLegal
+        static void staticAssertionNotSelected(SetExplicitValue command, Graph<ExplicitAlternative> alternative) {
+            throw new AssertionError("Static assertion for an unselected model type was invoked");
         }
 
         @InterceptApply
