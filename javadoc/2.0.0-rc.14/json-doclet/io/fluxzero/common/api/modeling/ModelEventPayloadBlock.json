@@ -1,0 +1,88 @@
+{
+  "name" : "ModelEventPayloadBlock",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " One persisted global-event block transported without runtime-side decompression or re-encoding.\n\n <p>{@link #firstIndex} is the index of the first message and the fallback for messages without an embedded index.\n Persisted storage blocks contain consecutive messages and may include unselected neighbors; a packed selection may\n contain only selected messages with their global indices embedded in the messages themselves.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "compressed",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock.compressed",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "data",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock.data",
+    "type" : "byte[]",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "firstIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock.firstIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock.messageCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelEventPayloadBlock",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock#ModelEventPayloadBlock",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"firstIndex\",\"messageCount\",\"compressed\",\"data\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "firstIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compressed",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "data",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

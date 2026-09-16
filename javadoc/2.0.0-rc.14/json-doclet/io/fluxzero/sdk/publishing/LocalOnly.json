@@ -1,0 +1,45 @@
+{
+  "name" : "LocalOnly",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.LocalOnly",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE,ANNOTATION_TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Restricts messages with the annotated payload type to local handlers.\n\n <p>The annotation may be placed on a payload type, a meta-annotation, or a package. Package declarations apply to\n child packages; use {@code @LocalOnly(false)} on a more specific package or payload type to opt out. A marked\n original remains local-only when a dispatch interceptor replaces its payload, while a marked replacement also\n enables the restriction.</p>\n\n <p>Fluxzero never serializes or publishes a local-only message externally. A request without a matching local\n handler completes exceptionally with {@link LocalOnlyDispatchException}; a non-request message without a matching\n handler simply completes. Handler code can still perform its own side effects.</p>\n\n @see LocalHandler\n @see LocalOnlyDispatchException\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.LocalOnly#value",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether messages in this scope are restricted to local handlers.\n\n @return {@code true} to require local-only dispatch\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

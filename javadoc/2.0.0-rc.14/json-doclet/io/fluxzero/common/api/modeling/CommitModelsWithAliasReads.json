@@ -1,0 +1,137 @@
+{
+  "name" : "CommitModelsWithAliasReads",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithAliasReads",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Atomically validates consumed alias mappings alongside Model heads, relationship reads and document projections.\n The distinct wire type makes unsupported receivers reject the request rather than lose alias dependencies.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.CommitModels",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "readAliasIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithAliasReads.readAliasIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Lookup keys whose mappings were consumed. {@code readModelIds} must also contain each lookup key\n and, for a successful lookup, its observed canonical owner. The latter detects removal or reassignment\n away from the observed owner; the former preserves canonical-ID precedence.\n",
+    "constantValue" : null
+  }, {
+    "name" : "readRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithAliasReads.readRelationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommitModelsWithAliasReads",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithAliasReads#CommitModelsWithAliasReads",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readAliasIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retains all commit capabilities and its original transport identity. "
+  }, {
+    "name" : "CommitModelsWithAliasReads",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithAliasReads#CommitModelsWithAliasReads",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"commitId\",\"readStateIndex\",\"readModelIds\",\"substeps\",\"conflictPolicy\",\"guarantee\",\"possibleDuplicate\",\"migration\",\"readRelationships\",\"readAliasIds\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readModelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "substeps",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitStep>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "possibleDuplicate",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRelationships",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readAliasIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

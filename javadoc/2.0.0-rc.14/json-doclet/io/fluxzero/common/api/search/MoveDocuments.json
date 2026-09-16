@@ -1,0 +1,60 @@
+{
+  "name" : "MoveDocuments",
+  "qualifiedName" : "io.fluxzero.common.api.search.MoveDocuments",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to move matching documents to a collection. The collection does not need to exist.\n <p>\n This command allows for bulk moving of documents that match a specified {@link SearchQuery},\n across one or more collections.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.MoveDocuments.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The delivery/storage guarantee to apply for this deletion operation.\n",
+    "constantValue" : null
+  }, {
+    "name" : "query",
+    "qualifiedName" : "io.fluxzero.common.api.search.MoveDocuments.query",
+    "type" : "io.fluxzero.common.api.search.SearchQuery",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The query describing which documents should be deleted.\n",
+    "constantValue" : null
+  }, {
+    "name" : "targetCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.MoveDocuments.targetCollection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The name of the collection to which the documents should be moved.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MoveDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.MoveDocuments#MoveDocuments",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

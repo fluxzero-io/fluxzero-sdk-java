@@ -1,0 +1,42 @@
+{
+  "name" : "PingSchedulerFactory",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingSchedulerFactory",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "create",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingSchedulerFactory#create",
+    "returnType" : "io.fluxzero.common.TaskScheduler",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "numberOfSessions",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

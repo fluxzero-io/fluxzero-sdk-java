@@ -1,0 +1,75 @@
+{
+  "name" : "ThrowingFunction",
+  "qualifiedName" : "io.fluxzero.common.ThrowingFunction",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Equivalent of {@link java.util.function.Function} whose {@link #apply(Object)} method may throw a checked\n {@link Exception}.\n <p>\n This interface helps to avoid wrapping checked exceptions in runtime exceptions when using functional APIs.\n\n @param <T> the type of the input to the function\n @param <R> the type of the result of the function\n",
+  "typeParameters" : [ "T", "R" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "andThen",
+    "qualifiedName" : "io.fluxzero.common.ThrowingFunction#andThen",
+    "returnType" : "io.fluxzero.common.ThrowingFunction<T,V>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "after",
+      "type" : "io.fluxzero.common.@lombok.NonNull ThrowingFunction<? super R,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a composed function that first applies this function to its input, and then applies the\n {@code after} function to the result.\n\n @param after the function to apply after this function\n @param <V>   the type of output of the {@code after} function, and of the composed function\n @return a composed function that first applies this function and then the {@code after} function\n"
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.common.ThrowingFunction#apply",
+    "returnType" : "R",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Applies this function to the given argument.\n\n @param t the function argument\n @return the function result\n @throws Exception if unable to compute a result\n"
+  }, {
+    "name" : "compose",
+    "qualifiedName" : "io.fluxzero.common.ThrowingFunction#compose",
+    "returnType" : "io.fluxzero.common.ThrowingFunction<V,R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "before",
+      "type" : "io.fluxzero.common.@lombok.NonNull ThrowingFunction<? super V,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a composed function that first applies the {@code before} function to its input, and then applies this\n function to the result.\n\n @param before the function to apply before this function\n @param <V>    the type of input to the {@code before} function, and to the composed function\n @return a composed function that first applies the {@code before} function and then this function\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

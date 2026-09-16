@@ -1,0 +1,74 @@
+{
+  "name" : "Tracking",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.Tracking",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " The Tracking interface provides a mechanism to start and manage the tracking of messages by a given set of handlers.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracking#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes the tracking process, releasing any resources held by it. This method is invoked automatically when\n {@link Fluxzero} is shut down.\n"
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracking#start",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Starts the tracking process using the specified Fluxzero instance and the provided handlers.\n\n @param fluxzero the Fluxzero instance to be used for tracking\n @param handlers      the handlers responsible for processing tracked messages\n @return a Registration instance that can be used to manage and cancel the tracking process\n"
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracking#start",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts tracking messages using the provided Fluxzero and a list of handlers.\n\n @param fluxzero the Fluxzero used to manage the message tracking process\n @param handlers      a list of handlers that process the tracked messages\n @return a Registration instance that can be used to cancel the tracking process\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

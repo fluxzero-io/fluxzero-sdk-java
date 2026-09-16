@@ -1,0 +1,236 @@
+{
+  "name" : "MessageHandlerInput",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.LocalHandlerInput" ],
+  "fields" : [ {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput.message",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MessageHandlerInput",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#MessageHandlerInput",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "containsMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#containsMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#getIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#getMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMessageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#getMessageType",
+    "returnType" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#getMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getPayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#getPayload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#getUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "provider",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasResolvedUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#hasResolvedUser",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlan<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#message",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$MessageHandlerInput#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "message",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

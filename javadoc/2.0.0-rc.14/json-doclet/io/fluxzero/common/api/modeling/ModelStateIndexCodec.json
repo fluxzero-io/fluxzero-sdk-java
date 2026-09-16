@@ -1,0 +1,60 @@
+{
+  "name" : "ModelStateIndexCodec",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStateIndexCodec",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Encodes opaque model state indices as fixed-width text that retains signed-long ordering. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "WIDTH",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStateIndexCodec.WIDTH",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 20
+  }, {
+    "name" : "ZEROES",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStateIndexCodec.ZEROES",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelStateIndexCodec",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStateIndexCodec#ModelStateIndexCodec",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "encode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStateIndexCodec#encode",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an order-preserving representation of the complete signed {@code long} range.\n\n <p>The sign bit is flipped before unsigned decimal formatting. Fixed-width padding then makes lexical ordering\n identical to the original numeric ordering without scaling or loss of precision.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

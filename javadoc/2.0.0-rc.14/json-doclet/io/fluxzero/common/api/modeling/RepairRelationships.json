@@ -1,0 +1,77 @@
+{
+  "name" : "RepairRelationships",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to repair or re-index the relationships for an existing aggregate.\n <p>\n This is particularly useful when an aggregate model evolves — for example, when child entity annotations like\n {@code @Member} are introduced or corrected. It ensures that future commands targeting those entities can still\n resolve the correct aggregate and maintain event consistency.\n\n <p>\n Note: This command is intended for administrative use and is not normally emitted during regular application flows.\n\n @see Relationship\n @see UpdateRelationships\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aggregateId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships.aggregateId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The unique identifier of the aggregate whose relationships need to be repaired.\n",
+    "constantValue" : null
+  }, {
+    "name" : "aggregateType",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships.aggregateType",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The aggregate's type (e.g., class name or logical category).\n",
+    "constantValue" : null
+  }, {
+    "name" : "entityIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships.entityIds",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The set of entity IDs that should be (re)linked to the specified aggregate.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Guarantees storage semantics for this repair operation.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RepairRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships#RepairRelationships",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Routing key derived from the aggregate ID to ensure consistent processing.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,412 @@
+{
+  "name" : "ModelGraphDocumentStitcher",
+  "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Deterministically composes direct current model documents using explicit relationship paths.\n <p>\n This implementation is shared by local SDK fixtures and the runtime so path, collision, ordering, and DAG behavior\n cannot drift between them.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelGraphDocumentStitcher",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#ModelGraphDocumentStitcher",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "append",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#append",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "child",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entries",
+      "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "facets",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.FacetEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sortables",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "summaries",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "bounds",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentStitcher.Bounds",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "append",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#append",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyPathOverrides",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#applyPathOverrides",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "edges",
+      "type" : "java.util.Collection<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "overrides",
+      "type" : "java.util.Collection<io.fluxzero.common.api.modeling.ModelGraphPathOverride>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies projection-local canonical path replacements to graph edges before composition.\n"
+  }, {
+    "name" : "collision",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#collision",
+    "returnType" : "java.lang.IllegalArgumentException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compositionPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "existingPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compose",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#compose",
+    "returnType" : "io.fluxzero.common.search.Document",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serialized",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationshipPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ordinal",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "children",
+      "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documents",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "bounds",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentStitcher.Bounds",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "manifest",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentStitcher.ManifestBuilder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "depth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestry",
+      "type" : "java.util.LinkedHashSet<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "joinPath",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#joinPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "overlaps",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#overlaps",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "first",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "second",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stitch",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#stitch",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "edges",
+      "type" : "java.util.Collection<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documents",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composition",
+      "type" : "io.fluxzero.common.api.search.ModelGraphComposition",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Composes every root document from the supplied current graph.\n\n @param roots       root documents in search-result order\n @param edges       current graph edges reachable from those roots\n @param documents   direct documents keyed by globally unique model ID, including the roots\n @param composition traversal and output bounds\n @return composed roots in the original result order\n"
+  }, {
+    "name" : "stitch",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#stitch",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "edges",
+      "type" : "java.util.Collection<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documents",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composition",
+      "type" : "io.fluxzero.common.api.search.ModelGraphComposition",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Composes every root document and records the exact model-state boundary in its hidden graph manifest.\n"
+  }, {
+    "name" : "validateCompositionPath",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#validateCompositionPath",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validatePaths",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#validatePaths",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "direct",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compositionPaths",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withManifest",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#withManifest",
+    "returnType" : "io.fluxzero.common.search.Document",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "manifest",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Bounds",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$Bounds",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ManifestBuilder",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$ManifestBuilder",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

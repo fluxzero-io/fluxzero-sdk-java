@@ -1,0 +1,81 @@
+{
+  "name" : "ReusableUnpacker",
+  "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "input",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker.input",
+    "type" : "org.msgpack.core.buffer.ArrayBufferInput",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unpacker",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker.unpacker",
+    "type" : "org.msgpack.core.MessageUnpacker",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ReusableUnpacker",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker#ReusableUnpacker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker#clear",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reset",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker#reset",
+    "returnType" : "org.msgpack.core.MessageUnpacker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,70 @@
+{
+  "name" : "AdditionalProperties",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Policy for properties that are not explicitly declared by an object schema.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.ApiDoc.AdditionalProperties>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "AdditionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties#AdditionalProperties",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties#valueOf",
+    "returnType" : "io.fluxzero.sdk.web.ApiDoc.AdditionalProperties",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties#values",
+    "returnType" : "io.fluxzero.sdk.web.ApiDoc.AdditionalProperties[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ALLOW",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties.ALLOW",
+    "annotations" : [ ],
+    "documentation" : "Emit {@code additionalProperties: true}. "
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : "Retain OpenAPI's default behavior. "
+  }, {
+    "name" : "DENY",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties.DENY",
+    "annotations" : [ ],
+    "documentation" : "Emit {@code additionalProperties: false}. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
