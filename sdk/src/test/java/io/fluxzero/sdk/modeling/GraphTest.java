@@ -882,6 +882,7 @@ class GraphTest {
 
         assertTrue(stagedDeletion.isEmpty());
         assertEquals(42L, stagedDeletion.stateIndex());
+        assertEquals(42L, Graphs.stagedChanges(stagedDeletion).getFirst().readStateIndex());
         assertEquals(
                 41L,
                 Graphs.stagedChanges(stagedDeletion).getFirst()

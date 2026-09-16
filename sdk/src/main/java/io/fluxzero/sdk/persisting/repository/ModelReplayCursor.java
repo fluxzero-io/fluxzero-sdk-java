@@ -1013,10 +1013,16 @@ final class ModelReplayCursor {
         List<MutationPlan.ResolvedModel> canonicalTargets =
                 new ArrayList<>(resolution.models().size());
         boolean aliasesResolved = false;
+        Map<String, String> aliasReads = null;
         for (MutationPlan.ResolvedModel target : resolution.models()) {
             Entity<?> entity = loaded.get(target.modelId());
             String resolvedId = entity != null && entity.isPresent() && entity.id() != null
                     ? entity.id().toString() : target.modelId();
+            if (!target.access().writes() && (!resolvedId.equals(target.modelId())
+                    || entity != null && entity.isEmpty() && EntityMetadata.of(target.modelType()).hasAliases())) {
+                if (aliasReads == null) { aliasReads = new LinkedHashMap<>(); }
+                aliasReads.put(target.modelId(), resolvedId);
+            }
             if (!resolvedId.equals(target.modelId())) {
                 if (target.access().writes()) {
                     throw new EventSourcingException(
@@ -1055,7 +1061,8 @@ final class ModelReplayCursor {
                 }
             }
         }
-        return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads);
+        return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads)
+                .withAliasResolutions(aliasReads == null ? Map.of() : aliasReads);
     }
 
     private static final class IncompleteDocumentBoundaryException
@@ -1141,6 +1148,10 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
                                                boolean historical, ModelCacheTracker cacheTracker, boolean exact) {
+        Entity<?> cached = cachedGraphValue(requestedId, type, boundary, historical, cacheTracker);
+        if (cached != null) {
+            return new ModelGraphResolver.Identity(requestedId, true, boundary, false, () -> cached);
+        }
         LoadResult loaded = loadHeads(List.of(requestedId), boundary);
         ModelHeadState resolved = loaded.heads().get(requestedId);
         ModelHeadState head = exact && resolved != null && !requestedId.equals(resolved.getModelId()) ? null : resolved;
@@ -1201,6 +1212,10 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Value graphValue(String id, Class<?> type, ModelReadBoundary boundary,
                                         ModelCacheTracker cacheTracker, boolean historical) {
+        Entity<?> cached = cachedGraphValue(id, type, boundary, historical, cacheTracker);
+        if (cached != null) {
+            return new ModelGraphResolver.Value(cached, boundary, false);
+        }
         EntityMetadata metadata = EntityMetadata.validate(type);
         if (!metadata.rootConfiguration().orElseThrow().eventSourced()) {
             LoadResult heads = loadHeads(List.of(id), boundary);
@@ -1217,13 +1232,34 @@ final class ModelReplayCursor {
         }
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 id, type, MutationPlan.Access.READ_ONLY, List.of(metadata.entityId().orElseThrow().name()));
-        CommitAttempt loaded = context(new MutationPlan.Resolution(List.of(target), List.of()), boundary,
-                                       Map.of(), null, cacheTracker, true);
+        MutationPlan.Resolution resolution = new MutationPlan.Resolution(List.of(target), List.of());
+        // Value-first Graph access must observe the same kind of fresh boundary as relationship-first
+        // access. A validated cached suffix remains usable, but its old global cursor is not the view.
+        CommitAttempt loaded = boundary.historical()
+                ? context(resolution, boundary, Map.of(), null, cacheTracker, true)
+                : contextAtStorage(resolution, Map.of(), null, cacheTracker);
         Entity<?> entity = loaded.entity(loaded.targets().getFirst().modelId());
         if (boundary.before()) {
             entity = beforeBoundary(entity, loaded.readStateIndex());
         }
         return new ModelGraphResolver.Value(entity, boundary.resolved(loaded.readStateIndex()), historical);
+    }
+
+    private Entity<?> cachedGraphValue(String id, Class<?> type, ModelReadBoundary boundary,
+                                        boolean historical, ModelCacheTracker cacheTracker) {
+        if (cacheTracker != null && !historical && !boundary.before() && boundary.stateIndex() != null
+            && boundary.commitId() == null && boundary.eventIndex() == null
+            && type != Object.class && EntityMetadata.validate(type).rootConfiguration().orElseThrow().eventSourced()) {
+            ModelCacheTracker.CurrentModel cached = cacheTracker.peekCurrentVersion(id, type);
+            if (cached != null && cached.entity() instanceof ModelRoot<?> && cached.entity().isPresent()
+                && id.equals(cached.entity().id().toString())
+                && cached.modelStateIndex() <= boundary.stateIndex() && boundary.stateIndex() <= cached.validThrough()) {
+                // The mutation already owns a boundary. Reuse only a canonical value proved valid at that exact
+                // boundary, never a root revision as evidence of namespace freshness or an alias mapping.
+                return cached.entity();
+            }
+        }
+        return null;
     }
 
     Map<String, Entity<?>> graphValues(Map<String, Class<?>> types, ModelReadBoundary boundary,
@@ -1312,7 +1348,8 @@ final class ModelReplayCursor {
                 nodes.put(id, new ModelGraphResolver.ModelNode(
                         id, modelTypeResolver.modelName(overlay.type()), overlay.type(), () -> overlay));
             } else if (head != null && (direction != ModelRelationshipRead.Direction.PARENTS
-                                       || roots.contains(id) || !head.isDeleted())) {
+                                       || roots.contains(id) || !head.isDeleted()
+                                       || boundary.before() && head.getStateIndex() == stateIndex)) {
                 String name = head.getModelType();
                 Class<?> type = modelTypeResolver.knownModelType(name, id).orElse(null);
                 if (type != null) {

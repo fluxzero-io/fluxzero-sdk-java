@@ -27,6 +27,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -132,6 +133,84 @@ class ModelLifecycleContractTest {
                     assertTrue(changes.getFirst().isEmpty());
                     assertEquals(1, changes.getFirst().previous().get().value());
                 });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void deletedChildPreviousGraphRetainsItsAncestor(boolean async) {
+        List<RootId> observed = new CopyOnWriteArrayList<>();
+        fixture(async, new Object() {
+            @HandleEvent
+            void on(DeleteChild event, Graph<Child> child) {
+                Graph<Child> previous = child.previous();
+                observed.add(previous.ancestor(Root.class).orElseThrow().get().rootId());
+            }
+        }).givenCommands(new CreateRoot(rootId), new CreateChild(childId, rootId))
+                .whenCommand(new DeleteChild(childId))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(ignored -> assertEquals(List.of(rootId), observed));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void reparentedChildPreviousGraphKeepsTheOldAncestor(boolean async) {
+        RootId other = new RootId("other-root");
+        List<RootId> observed = new CopyOnWriteArrayList<>();
+        fixture(async, new Object() {
+            @HandleEvent
+            void on(MoveChild event, Graph<Child> child) {
+                observed.add(child.previous().ancestor(Root.class).orElseThrow().get().rootId());
+                observed.add(child.ancestor(Root.class).orElseThrow().get().rootId());
+            }
+        }).givenCommands(new CreateRoot(rootId), new CreateRoot(other), new CreateChild(childId, rootId))
+                .whenCommand(new MoveChild(childId, other))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(ignored -> assertEquals(List.of(rootId, other), observed));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cascadeDeletedChildPreviousGraphRetainsItsOwnSubstepBoundary(boolean async) {
+        List<Child> observed = new CopyOnWriteArrayList<>();
+        fixture(async, new Object() {
+            @HandleEvent
+            void changed(Graph<Child> child) {
+                if (child.isEmpty()) {
+                    Graph<Child> previous = child.previous();
+                    observed.add(previous.get());
+                    // The parent was deleted in an earlier substep; previous() must not resurrect its relation.
+                    assertTrue(previous.ancestor(Root.class).isEmpty());
+                }
+            }
+        }).givenCommands(new CreateRoot(rootId), new CreateChild(childId, rootId))
+                .whenCommand(new DeleteRoot(rootId))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(ignored -> assertEquals(List.of(new Child(childId, rootId, 1)), observed));
+    }
+
+    record MoveChild(ChildId childId, RootId rootId) {
+        @Apply Child apply(Child child) { return new Child(childId, rootId, child.value()); }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void previousGraphLoadsAnAncestorDeletedInTheSameRevision(boolean async) {
+        List<RootId> observed = new CopyOnWriteArrayList<>();
+        fixture(async, new Object() {
+            @HandleEvent
+            void on(DeleteFamily event, Graph<Child> child) {
+                observed.add(child.previous().ancestor(Root.class).orElseThrow().get().rootId());
+                assertTrue(child.ancestor(Root.class).isEmpty());
+            }
+        }).givenCommands(new CreateRoot(rootId), new CreateChild(childId, rootId))
+                .whenCommand(new DeleteFamily(rootId, childId))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(ignored -> assertEquals(List.of(rootId), observed));
+    }
+
+    record DeleteFamily(RootId rootId, ChildId childId) {
+        @Apply Root root(Root root) { return null; }
+        @Apply Child child(Child child) { return null; }
     }
 
     @ParameterizedTest
@@ -374,6 +453,56 @@ class ModelLifecycleContractTest {
                     assertNull(Fluxzero.loadModel(childId).get());
                     assertTrue(Fluxzero.loadGraph(rootId).childModels(Child.class).isEmpty());
                 });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void orderedGraphSubstepsValidateTheirOwnBeforeState(boolean async) {
+        for (boolean validateFirst : List.of(false, true)) {
+            fixture(async).givenCommands(new CreateRoot(rootId), new CreateChild(childId, rootId))
+                    .whenCommand(new ValidateAndDeleteChild(rootId, childId, validateFirst, validateFirst))
+                    .expectSuccessfulResult().expectNoErrors()
+                    .expectThat(fc -> {
+                        fc.cache().clear();
+                        assertNull(Fluxzero.loadModel(childId).get());
+                        assertTrue(Fluxzero.loadCurrentGraph(rootId).children(Child.class).isEmpty());
+                    });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void failedValidationAfterAStagedGraphDeletionRollsBackAllSubsteps(boolean async) {
+        fixture(async).givenCommands(new CreateRoot(rootId), new CreateChild(childId, rootId))
+                .whenCommand(new ValidateAndDeleteChild(rootId, childId, false, true))
+                .expectExceptionalResult(IllegalCommandException.class).expectNoEvents()
+                .expectThat(fc -> {
+                    fc.cache().clear();
+                    assertNotNull(Fluxzero.loadModel(childId).get());
+                    assertEquals(1, Fluxzero.loadCurrentGraph(rootId).children(Child.class).size());
+                });
+    }
+
+    record ValidateAndDeleteChild(RootId rootId, ChildId childId, boolean validateFirst, boolean expectPresent) {
+        @InterceptApply
+        List<Object> intercept(Graph<Child> child) {
+            CheckChildPresence validation = new CheckChildPresence(rootId, expectPresent);
+            return validateFirst ? List.of(validation, child.delete()) : List.of(child.delete(), validation);
+        }
+    }
+
+    record CheckChildPresence(RootId rootId, boolean expectPresent) {
+        @AssertLegal
+        void check(Graph<Root> root) {
+            if (!root.children(Child.class).isEmpty() != expectPresent) {
+                throw new IllegalCommandException("Unexpected child membership");
+            }
+        }
+
+        @Apply
+        Root apply(Root root) {
+            return root;
+        }
     }
 
     @ParameterizedTest

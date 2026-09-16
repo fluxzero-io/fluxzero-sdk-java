@@ -292,6 +292,12 @@ Return a validation object (or collection) from `@AssertLegal` to run its matchi
 payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
 and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
 
+Model references are selected per parameter: first from the nested validator, then enclosing validators, and finally
+the triggering payload. A returned `RemainingItem(otherItemId)` therefore validates that other item; a reference-less
+validator returned by it inherits that selection. Explicit nulls and empty collections do not fall back. Explicit
+`@Association` metadata retains its normal precedence for that parameter without replacing unrelated selections.
+Ancestors are resolved from the selected references. The original command remains available as a payload parameter.
+
 Returned objects are traversed in the returning method's before/after phase. Use `@field:AssertLegal` to delegate a
 property's validation object in both phases; its nested methods determine timing, not `afterHandler` on the field.
 A no-arg assertion method is not called again after apply. `Fluxzero.assertLegal` runs only immediate checks. Nulls
@@ -356,6 +362,9 @@ Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(..
 Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
 of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
 changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
+Each part's assertions see earlier staged changes too, including removed child memberships. If a validation needs
+the pre-deletion collection, put its command before the Graph deletions in the returned collection. A later
+validation failure rolls back the whole commit; reordering does not turn the parts into separate transactions.
 RETRY rereads the selected graph and reevaluates the operation on a conflict. Do not add manual `previousValues` fields
 to compensate for lost revisions; historical inspection through `previous()` requires `EVENT_SOURCED`.
 
@@ -499,27 +508,30 @@ only the selected ancestor value. Every child remains a graph with `parent()`, `
 model value and omits repository affixes or parent scope. `stateIndex()` pins the complete graph read, while
 `revisionStateIndex()` reports when the selected node revision became current.
 
-Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
-`loadCurrentGraph(...)` when deliberately reconciling against current intent: for example after a synchronous nested
-command, or when a tracked scheduling consumer must decide which deadlines still belong to a Model despite handling
-an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
-before/after processing on injected Models/Graphs; do not use current loading as the default route.
+Within a Model mutation, injected Graphs and synchronous `loadGraph`, `loadCurrentGraph` and `graph.current()`
+reads on the same repository/namespace share the attempt's pinned boundary and staged state. Actual value and
+relationship reads join its conflict dependencies, including empty collections. `current` does not open a second
+snapshot mid-mutation. Outside mutations, ordinary event-handler reads remain event-bound; explicit current reads
+open a fresh view for deliberate reconciliation, such as scheduling against current intent.
 
-A newly evaluated Model operation with injected Graph dependencies establishes its initial read boundary at storage,
-even when the root Model is already cached. A root's cached revision alone cannot prove that no child was added,
-removed or moved. Relationships remain lazy, and once selected the boundary stays pinned through the evaluation;
-RETRY reevaluates at a new boundary, while historical event handling keeps its event boundary. Nested assertions
-and interceptor replacements conservatively establish this boundary too because they can introduce Graph parameters.
-Plain Model operations without these dependencies retain their cache fast path. Pending writes and cache entries
-belong to the owning repository family and namespace, never to another application sharing a cache or active batch.
+Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of a
+cached root. Reading `get()` before `children(...)` therefore does not hide already committed relation changes.
+Typed lazy loads pin on their first storage read; an untyped load pins when it resolves the root identity.
+Once pinned, that Graph stays on its snapshot: use a new view to observe later commits.
 
-Open `graph.current()` for the same Model at a new current boundary without replacing the historical Graph.
-It retains the exact repository ID and owning repository/namespace, including affixes and parent scope. The result
-pins its new boundary during the call, stays lazy and captures the current message-batch overlay; it is not a live view.
-A moved node gets current parents; a deleted Model is empty. Filters, mapped values, staged Graph edits and response
-context are not copied. Reapply presentation/content filters to the new view. Unknown nodes and custom repositories
-without exact-current support fail explicitly. Keep invariant checks on injected Graphs: the fresh view does not inherit
-their transactional read provenance.
+A mutation may start from a coherent cached boundary. Successful decisions validate their relevant read dependencies
+at commit: RETRY reevaluates after a conflict; FAIL rejects. An assertion that already rejects is not refreshed or
+retried merely because newer state might allow it. Existing injection paths can establish freshness up front, but a
+manual Graph discovered during apply keeps the attempt's boundary; it does not force a read-RPC on every ordinary
+cache-only command. Relationships remain lazy. Pending state belongs to the owning repository family and namespace,
+never another application's cache or batch. See the invariant example at `/docs/sdk/entities/assert-legal`.
+
+Open `graph.current()` for the same Model without replacing the original Graph. Outside mutations it pins a new
+current boundary during the call and captures pending batch changes; inside a mutation it shares that attempt's
+boundary, staged values and read dependencies. It retains exact identity and owning repository/namespace, including
+affixes and parent scope. A moved node gets the parents at that selected boundary; a deleted Model is empty. Filters,
+mapped values, uncommitted edits on the source Graph and response context are not copied. Reapply presentation filters.
+Unknown nodes and custom repositories without the required current-read capability fail explicitly.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.
@@ -551,7 +563,9 @@ nodes do not hide known descendants. Values remain lazy and pinned; injected mem
 empty selections, participate in conflict handling. Full materialization still requires the value/replay contracts.
 Lazy root aliases resolve through head metadata without replay in the default repository. The initial lookup uses
 the current alias table, even for historical reads; its canonical ID or absence and value/relationship boundary
-then stay pinned. This is not a new transaction-level alias-mapping conflict dependency.
+then stay pinned. Inside a Model mutation, consumed alias lookups participate in commit conflict detection,
+including missing aliases, `id()` and relation-only access. Exact-ID reads do not depend on alias mappings.
+This does not introduce historical alias reconstruction. `ACCEPT` retains only apply-time dependencies.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 
@@ -569,9 +583,10 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
-An explicit `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root is
-cached. A root cache's older observation boundary cannot prove that its relationships are still current. Values
-remain lazy and may reuse an exact matching cached revision; ordinary Model and Graph cache paths are unchanged.
+Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root
+is cached; an older root observation cannot prove unchanged relationships. Within a mutation it instead reuses the
+attempt boundary and joins its readset. Values remain lazy and use their authoritative persistence source, including
+current document authority for DOCUMENT-only Models.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 
@@ -630,6 +645,8 @@ when a Project deletion caused it. No parent-specific cleanup handler or extra p
 The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
 boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving
 shared ancestors also observe removal; an already deleted ancestor is not notified twice for the same deletion.
+The cascaded child's `previous()` retains the state before its own deletion substep: its value is available, but
+an ancestor already deleted in an earlier substep is no longer reachable. It does not rewind the whole commit.
 This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
 physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
 
@@ -671,7 +688,7 @@ and requires create-only assertions when appropriate. ACCEPT validates apply dep
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
-Injected Graph reads also count: values/type/alias/revision reads protect Model heads; child collections (including empty
+Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
 Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8
 SDK/Runtime. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through

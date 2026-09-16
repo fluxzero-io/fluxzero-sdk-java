@@ -86,6 +86,10 @@ import java.lang.annotation.Target;
  * <p>For independent {@link Model Models}, return values (including collection elements) are traversed in the
  * returning method's phase. Nested methods keep the original payload, metadata, user and application parameter
  * resolvers; injected Models are loaded at the same pinned read boundary and participate in conflict validation.
+ * Model references are selected per parameter from the nearest validator declaring them, then enclosing validators,
+ * then the triggering payload. Explicit nulls and empty collections do not fall back. Association metadata retains
+ * its usual precedence for that parameter, without replacing unrelated selections. Ancestors follow the selected
+ * references. This selection does not replace the original payload supplied to payload parameters.
  * Null values are ignored. Each object identity is visited once within a payload or Model assertion phase, so shared
  * references and cycles do not execute its checks repeatedly. Nesting beyond 256 levels is rejected.</p>
  * <p>Annotated Model fields, including record components, delegate in both phases; methods on their values select

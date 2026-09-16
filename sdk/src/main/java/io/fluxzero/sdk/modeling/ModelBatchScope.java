@@ -277,6 +277,23 @@ public final class ModelBatchScope {
             this.values = Collections.unmodifiableMap(values);
         }
 
+        private Snapshot(Snapshot source, Map<String, Entity<?>> overrides) {
+            pending = source.pending;
+            LinkedHashMap<String, Entity<?>> combined = new LinkedHashMap<>(source.values);
+            combined.putAll(overrides);
+            values = Collections.unmodifiableMap(combined);
+        }
+
+        /** Adds an active attempt's immutable values while preserving dependencies on earlier batch writes. */
+        public Snapshot withValues(Map<String, Entity<?>> overrides) {
+            return overrides.isEmpty() ? this : new Snapshot(this, overrides);
+        }
+
+        private void dependOn(String id) {
+            PendingValue value = pending.get(id);
+            if (value != null) { ModelBatchScope.dependOn(value); }
+        }
+
         /** Returns captured exact values without registering reads. */
         public Map<String, Entity<?>> values() { return values; }
 
@@ -285,22 +302,22 @@ public final class ModelBatchScope {
 
         /** Resolves one exact identity or alias against the snapshot, preserving exact-ID precedence. */
         public Entity<?> overlay(String requestedId, Class<?> type, Entity<?> durable) {
-            PendingValue exact = pending.get(requestedId);
+            Entity<?> exact = values.get(requestedId);
             if (exact != null && type.isAssignableFrom(exact.type())) {
-                dependOn(exact);
-                return values.get(exact.modelId());
+                dependOn(requestedId);
+                return exact;
             }
             Entity<?> overlay = overlayIdentity(requestedId, type, String.valueOf(durable.id()),
-                                                 exact == null && durable.isPresent());
+                                                 exact == null && (durable.isPresent() || durable.sequenceNumber() >= 0L));
             return overlay == null ? durable : overlay;
         }
 
         /** Returns a pending exact identity override with its dependency, without inspecting aliases. */
         public Entity<?> overlayExactIdentity(String modelId, Class<?> type) {
-            PendingValue match = pending.get(modelId);
+            Entity<?> match = values.get(modelId);
             if (match != null && type.isAssignableFrom(match.type())) {
-                dependOn(match);
-                return values.get(modelId);
+                dependOn(modelId);
+                return match;
             }
             return null;
         }
@@ -310,24 +327,24 @@ public final class ModelBatchScope {
          * not a fabricated empty value, so an existing exact ID still takes precedence over pending aliases.
          */
         public Entity<?> overlayIdentity(String requestedId, Class<?> type, String durableId, boolean durablePresent) {
-            PendingValue match = pending.get(requestedId);
+            Entity<?> match = values.get(requestedId);
             if (match == null && durablePresent && requestedId.equals(durableId)) {
                 return null;
             }
             if (match == null) {
-                for (PendingValue candidate : pending.values()) {
-                    if (type.isAssignableFrom(candidate.type()) && aliases(candidate.value(), candidate.type()).contains(requestedId)) {
+                for (Entity<?> candidate : values.values()) {
+                    if (type.isAssignableFrom(candidate.type()) && aliases(candidate.get(), candidate.type()).contains(requestedId)) {
                         match = candidate;
                     }
                 }
             }
             if (match != null && type.isAssignableFrom(match.type())) {
-                dependOn(match);
-                return values.get(match.modelId());
+                dependOn(match.id().toString());
+                return match;
             }
-            PendingValue owner = pending.get(durableId);
-            if (owner != null && !requestedId.equals(owner.modelId()) && type.isAssignableFrom(owner.type())) {
-                dependOn(owner);
+            Entity<?> owner = values.get(durableId);
+            if (owner != null && !requestedId.equals(owner.id().toString()) && type.isAssignableFrom(owner.type())) {
+                dependOn(durableId);
                 return ImmutableModelRoot.initial(requestedId, type, EntityMetadata.of(type).entityIdName(), null);
             }
             return null;

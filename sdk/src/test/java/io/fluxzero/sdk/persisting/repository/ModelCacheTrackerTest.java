@@ -400,8 +400,14 @@ class ModelCacheTrackerTest {
                 }
             } else {
                 expected = documentEntity(12L, "newer-local-commit");
-                cache.put("document-1", expected);
-                tracker.committed("document-1", TrackedDocument.class, 12L);
+                // Match repository publication, including a commit overlapping the active tracker page.
+                Runnable completeCommit = tracker.beginLocalCommit(List.of("document-1"));
+                try {
+                    cache.put("document-1", expected);
+                    tracker.committed("document-1", TrackedDocument.class, 12L);
+                } finally {
+                    completeCommit.run();
+                }
             }
             continueRead.countDown();
             assertTrue(cacheUpdated.await(5, TimeUnit.SECONDS));

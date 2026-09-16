@@ -20,6 +20,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 
 import java.lang.reflect.Constructor;
@@ -191,8 +192,14 @@ public final class ModelReducer {
                 }
                 return List.of();
             }
-            Object result = message.apply(ignored -> directApply.invoker().invoke(
-                    receiver, (Object) message.getPayload()));
+            Set<String> previousReads = beginState.collectReads(applyReads);
+            Object result;
+            try {
+                result = message.apply(ignored -> CommitAttempt.withGraphReads(beginState,
+                        () -> directApply.invoker().invoke(receiver, (Object) message.getPayload())));
+            } finally {
+                beginState.collectReads(previousReads);
+            }
             IncompatibleApply mismatch = factoryConflict(compiledHandler, beginState, result);
             if (mismatch != null) {
                 if (assertions) { mismatch.reject(); }
@@ -480,13 +487,15 @@ public final class ModelReducer {
                     visited = new IdentityHashMap<>();
                 }
                 visited.put(receiver, Boolean.TRUE);
-                assertResult(result, message, context, after, visited, 0, assertionLoader);
+                assertResult(result, message, context, after, visited, 0, assertionLoader,
+                             new MutationPlan.AssertionScope(message, null));
             }
         }
     }
 
     private void assertResult(Object value, DeserializingMessage message, CommitAttempt context, boolean after,
-                              IdentityHashMap<Object, Boolean> visited, int depth, AssertionLoader assertionLoader) {
+                              IdentityHashMap<Object, Boolean> visited, int depth, AssertionLoader assertionLoader,
+                              MutationPlan.AssertionScope parentScope) {
         if (value == null || visited.put(value, Boolean.TRUE) != null) {
             return;
         }
@@ -495,11 +504,12 @@ public final class ModelReducer {
         }
         if (value instanceof Collection<?> collection) {
             for (Object element : collection) {
-                assertResult(element, message, context, after, visited, depth + 1, assertionLoader);
+                assertResult(element, message, context, after, visited, depth + 1, assertionLoader, parentScope);
             }
             return;
         }
         MutationPlan.AssertionPlan plan = compiler.assertions(value.getClass());
+        MutationPlan.AssertionScope scope = new MutationPlan.AssertionScope(message.withPayload(value), parentScope);
         for (MutationPlan.Assertion assertion : after ? plan.after() : plan.before()) {
             Object result;
             CommitAttempt assertionContext = context;
@@ -510,7 +520,7 @@ public final class ModelReducer {
                         continue;
                     }
                     if (assertionLoader != null && !assertion.handler().method().modelParameters().isEmpty()) {
-                        assertionContext = assertionLoader.load(message,
+                        assertionContext = assertionLoader.load(message, scope,
                                 EntityMetadata.modelParameters(assertion.handler().method().executable()), context);
                     }
                     assertionContext.attachTo(message);
@@ -526,7 +536,7 @@ public final class ModelReducer {
                 CommitAttempt resultContext = assertionContext;
                 Object assertionResult = result;
                 CommitAttempt.withGraphReads(resultContext, () -> {
-                    assertResult(assertionResult, message, resultContext, after, visited, depth + 1, assertionLoader);
+                    assertResult(assertionResult, message, resultContext, after, visited, depth + 1, assertionLoader, scope);
                     return null;
                 });
             } finally {
@@ -814,6 +824,24 @@ public final class ModelReducer {
         return execute(attempt, List.of(message), resolver, Mode.ASSERT);
     }
 
+    /** Runs an explicit read-only helper inside the active mutation, without creating a second attempt. */
+    static void assertWithin(DeserializingMessage message, CommitAttempt parent) {
+        SubstepResolver resolver = parent.readResolver();
+        SubstepResolver assertions = new SubstepResolver() {
+            @Override public ModelRepository repository() { return resolver.repository(); }
+            @Override public ResolvedSubstep resolve(DeserializingMessage source, Long boundary,
+                                                     Map<String, Object> values) {
+                return resolver.resolveAssertion(source, parent, values);
+            }
+            @Override public CommitAttempt resolveAssertion(
+                    DeserializingMessage source, MutationPlan.AssertionScope scope,
+                    EntityMetadata.ExecutableParameters parameters, CommitAttempt context, Map<String, Object> values) {
+                return resolver.resolveAssertion(source, scope, parameters, context, values);
+            }
+        };
+        execute(new CommitAttempt(), List.of(message), assertions, Mode.ASSERT, parent);
+    }
+
     static CommitAttempt reapply(
             CommitAttempt attempt,
             List<DeserializingMessage> messages,
@@ -842,7 +870,7 @@ public final class ModelReducer {
             throw new IllegalArgumentException(
                     "A model rebase requires at least one effective step");
         }
-        return evaluate(attempt, pending, resolver, null, Mode.REAPPLY);
+        return evaluate(attempt, pending, resolver, null, Mode.REAPPLY, null);
     }
 
     /** Executes every mutation form through one ordered substep pipeline. */
@@ -851,6 +879,11 @@ public final class ModelReducer {
             List<DeserializingMessage> messages,
             SubstepResolver resolver,
             Mode mode) {
+        return execute(attempt, messages, resolver, mode, null);
+    }
+
+    private static CommitAttempt execute(CommitAttempt attempt, List<DeserializingMessage> messages,
+                                          SubstepResolver resolver, Mode mode, CommitAttempt parent) {
         Objects.requireNonNull(messages, "messages");
         if (messages.isEmpty()) {
             throw new IllegalArgumentException("A model execution requires at least one message");
@@ -868,7 +901,7 @@ public final class ModelReducer {
         }
         return evaluate(
                 attempt, pending, resolver,
-                mode == Mode.REAPPLY ? null : messages.getFirst(), mode);
+                mode == Mode.REAPPLY ? null : messages.getFirst(), mode, parent);
     }
 
     private static CommitAttempt evaluate(
@@ -876,9 +909,10 @@ public final class ModelReducer {
             Deque<PendingSubstep> pending,
             SubstepResolver resolver,
             DeserializingMessage initialMessage,
-            Mode mode) {
+            Mode mode, CommitAttempt parent) {
         Objects.requireNonNull(resolver, "resolver");
         attempt.resetGraphReads();
+        attempt.readResolver(resolver);
         CommitAttempt originalContext = initialMessage == null ? null
                 : initialMessage.getContext(CommitAttempt.class).orElse(null);
         CommitAttempt commitBeginContext = null;
@@ -900,8 +934,9 @@ public final class ModelReducer {
                         if (target.access().writes()
                             && prepared.context().entity(target.modelId()) != null) {
                             commitBeginContext = prepared.context();
+                            prepared.context().bindGraphReads(attempt);
                             List<Change> transitions = prepared.reducer().apply(
-                                    current.message(), prepared.context(), true, true);
+                                    current.message(), prepared.context(), true, true, new LinkedHashSet<>(), null);
                             attempt.evaluated(
                                     prepared.context().readStateIndex(),
                                     List.of(target.modelId()),
@@ -915,6 +950,7 @@ public final class ModelReducer {
             }
 
             Map<String, Object> stagedValues = new LinkedHashMap<>();
+            if (parent != null) { parent.graphEntities().forEach((id, entity) -> stagedValues.put(id, entity.get())); }
             LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
             LinkedHashSet<String> applyReadModelIds = new LinkedHashSet<>();
             Map<String, Class<?>> readModelTypes =
@@ -943,7 +979,7 @@ public final class ModelReducer {
                                         graphMutation.modelType(),
                                         stateIndexPinned
                                                 ? Long.valueOf(readStateIndex)
-                                                : graphMutation.expectedStateIndex(),
+                                                : graphMutation.readStateIndex(),
                                         stagedValues),
                         "Substep resolver returned null")
                         : prepared;
@@ -957,7 +993,8 @@ public final class ModelReducer {
                             "Substep loaded at state index %d while commit is pinned at %d"
                                     .formatted(resolved.context().readStateIndex(), readStateIndex));
                 }
-                resolved.context().bindGraphReads(attempt);
+                if (parent == null) { resolved.context().bindGraphReads(attempt); }
+                else { resolved.context().joinReads(parent); }
                 CommitAttempt context = resolved.context().withValues(stagedValues);
                 resolved.context().targets().forEach(target -> {
                     readModelIds.add(target.modelId());
@@ -1002,10 +1039,11 @@ public final class ModelReducer {
                 }
 
                 AssertionLoader assertionLoader = mode.assertions && resolved.reducer().recursiveAssertions
-                        ? (message, parameters, assertionContext) -> {
+                        ? (message, guard, parameters, assertionContext) -> {
                             CommitAttempt loaded = resolver.resolveAssertion(
-                                    message, parameters, assertionContext, stagedValues);
-                            loaded.bindGraphReads(attempt);
+                                    message, guard, parameters, assertionContext, stagedValues);
+                            if (parent == null) { loaded.bindGraphReads(attempt); }
+                            else { loaded.joinReads(parent); }
                             if (loaded.readStateIndex() != assertionContext.readStateIndex()) {
                                 throw new IllegalStateException("Nested assertion changed the pinned model read boundary");
                             }
@@ -1190,25 +1228,34 @@ public final class ModelReducer {
                             .formatted(modelType.getName()));
         }
         return List.of(new GraphMutation(
-                modelId, modelType, graph.stateIndex(), null,
+                modelId, modelType, graph.revisionStateIndex(), graph.stateIndex(), null,
                 current -> current.update(ignored -> null)));
     }
 
     @FunctionalInterface
     private interface AssertionLoader {
-        CommitAttempt load(DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+        CommitAttempt load(DeserializingMessage message, MutationPlan.AssertionScope scope,
+                           EntityMetadata.ExecutableParameters parameters,
                            CommitAttempt context);
     }
 
     @FunctionalInterface
     interface SubstepResolver {
+        default ModelRepository repository() { return null; }
+
         ResolvedSubstep resolve(
                 DeserializingMessage message,
                 Long readStateIndex,
                 Map<String, Object> stagedValues);
 
+        default ResolvedSubstep resolveAssertion(DeserializingMessage message, CommitAttempt context,
+                                                 Map<String, Object> stagedValues) {
+            return resolve(message, context.readStateIndex(), stagedValues);
+        }
+
         default CommitAttempt resolveAssertion(
-                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                DeserializingMessage message, MutationPlan.AssertionScope scope,
+                EntityMetadata.ExecutableParameters parameters,
                 CommitAttempt context, Map<String, Object> stagedValues) {
             return context;
         }

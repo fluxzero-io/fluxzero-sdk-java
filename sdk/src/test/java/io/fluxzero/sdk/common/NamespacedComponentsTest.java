@@ -19,6 +19,7 @@ import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 
 class NamespacedComponentsTest {
 
@@ -29,6 +30,7 @@ class NamespacedComponentsTest {
 
         assertCanonical(fluxzero.client(), applicationNamespace);
         assertCanonical(fluxzero.aggregateRepository(), applicationNamespace);
+        assertCanonical(fluxzero.modelRepository(), applicationNamespace);
         assertCanonical(fluxzero.eventStore(), applicationNamespace);
         assertCanonical(fluxzero.snapshotStore(), applicationNamespace);
         assertCanonical(fluxzero.keyValueStore(), applicationNamespace);
@@ -47,6 +49,8 @@ class NamespacedComponentsTest {
     private static <T extends Namespaced<T>> void assertCanonical(T applicationResource,
                                                                    String applicationNamespace) {
         T customerResource = applicationResource.forNamespace("customer");
+        assertNotSame(applicationResource, customerResource);
+        assertNotSame(customerResource, applicationResource.forNamespace("other"));
         assertSame(applicationResource, customerResource.forNamespace(null));
         assertSame(applicationResource, customerResource.forNamespace(applicationNamespace));
         assertSame(customerResource, applicationResource.forNamespace("other").forNamespace("customer"));

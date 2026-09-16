@@ -65,6 +65,15 @@ public interface ModelGraphResolver {
     Value loadGraphValue(Object modelId, boolean exact, Class<?> modelType,
                          ModelReadBoundary boundary);
 
+    /** Loads at a pinned boundary without confusing transaction-current document authority with historical replay. */
+    default Value loadGraphValue(Object modelId, boolean exact, Class<?> modelType,
+                                 ModelReadBoundary boundary, boolean historical) {
+        if (historical != boundary.historical()) {
+            throw new UnsupportedOperationException("Repository does not support pinned current Graph values");
+        }
+        return loadGraphValue(modelId, exact, modelType, boundary);
+    }
+
     /**
      * Resolves an identity without requiring its value. The returned supplier must retain the resolved identity,
      * absence and boundary even if the alias changes later. Returning {@code null} (the default) retains a custom
@@ -77,6 +86,15 @@ public interface ModelGraphResolver {
     /** Resolves an exact persisted key without applying functional-ID affixes a second time. */
     default Identity resolveGraphIdentity(Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
         return exact ? null : resolveGraphIdentity(modelId, modelType, boundary);
+    }
+
+    /** Resolves metadata at a pinned boundary with an explicit current versus historical value contract. */
+    default Identity resolveGraphIdentity(Object modelId, boolean exact, Class<?> modelType,
+                                          ModelReadBoundary boundary, boolean historical) {
+        if (historical != boundary.historical()) {
+            throw new UnsupportedOperationException("Repository does not support pinned current Graph identities");
+        }
+        return resolveGraphIdentity(modelId, exact, modelType, boundary);
     }
 
     /** Optional metadata-first current root; the default retains the existing current-value route. */
@@ -114,6 +132,8 @@ public interface ModelGraphResolver {
     /** One resolved identity and lazy value at a shared boundary; absent identities must not be resolved again. */
     record Identity(String modelId, boolean present, ModelReadBoundary boundary, boolean historical,
                     Supplier<Entity<?>> entity) {
+        /** Whether head metadata establishes this identity, including a canonical deletion tombstone. */
+        public boolean hasIdentity() { return present || entity instanceof HeadValue value && value.head() != null; }
     }
 
     /** Reconstructs explicitly requested values together; unrelated metadata nodes must remain unloaded. */

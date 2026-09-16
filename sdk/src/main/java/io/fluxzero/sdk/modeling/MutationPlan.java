@@ -531,11 +531,16 @@ public final class MutationPlan {
     static Resolution bind(
             DeserializingMessage message,
             EntityMetadata.ExecutableParameters plan) {
+        return bind(message, plan, null);
+    }
+
+    static Resolution bind(DeserializingMessage message, EntityMetadata.ExecutableParameters plan,
+                           AssertionScope scope) {
         Map<String, ResolvedModel> targets = new LinkedHashMap<>();
         Set<AncestorDependency> ancestors = new LinkedHashSet<>();
         LinkedHashMap<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
         for (EntityMetadata.ModelParameter parameter : plan.values()) {
-            DirectReferences direct = directReferences(message, parameter);
+            DirectReferences direct = scope == null ? directReferences(message, parameter) : scope.references(parameter);
             references.put(parameter, direct);
             if (parameter.collectionWrapped()) {
                 if (direct.present()) {
@@ -557,10 +562,57 @@ public final class MutationPlan {
             }
         }
         if (!ancestors.isEmpty()) {
-            resolveReferencedModels(message.getPayload()).forEach(target -> merge(targets, target));
+            (scope == null ? resolveReferencedModels(message.getPayload()) : scope.ancestorRoots(plan))
+                    .forEach(target -> merge(targets, target));
         }
         return new Resolution(
                 List.copyOf(targets.values()), List.of(), List.copyOf(ancestors), references);
+    }
+
+    /** Nested validators select references per parameter, without replacing the original invocation payload. */
+    record AssertionScope(DeserializingMessage message, AssertionScope parent) {
+        DirectReferences references(EntityMetadata.ModelParameter parameter) {
+            for (AssertionScope scope = this; scope != null; scope = scope.parent) {
+                DirectReferences result = directReferences(scope.message, parameter);
+                if (result.present()) {
+                    return result;
+                }
+            }
+            return DirectReferences.missing();
+        }
+
+        List<ResolvedModel> ancestorRoots(EntityMetadata.ExecutableParameters plan) {
+            for (AssertionScope scope = this; scope != null; scope = scope.parent) {
+                if (scope.ownsReferences(plan)) {
+                    // A declared null reference must not fall back to a different outer ancestor.
+                    return resolveReferencedModels(scope.message.getPayload());
+                }
+            }
+            return List.of();
+        }
+
+        boolean hasNestedAncestorRoots(EntityMetadata.ExecutableParameters plan) {
+            for (AssertionScope scope = this; scope.parent != null; scope = scope.parent) {
+                if (scope.ownsReferences(plan)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private boolean ownsReferences(EntityMetadata.ExecutableParameters plan) {
+            if (!referencedModelTypes(message.getPayloadClass()).isEmpty()) {
+                return true;
+            }
+            Object value = payload(message.getPayload());
+            if (value == null) {
+                return false;
+            }
+            Payload properties = Payload.of(value.getClass());
+            return plan.values().stream().anyMatch(parameter -> parameter.collectionWrapped()
+                    ? properties.collection(parameter.modelType(), parameter.associationProperty()) != null
+                    : properties.direct(parameter.modelType(), parameter.associationProperty()) != null);
+        }
     }
 
     /** Application-bound definitions invalidated together when model registration changes. */
@@ -989,6 +1041,7 @@ public final class MutationPlan {
         private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
         private final Supplier<List<Slot>> ancestorRoots;
         private final Slot routingTarget;
+        private volatile ReplayBinding replayBinding;
 
         private TargetPlan(
                 Class<?> payloadType,
@@ -1080,6 +1133,7 @@ public final class MutationPlan {
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
+            Property replayBinding = replayTarget == null ? null : replayBinding(replayTarget);
             for (Slot slot : slots) {
                 if (!acceptsExplicitTarget(slot.handler, explicitType)
                     || slot.handler == null && explicitType != null && !compatibleExplicit(slot.modelType, explicitType)
@@ -1088,7 +1142,9 @@ public final class MutationPlan {
                     || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
                 }
-                List<String> ids = resolveIds(input, payload, slot);
+                List<String> ids = slot.property.equals(replayBinding)
+                                   && slot.requestedType.isAssignableFrom(replayTarget.modelType())
+                        ? List.of(replayTarget.modelId()) : resolveIds(input, payload, slot);
                 if (slot.parameter != null) {
                     DirectReferences resolved = slot.collection
                             ? DirectReferences.collection(ids)
@@ -1099,7 +1155,10 @@ public final class MutationPlan {
                     slotIds.put(slot, ids);
                 }
                 ids.forEach(id -> merge(result, new ResolvedModel(
-                        id, slot.modelType, slot.access, List.of(slot.property.name()))));
+                        id, replayTarget != null && id.equals(replayTarget.modelId())
+                            && slot.requestedType.isAssignableFrom(replayTarget.modelType())
+                                ? replayTarget.modelType() : slot.modelType,
+                        slot.access, List.of(slot.property.name()))));
             }
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
@@ -1136,7 +1195,8 @@ public final class MutationPlan {
                             dependency.dependency.handler(), explicitType))
                     .map(PlannedAncestor::dependency)
                     .filter(dependency -> !compatibleExplicit(
-                            dependency.modelType(), explicitType)).toList();
+                            dependency.modelType(), explicitType))
+                    .filter(dependency -> !bindMetadataReference(input, dependency, result, references)).toList();
             if (replayTarget != null && ancestorRoots != null) {
                 List<AncestorDependency> matching = unresolvedAncestors.stream()
                         .filter(dependency -> EntityMetadata.compatibleTypes(
@@ -1178,6 +1238,64 @@ public final class MutationPlan {
                     List.copyOf(result.values()), unresolved,
                     unresolvedAncestors,
                     references);
+        }
+
+        private Property replayBinding(ResolvedModel target) {
+            ReplayBinding cached = replayBinding;
+            if (cached != null && cached.modelType() == target.modelType()) {
+                return cached.property();
+            }
+            Property property = computeReplayBinding(target.modelType());
+            replayBinding = new ReplayBinding(target.modelType(), property);
+            return property;
+        }
+
+        private Property computeReplayBinding(Class<?> modelType) {
+            // A single stream-bound reference may have been selected through Graph.assertAndApply.
+            // Do not collapse distinct same-type readers or collections onto that write target.
+            if (handlerMethods.values().stream().anyMatch(
+                    handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())) {
+                return null;
+            }
+            List<Slot> matching = slots.stream()
+                    .filter(slot -> EntityMetadata.compatibleTypes(slot.requestedType, modelType)).toList();
+            if (matching.isEmpty() || matching.stream().noneMatch(slot -> slot.access.writes())
+                || matching.stream().anyMatch(slot -> slot.collection || slot.property.missing()
+                        || !slot.requestedType.isAssignableFrom(modelType))
+                || matching.stream().map(slot -> slot.property).distinct().count() != 1
+                || ancestors.stream().anyMatch(ancestor -> EntityMetadata.compatibleTypes(
+                        ancestor.dependency().modelType(), modelType))) {
+                return null;
+            }
+            return matching.getFirst().property;
+        }
+
+        private record ReplayBinding(Class<?> modelType, Property property) {
+        }
+
+        private boolean bindMetadataReference(Object input, AncestorDependency dependency,
+                                               Map<String, ResolvedModel> models,
+                                               Map<EntityMetadata.ModelParameter, DirectReferences> references) {
+            if (!(input instanceof HasMessage message) || dependency.association() == null) { return false; }
+            EntityMetadata.HandlerMethod handler = handlerMethods.get(dependency.handler());
+            if (handler == null) { return false; }
+            for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
+                if (parameter.modelType() != dependency.modelType()
+                    || !Objects.equals(parameter.associationProperty(), dependency.association())
+                    || !metadataContains(message, parameter)) { continue; }
+                DirectReferences direct = directReferences(message, parameter);
+                references.put(parameter, direct);
+                if (direct.modelId() == null) {
+                    if (dependency.required()) {
+                        throw new IllegalStateException("Metadata Model ID '%s' is null".formatted(dependency.association()));
+                    }
+                } else {
+                    merge(models, new ResolvedModel(direct.modelId(), dependency.modelType(), dependency.access(),
+                                                     List.of(dependency.association())));
+                }
+                return true;
+            }
+            return false;
         }
 
         private void addProspectiveParents(
@@ -1395,6 +1513,7 @@ public final class MutationPlan {
     }
 
     private static final class Slot {
+        private final Class<?> requestedType;
         private final Class<?> modelType;
         private final EntityMetadata metadata;
         private final Property property;
@@ -1414,6 +1533,7 @@ public final class MutationPlan {
                 boolean receiver,
                 boolean apply,
                 EntityMetadata.ModelParameter parameter) {
+            this.requestedType = requestedType;
             this.modelType = collection || property.missing() ? requestedType
                     : property.modelType().filter(requestedType::isAssignableFrom)
                             .filter(type -> EntityMetadata.of(type).isModel()).orElse(requestedType);

@@ -153,6 +153,12 @@ public class CommitModels extends Command implements RetryAwareRequest {
         return List.of();
     }
 
+    /** Alias lookup keys consumed by this evaluation, independently of exact Model-head reads. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<String> getReadAliasIds() {
+        return List.of();
+    }
+
     /**
      * Routes retries of the same commit consistently without choosing one target model as its owner.
      */

@@ -1,5 +1,9 @@
 Use validation for structural payload checks, access annotations, response filtering, and sensitive-field handling. Use `@AssertLegal` for state-dependent business invariants that require Model state.
 
+For concurrent Model invariants, use the binding and read-boundary example at `/docs/sdk/entities/assert-legal`.
+Identify the Model values/relations, ID source and conflict policy; neither `@AssertLegal`, current reads nor RETRY
+make arbitrary search or helper I/O transactional. Resolve an unclear binding before adding an application workaround.
+
 Structural validation uses Jakarta annotations on command/query records and value objects. Put business detail fields in a dedicated value object and cascade with `@Valid`. For HTTP wrappers and nested collections, read request DTO validation and OpenAPI contracts: `@Valid` cascades into a present value but does not make the value, list, or item required.
 
 ```java

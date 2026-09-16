@@ -108,7 +108,7 @@ public class GetModelGraph extends Request {
              maxEventsPerModel, maxBytes, TraversalDirection.DESCENDANTS, composableOnly);
     }
 
-    /** Creates a multi-root ancestor query through the same graph capability. */
+    /** Creates a multi-root ancestor query, preserving inclusive or before-boundary relationship selection. */
     public static GetModelGraph ancestors(
             List<String> modelIds,
             ModelReadBoundary boundary,
@@ -117,7 +117,7 @@ public class GetModelGraph extends Request {
             int maxEventsPerModel,
             long maxBytes) {
         return new GetModelGraph(
-                modelIds, Objects.requireNonNull(boundary, "boundary").forRequest(), maxDepth, maxModels,
+                modelIds, Objects.requireNonNull(boundary, "boundary"), maxDepth, maxModels,
                 maxEventsPerModel, maxBytes, TraversalDirection.ANCESTORS, false);
     }
 

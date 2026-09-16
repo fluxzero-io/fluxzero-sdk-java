@@ -37,6 +37,18 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void aliasReadsRequireCanonicalLookupHeadsAndUniqueKeys() {
+        CommitModels base = publishedCommit(-1L);
+        String id = base.getReadModelIds().getFirst();
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(new CommitModelsWithAliasReads(base, List.of(id))));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(new CommitModelsWithAliasReads(base, List.of("missing"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(new CommitModelsWithAliasReads(base, List.of(id, id))));
+        assertThrows(IllegalArgumentException.class, () -> new CommitModelsWithAliasReads(base, List.of()));
+    }
+
+    @Test
     void rejectsMalformedSimplePublishedUpdate() {
         assertThrows(
                 IllegalArgumentException.class,
@@ -243,6 +255,10 @@ class ModelCommitValidatorTest {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(
                 GetModelGraph.ancestors(
                         List.of("child-1"), ModelReadBoundary.current(),
+                        -1, -1, 0, 0L)));
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                GetModelGraph.ancestors(
+                        List.of("child-1"), ModelReadBoundary.state(2L, false).asBefore(),
                         -1, -1, 0, 0L)));
         assertThrows(
                 IllegalArgumentException.class,

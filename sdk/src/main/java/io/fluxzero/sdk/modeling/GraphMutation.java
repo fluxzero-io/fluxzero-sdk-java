@@ -24,6 +24,7 @@ record GraphMutation(
         String modelId,
         Class<?> modelType,
         Long expectedStateIndex,
+        Long readStateIndex,
         Object preview,
         UnaryOperator<Entity<?>> replay) {
 
@@ -41,7 +42,7 @@ record GraphMutation(
                                        addition.modelType.getName()));
         }
         return new GraphMutation(
-                modelId, modelType, expectedStateIndex, addition.preview,
+                modelId, modelType, expectedStateIndex, readStateIndex, addition.preview,
                 current -> addition.replay.apply(replay.apply(current)));
     }
 }

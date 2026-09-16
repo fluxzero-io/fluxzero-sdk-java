@@ -21,6 +21,12 @@ Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concep
 
 For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
 
+For concurrent invariants, distinguish [read boundaries and commit dependencies](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx#model-read-boundaries):
+manual Graph reads inside a Model mutation share its snapshot and readset; event reads, explicit current reads outside
+mutations and document search have different guarantees.
+Consumed Graph alias lookups also protect alias assignment/removal and canonical-ID precedence at commit;
+exact-ID reads remain independent of aliases.
+
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
 derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.
@@ -32,6 +38,7 @@ while Graph composition and related-content predicates use the internal source. 
 [migration guide](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) for independent reindexing.
 Choose [Graph relationships](docs/developer/guides/Modeling%20%26%20persistence/190-nested-entities.mdx) separately from ownership: a plain typed ID is only a reference; `@Parent` registers an edge, with cascade deletion configurable per relation.
 See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
+Returned validation objects can select their own Model dependencies while retaining the triggering command context.
 
 [Parent-owned schedules](docs/developer/guides/Messaging/086-parent-owned-schedules.mdx) use `@Parent` or
 `Schedule.withParents(...)` to cancel delayed work automatically when a committed Model is deleted.

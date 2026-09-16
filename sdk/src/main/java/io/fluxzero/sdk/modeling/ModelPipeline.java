@@ -28,6 +28,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
@@ -222,6 +223,11 @@ final class ModelPipeline {
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
+            CommitAttempt parent = CommitAttempt.currentReadContext(repository);
+            if (parent != null) {
+                ModelReducer.assertWithin(message, parent);
+                return COMPLETED_VOID;
+            }
             return execute(new ExecutionRequest(message, null, -1, Mode.ASSERT), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
@@ -990,6 +996,9 @@ final class ModelPipeline {
     }
 
     private final class CommitLoader implements ModelReducer.SubstepResolver {
+        @Override
+        public DefaultModelRepository repository() { return repository; }
+
         private Long pinnedStateIndex;
         private final boolean applyOnly;
         private final boolean migration;
@@ -998,6 +1007,7 @@ final class ModelPipeline {
         private final PrefetchSlot prefetched;
         private boolean requiresStorageBoundary;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
+        private Map<String, String> aliasResolutions = Map.of();
         private final Map<AncestorPlanKey, AncestorPlan> ancestorPlans =
                 new LinkedHashMap<>();
 
@@ -1087,16 +1097,35 @@ final class ModelPipeline {
         }
 
         @Override
+        public ModelReducer.ResolvedSubstep resolveAssertion(
+                DeserializingMessage message, CommitAttempt context, Map<String, Object> values) {
+            MutationPlan definition = definitionFor(message.getPayloadClass());
+            MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
+            return new ModelReducer.ResolvedSubstep(
+                    resolve(resolution, context.readStateIndex(), values), definition.reducer());
+        }
+
+        @Override
         public CommitAttempt resolveAssertion(
-                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                DeserializingMessage message, MutationPlan.AssertionScope scope,
+                EntityMetadata.ExecutableParameters parameters,
                 CommitAttempt context, Map<String, Object> stagedValues) {
-            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters);
+            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters, scope);
+            boolean scopedAncestors = scope.hasNestedAncestorRoots(parameters);
             LinkedHashMap<String, MutationPlan.ResolvedModel> targets = new LinkedHashMap<>();
-            context.targets().forEach(target -> MutationPlan.merge(targets, target));
+            if (!scopedAncestors) {
+                context.targets().stream().filter(target -> parameters.values().stream().noneMatch(parameter ->
+                        EntityMetadata.compatibleTypes(parameter.modelType(), target.modelType())
+                        && (parameter.associationProperty() == null
+                            || target.sourceProperties().contains(parameter.associationProperty()))
+                        && bound.references().get(parameter).present()))
+                        .forEach(target -> MutationPlan.merge(targets, target));
+            }
             bound.models().forEach(target -> MutationPlan.merge(targets, target));
             MutationPlan.Resolution resolution = new MutationPlan.Resolution(
                     List.copyOf(targets.values()), List.of(), bound.ancestorDependencies().stream()
-                    .filter(dependency -> context.resolve(dependency.modelType(), dependency.association()) == null)
+                    .filter(dependency -> scopedAncestors
+                                          || context.resolve(dependency.modelType(), dependency.association()) == null)
                     .toList(), bound.references());
             Map<String, Object> values = new LinkedHashMap<>(stagedValues);
             context.entities().forEach((id, entity) -> values.put(id, entity.get()));
@@ -1109,7 +1138,7 @@ final class ModelPipeline {
                     ? ancestorPlanKey(resolution, stagedValues) : null;
             AncestorPlan ancestorPlan = ancestorPlans.get(planKey);
             List<MutationPlan.ResolvedModel> effectiveTargets = planKey == null
-                    ? resolution.models() : ancestorPlan == null ? null : ancestorPlan.targets();
+                    ? canonicalTargets(resolution.models()) : ancestorPlan == null ? null : ancestorPlan.targets();
             List<MutationPlan.ResolvedModel> missing = effectiveTargets == null ? List.of()
                     : effectiveTargets.stream()
                             .filter(target -> !commitEntities.containsKey(target.modelId()))
@@ -1129,8 +1158,9 @@ final class ModelPipeline {
                                         : resolution.withResolvedModels(effectiveTargets)
                                 : new MutationPlan.Resolution(missing, List.of());
                 stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
+                effectiveTargets = canonicalTargets(effectiveTargets);
             }
-            MutationPlan.Resolution effectiveResolution = planKey == null
+            MutationPlan.Resolution effectiveResolution = planKey == null && effectiveTargets == resolution.models()
                     ? resolution : resolution.withResolvedModels(effectiveTargets);
             LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
             effectiveTargets.forEach(target -> selected.put(
@@ -1138,7 +1168,31 @@ final class ModelPipeline {
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
             return CommitAttempt.create(stateIndex, effectiveResolution, selected)
-                    .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads());
+                    .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads())
+                    .withAliasResolutions(aliasResolutionsFor(resolution.models()));
+        }
+
+        private Map<String, String> aliasResolutionsFor(List<MutationPlan.ResolvedModel> targets) {
+            if (aliasResolutions.isEmpty()) { return Map.of(); }
+            Map<String, String> selected = new LinkedHashMap<>();
+            for (MutationPlan.ResolvedModel target : targets) {
+                String owner = aliasResolutions.get(target.modelId());
+                if (owner != null) { selected.put(target.modelId(), owner); }
+            }
+            return selected;
+        }
+
+        private List<MutationPlan.ResolvedModel> canonicalTargets(List<MutationPlan.ResolvedModel> targets) {
+            if (aliasResolutions.isEmpty()) { return targets; }
+            return targets.stream().map(target -> {
+                String resolved = aliasResolutions.get(target.modelId());
+                if (resolved == null || resolved.equals(target.modelId())) { return target; }
+                if (target.access().writes()) {
+                    throw new EventSourcingException("Writable model target '%s' resolved through alias to '%s'"
+                            .formatted(target.modelId(), resolved));
+                }
+                return new MutationPlan.ResolvedModel(resolved, target.modelType(), target.access(), target.sourceProperties());
+            }).toList();
         }
 
         @Override
@@ -1218,6 +1272,11 @@ final class ModelPipeline {
             }
             for (String modelId : loaded.modelIds()) {
                 commitEntities.put(modelId, loaded.entity(modelId));
+            }
+            if (!loaded.aliasResolutions().isEmpty()) {
+                Map<String, String> combined = new LinkedHashMap<>(aliasResolutions);
+                combined.putAll(loaded.aliasResolutions());
+                aliasResolutions = Map.copyOf(combined);
             }
             return loaded;
         }

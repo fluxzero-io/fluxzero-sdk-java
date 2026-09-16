@@ -155,7 +155,7 @@ Unknown intermediate nodes do not hide known descendants. Direct child paths are
 descendant paths are root-relative slash-separated paths (`null` means all paths). Counts count placements:
 a shared Model reached through different graph paths can occur more than once.
 
-Selections share a pinned boundary and preserve injected Graph relationship dependencies, including empty
+Selections share a pinned boundary and preserve mutation Graph relationship dependencies, including empty
 results, add/remove/reparent and retries. Values are reconstructed only when requested at that boundary; no
 automatic current-state fallback or unknown-event skipping occurs. Full Graph materialization/serialization
 still requires the contracts for the values being materialized. Custom repositories without metadata navigation
@@ -164,7 +164,10 @@ retain their existing loading behavior and cannot promise unknown-type-safe sele
 The default repository resolves lazy root aliases through head metadata without replay. Initial lookup uses the
 current alias table, also when reading historical Model state. The selected canonical ID (or absence) then stays
 fixed together with the value/relationship boundary: reassigning the alias cannot redirect an existing Graph.
-This preserves snapshot identity; it does not add transaction-level alias-mapping conflict detection.
+Inside a Model mutation, consuming an alias lookup also records a commit dependency, including a missing alias
+or an identity-/relationship-only read. Alias assignment, removal, reassignment and canonical-ID shadowing are
+validated atomically; exact-ID reads do not depend on aliases. No historical alias table is implied: the initial
+lookup still uses the current mapping. `RETRY` reevaluates a successful stale decision; `FAIL` rejects its commit.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 
@@ -182,10 +185,10 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
-An explicit `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root is
-cached. A root cache's older observation boundary cannot prove that its relationships are still current. Values
-remain lazy and may reuse an exact matching cached revision; ordinary Model and Graph cache paths are unchanged.
-Exact-ID and non-alias value reads retain their existing path. Root lookup failures remain errors, not empty children.
+Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root
+is cached; an older root observation cannot prove unchanged relationships. Within a mutation it instead reuses the
+attempt boundary and joins its readset. Values remain lazy and use their authoritative persistence source, including
+current document authority for DOCUMENT-only Models.
 
 ## Document-based models
 

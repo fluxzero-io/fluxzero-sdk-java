@@ -29,6 +29,7 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Parent;
@@ -49,6 +50,49 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CurrentGraphBoundaryTest {
+    @Test
+    void ordinaryCachedMutationAddsNoFreshnessRead() throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try {
+                var repository = (DefaultModelRepository) app.modelRepository();
+                assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+                commit(app, new CreateRoot("root"));
+                repository.load("root", FreshnessRoot.class);
+                client.eventQueries.clear();
+                commit(app, new UpdateRoot("root"));
+                assertTrue(client.eventQueries.isEmpty(), "A successful ordinary cachehit needs no upfront read-RPC");
+            } finally { client.releaseUpdates.complete(null); }
+        }
+    }
+
+    @Test
+    void staleFunctionalRejectionIsNotRefreshedOrRetried() throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero reader = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try {
+                var repository = (DefaultModelRepository) reader.modelRepository();
+                assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+                commit(reader, new CreateRoot("root"));
+                repository.load("root", FreshnessRoot.class);
+                commit(writer, new UpdateRoot("root"));
+                client.eventQueries.clear();
+                Throwable failure = assertThrows(Exception.class, () -> commit(reader, new RequireUpdatedRoot("root")));
+                while (failure.getCause() != null) { failure = failure.getCause(); }
+                assertInstanceOf(io.fluxzero.sdk.tracking.handling.IllegalCommandException.class, failure);
+                assertTrue(client.eventQueries.isEmpty(), "An early rejection must not trigger storage verification");
+            } finally { client.releaseUpdates.complete(null); }
+        }
+    }
+
+    record RequireUpdatedRoot(String rootId) {
+        @AssertLegal void check(FreshnessRoot root) {
+            if (root.version() < 2) { throw new io.fluxzero.sdk.tracking.handling.IllegalCommandException("Old root"); }
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) FreshnessRoot apply(FreshnessRoot root) { return root; }
+    }
+
     @ParameterizedTest
     @EnumSource(value = ModelConflictPolicy.class, names = {"ACCEPT", "FAIL", "RETRY"})
     void nextCommandObservesAnotherApplicationsCommitDuringTheReceivedBatch(
@@ -270,8 +314,8 @@ class CurrentGraphBoundaryTest {
                 commit(app, new CreateRoot("root"));
                 repository.load("root", FreshnessRoot.class);
                 client.eventQueries.clear();
-                assertTrue(repository.resolveGraphIdentity("root", FreshnessRoot.class,
-                                                           ModelReadBoundary.current()).present());
+                assertTrue(repository.supplyCurrentModel("root", FreshnessRoot.class,
+                        (entity, validThrough, modelStateIndex) -> assertTrue(entity.isPresent())));
                 assertTrue(client.eventQueries.isEmpty(), "The root has a usable current cache entry");
 
                 commit(app, new UpsertChild("child", "root"));
@@ -291,6 +335,74 @@ class CurrentGraphBoundaryTest {
                 client.releaseUpdates.complete(null);
             }
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"add,typed,false", "add,typed,true", "add,value,true", "add,id,true", "add,object,true", "add,untyped,true",
+                "add,value,false", "add,presence,false", "add,presence,true",
+                "remove,typed,false", "remove,typed,true", "remove,value,true", "remove,id,true", "remove,object,true", "remove,untyped,true",
+                "remove,value,false", "remove,presence,false", "remove,presence,true",
+                "reparent,value,false", "reparent,presence,false", "reparent,presence,true",
+                "reparent,typed,false", "reparent,typed,true", "reparent,value,true", "reparent,id,true", "reparent,object,true", "reparent,untyped,true"})
+    void ordinaryGraphObservesCompletedRelationshipChangesRegardlessOfReadOrder(
+            String change, String route, boolean externalWriter) throws Exception {
+        var client = new DelayedTrackingClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            try {
+                var repository = (DefaultModelRepository) app.modelRepository();
+                assertTrue(repository.cacheTrackingReadiness().get(5, TimeUnit.SECONDS));
+                commit(app, new CreateRoot("root"));
+                commit(app, new CreateRoot("other"));
+                if (!change.equals("add")) {
+                    commit(app, new UpsertChild("child", "root"));
+                }
+                repository.load("root", FreshnessRoot.class);
+                Fluxzero selectedWriter = externalWriter ? writer : app;
+                commit(selectedWriter, switch (change) {
+                    case "add" -> new UpsertChild("child", "root");
+                    case "remove" -> new DeleteChild("child");
+                    default -> new UpsertChild("child", "other");
+                });
+                if (route.equals("presence")) {
+                    // A notification that leaves the parent unchanged must not be needed for cache freshness.
+                    commit(app, new NotifyRoot("root"));
+                }
+                client.eventQueries.clear();
+                app.apply(fc -> {
+                    Graph<?> graph = switch (route) {
+                        case "id" -> Fluxzero.loadGraph(new FreshnessRootId("root"));
+                        case "object" -> Fluxzero.loadGraph((Object) new FreshnessRootId("root"));
+                        case "untyped" -> Fluxzero.loadGraph((Object) "root");
+                        default -> Fluxzero.loadGraph("root", FreshnessRoot.class);
+                    };
+                    if (route.equals("presence")) {
+                        assertFalse(graph.isEmpty());
+                        assertEquals(new FreshnessRoot("root", 1), graph.orElseThrow());
+                    } else if (!route.equals("typed")) {
+                        assertEquals(new FreshnessRoot("root", 1), graph.get());
+                        if (route.equals("value") || route.equals("id")) {
+                            assertEquals(1, client.eventQueries.size(),
+                                         "Freshness and cached suffix validation share one storage request");
+                        }
+                    }
+                    List<Object> expected = change.equals("add") ? List.of("child") : List.of();
+                    assertEquals(expected, route.equals("presence")
+                            ? graph.childModels(FreshnessChild.class).stream().map(child -> (Object) child.childId()).toList()
+                            : graph.children(FreshnessChild.class).stream().map(Graph::id).toList());
+                    assertEquals(new FreshnessRoot("root", 1), graph.get());
+                    return null;
+                });
+            } finally {
+                client.releaseUpdates.complete(null);
+            }
+        }
+    }
+
+    record NotifyRoot(String rootId) {
+        @Apply(eventPublication = io.fluxzero.sdk.modeling.EventPublication.ALWAYS,
+               publicationStrategy = io.fluxzero.sdk.modeling.EventPublicationStrategy.PUBLISH_ONLY)
+        FreshnessRoot apply(FreshnessRoot root) { return root; }
     }
 
     @ParameterizedTest
@@ -378,6 +490,10 @@ class CurrentGraphBoundaryTest {
 
     @Model(name = "freshness-root")
     record FreshnessRoot(@EntityId String rootId, int version) {}
+
+    static class FreshnessRootId extends Id<FreshnessRoot> {
+        FreshnessRootId(String value) { super(value); }
+    }
 
     @Model(name = "freshness-child")
     record FreshnessChild(@EntityId String childId,
