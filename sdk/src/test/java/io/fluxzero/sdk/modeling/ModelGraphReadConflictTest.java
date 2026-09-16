@@ -490,8 +490,9 @@ class ModelGraphReadConflictTest {
         try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
             commit(app, new CreateParent("parent", 10));
             commit(app, new CreateParent("other", 10));
-            commit(app, new CreateChild("first", "parent"));
             commit(app, new CreateChild("second", "parent"));
+            // The injected write target's own head must include both children even if tracking lags.
+            commit(app, new CreateChild("first", "parent"));
             AtomicBoolean once = new AtomicBoolean();
             client.beforeCommit = request -> {
                 if (request.getReadModelIds().contains("first") && once.compareAndSet(false, true)) {
