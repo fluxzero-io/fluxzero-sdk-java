@@ -339,7 +339,10 @@ class CurrentGraphBoundaryTest {
 
     @ParameterizedTest
     @CsvSource({"add,typed,false", "add,typed,true", "add,value,true", "add,id,true", "add,object,true", "add,untyped,true",
+                "add,value,false", "add,presence,false", "add,presence,true",
                 "remove,typed,false", "remove,typed,true", "remove,value,true", "remove,id,true", "remove,object,true", "remove,untyped,true",
+                "remove,value,false", "remove,presence,false", "remove,presence,true",
+                "reparent,value,false", "reparent,presence,false", "reparent,presence,true",
                 "reparent,typed,false", "reparent,typed,true", "reparent,value,true", "reparent,id,true", "reparent,object,true", "reparent,untyped,true"})
     void ordinaryGraphObservesCompletedRelationshipChangesRegardlessOfReadOrder(
             String change, String route, boolean externalWriter) throws Exception {
@@ -361,6 +364,10 @@ class CurrentGraphBoundaryTest {
                     case "remove" -> new DeleteChild("child");
                     default -> new UpsertChild("child", "other");
                 });
+                if (route.equals("presence")) {
+                    // A notification that leaves the parent unchanged must not be needed for cache freshness.
+                    commit(app, new NotifyRoot("root"));
+                }
                 client.eventQueries.clear();
                 app.apply(fc -> {
                     Graph<?> graph = switch (route) {
@@ -369,7 +376,10 @@ class CurrentGraphBoundaryTest {
                         case "untyped" -> Fluxzero.loadGraph((Object) "root");
                         default -> Fluxzero.loadGraph("root", FreshnessRoot.class);
                     };
-                    if (!route.equals("typed")) {
+                    if (route.equals("presence")) {
+                        assertFalse(graph.isEmpty());
+                        assertEquals(new FreshnessRoot("root", 1), graph.orElseThrow());
+                    } else if (!route.equals("typed")) {
                         assertEquals(new FreshnessRoot("root", 1), graph.get());
                         if (route.equals("value") || route.equals("id")) {
                             assertEquals(1, client.eventQueries.size(),
@@ -377,7 +387,9 @@ class CurrentGraphBoundaryTest {
                         }
                     }
                     List<Object> expected = change.equals("add") ? List.of("child") : List.of();
-                    assertEquals(expected, graph.children(FreshnessChild.class).stream().map(Graph::id).toList());
+                    assertEquals(expected, route.equals("presence")
+                            ? graph.childModels(FreshnessChild.class).stream().map(child -> (Object) child.childId()).toList()
+                            : graph.children(FreshnessChild.class).stream().map(Graph::id).toList());
                     assertEquals(new FreshnessRoot("root", 1), graph.get());
                     return null;
                 });
@@ -385,6 +397,12 @@ class CurrentGraphBoundaryTest {
                 client.releaseUpdates.complete(null);
             }
         }
+    }
+
+    record NotifyRoot(String rootId) {
+        @Apply(eventPublication = io.fluxzero.sdk.modeling.EventPublication.ALWAYS,
+               publicationStrategy = io.fluxzero.sdk.modeling.EventPublicationStrategy.PUBLISH_ONLY)
+        FreshnessRoot apply(FreshnessRoot root) { return root; }
     }
 
     @ParameterizedTest
