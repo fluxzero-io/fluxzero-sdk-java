@@ -241,7 +241,8 @@ If evaluation fails, no target is committed. Conflict handling applies to the co
 - `ACCEPT` stores the original event and rebases derived documents, snapshots and relations on current model state;
 - `FAIL` rolls the runtime action back and returns a conflict;
 - `RETRY` rolls it back and performs a bounded complete reevaluation against freshly loaded models;
-- `DEFAULT` inherits the application policy: `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
+- `DEFAULT` inherits the application policy, otherwise `RETRY`, for updates and creations alike, independently of
+  `fluxzero.defaults.version`. Retry does not bypass the normal create-only compatibility check.
 
 `RETRY` and `FAIL` validate all Models resolved during evaluation, including assertion and interceptor dependencies.
 `ACCEPT` validates only dependencies used during apply plus written targets; assertion-/interceptor-only changes do

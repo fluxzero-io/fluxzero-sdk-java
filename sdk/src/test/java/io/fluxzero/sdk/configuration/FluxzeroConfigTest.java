@@ -50,28 +50,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class FluxzeroConfigTest {
 
     @Test
-    void retryModelDefaultIsVersionedAndKeepsImplicitCreationStrict() {
+    void retryModelDefaultDoesNotDependOnTheDefaultsVersion() {
         for (String version : java.util.List.of("", "2026.09.08", "2026.09.09", "2027.01.01")) {
             DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
             builder.replacePropertySource(ignored -> new SimplePropertySource(
                     Map.of(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, version)));
-            assertEquals(version.isEmpty() || version.equals("2026.09.08")
-                                 ? ModelConflictPolicy.ACCEPT : ModelConflictPolicy.RETRY,
-                         builder.configuredModelConflictPolicy(), version);
-            assertEquals(ModelConflictPolicy.FAIL, builder.configuredModelCreationConflictPolicy());
+            assertEquals(ModelConflictPolicy.RETRY, builder.configuredModelConflictPolicy(), version);
         }
     }
 
     @Test
-    void explicitModelPolicyOverridesVersionedDefaultInBothDirections() {
+    void explicitModelPolicyOverridesTheDefaultRegardlessOfDefaultsVersion() {
         for (String version : java.util.List.of("2020.01.01", "2027.01.01")) {
-            for (ModelConflictPolicy policy : java.util.List.of(ModelConflictPolicy.ACCEPT, ModelConflictPolicy.RETRY)) {
+            for (ModelConflictPolicy policy : ModelConflictPolicy.values()) {
                 DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
                 builder.replacePropertySource(ignored -> new SimplePropertySource(Map.of(
                         ApplicationProperties.DEFAULTS_VERSION_PROPERTY, version,
                         "fluxzero.model.conflictPolicy", policy.name())));
-                assertEquals(policy, builder.configuredModelConflictPolicy());
-                assertEquals(policy, builder.configuredModelCreationConflictPolicy());
+                assertEquals(ModelConflictPolicy.resolve(policy), builder.configuredModelConflictPolicy());
             }
         }
     }
@@ -98,7 +94,6 @@ public class FluxzeroConfigTest {
         DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
         builder.replacePropertySource(ignored -> new SimplePropertySource(
                 Map.of(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "invalid")));
-        assertThrows(IllegalArgumentException.class, builder::configuredModelConflictPolicy);
         assertThrows(IllegalArgumentException.class, builder::configuredAutomaticModelRouting);
     }
 

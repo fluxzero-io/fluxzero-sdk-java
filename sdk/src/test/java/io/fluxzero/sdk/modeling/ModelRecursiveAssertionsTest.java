@@ -361,7 +361,9 @@ class ModelRecursiveAssertionsTest {
 
     @Test
     void acceptRebasesChangedWritesWithoutRerunningNestedGuards() {
-        fixture(false).givenCommands(new Seed("accept", 1), new SetInventory("stock", true));
+        fixture = TestFixture.create(DefaultFluxzero.builder().configureModelConflictHandling(
+                ModelConflictPolicy.ACCEPT, ModelConflictResolver.retryIfAllowed(), 3));
+        fixture.givenCommands(new Seed("accept", 1), new SetInventory("stock", true));
         race.set(() -> CompletableFuture.runAsync(() -> fixture.getFluxzero().apply(fc -> {
             Fluxzero.assertAndApply(new SetInventory("stock", false));
             Fluxzero.assertAndApply(new Seed("accept", 10));

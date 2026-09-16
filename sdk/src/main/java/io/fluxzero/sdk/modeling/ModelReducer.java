@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
@@ -817,6 +818,19 @@ public final class ModelReducer {
         return execute(attempt, messages, resolver, Mode.APPLY);
     }
 
+    static CommitAttempt retry(DeserializingMessage message, SubstepResolver resolver,
+                               CommitModelsResult conflict) {
+        if (!(message.getPayload() instanceof Graph<?> graph)) {
+            return apply(new CommitAttempt(), List.of(message), resolver);
+        }
+        // Only original staged payloads predate the retry. Interceptor-produced Graphs are
+        // recreated by normal evaluation and must retain their newly evaluated boundary.
+        Deque<PendingSubstep> pending = new ArrayDeque<>();
+        stagedChanges(graph).forEach(change -> pending.addLast(new PendingSubstep(
+                message, change.forRetry(conflict), InterceptionPhase.NONE)));
+        return evaluate(new CommitAttempt(), pending, resolver, message, Mode.APPLY, null);
+    }
+
     static CommitAttempt assertLegal(
             CommitAttempt attempt,
             DeserializingMessage message,
@@ -1228,7 +1242,7 @@ public final class ModelReducer {
                             .formatted(modelType.getName()));
         }
         return List.of(new GraphMutation(
-                modelId, modelType, graph.revisionStateIndex(), graph.stateIndex(), null,
+                modelId, modelType, graph.revisionStateIndex(), graph.stateIndex(), true, null,
                 current -> current.update(ignored -> null)));
     }
 

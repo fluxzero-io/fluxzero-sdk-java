@@ -42,6 +42,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void defaultMeansRetryWhileMissingLegacyWirePolicyKeepsItsMeaning() throws Exception {
+        for (ModelConflictPolicy policy : new ModelConflictPolicy[]{null, ModelConflictPolicy.DEFAULT,
+                ModelConflictPolicy.RETRY, ModelConflictPolicy.FAIL, ModelConflictPolicy.ACCEPT}) {
+            CommitModels original = commit("policy-transport", false);
+            CommitModels request = new CommitModels(original.getCommitId(), original.getReadStateIndex(),
+                    original.getReadModelIds(), original.getSubsteps(), policy, original.getGuarantee(), false);
+            ModelConflictPolicy expected = policy == null ? ModelConflictPolicy.ACCEPT
+                    : policy == ModelConflictPolicy.DEFAULT ? ModelConflictPolicy.RETRY : policy;
+            assertEquals(expected, ModelConflictPolicy.resolve(policy));
+            for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+                var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+                RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class,
+                        codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+                var received = assertInstanceOf(CommitModels.class, decoded.getRequests().getFirst());
+                assertEquals(policy, received.getConflictPolicy(), format.toString());
+                assertEquals(expected, ModelConflictPolicy.resolve(received.getConflictPolicy()));
+            }
+        }
+        var json = JsonUtils.valueToTree(commit("omitted-policy", false));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) json).remove("conflictPolicy");
+        assertNull(JsonUtils.writer.treeToValue(json, CommitModels.class).getConflictPolicy());
+    }
+
+    @Test
     void aliasReadsUseLosslessFallbackOnEveryTransport() throws Exception {
         CommitModels ordinary = commit("alias-transport", false);
         ordinary.getSubsteps().getFirst().getEvent().setIndex(null);

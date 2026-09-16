@@ -196,13 +196,6 @@ public class ApplicationProperties {
      *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
      *     </tr>
      *     <tr>
-     *         <td>{@code >= 2026.09.09}</td>
-     *         <td>{@code fluxzero.model.conflictPolicy = RETRY}</td>
-     *         <td>Independent Model updates validate all evaluation dependencies and retry a conflict with a fresh
-     *         evaluation. Implicit first creations still fail on conflict. Explicit Model/Apply or application
-     *         policies override this default; compatibility mode retains {@code ACCEPT}.</td>
-     *     </tr>
-     *     <tr>
      *         <td>{@code >= 2026.09.10}</td>
      *         <td>{@code fluxzero.model.automaticRouting = true}</td>
      *         <td>Commands with one statically unambiguous Model apply and single-Model events use the canonical
@@ -210,6 +203,10 @@ public class ApplicationProperties {
      *         Set the property to {@code false} to retain compatibility behavior.</td>
      *     </tr>
      * </table>
+     * <p>
+     * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this
+     * version. Override it with {@code fluxzero.model.conflictPolicy} ({@code FLUXZERO_MODEL_CONFLICT_POLICY})
+     * or explicit builder/Model/Apply configuration. Create-only compatibility remains a separate check.
      * <p>
      * Memory-aware cache pressure can be tuned with
      * {@code fluxzero.cache.memoryPressure.heapThresholdPercent},

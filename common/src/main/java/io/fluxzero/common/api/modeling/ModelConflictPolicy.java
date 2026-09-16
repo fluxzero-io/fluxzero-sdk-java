@@ -17,21 +17,21 @@
 package io.fluxzero.common.api.modeling;
 
 /**
- * Runtime behavior when an commit-scoped model changed after the commit's {@code readStateIndex}.
+ * Runtime behavior when a commit-scoped model changed after the commit's {@code readStateIndex}.
  * <p>
- * Conflict rejection is deliberately optional. {@link #ACCEPT} preserves Fluxzero's normal single-writer-friendly
- * behavior: the original event is accepted, while stale derived documents, snapshots, and relationships are rebased
+ * {@link #RETRY} is the default. Explicit {@link #ACCEPT} preserves the original decision:
+ * the original event is accepted, while stale derived documents, snapshots, and relationships are rebased
  * by reapplying it to the latest values of the models actually read by the commit. Rejecting policies roll back the
  * complete runtime commit; any retry is a new SDK evaluation against freshly loaded models.
  */
 public enum ModelConflictPolicy {
     /**
-     * Inherit from the next broader model-commit scope.
+     * Inherit from the next broader model-commit scope, falling back to {@link #RETRY}.
      */
     DEFAULT,
 
     /**
-     * Accept the original event and silently rebase stale derived state. This is the default.
+     * Accept the original event and silently rebase stale derived state. This is an explicit opt-in.
      */
     ACCEPT,
 
@@ -46,10 +46,10 @@ public enum ModelConflictPolicy {
     RETRY;
 
     /**
-     * Resolves a missing wire value to the compatibility default.
+     * Resolves {@link #DEFAULT} to {@link #RETRY}. A missing wire value retains the legacy
+     * {@link #ACCEPT} interpretation; SDKs send their resolved policy explicitly.
      */
     public static ModelConflictPolicy resolve(ModelConflictPolicy policy) {
-        return policy == null || policy == DEFAULT
-                ? ACCEPT : policy;
+        return policy == null ? ACCEPT : policy == DEFAULT ? RETRY : policy;
     }
 }

@@ -504,6 +504,11 @@ relationships are fetched only when traversed. Typed ancestor lookup follows rel
 only the selected ancestor value. Every child remains a graph with `parent()`, `root()`, `previous()`,
 `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)`.
 
+`graph.assertAndApply(command)` selects that Model's writes, but does not narrow assertions on the command:
+an `@AssertLegal` that reads another Model still runs, including before/after checks and returned validation objects.
+Its read dependencies participate in RETRY/FAIL. Model-owned handlers retain their existing target filtering;
+unselected applies do not become extra writes. Required assertion bindings must resolve rather than silently disappear.
+
 `id()` is the collision-safe repository identity; `functionalId()` is the public ID from the current or last present
 model value and omits repository affixes or parent scope. `stateIndex()` pins the complete graph read, while
 `revisionStateIndex()` reports when the selected node revision became current.
@@ -681,10 +686,14 @@ properties. Public policies are:
 
 If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
 
-The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
-`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
-fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
-and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+`DEFAULT` inherits explicit Model/application configuration and otherwise means `RETRY`, for both updates and first
+creations, independently of `fluxzero.defaults.version`. Use `fluxzero.model.conflictPolicy`
+(`FLUXZERO_MODEL_CONFLICT_POLICY`) or builder/Model/Apply settings to choose an explicit policy.
+A changed Product or parent collection therefore reevaluates a new child's creation. This does not make a factory an
+upsert: the normal apply-compatibility check still rejects an occupied target after retry. An intentionally nullable
+existing-Model apply is a separate upsert choice. A staged Graph update that started from absence also cannot overwrite
+a concurrent creation. Explicit ACCEPT still fails a first-creation conflict instead of rebasing it into an overwrite.
+ACCEPT validates apply dependencies and writes, excluding
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 

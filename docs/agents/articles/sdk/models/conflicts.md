@@ -13,10 +13,14 @@ properties. Public policies are:
 
 If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
 
-The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
-`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
-fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
-and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+`DEFAULT` inherits explicit Model/application configuration and otherwise means `RETRY`, for both updates and first
+creations, independently of `fluxzero.defaults.version`. Use `fluxzero.model.conflictPolicy`
+(`FLUXZERO_MODEL_CONFLICT_POLICY`) or builder/Model/Apply settings to choose an explicit policy.
+A changed Product or parent collection therefore reevaluates a new child's creation. This does not make a factory an
+upsert: the normal apply-compatibility check still rejects an occupied target after retry. An intentionally nullable
+existing-Model apply is a separate upsert choice. A staged Graph update that started from absence also cannot overwrite
+a concurrent creation. Explicit ACCEPT still fails a first-creation conflict instead of rebasing it into an overwrite.
+ACCEPT validates apply dependencies and writes, excluding
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
@@ -47,6 +51,6 @@ declarations win, including declarations whose value is absent. Multiple targets
 Set `fluxzero.model.automaticRouting=false` to disable both fallbacks. Aggregate routing is unchanged. A command's
 segment is not blindly inherited: external producers or interceptors may have assigned it for a different key.
 
-Dedicated overrides win in both directions. Their environment-variable names are `FLUXZERO_MODEL_AUTOMATICROUTING`
-and `FLUXZERO_MODEL_CONFLICTPOLICY`; the defaults marker is `FLUXZERO_DEFAULTS_VERSION`. Routing reduces avoidable
+Dedicated overrides win in both directions. Their conventional environment-variable names are `FLUXZERO_MODEL_AUTOMATIC_ROUTING`
+and `FLUXZERO_MODEL_CONFLICT_POLICY`; the compact aliases remain supported. The defaults marker is `FLUXZERO_DEFAULTS_VERSION`. Routing reduces avoidable
 concurrency but never replaces read-dependency validation.

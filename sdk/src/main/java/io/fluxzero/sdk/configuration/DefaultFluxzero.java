@@ -362,7 +362,6 @@ public class DefaultFluxzero implements Fluxzero {
         private static final String MAX_PUBLICATION_DEPTH_PROPERTY = "fluxzero.maxPublicationDepth";
         private static final int RELATIONSHIPS_CACHE_MAX_SIZE = 100_000;
         private static final LocalDate WEBREQUEST_ASYNC_HANDLING_DEFAULTS_VERSION = LocalDate.of(2026, 6, 20);
-        private static final LocalDate MODEL_RETRY_DEFAULTS_VERSION = LocalDate.of(2026, 9, 9);
         private static final LocalDate MODEL_ROUTING_DEFAULTS_VERSION = LocalDate.of(2026, 9, 10);
 
         private Serializer serializer = new JacksonSerializer();
@@ -1186,7 +1185,6 @@ public class DefaultFluxzero implements Fluxzero {
                     dispatchChains.get(COMMAND), dispatchChains.get(EVENT), client.id(),
                     runtimeParameterResolvers, handlerChains.get(COMMAND),
                     configuredModelConflictPolicy(),
-                    configuredModelCreationConflictPolicy(),
                     modelConflictResolver,
                     configuredMaxModelConflictRetries(),
                     configuredAutomaticModelHandling(),
@@ -1568,8 +1566,7 @@ public class DefaultFluxzero implements Fluxzero {
                             MODEL_CONFLICT_POLICY_PROPERTY);
             if (configured == null
                 || configured.isBlank()) {
-                return ApplicationProperties.defaultsVersionAtLeast(propertySource, MODEL_RETRY_DEFAULTS_VERSION)
-                        ? ModelConflictPolicy.RETRY : ModelConflictPolicy.ACCEPT;
+                return ModelConflictPolicy.RETRY;
             }
             return ModelConflictPolicy.resolve(
                     ModelConflictPolicy.valueOf(
@@ -1583,16 +1580,6 @@ public class DefaultFluxzero implements Fluxzero {
             return configured == null
                     ? ApplicationProperties.defaultsVersionAtLeast(propertySource, MODEL_ROUTING_DEFAULTS_VERSION)
                     : Boolean.parseBoolean(configured.trim());
-        }
-
-        ModelConflictPolicy configuredModelCreationConflictPolicy() {
-            if (modelConflictPolicy != null && modelConflictPolicy != ModelConflictPolicy.DEFAULT) {
-                return modelConflictPolicy;
-            }
-            String configured = propertySource.get(MODEL_CONFLICT_POLICY_PROPERTY);
-            // Opting into safer defaults must not turn an implicit create-if-absent into an upsert.
-            return configured == null || configured.isBlank() ? ModelConflictPolicy.FAIL
-                    : configuredModelConflictPolicy();
         }
 
         int configuredMaxModelConflictRetries() {

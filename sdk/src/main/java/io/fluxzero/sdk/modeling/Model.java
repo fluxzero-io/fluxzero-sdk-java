@@ -124,6 +124,9 @@ public @interface Model {
 
     /**
      * Conflict handling for this model when an apply does not provide an explicit override.
+     * {@link ModelConflictPolicy#DEFAULT} inherits the application policy, which defaults to
+     * {@link ModelConflictPolicy#RETRY} for updates and creations alike, independently of the defaults version.
+     * Factory compatibility is checked again after retry; retry does not implicitly turn a factory into an upsert.
      */
     ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
 

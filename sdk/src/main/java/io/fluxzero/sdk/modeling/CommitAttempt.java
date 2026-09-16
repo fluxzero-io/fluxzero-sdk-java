@@ -924,20 +924,16 @@ public final class CommitAttempt {
     }
 
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
-        return conflictPolicy(configured, configured);
-    }
-
-    ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured, ModelConflictPolicy creationPolicy) {
         ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
         if (changes.size() == 1 && readModelTypes.size() == 1
             && readModelTypes.containsKey(changes.getFirst().modelId())) {
-            return transitionPolicy(changes.getFirst(), application, creationPolicy);
+            return transitionPolicy(changes.getFirst(), application);
         }
         ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
         Set<String> written = new HashSet<>();
         for (Change change : changes) {
             written.add(change.modelId());
-            result = strictest(result, transitionPolicy(change, application, creationPolicy));
+            result = strictest(result, transitionPolicy(change, application));
         }
         for (Map.Entry<String, Class<?>> entry : readModelTypes.entrySet()) {
             if (!written.contains(entry.getKey())) {
@@ -997,9 +993,9 @@ public final class CommitAttempt {
     }
 
     private static ModelConflictPolicy transitionPolicy(
-            Change change, ModelConflictPolicy application, ModelConflictPolicy creationPolicy) {
+            Change change, ModelConflictPolicy application) {
         boolean creation = change.before() == null && change.beforeSequenceNumber() < 0L;
-        ModelConflictPolicy result = inherit(change.conflictPolicy(), creation ? creationPolicy : application);
+        ModelConflictPolicy result = inherit(change.conflictPolicy(), application);
         return creation && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
     }
 

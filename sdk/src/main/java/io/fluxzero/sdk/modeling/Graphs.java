@@ -460,18 +460,6 @@ public final class Graphs {
         return graph instanceof GraphView<?> view ? List.copyOf(view.state().stagedChanges().values()) : List.of();
     }
 
-    static List<Graph<?>> refreshStaged(Graph<?> graph) {
-        return stagedChanges(graph).stream().map(Graphs::refreshStaged).toList();
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static Graph<?> refreshStaged(GraphMutation change) {
-        Graph current = Fluxzero.loadGraph(change.modelId(), change.modelType());
-        return current.update(value -> change.replay().apply(
-                ImmutableEntity.builder().id(change.modelId()).type((Class) change.modelType()).value(value).build())
-                .get());
-    }
-
     /** Returns a lazy view whose values are transformed independently on first access. */
     public static <T> Graph<T> mapValues(Graph<T> graph, Function<? super Graph<?>, ?> mapper) {
         Objects.requireNonNull(mapper, "mapper");
@@ -1150,7 +1138,7 @@ final class GraphState {
         return List.copyOf(result.values());
     }
 
-    <T> Graph<T> replace(Entity<T> entity, UnaryOperator<Entity<?>> replay) {
+    <T> Graph<T> replace(Entity<T> entity, boolean initiallyAbsent, UnaryOperator<Entity<?>> replay) {
         LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(navigation == null ? knownModels : navigation.staged);
         String modelId = entity.id().toString();
         updated.put(modelId, entity);
@@ -1161,7 +1149,7 @@ final class GraphState {
         // Keep that absence proof distinct from the snapshot used to resolve the commit.
         Long expectedStateIndex = entity instanceof ModelRoot<?> root ? root.stateIndex() : readStateIndex;
         GraphMutation addition = new GraphMutation(
-                modelId, entity.type(), expectedStateIndex, readStateIndex, entity.get(), replay);
+                modelId, entity.type(), expectedStateIndex, readStateIndex, initiallyAbsent, entity.get(), replay);
         changes.merge(modelId, addition, GraphMutation::then);
         return GraphState.entity(entity, stateIndex(), repository, updated, historical,
                                  exactBoundary || navigation != null, boundary(), changes)
@@ -2644,7 +2632,7 @@ final class GraphView<T> implements Graph<T> {
         Entity<T> current = (Entity<T>) raw;
         Entity<T> next = entityOperation.apply(current);
         Graph<T> result = staged
-                ? state.replace(next, entity -> entityOperation.apply((Entity<T>) entity))
+                ? state.replace(next, current.isEmpty(), entity -> entityOperation.apply((Entity<T>) entity))
                 : state.replaceUnstaged(next);
         return Graphs.withReadProof(Graphs.cast(context.decorate(result)), aliasProof);
     }
