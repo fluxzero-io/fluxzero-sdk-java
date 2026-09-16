@@ -543,7 +543,7 @@ final class ModelPipeline {
                     } else if (result.isAccepted()) {
                         return CompletableFuture.completedFuture(optional);
                     }
-                    return retryDecision(result, attempts, retry, context)
+                    return retryDecision(result, attempts, retry, context, asynchronousReevaluation)
                             .thenCompose(ignored -> invoke(
                                     context,
                                     () -> retry.evaluator().reevaluate(
@@ -665,23 +665,23 @@ final class ModelPipeline {
             CommitModelsResult result,
             int attempts,
             Retry retry,
-            ThreadLocalContext.Snapshot context) {
+            ThreadLocalContext.Snapshot context,
+            boolean asynchronous) {
         if (retry.accepting()) {
             return COMPLETED_VOID;
         }
-        return CompletableFuture.supplyAsync(context.wrap(() ->
-                        Objects.requireNonNull(
-                                retry.resolver().resolve(
-                                        new ModelConflictResolver.Context(
-                                                result, attempts, retry.maxAttempts())),
-                                "Model conflict resolver returned null")), ASYNC_EXECUTOR)
-                .thenCompose(resolution ->
-                        resolution == ModelConflictResolver.Resolution.RETRY
-                        && result.isRetryAllowed()
-                        && attempts < retry.maxAttempts()
-                                ? COMPLETED_VOID
-                                : CompletableFuture.failedFuture(
-                                        new ModelCommitConflictException(result)));
+        // Use the same execution mode as reevaluation: a local synchronous commit must not return
+        // before its retry decision, while transport callbacks must keep user code off their thread.
+        return invoke(context, () -> {
+            ModelConflictResolver.Resolution resolution = Objects.requireNonNull(
+                    retry.resolver().resolve(new ModelConflictResolver.Context(result, attempts, retry.maxAttempts())),
+                    "Model conflict resolver returned null");
+            return resolution == ModelConflictResolver.Resolution.RETRY
+                   && result.isRetryAllowed()
+                   && attempts < retry.maxAttempts()
+                    ? COMPLETED_VOID
+                    : CompletableFuture.failedFuture(new ModelCommitConflictException(result));
+        }, "Model conflict decision returned null", asynchronous);
     }
 
     private static <T> CompletableFuture<T> invokeAsync(

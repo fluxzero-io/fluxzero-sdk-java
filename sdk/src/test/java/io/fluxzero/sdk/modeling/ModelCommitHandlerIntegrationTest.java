@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,6 +66,7 @@ import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -73,6 +75,49 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class ModelCommitHandlerIntegrationTest {
+
+    @Test
+    @Timeout(10)
+    void synchronousFixtureCompletesModelConflictRetryBeforeCheckingResults() {
+        Thread caller = Thread.currentThread();
+        AtomicInteger conflicts = new AtomicInteger();
+        TestFixture fixture = TestFixture.create(DefaultFluxzero.builder().configureModelConflictHandling(
+                io.fluxzero.common.api.modeling.ModelConflictPolicy.DEFAULT, context -> {
+                    assertSame(caller, Thread.currentThread(), "synchronous fixture must not race retry completion");
+                    conflicts.incrementAndGet();
+                    return ModelConflictResolver.retryIfAllowed().resolve(context);
+                }, 3));
+        fixture.givenCommands(new CreateAncestorCustomer("customer-before", "before"),
+                              new CreateAncestorCustomer("customer-after", "after"),
+                              new SetAncestorOrder("selection-order", "customer-before"),
+                              new CreateAncestorReport("selection-report"));
+        UpdateAncestorReport.assertions.set(0);
+        UpdateAncestorReport.applies.set(0);
+        UpdateAncestorReport.beforeApply.set(() -> {
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                executor.submit(() -> fixture.getFluxzero().apply(fluxzero -> {
+                    Fluxzero.assertAndApply(new SetAncestorOrder("selection-order", "customer-after"));
+                    return null;
+                })).get();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        try {
+            fixture.whenCommand(new UpdateAncestorReport("selection-report", "selection-order"))
+                    .expectSuccessfulResult()
+                    .expectNoErrors()
+                    .expectThat(fluxzero -> {
+                        assertEquals(1, conflicts.get());
+                        assertEquals(2, UpdateAncestorReport.assertions.get());
+                        assertEquals(2, UpdateAncestorReport.applies.get());
+                        assertEquals("after", fluxzero.modelRepository()
+                                .load("selection-report", AncestorReport.class).get().customerName());
+                    });
+        } finally {
+            UpdateAncestorReport.beforeApply.set(null);
+        }
+    }
 
     @Test
     @Timeout(10)
@@ -1492,6 +1537,8 @@ class ModelCommitHandlerIntegrationTest {
                         new CreatePathlessFamilyChild(pathlessId, rootId),
                         new CreateRetainedFamilyChild(retainedId, rootId))
                 .whenCommand(new DeleteFamilyRoot(rootId))
+                .expectSuccessfulResult()
+                .expectNoErrors()
                 .expectThat(fluxzero -> {
                     ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
                             fluxzero.modelRepository()).invalidateModels(List.of(
