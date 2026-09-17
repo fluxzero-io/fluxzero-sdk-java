@@ -638,7 +638,7 @@ class JdkWebsocketConnectorTest {
                                    session, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                                    Duration.ofSeconds(5)),
                            () -> "Ingress did not stop at its retained bound: " + session.runtimeDataState());
-                assertTrue(awaitAdmittedMessages(
+                assertTrue(awaitBlockedCompletionAdmission(
                                    session, BlockingBurstResultCompletionClient.TEST_COMPLETION_CONCURRENCY,
                                    Duration.ofSeconds(5)),
                            () -> "Completion admission did not settle at its configured bound: "
@@ -698,16 +698,22 @@ class JdkWebsocketConnectorTest {
         return true;
     }
 
-    private static boolean awaitAdmittedMessages(
+    private static boolean awaitBlockedCompletionAdmission(
             JdkWebSocketSession session, int expected, Duration timeout) throws InterruptedException {
         long deadline = System.nanoTime() + timeout.toNanos();
-        while (session.runtimeDataState().admittedMessages() != expected) {
+        while (true) {
+            JdkWebSocketSession.RuntimeDataState state = session.runtimeDataState();
+            // Admission can fill before the replacement dispatch worker starts. Both are required
+            // for the stable blocked snapshot asserted by the caller.
+            if (state.admittedMessages() == expected
+                && state.activeMessages() == JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES) {
+                return true;
+            }
             if (System.nanoTime() >= deadline) {
                 return false;
             }
             TimeUnit.MILLISECONDS.sleep(1);
         }
-        return true;
     }
 
     private static boolean awaitProcessedBatch(Semaphore processedPermits, int messagesInBatch,

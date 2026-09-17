@@ -22,6 +22,7 @@ import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.modeling.ModelCommitConflictException;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.modeling.Parent;
@@ -40,6 +41,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.UUID;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -60,6 +62,49 @@ class ModelAssertionConflictTest {
 
     @AfterAll
     static void stop() throws Exception { server.stop(); }
+
+    @ParameterizedTest
+    @CsvSource({"RETRY", "ACCEPT"})
+    void openMemberReadsAreProtectedAndReplayedOverWebSocket(String policy) {
+        String namespace = "open-members-" + UUID.randomUUID();
+        GateClient client = new GateClient(config(namespace, "reader"));
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.valueOf(policy),
+                        ModelConflictResolver.retryIfAllowed(), 3).build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                     .build(WebSocketClient.newInstance(config(namespace, "writer")))) {
+            execute(writer, new SetProduct("product", true), false);
+            execute(writer, new CreateOwner("owner"), false);
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("owner") && once.compareAndSet(false, true)) {
+                    assertTrue(request.getReadModelIds().contains("product"));
+                    execute(writer, new SetProduct("product", false), false);
+                }
+            };
+            app.apply(fc -> {
+                Fluxzero.loadGraph("owner", Owner.class).assertAndApply(new ObserveProduct("item", "product"));
+                return null;
+            });
+            assertTrue(once.get());
+            // A separate client reconstructs the root and its late dependency from stored history.
+            Owner result = writer.apply(fc -> Fluxzero.loadCurrentGraph("owner", Owner.class).get());
+            assertEquals(2, ((ConcreteItem) result.items().getFirst()).observation());
+        }
+    }
+
+    @Model record Owner(@EntityId String id, @Member List<Item> items) {}
+    @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.CLASS)
+    interface Item { @EntityId String itemId(); }
+    record ConcreteItem(String itemId, int observation) implements Item {
+        @Apply ConcreteItem apply(ObserveProduct update, Graph<Product> product) {
+            return new ConcreteItem(itemId, product.get().active() ? 1 : 2);
+        }
+    }
+    record ObserveProduct(String itemId, String productId) {}
+    record CreateOwner(String id) {
+        @Apply Owner create() { return new Owner(id, List.of(new ConcreteItem("item", 0))); }
+    }
 
     @ParameterizedTest
     @CsvSource({"DEFAULT,false,false", "DEFAULT,true,false", "RETRY,false,false", "RETRY,true,false",

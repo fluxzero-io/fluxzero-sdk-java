@@ -21,6 +21,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 
@@ -70,6 +71,10 @@ public final class ModelReducer {
     private final List<MutationPlan.Assertion> afterPayloadAssertions, afterModelAssertions;
     private final boolean recursiveAssertions;
     private final boolean requiresStorageBoundary;
+    private final List<EmbeddedModelPlan> embedded;
+    private final boolean dynamicMembers;
+    private final boolean memberDependencies;
+    private final Map<Class<?>, List<MutationPlan.CompiledHandler>> memberInterceptors;
 
     ModelReducer(
             MutationPlan.HandlerPlan handlers,
@@ -82,6 +87,24 @@ public final class ModelReducer {
             MutationPlan.DirectSingleTargetApply directApply,
             List<MutationPlan.AssertionField> fields,
             MutationPlan.Compiler compiler) {
+        this(handlers, directApply, fields, compiler, List.of());
+    }
+
+    ModelReducer(
+            MutationPlan.HandlerPlan handlers,
+            MutationPlan.DirectSingleTargetApply directApply,
+            List<MutationPlan.AssertionField> fields,
+            MutationPlan.Compiler compiler, List<EmbeddedModelPlan> embedded) {
+        this.embedded = embedded;
+        this.dynamicMembers = embedded.stream().anyMatch(EmbeddedModelPlan::dynamic);
+        this.memberDependencies = embedded.stream().anyMatch(EmbeddedModelPlan::lateDependencies);
+        Map<Class<?>, List<MutationPlan.CompiledHandler>> memberInterceptors = new LinkedHashMap<>();
+        for (EmbeddedModelPlan plan : embedded) {
+            List<EntityMetadata.HandlerMethod> methods = plan.methods().stream()
+                    .filter(method -> method.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY).toList();
+            if (!methods.isEmpty()) { memberInterceptors.put(plan.rootType(), compiler.compileHandlers(methods).all()); }
+        }
+        this.memberInterceptors = Map.copyOf(memberInterceptors);
         this.handlers = Objects.requireNonNull(handlers, "handlers");
         this.directApply = directApply;
         this.directHandler = directApply == null ? null : handlers.singleApply();
@@ -94,20 +117,24 @@ public final class ModelReducer {
         this.beforeModelAssertions = MutationPlan.assertions(handlers.model().beforeAssertions(), modelFields, false);
         this.afterPayloadAssertions = MutationPlan.assertions(handlers.payload().afterAssertions(), payloadFields, true);
         this.afterModelAssertions = MutationPlan.assertions(handlers.model().afterAssertions(), modelFields, true);
-        this.afterAssertions = !afterPayloadAssertions.isEmpty() || !afterModelAssertions.isEmpty();
-        this.recursiveAssertions = !fields.isEmpty() || handlers.all().stream().anyMatch(handler ->
+        this.afterAssertions = !embedded.isEmpty() || !afterPayloadAssertions.isEmpty() || !afterModelAssertions.isEmpty();
+        this.recursiveAssertions = embedded.stream().anyMatch(EmbeddedModelPlan::requiresStorageBoundary)
+                || !fields.isEmpty() || handlers.all().stream().anyMatch(handler ->
                 handler.method().kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL
                 && handler.method().executable() instanceof Method method && method.getReturnType() != void.class);
         // Nested validation and interceptor replacements can introduce Graph dependencies only at execution time.
-        this.requiresStorageBoundary = recursiveAssertions || handlers.all().stream().anyMatch(handler ->
+        this.requiresStorageBoundary = embedded.stream().anyMatch(EmbeddedModelPlan::requiresStorageBoundary)
+                || recursiveAssertions || handlers.all().stream().anyMatch(handler ->
                 handler.method().kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
                 || handler.method().modelParameters().stream().anyMatch(EntityMetadata.ModelParameter::graphWrapped));
     }
 
     boolean empty() {
-        return handlers.all().isEmpty() && beforePayloadAssertions.isEmpty() && beforeModelAssertions.isEmpty()
+        return embedded.isEmpty() && handlers.all().isEmpty() && beforePayloadAssertions.isEmpty() && beforeModelAssertions.isEmpty()
                && !afterAssertions;
     }
+
+    boolean requiresMemberDependencies() { return memberDependencies; }
 
     boolean direct() {
         return directApply != null;
@@ -118,13 +145,14 @@ public final class ModelReducer {
     }
 
     List<EntityMetadata.HandlerMethod> methods() {
-        return handlers.methods();
+        return embedded.isEmpty() ? handlers.methods() : java.util.stream.Stream.concat(handlers.methods().stream(),
+                embedded.stream().flatMap(plan -> plan.methods().stream())).toList();
     }
 
     Object intercept(
             DeserializingMessage message,
             CommitAttempt context,
-            InterceptionPhase phase) {
+            InterceptionPhase phase, DependencyLoader loader) {
         HandlerInvoker applicable = null;
         List<MutationPlan.CompiledHandler> interceptors = switch (phase) {
             case PAYLOAD -> handlers.payload().interceptors();
@@ -148,12 +176,57 @@ public final class ModelReducer {
             }
             applicable = candidate;
         }
+        if (applicable == null && phase == InterceptionPhase.MODEL && (!memberInterceptors.isEmpty() || dynamicMembers)) {
+            Class<?> explicit = message.getContext(ModelPipeline.ExplicitModelTarget.class)
+                    .map(ModelPipeline.ExplicitModelTarget::modelType).orElse(null);
+            for (EmbeddedModelPlan plan : embedded) {
+                if (explicit != null && !EntityMetadata.compatibleTypes(plan.rootType(), explicit)) { continue; }
+                Entity<?> root = context.resolve(plan.rootType(), null);
+                if (root == null || root.isEmpty()) { continue; }
+                HandlerInvoker candidate = memberInterceptor(root, message,
+                        memberInterceptors.getOrDefault(plan.rootType(), List.of()), plan.lateDependencies(), context, loader, 0);
+                if (candidate != null) {
+                    if (applicable != null) {
+                        throw new IllegalStateException("Multiple Model owners selected @Member @InterceptApply methods for "
+                                                        + message.getPayloadClass().getName());
+                    }
+                    applicable = candidate;
+                }
+            }
+        }
         if (applicable == null) {
             return NO_INTERCEPTION;
         }
         HandlerInvoker selected = applicable;
         Object output = message.apply(ignored -> CommitAttempt.withGraphReads(context, selected::invoke));
         return output == null ? SUPPRESSED : output;
+    }
+
+    private HandlerInvoker memberInterceptor(Entity<?> owner, DeserializingMessage message,
+                                              List<MutationPlan.CompiledHandler> interceptors, boolean dynamic,
+                                              CommitAttempt context, DependencyLoader loader, int depth) {
+        if (depth >= 256) { throw new IllegalStateException("Model member nesting exceeds 256 levels"); }
+        for (Entity<?> member : owner.possibleTargets(message.getPayload())) {
+            var memberMessage = new EmbeddedModelPlan.MemberMessage(message, member);
+            List<MutationPlan.CompiledHandler> candidates = !dynamic ? interceptors : compiler.memberInterceptors(member.type());
+            CommitAttempt loaded = dynamic && !candidates.isEmpty()
+                    ? memberContext(member, memberMessage, context, EntityMetadata.HandlerKind.INTERCEPT_APPLY, loader)
+                    : context;
+            loaded.attachTo(memberMessage);
+            for (MutationPlan.CompiledHandler interceptor : candidates) {
+                if (!interceptor.method().executable().getDeclaringClass().isAssignableFrom(member.type())) { continue; }
+                HandlerInvoker invoker = interceptor.matcher().getInvokerOrNull(member.get(), memberMessage);
+                if (invoker != null) {
+                    return HandlerInvoker.call(() -> memberMessage.apply(ignored ->
+                            CommitAttempt.withGraphReads(loaded, invoker::invoke)));
+                }
+            }
+            if (member.isPresent()) {
+                HandlerInvoker nested = memberInterceptor(member, message, interceptors, dynamic, context, loader, depth + 1);
+                if (nested != null) { return nested; }
+            }
+        }
+        return null;
     }
 
     boolean intercepted(Object result) {
@@ -178,7 +251,7 @@ public final class ModelReducer {
             boolean applyHandlers,
             boolean assertions,
             Set<String> applyReads,
-            AssertionLoader assertionLoader) {
+            DependencyLoader assertionLoader) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
         if (directApply != null && applyHandlers) {
@@ -230,10 +303,11 @@ public final class ModelReducer {
             boolean applyHandlers,
             boolean assertions,
             Set<String> applyReads,
-            AssertionLoader assertionLoader) {
+            DependencyLoader assertionLoader) {
         if (assertions) {
             assertAll(beforePayloadAssertions, message, beginState, false, assertionLoader);
             assertAll(beforeModelAssertions, message, beginState, false, assertionLoader);
+            assertEmbedded(message, beginState, false, assertionLoader);
         }
         if (!applyHandlers) {
             return List.of();
@@ -242,6 +316,12 @@ public final class ModelReducer {
         List<IncompatibleApply> mismatches = new ArrayList<>();
         Map<String, AppliedValue> payloadValues = applyPhase(
                 handlers.payload().applies(), message, beginState, null, applyReads, mismatches);
+        if (!embedded.isEmpty()) {
+            Map<String, AppliedValue> embeddedValues = applyEmbedded(message,
+                    payloadValues == null ? beginState : withValues(beginState, payloadValues), beginState, applyReads,
+                    assertionLoader);
+            payloadValues = compose(payloadValues, embeddedValues);
+        }
         Map<String, AppliedValue> modelValues = null;
         if (!handlers.model().applies().isEmpty()) {
             CommitAttempt modelState = payloadValues == null
@@ -273,9 +353,95 @@ public final class ModelReducer {
             finalValues = composed;
         }
         List<Change> transitions = finalValues.values().stream()
-                .map(value -> transition(value, resultTarget(value.handler().method(), beginState, value.modelId())))
+                .map(value -> transition(value, value.handler() == null
+                        ? beginState.entity(value.modelId())
+                        : resultTarget(value.handler().method(), beginState, value.modelId())))
                 .toList();
         return finishApply(message, beginState, transitions, assertions, assertionLoader);
+    }
+
+    private static Map<String, AppliedValue> compose(Map<String, AppliedValue> first, Map<String, AppliedValue> second) {
+        if (first == null) { return second; }
+        if (second == null) { return first; }
+        Map<String, AppliedValue> result = new LinkedHashMap<>(first);
+        second.forEach((id, value) -> result.merge(id, value, AppliedValue::then));
+        return result;
+    }
+
+    private Map<String, AppliedValue> applyEmbedded(DeserializingMessage message, CommitAttempt context, CommitAttempt before,
+                                                   Set<String> applyReads, DependencyLoader loader) {
+        if (embedded.isEmpty()) { return null; }
+        Map<String, AppliedValue> result = new LinkedHashMap<>();
+        Set<String> previous = context.collectReads(applyReads);
+        try {
+            return CommitAttempt.withGraphReads(context, () -> {
+                Class<?> explicit = message.getContext(ModelPipeline.ExplicitModelTarget.class)
+                        .map(ModelPipeline.ExplicitModelTarget::modelType).orElse(null);
+                for (EmbeddedModelPlan plan : embedded) {
+                    if (!plan.writes() || explicit != null && !EntityMetadata.compatibleTypes(plan.rootType(), explicit)) {
+                        continue;
+                    }
+                    Entity<?> root = context.resolve(plan.rootType(), null);
+                    if (root == null) { continue; }
+                    if (root.isEmpty()) {
+                        Entity<?> original = before.entity(root.id().toString());
+                        if (original != null && original.isPresent()) { continue; } // Payload deleted the root.
+                        if (!Entity.isLoading()) { throw Entity.NOT_FOUND_EXCEPTION; }
+                        continue;
+                    }
+                    List<HandlerInvoker> invoked = new ArrayList<>();
+                    boolean automatic = plan.dynamic() && message.getContext(ModelPipeline.AutomaticExecution.class).isPresent();
+                    ImmutableEntity<?> after = !plan.lateDependencies()
+                            ? ((ImmutableEntity<?>) root).applyMembers(message, invoked::add)
+                            : ((ImmutableEntity<?>) root).applyMembers(message, invoker -> {
+                        if (automatic && io.fluxzero.common.reflection.ReflectionUtils
+                                .getAnnotation(invoker.getMethod(), Apply.class)
+                                .map(apply -> apply.automaticHandling() == AutomaticModelHandling.DISABLED).orElse(false)) {
+                            throw new IllegalStateException("Embedded @Apply requires explicit handling: " + invoker.getMethod());
+                        }
+                        invoked.add(invoker);
+                    },
+                            (member, operation) -> {
+                                CommitAttempt loaded = memberContext(member, message, context,
+                                        EntityMetadata.HandlerKind.APPLY, loader);
+                                Set<String> prior = loaded.collectReads(applyReads);
+                                try {
+                                    loaded.attachTo(message);
+                                    return CommitAttempt.withGraphReads(loaded, operation);
+                                } finally {
+                                    loaded.collectReads(prior);
+                                    context.attachTo(message);
+                                }
+                            });
+                    if (invoked.isEmpty()) { continue; }
+                    MutationPlan.EffectOverrides effects = MutationPlan.EffectOverrides.of(null);
+                    for (HandlerInvoker invoker : invoked) {
+                        effects = effects.then(MutationPlan.EffectOverrides.of(invoker.getMethod()));
+                    }
+                    result.put(root.id().toString(), new AppliedValue(root.id().toString(), root.type(),
+                            after.get(), null, effects));
+                }
+                return result.isEmpty() ? null : result;
+            });
+        } finally { context.collectReads(previous); }
+    }
+
+    private CommitAttempt memberContext(Entity<?> member, DeserializingMessage message, CommitAttempt context,
+                                         EntityMetadata.HandlerKind kind, DependencyLoader loader) {
+        CommitAttempt result = context;
+        MutationPlan.AssertionScope scope = new MutationPlan.AssertionScope(message, null);
+        if (member.isPresent()) {
+            scope = new MutationPlan.AssertionScope(message.withPayload(member.get()), scope);
+        }
+        for (EntityMetadata.HandlerMethod method : EntityMetadata.of(member.type()).handlerMethods()) {
+            if (method.kind() != kind || method.modelParameters().isEmpty()
+                || !compiler.selectsMember(method, new EmbeddedModelPlan.MemberMessage(message, member))) { continue; }
+            if (loader == null) {
+                throw new IllegalStateException("No dependency loader for embedded handler " + method.executable());
+            }
+            result = loader.load(message, scope, EntityMetadata.modelParameters(method.executable()), result);
+        }
+        return result;
     }
 
     private Map<String, AppliedValue> applyPhase(
@@ -430,7 +596,7 @@ public final class ModelReducer {
             CommitAttempt beginState,
             List<Change> transitions,
             boolean assertions,
-            AssertionLoader assertionLoader) {
+            DependencyLoader assertionLoader) {
         if (assertions && afterAssertions) {
             Map<String, Object> values = new LinkedHashMap<>(transitions.size());
             transitions.forEach(transition -> values.put(
@@ -438,8 +604,53 @@ public final class ModelReducer {
             CommitAttempt resultingState = beginState.withValues(values);
             assertAll(afterPayloadAssertions, message, resultingState, true, assertionLoader);
             assertAll(afterModelAssertions, message, resultingState, true, assertionLoader);
+            assertEmbedded(message, resultingState, true, assertionLoader);
         }
         return transitions;
+    }
+
+    private void assertEmbedded(DeserializingMessage message, CommitAttempt context,
+                                boolean after, DependencyLoader loader) {
+        if (embedded.isEmpty()) { return; }
+        CommitAttempt.withGraphReads(context, () -> {
+            IdentityHashMap<Object, Boolean> visited = new IdentityHashMap<>();
+            for (EmbeddedModelPlan plan : embedded) {
+                Entity<?> root = context.resolve(plan.rootType(), null);
+                if (root != null && root.isPresent()) {
+                    assertMembers(root, message, context, after, loader, visited, 0);
+                }
+            }
+            return null;
+        });
+    }
+
+    private void assertMembers(Entity<?> owner, DeserializingMessage message, CommitAttempt context,
+                               boolean after, DependencyLoader loader, IdentityHashMap<Object, Boolean> visited, int depth) {
+        if (depth >= 256) { throw new IllegalStateException("Model member nesting exceeds 256 levels"); }
+        for (Entity<?> member : owner.possibleTargets(message.getPayload())) {
+            var memberMessage = new EmbeddedModelPlan.MemberMessage(message, member);
+            memberMessage.apply(ignored -> {
+                for (MutationPlan.Assertion assertion : after ? afterPayloadAssertions : beforePayloadAssertions) {
+                    if (assertion.handler() == null) { continue; }
+                    // Ordinary payload assertions have already run. Only resolve checks that need this member context.
+                    if (assertion.handler().matcher().getInvokerOrNull(message.getPayload(), message) != null) { continue; }
+                    HandlerInvoker invoker = assertion.handler().matcher().getInvokerOrNull(message.getPayload(), memberMessage);
+                    if (invoker != null) {
+                        Object result = invoker.invoke();
+                        assertResult(result, memberMessage, context, after, visited, 0, loader,
+                                new MutationPlan.AssertionScope(message, null));
+                    }
+                }
+                var scope = new MutationPlan.AssertionScope(message, null);
+                if (member.isEmpty()) {
+                    assertTypedResult(null, member.type(), memberMessage, context, after, visited, 0, loader, scope);
+                } else {
+                    assertResult(member.get(), memberMessage, context, after, visited, 0, loader, scope);
+                }
+                return null;
+            });
+            if (member.isPresent()) { assertMembers(member, message, context, after, loader, visited, depth + 1); }
+        }
     }
 
     private void assertAll(
@@ -447,7 +658,7 @@ public final class ModelReducer {
             DeserializingMessage message,
             CommitAttempt context,
             boolean after,
-            AssertionLoader assertionLoader) {
+            DependencyLoader assertionLoader) {
         if (!assertions.isEmpty()) {
             CommitAttempt.withGraphReads(context, () -> {
                 assertAllInContext(assertions, message, context, after, assertionLoader);
@@ -458,7 +669,7 @@ public final class ModelReducer {
 
     private void assertAllInContext(
             List<MutationPlan.Assertion> assertions, DeserializingMessage message, CommitAttempt context,
-            boolean after, AssertionLoader assertionLoader) {
+            boolean after, DependencyLoader assertionLoader) {
         IdentityHashMap<Object, Boolean> visited = null;
         for (int i = 0; i < assertions.size(); i++) {
             MutationPlan.Assertion assertion = assertions.get(i);
@@ -495,7 +706,7 @@ public final class ModelReducer {
     }
 
     private void assertResult(Object value, DeserializingMessage message, CommitAttempt context, boolean after,
-                              IdentityHashMap<Object, Boolean> visited, int depth, AssertionLoader assertionLoader,
+                              IdentityHashMap<Object, Boolean> visited, int depth, DependencyLoader assertionLoader,
                               MutationPlan.AssertionScope parentScope) {
         if (value == null || visited.put(value, Boolean.TRUE) != null) {
             return;
@@ -509,8 +720,15 @@ public final class ModelReducer {
             }
             return;
         }
-        MutationPlan.AssertionPlan plan = compiler.assertions(value.getClass());
-        MutationPlan.AssertionScope scope = new MutationPlan.AssertionScope(message.withPayload(value), parentScope);
+        assertTypedResult(value, value.getClass(), message, context, after, visited, depth, assertionLoader, parentScope);
+    }
+
+    private void assertTypedResult(Object value, Class<?> type, DeserializingMessage message, CommitAttempt context,
+                                   boolean after, IdentityHashMap<Object, Boolean> visited, int depth,
+                                   DependencyLoader assertionLoader, MutationPlan.AssertionScope parentScope) {
+        MutationPlan.AssertionPlan plan = compiler.assertions(type);
+        MutationPlan.AssertionScope scope = value == null ? parentScope
+                : new MutationPlan.AssertionScope(message.withPayload(value), parentScope);
         for (MutationPlan.Assertion assertion : after ? plan.after() : plan.before()) {
             Object result;
             CommitAttempt assertionContext = context;
@@ -532,7 +750,7 @@ public final class ModelReducer {
                     result = CommitAttempt.withGraphReads(assertionContext, invoker::invoke);
                 } else {
                     context.attachTo(message);
-                    result = assertion.field().property().read(value);
+                    result = value == null ? null : assertion.field().property().read(value);
                 }
                 CommitAttempt resultContext = assertionContext;
                 Object assertionResult = result;
@@ -550,9 +768,14 @@ public final class ModelReducer {
             DeserializingMessage event,
             CommitAttempt context,
             String targetModelId) {
+        return replay(event, context, targetModelId, null);
+    }
+
+    private Object replay(DeserializingMessage event, CommitAttempt context,
+                          String targetModelId, DependencyLoader loader) {
         Objects.requireNonNull(targetModelId, "targetModelId");
         List<Change> transitions = apply(
-                event, context, true, false);
+                event, context, true, false, null, loader);
         Change selected = null;
         for (Change transition : transitions) {
             if (!targetModelId.equals(transition.modelId())) {
@@ -565,6 +788,12 @@ public final class ModelReducer {
             selected = transition;
         }
         if (selected == null) {
+            Entity<?> target = context.entity(targetModelId);
+            if (dynamicMembers && handlers.payload().applies().isEmpty() && handlers.model().applies().isEmpty()
+                && target != null && EntityMetadata.of(target.type()).rootConfiguration().orElseThrow()
+                        .ignoreUnknownEvents()) {
+                return target.get();
+            }
             throw new IllegalStateException(
                     "Stored model event produced no transition for " + targetModelId);
         }
@@ -750,6 +979,12 @@ public final class ModelReducer {
     private static Change transition(
             AppliedValue applied,
             Entity<?> target) {
+        if (applied.handler() == null) {
+            return Change.applied(applied.modelId(), applied.modelType(),
+                    target instanceof ModelRoot<?> root ? root.sequenceNumber() : -1L,
+                    target == null ? null : target.lastEventIndex(), target == null ? null : target.get(),
+                    applied.value(), null, null, false, applied.effect());
+        }
         return transition(
                 applied.handler(), applied.modelId(), applied.modelType(),
                 target, applied.value(), applied.effect());
@@ -1028,11 +1263,27 @@ public final class ModelReducer {
                     if (!pending.isEmpty()) { context.retainWriteOrigins(List.of(change)); }
                     continue;
                 }
+                DependencyLoader assertionLoader = resolved.reducer().memberDependencies
+                                                   || mode.assertions && resolved.reducer().recursiveAssertions
+                        ? (message, guard, parameters, assertionContext) -> {
+                            CommitAttempt loaded = resolver.resolveAssertion(
+                                    message, guard, parameters, assertionContext, stagedValues);
+                            if (parent == null) { loaded.bindGraphReads(attempt); }
+                            else { loaded.joinReads(parent); }
+                            if (loaded.readStateIndex() != assertionContext.readStateIndex()) {
+                                throw new IllegalStateException("Nested handler changed the pinned model read boundary");
+                            }
+                            loaded.targets().forEach(target -> {
+                                readModelIds.add(target.modelId());
+                                readModelTypes.putIfAbsent(target.modelId(), target.modelType());
+                            });
+                            return loaded;
+                        } : null;
                 InterceptionPhase interceptionPhase =
                         current.interceptionPhase();
                 while (interceptionPhase != InterceptionPhase.NONE) {
                     Object interception = resolved.reducer().intercept(
-                            current.message(), context, interceptionPhase);
+                            current.message(), context, interceptionPhase, assertionLoader);
                     if (resolved.reducer().intercepted(interception)) {
                         DeserializingMessage source = current.message();
                         Object output = resolved.reducer().interceptionOutput(interception);
@@ -1052,21 +1303,6 @@ public final class ModelReducer {
                     interceptionPhase = interceptionPhase.next();
                 }
 
-                AssertionLoader assertionLoader = mode.assertions && resolved.reducer().recursiveAssertions
-                        ? (message, guard, parameters, assertionContext) -> {
-                            CommitAttempt loaded = resolver.resolveAssertion(
-                                    message, guard, parameters, assertionContext, stagedValues);
-                            if (parent == null) { loaded.bindGraphReads(attempt); }
-                            else { loaded.joinReads(parent); }
-                            if (loaded.readStateIndex() != assertionContext.readStateIndex()) {
-                                throw new IllegalStateException("Nested assertion changed the pinned model read boundary");
-                            }
-                            loaded.targets().forEach(target -> {
-                                readModelIds.add(target.modelId());
-                                readModelTypes.putIfAbsent(target.modelId(), target.modelType());
-                            });
-                            return loaded;
-                        } : null;
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
                         applyReadModelIds, assertionLoader);
@@ -1247,7 +1483,7 @@ public final class ModelReducer {
     }
 
     @FunctionalInterface
-    private interface AssertionLoader {
+    private interface DependencyLoader {
         CommitAttempt load(DeserializingMessage message, MutationPlan.AssertionScope scope,
                            EntityMetadata.ExecutableParameters parameters,
                            CommitAttempt context);
@@ -1306,6 +1542,15 @@ public final class ModelReducer {
             CommitAttempt context,
             String targetModelId) {
         return plan.reducer().replay(event, context, targetModelId);
+    }
+
+    /** Replays with late-bound embedded dependencies at the stored event's historical boundary. */
+    public static Object replay(
+            MutationPlan plan, DeserializingMessage event, CommitAttempt context, String targetModelId,
+            java.util.function.BiFunction<MutationPlan.Resolution, CommitAttempt, CommitAttempt> dependencies) {
+        return plan.reducer().replay(event, context, targetModelId,
+                (message, scope, parameters, current) -> dependencies.apply(
+                        MutationPlan.bind(message, parameters, scope, current), current));
     }
 
     private record PendingSubstep(

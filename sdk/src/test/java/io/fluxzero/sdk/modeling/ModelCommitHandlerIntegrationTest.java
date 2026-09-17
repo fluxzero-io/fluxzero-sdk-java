@@ -1576,6 +1576,35 @@ class ModelCommitHandlerIntegrationTest {
                 });
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void hardDeletionIncludesGrandchildrenAfterLogicalCascade(boolean async) {
+        var root = new FamilyRootId("erasure");
+        var child = new FamilyChildId("erasure-child");
+        var other = new FamilyChildId("erasure-other");
+        var grandchild = new FamilyGrandchildId("erasure-grandchild");
+        var ids = List.of(root.toString(), child.toString(), other.toString(), grandchild.toString());
+        var fixture = TestFixture.create();
+        (async ? fixture.async() : fixture)
+                .givenCommands(new CreateFamilyRoot(root, "root"),
+                               new CreateFamilyChild(child, root, "child"),
+                               new CreateFamilyChild(other, root, "other"),
+                               new CreateFamilyGrandchild(grandchild, child, other))
+                .whenCommand(new DeleteFamilyRoot(root))
+                .expectSuccessfulResult().expectNoErrors()
+                .andThen().whenExecuting(fc -> {
+                    ids.forEach(id -> {
+                        assertTrue(fc.modelRepository().load(id).isEmpty());
+                        assertFalse(fc.eventStore().getEvents(id).toList().isEmpty());
+                    });
+                    var plan = fc.modelRepository().planDeletion(root,
+                            io.fluxzero.common.api.modeling.ModelDeletionCascade.DESCENDANTS);
+                    assertEquals(Set.copyOf(ids), Set.copyOf(plan.getSampleModelIds()));
+                    assertEquals(4, fc.modelRepository().deleteModel(plan).join().getDeletedModelCount());
+                    ids.forEach(id -> assertTrue(fc.eventStore().getEvents(id).toList().isEmpty()));
+                }).expectSuccessfulResult().expectNoErrors();
+    }
+
     @Test
     void parentDeletionCascadesToDocumentModels() {
         FamilyRootId rootId = new FamilyRootId("document-cascade");

@@ -384,12 +384,13 @@ final class ModelCacheTracker implements AutoCloseable {
             entry = expectedEntry == null ? entries.get(modelId) : expectedEntry;
             CompletableFuture<Void> page = processingPage;
             if (page != null && !page.isDone()
-                && !(localCommit && entry != null && entry.loaded && !entry.retired
+                && !(localCommit && entry != null && !entry.retired
                      && entry.pendingLocalCommits.get() > 0
                      && readStateIndex >= entry.latestUpdate && readStateIndex >= entry.latestLocalCommit)) {
-                // New entries may have missed an earlier target in this page. Only an already loaded entry's
-                // authoritative local commit can advance here: visited newer updates remain fenced below, and
-                // unvisited updates will still reach that same entry before the page publishes its cursor.
+                // New entries may have missed an earlier target in this page. An existing local-commit
+                // placeholder also has complete coverage: beginLocalCommit pins its admission floor to the
+                // active page boundary. Visited newer updates remain fenced below, and unvisited updates
+                // still reach that same entry before the page publishes its cursor.
                 return null;
             }
             if (entry == null) {

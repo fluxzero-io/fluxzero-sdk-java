@@ -57,6 +57,19 @@ import java.lang.annotation.Target;
  * targeting {@code InvoiceLine} values are routed by matching the identifier declared inside that class.
  *
  * <h2>Support for new entities</h2>
+ * <p>For independently stored Models, address the owning Model using a typed command ID or
+ * {@code Fluxzero.loadGraph(ownerId).assertAndApply(update)}. A member ID alone does not select its root.
+ * Payload-root applies run first, embedded member applies next, and root-model applies last. The composed state
+ * commits to the root stream; members do not acquire separate event memberships. Before/after assertions on members
+ * and payload assertions requiring a member participate in the same operation, including their Model read dependencies.
+ * Replay executes the same member applies without re-running assertions.</p>
+ * <p>Model planning discovers handlers on the declared member type and its sealed permitted subtypes.
+ * Explicitly addressed owners also support subtype-only handlers in open hierarchies, selected from the loaded
+ * member value. Their dependencies share the commit boundary and use historical values during replay.
+ * Automatic command subscriptions still need a discoverable handler contract; the SDK does not scan for arbitrary
+ * implementations of an open member interface.
+ * Corrected member replay also applies to existing RC events; snapshots produced with previously skipped member
+ * handlers must not be treated as equivalent to a fresh reconstruction of that history.</p>
  * <p>
  * If no matching entity is found for a given update, Fluxzero will still evaluate the update against applicable
  * {@code @Apply} and {@code @AssertLegal} methods. This allows new entity creation directly from the update payload

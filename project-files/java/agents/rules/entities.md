@@ -502,6 +502,25 @@ retention and deletion all belong to the root. If any of those concerns can dive
 `@Parent`. A list-shaped field, frequent updates, or convenient whole-document storage is never sufficient reason to
 use `@Member`.
 
+Member updates still address the owning Model: include its typed ID in a command or select it explicitly with
+`Fluxzero.loadGraph(ownerId).assertAndApply(update)`. A member ID alone does not identify a Model stream.
+Matching member `@Apply` methods update the immutable owner (including lists, maps and singletons); records use their
+constructor, Kotlin data classes their copy operation, or a configured member wither. Payload-root changes run first,
+then embedded member changes, then the root's Model apply. Each runs once and the composed result has one root event
+membership, not a separate member stream. Member and member-dependent payload assertions participate in the root
+operation before/after application, including their Model/Graph read dependencies. Replay reconstructs the same
+member changes without re-running assertions.
+
+Handlers on concrete subtypes of an open member hierarchy also work when the owning Model is addressed.
+Use `loadGraph(ownerId).assertAndApply(update)`, or `Fluxzero.assertAndApply(update)` with a typed owner ID.
+The loaded member determines its handlers and Model/Graph dependencies, including after payload-root changes.
+Those dependencies use the same commit boundary; replay loads their historical values.
+Automatic command subscriptions still require a discoverable payload/declared/sealed handler contract: registering
+an owner does not scan the classpath for arbitrary implementations of an open member interface.
+The corrected member replay also applies to existing RC event history. Previously produced snapshots may retain
+the old, incomplete state: reconstruct affected RC data from its event history rather than treating those snapshots
+as equivalent to a fresh replay.
+
 ## Loading and event parameters
 
 ```java
@@ -738,7 +757,10 @@ transactional navigation; opaque custom Graphs fail explicitly, while ordinary c
 - Physical descendant erasure remains a separate destructive operation and requires `planDeletion(...)` followed by
   confirmation/execution of that exact plan.
 - Erasure fences prevent delayed document, snapshot or projection writes from resurrecting deleted data.
-- Detached descendants remain discoverable through deleted-parent lineage for later GDPR/lifecycle erasure.
+- Relations closed by parent deletion remain discoverable for later descendant erasure, including nested logical
+  cascades. Earlier ordinary detachments or moves are not added back to the deleted tree.
+- Always inspect the deletion plan before confirming it. Upgrading does not repair missing lineage markers written
+  by older implementations; an already logically deleted tree needs separately verified scope before erasure.
 
 ## Testing
 

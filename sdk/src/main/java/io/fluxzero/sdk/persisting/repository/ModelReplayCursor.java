@@ -2507,7 +2507,7 @@ final class ModelReplayCursor {
                             MutationPlan.Access.READ_WRITE, List.of(), result);
                     result = updateValue(
                             result, replayValue(
-                                    target, membership.getStateIndex(),
+                                    target, membership,
                                     event, context, definition));
                     continue;
                 }
@@ -2614,7 +2614,7 @@ final class ModelReplayCursor {
                         membership.getReadStateIndex(), resolution, loaded);
                 result = updateValue(
                         result, replayValue(
-                                target, membership.getStateIndex(),
+                                target, membership,
                                 event, context, definition));
             }
             return withMembership(result, storedEvent, begin);
@@ -2644,7 +2644,7 @@ final class ModelReplayCursor {
 
         private Object replayValue(
                 MutationPlan.ResolvedModel target,
-                long stateIndex,
+                ModelEventMembership membership,
                 DeserializingMessage event,
                 CommitAttempt context,
                 MutationPlan definition) {
@@ -2652,16 +2652,45 @@ final class ModelReplayCursor {
                 DeserializingMessage replayEvent = definition.direct()
                         ? event : new DeserializingMessage(
                                 event.toMessage(), EVENT, null, serializer);
+                if (!definition.requiresReplayDependencies()) {
+                    return ModelReducer.replay(definition, replayEvent, context, target.modelId());
+                }
                 return ModelReducer.replay(
-                        definition, replayEvent, context, target.modelId());
+                        definition, replayEvent, context, target.modelId(),
+                        (resolution, current) -> replayDependencies(resolution, current, membership));
             } catch (Throwable failure) {
                 throw new EventSourcingException(
                         "Failed to apply model event at state %d to %s"
                                 .formatted(
-                                        stateIndex,
+                                        membership.getStateIndex(),
                                         target.modelId()),
                         failure);
             }
+        }
+
+        private CommitAttempt replayDependencies(MutationPlan.Resolution resolution, CommitAttempt context,
+                                                  ModelEventMembership membership) {
+            if (resolution.hasAncestorDependencies()) {
+                Map<String, Object> staged = new LinkedHashMap<>();
+                context.entities().forEach((id, entity) -> staged.put(id, entity.get()));
+                resolution = resolveAncestors(resolution,
+                        membership.getSubstep() == 0 ? ModelReadBoundary.at(membership.getReadStateIndex())
+                                : ModelReadBoundary.commit(membership.getCommitId(), membership.getSubstep() - 1),
+                        staged, null, true, false, false, COMMIT_ANCESTOR_MAX_DEPTH, COMMIT_ANCESTOR_MAX_MODELS)
+                        .resolution();
+            }
+            List<MutationPlan.ResolvedModel> missing = resolution.models().stream()
+                    .filter(value -> !context.entities().containsKey(value.modelId())).toList();
+            Map<String, Entity<?>> loaded = new LinkedHashMap<>();
+            resolution.models().forEach(value -> {
+                Entity<?> existing = context.entity(value.modelId());
+                if (existing != null) { loaded.put(value.modelId(), existing); }
+            });
+            if (!missing.isEmpty()) {
+                loaded.putAll(viewsAt(missing, membership.getReadStateIndex(), membership.getCommitId(),
+                        membership.getSubstep(), membership.getStateIndex()));
+            }
+            return CommitAttempt.create(context.readStateIndex(), resolution, loaded);
         }
 
         private List<DeserializingMessage> deserialize(

@@ -200,6 +200,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * <p>
      * A descendant cascade must be planned and confirmed before execution. The returned published-event count makes
      * clear that globally published events are outside the model-stream erasure boundary.
+     * Descendants include retained deleted-parent lineage after nested logical cascades, but not earlier ordinary
+     * detachments or moves. Inspect the plan before confirming it: upgrading cannot reconstruct missing lineage
+     * markers written by older store implementations.
      */
     default ModelDeletionPlan planDeletion(
             @NonNull Object modelId,
