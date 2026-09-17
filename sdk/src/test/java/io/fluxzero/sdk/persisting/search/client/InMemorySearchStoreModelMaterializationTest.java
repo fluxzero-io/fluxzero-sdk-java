@@ -238,6 +238,35 @@ class InMemorySearchStoreModelMaterializationTest {
     }
 
     @Test
+    void graphDeletionBeforeMonitorRegistrationRetainsOneTombstone() {
+        InMemorySearchStore subject = new InMemorySearchStore(Duration.ofDays(1), null,
+                (ids, composition) -> List.of(), ids -> Map.of("root-1", "roots"));
+        String rootId = "root-1";
+        var configuration = new ModelGraphProjectionConfiguration(
+                "Root", "roots", "rootGraphs", ModelGraphComposition.builder().build(),
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of());
+        materialize(subject, rootId, 1L,
+                    new ModelDocumentMutation("roots", structuredDocument(rootId, "roots", "root")));
+        subject.materializeModelGraphProjection(configuration, Set.of(rootId), 1L, false);
+        assertEquals(1L, subject.openStream("rootGraphs", null, 10).count());
+
+        materialize(subject, rootId, 2L, new ModelDocumentMutation("roots", null));
+        subject.materializeModelGraphProjection(configuration, Set.of(rootId), 2L, false);
+        var tombstone = subject.openStream("rootGraphs", null, 10, true).toList();
+        assertEquals(1, tombstone.size());
+        assertEquals(rootId, tombstone.getFirst().getMessageId());
+        assertTrue(tombstone.getFirst().getMetadata().containsKey(
+                ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY));
+        assertEquals(0L, subject.openStream("rootGraphs", null, 10).count());
+
+        AtomicInteger notifications = new AtomicInteger();
+        subject.registerMonitor("rootGraphs", messages -> notifications.addAndGet(messages.size()));
+        subject.materializeModelGraphProjection(configuration, Set.of(rootId), 3L, false);
+        assertEquals(0, notifications.get());
+        assertEquals(tombstone, subject.openStream("rootGraphs", null, 10, true).toList());
+    }
+
+    @Test
     void localGraphProjectionHonorsPathOverridesAndStateFence() {
         String rootId = "root-1";
         String childId = "child-1";
