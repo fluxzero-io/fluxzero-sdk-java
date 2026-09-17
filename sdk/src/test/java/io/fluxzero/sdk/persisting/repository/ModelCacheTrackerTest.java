@@ -1645,6 +1645,9 @@ class ModelCacheTrackerTest {
                                          .RefreshedBatch(
                                                  safeStateIndex, Map.of());
                              })) {
+            // loaded() may defer publication until asynchronous bootstrap completes. This test needs
+            // an admitted entry before delivering the remote update, not merely an issued long poll.
+            assertTrue(tracker.readiness().get(5L, TimeUnit.SECONDS));
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -1796,6 +1799,7 @@ class ModelCacheTrackerTest {
                                  return new ModelCacheTracker.RefreshedBatch(
                                          safeStateIndex, Map.of());
                              })) {
+            assertTrue(tracker.readiness().get(5L, TimeUnit.SECONDS));
             tracker.loaded("sample-1", SampleModel.class, 10L);
             completeNext(
                     polls,
