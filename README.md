@@ -45,6 +45,9 @@ Changing existing state? Use [Model migration tests](docs/developer/guides/Model
 Keep business facts in Models; use [stateful handlers](https://fluxzero.io/docs/guides/modeling-and-persistence/stateful-handlers)
 for durable integration progress, correlation and retries. A provider callback and a completed business transaction
 are distinct facts, with an explicit recovery boundary between them.
+Use events when every transition matters. Document observers may skip intermediate versions; they can reconcile
+work only while the latest state retains every unfinished action. See the stateful guide for bounded continuation
+and acknowledgement boundaries.
 
 ## Start building
 

@@ -18,6 +18,43 @@ Stateful storage, external HTTP and domain persistence are separate failure boun
 each acknowledgement. Partition independent workflows by their correlation identity; do not serialize all business
 transactions behind one global consumer or put unbounded related-state scans in the core transaction.
 
+## Choose the trigger and preserve pending work
+
+`@HandleDocument` observes current documents; a consumer can miss intermediate versions. Use `@HandleEvent` for
+business transitions that must each cause a reaction. Prefer document handlers for projection or transformation.
+A document observer is suitable for **reconciliation** only
+when the latest stored state still describes every unfinished effect. A newer observation may supersede an older one only
+when it preserves or fully subsumes that unfinished work. Do not delete intent before its effect is acknowledged. Reload current intent before execution;
+an old document delivery is a wake-up signal, not permission to execute its obsolete action.
+
+A small explicit workflow can follow these boundaries:
+
+1. An event handler validates correlation and returns state retaining the next action and its stable identity.
+2. A later dispatcher reloads that state and selects the action once. Execution and error correlation use that same
+   decision, including when another notification arrives during execution.
+3. A specific local command/query performs external HTTP. Its provider idempotency key survives uncertain responses
+   and retries. A domain command records verified business facts and reaches its durable commit boundary.
+4. The dispatcher durably publishes the corresponding acknowledgement. Publication failure must remain retryable;
+   do not turn a failed acknowledgement into a completed action or swallow it in provider-error handling.
+5. The workflow accepts the matching acknowledgement or retains a problem associated with that action. Stale results
+   and failures cannot complete or pause newer work.
+
+Expected conflicting provider facts are explicit reconciliation outcomes: retain the accepted financial fact and
+persist the problem. Throwing from the later state-transition handler does not reach an earlier dispatcher's catch
+block. `@HandleError` with `@Trigger` is useful for unexpected tracked failures, but correlate its correction with the
+actual failed action and consumer; the trigger document may predate the state reloaded by the dispatcher. Do not
+correct the same failure at both the local request and outer workflow boundary. A default error policy is not a
+guarantee that expected domain failures will be retried.
+
+Bound handler execution as well as individual transactions. For large fan-out, commit a bounded page, then store a
+continuation before the consumer advances. Reprocessing either the original trigger or a continuation must be
+idempotent. Search may discover candidates, but each command rechecks authoritative state. Define when discovery is
+complete; an eventually consistent projection returning no matches alone cannot prove completion. A retryable
+consumer and durable continuation do not provide atomic external execution or exactly-once effects.
+
+Keep these rules explicit and domain-sized. Share small wire/failure helpers where useful; do not build an application
+workflow engine, duplicate next-action selection, or mistake an in-memory after-save callback for crash recovery.
+
 Use `@Stateful` when a workflow needs its own persisted memory, explicit correlation keys, timers, or a lifecycle that is not naturally owned by one aggregate. Use a stateless Spring `@Component` when the handler can derive progress from aggregates or queries every time.
 
 Default path:

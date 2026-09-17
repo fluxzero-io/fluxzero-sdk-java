@@ -38,6 +38,9 @@ Handlers annotated with `@HandleDocument` will observe these updates as they pas
 <Aside type="caution">
 When catching up from behind (e.g. in a replay), only the latest version of a document is retained per key.
 Earlier intermediate versions are not visible to late consumers.
+Use event handlers for business transitions that must each be processed. Document handling can reconcile pending
+work only when the latest document retains all unfinished actions until they are acknowledged; see
+[stateful handlers](../stateful-handlers/#choose-the-trigger-and-preserve-pending-work).
 </Aside>
 
 This makes `@HandleDocument` ideal for **live processing**, **projecting the latest known state**, or
@@ -118,7 +121,7 @@ document model safely.
 - Filling or correcting derived fields
 - Cleaning up invalid or deprecated data
 - Running background migrations or rehydration jobs
-- Real-time analytics and change logging
+- Current-state analytics (use events when every change must be counted or logged)
 
 ---
 
