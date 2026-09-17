@@ -8,7 +8,7 @@
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
-  "documentation" : " In-memory implementation of the {@link SearchClient}, intended for local testing and development.\n <p>\n Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use\n in test scenarios where a real Fluxzero Runtime connection is not available or needed.\n",
+  "documentation" : " In-memory implementation of the {@link SearchClient}, intended for local testing and development.\n <p>\n Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use\n in test scenarios where a real Fluxzero Runtime connection is not available or needed.\n Document updates are retained for later readers even when no monitor is registered, subject to retention and\n replacement by a newer update for the same document.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.persisting.search.client.SearchClient" ],
@@ -41,6 +41,14 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.identifier",
     "type" : "java.util.function.Function<io.fluxzero.common.api.search.SerializedDocument,java.lang.String>",
     "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageIndices",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.messageIndices",
+    "type" : "java.util.Map<java.lang.String,java.util.Map<java.lang.String,java.lang.Long>>",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -551,7 +559,7 @@
     "name" : "purgeExpiredMessages",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#purgeExpiredMessages",
     "returnType" : "void",
-    "modifiers" : [ "protected" ],
+    "modifiers" : [ "protected", "synchronized" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
