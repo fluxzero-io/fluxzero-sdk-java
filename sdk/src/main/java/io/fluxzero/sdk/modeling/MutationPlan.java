@@ -139,6 +139,12 @@ public final class MutationPlan {
         private ModelReducer compileReducer(
                 Collection<EntityMetadata.HandlerMethod> selectedHandlers, Class<?> payloadType,
                 Collection<Class<?>> assertionModels) {
+            return compileReducer(selectedHandlers, payloadType, assertionModels, List.of());
+        }
+
+        private ModelReducer compileReducer(
+                Collection<EntityMetadata.HandlerMethod> selectedHandlers, Class<?> payloadType,
+                Collection<Class<?>> assertionModels, List<EmbeddedModelPlan> embedded) {
             @SuppressWarnings("unchecked")
             List<EntityMetadata.HandlerMethod> handlers = selectedHandlers instanceof List<?> list
                     ? (List<EntityMetadata.HandlerMethod>) list : List.copyOf(selectedHandlers);
@@ -155,9 +161,9 @@ public final class MutationPlan {
             });
             modelTypes.forEach(type -> EntityMetadata.of(type).assertionFields().forEach(field ->
                     fields.add(new AssertionField(field, type))));
-            DirectSingleTargetApply direct = handlers.size() == 1 && fields.isEmpty()
+            DirectSingleTargetApply direct = embedded.isEmpty() && handlers.size() == 1 && fields.isEmpty()
                     ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
-            return new ModelReducer(compileHandlers(handlers), direct, fields, this);
+            return new ModelReducer(compileHandlers(handlers), direct, fields, this, embedded);
         }
 
         AssertionPlan assertions(Class<?> type) {
@@ -239,15 +245,16 @@ public final class MutationPlan {
                     .filter(handler -> EntityMetadata.acceptsPayload(handler, key.payloadType()))
                     .forEach(selected::add);
             List<EntityMetadata.HandlerMethod> handlers = List.copyOf(selected);
-            DirectSingleTargetApply direct = handlers.size() == 1
+            List<EmbeddedModelPlan> embedded = EmbeddedModelPlan.compile(key.payloadType(), List.of(key.modelType()));
+            DirectSingleTargetApply direct = embedded.isEmpty() && handlers.size() == 1
                     && handlers.getFirst().targetModelTypes().size() == 1
                     && EntityMetadata.compatibleTypes(
                             handlers.getFirst().targetModelTypes().getFirst(), key.modelType())
                     ? directSingleTargetApply(handlers.getFirst(), key.payloadType()) : null;
             return new MutationPlan(
-                    new ModelReducer(compileHandlers(handlers), direct),
-                    compile(key.payloadType(), handlers, List.of()),
-                    ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty(), false);
+                    new ModelReducer(compileHandlers(handlers), direct, List.of(), this, embedded),
+                    compile(key.payloadType(), handlers, List.of(), embedded),
+                    ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty() || !embedded.isEmpty(), false);
         }
 
         private record ReplayKey(Class<?> payloadType, Class<?> modelType) {
@@ -622,6 +629,7 @@ public final class MutationPlan {
         private final CopyOnWriteArrayList<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
         private final CopyOnWriteArrayList<Class<?>> knownModelTypes = new CopyOnWriteArrayList<>();
         private final ConcurrentHashMap<Class<?>, MutationPlan> definitions = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<ExplicitDefinition, MutationPlan> explicitDefinitions = new ConcurrentHashMap<>();
         private volatile CachedDefinition recentDefinition;
         private volatile boolean indexedModelTypesDiscovered;
 
@@ -662,29 +670,74 @@ public final class MutationPlan {
             return result;
         }
 
+        MutationPlan get(Class<?> payloadType, Class<?> explicitType) {
+            return explicitType == null || !EmbeddedModelPlan.hasMembers(explicitType) ? get(payloadType) : explicitDefinitions.computeIfAbsent(
+                    new ExplicitDefinition(payloadType, explicitType), key -> compileDefinition(key.payload(), key.root()));
+        }
+
+        private record ExplicitDefinition(Class<?> payload, Class<?> root) {}
+
         private MutationPlan compileDefinition(Class<?> payloadType) {
-            List<EntityMetadata.HandlerMethod> handlers = inspectHandlers(payloadType);
+            return compileDefinition(payloadType, null);
+        }
+
+        private MutationPlan compileDefinition(Class<?> payloadType, Class<?> explicitType) {
+            List<EntityMetadata.HandlerMethod> handlers = inspectHandlers(payloadType, explicitType);
             List<EntityMetadata.HandlerMethod> applies = handlers.stream()
                     .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
             applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
                     .forEach(knownModelTypes::addIfAbsent);
-            PlanTraits traits = inspectPlanTraits(payloadType, new LinkedHashSet<>());
+            PlanTraits traits = inspectPlanTraits(payloadType, new LinkedHashSet<>(), explicitType);
             LinkedHashSet<Class<?>> assertionModels = new LinkedHashSet<>(referencedModelTypes(payloadType));
             registeredModelTypes.stream().filter(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
                     .forEach(assertionModels::add);
+            LinkedHashSet<Class<?>> roots = new LinkedHashSet<>(referencedModelTypes(payloadType));
+            roots.addAll(registeredModelTypes);
+            handlers.forEach(handler -> roots.addAll(handler.targetModelTypes()));
+            if (explicitType != null) { roots.add(explicitType); }
+            List<EmbeddedModelPlan> embedded = EmbeddedModelPlan.compile(payloadType, roots);
+            boolean writes = embedded.stream().anyMatch(EmbeddedModelPlan::writes);
+            LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>(traits.policies());
+            embedded.stream().filter(EmbeddedModelPlan::writes).map(EmbeddedModelPlan::rootType)
+                    .map(EntityMetadata::of).map(EntityMetadata::rootConfiguration).flatMap(Optional::stream)
+                    .map(EntityMetadata.RootConfiguration::commitPolicy).map(ModelCommitPolicy.class::cast)
+                    .map(ModelCommitPolicy::resolve).forEach(policies::add);
             return new MutationPlan(
-                    compiler.compileReducer(handlers, payloadType, assertionModels),
-                    compile(payloadType, handlers, assertionModels),
-                    ModelCommitPolicy.merge(traits.policies()),
-                    traits.commit(), traits.commit() && traits.automatic());
+                    compiler.compileReducer(handlers, payloadType, assertionModels, embedded),
+                    compile(payloadType, handlers, assertionModels, embedded),
+                    ModelCommitPolicy.merge(policies),
+                    traits.commit() || writes, (traits.commit() || writes) && traits.automatic()
+                    && embedded.stream().filter(EmbeddedModelPlan::writes).allMatch(plan -> {
+                        AutomaticModelHandling rootPolicy = EntityMetadata.of(plan.rootType()).rootConfiguration()
+                                .orElseThrow().automaticHandling();
+                        List<EntityMetadata.HandlerMethod> memberApplies = plan.methods().stream()
+                                .filter(m -> m.kind() == EntityMetadata.HandlerKind.APPLY).toList();
+                        if (memberApplies.isEmpty()) {
+                            return (rootPolicy == AutomaticModelHandling.DEFAULT ? automaticHandling : rootPolicy)
+                                   != AutomaticModelHandling.DISABLED;
+                        }
+                        return memberApplies.stream()
+                                .allMatch(method -> {
+                                    AutomaticModelHandling value = ReflectionUtils.getAnnotation(method.executable(), Apply.class)
+                                            .orElseThrow().automaticHandling();
+                                    if (value == AutomaticModelHandling.DEFAULT) { value = rootPolicy; }
+                                    return (value == AutomaticModelHandling.DEFAULT ? automaticHandling : value)
+                                           != AutomaticModelHandling.DISABLED;
+                                });
+                    }));
         }
 
         private List<EntityMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
+            return inspectHandlers(payloadType, null);
+        }
+
+        private List<EntityMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType, Class<?> explicitType) {
             LinkedHashSet<EntityMetadata.HandlerMethod> result =
                     new LinkedHashSet<>(EntityMetadata.of(payloadType).handlerMethods());
             LinkedHashSet<Class<?>> receiverTypes =
                     new LinkedHashSet<>(referencedModelTypes(payloadType));
             receiverTypes.addAll(registeredModelTypes);
+            if (explicitType != null) { receiverTypes.add(explicitType); }
             for (Class<?> receiverType : receiverTypes) {
                 EntityMetadata.of(receiverType).handlerMethods().stream()
                         .filter(handler -> EntityMetadata.acceptsPayload(handler, payloadType))
@@ -694,6 +747,10 @@ public final class MutationPlan {
         }
 
         private PlanTraits inspectPlanTraits(Class<?> payloadType, Set<Class<?>> visiting) {
+            return inspectPlanTraits(payloadType, visiting, null);
+        }
+
+        private PlanTraits inspectPlanTraits(Class<?> payloadType, Set<Class<?>> visiting, Class<?> explicitType) {
             if (!visiting.add(payloadType)) {
                 return PlanTraits.NEUTRAL;
             }
@@ -701,7 +758,7 @@ public final class MutationPlan {
                 boolean commit = false;
                 boolean automatic = true;
                 LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>();
-                for (EntityMetadata.HandlerMethod handler : inspectHandlers(payloadType)) {
+                for (EntityMetadata.HandlerMethod handler : inspectHandlers(payloadType, explicitType)) {
                     if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
                         commit |= handler.hasApplyResult();
                         if (handler.hasApplyResult()) {
@@ -773,6 +830,7 @@ public final class MutationPlan {
 
         private void clear() {
             definitions.clear();
+            explicitDefinitions.clear();
             recentDefinition = null;
         }
     }
@@ -805,6 +863,12 @@ public final class MutationPlan {
     private static TargetPlan compile(
             Class<?> payloadType, Collection<EntityMetadata.HandlerMethod> handlers,
             Collection<Class<?>> assertionModels) {
+        return compile(payloadType, handlers, assertionModels, List.of());
+    }
+
+    private static TargetPlan compile(
+            Class<?> payloadType, Collection<EntityMetadata.HandlerMethod> handlers,
+            Collection<Class<?>> assertionModels, List<EmbeddedModelPlan> embedded) {
         Payload payload = Payload.of(Objects.requireNonNull(payloadType, "payloadType"));
         List<Slot> slots = new ArrayList<>();
         List<Deferred> deferred = new ArrayList<>();
@@ -814,6 +878,14 @@ public final class MutationPlan {
             compile(payload, handler, slots, deferred, ancestors);
             handlerMethods.put(handler.executable().toGenericString(), handler);
         });
+        embedded.forEach(plan -> slots.add(new Slot(plan.rootType(),
+                payload.required(plan.rootType(), "@Member owner"), false,
+                plan.writes() ? Access.READ_WRITE : Access.READ_ONLY, null, true, plan.writes(), null)));
+        embedded.stream().flatMap(plan -> plan.methods().stream()).filter(method -> !method.modelParameters().isEmpty())
+                .distinct().forEach(method -> {
+                    compile(payload, method, slots, deferred, ancestors);
+                    handlerMethods.put(method.executable().toGenericString(), method);
+                });
         if (!assertionModels.isEmpty()) {
             assertionModels.stream()
                     .filter(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
@@ -1128,16 +1200,21 @@ public final class MutationPlan {
             // Apply ancestors can have been selected through a root injected only by an assertion.
             // Rebase must reload those selection roots without executing the assertion again.
             boolean applyOnlyTargets = appliesOnly && ancestors.stream().noneMatch(PlannedAncestor::apply);
-            validate(explicitType, applyOnlyTargets);
+            validate(explicitType, applyOnlyTargets, replayTarget);
             Object payload = checkedPayload(input);
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             Property replayBinding = replayTarget == null ? null : replayBinding(replayTarget);
             for (Slot slot : slots) {
+                if (replayTarget != null && slot.receiver && slot.property.missing()
+                    && slot.requestedType.isAssignableFrom(replayTarget.modelType())) {
+                    merge(result, new ResolvedModel(replayTarget.modelId(), replayTarget.modelType(), slot.access, List.of()));
+                    continue;
+                }
                 if (!acceptsExplicitTarget(slot.handler, explicitType)
                     || slot.handler == null && explicitType != null && !compatibleExplicit(slot.modelType, explicitType)
-                    || slot.handler == null && slot.property.missing()
+                    || slot.handler == null && !slot.apply && slot.property.missing()
                     || applyOnlyTargets && !slot.apply
                     || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
@@ -1179,7 +1256,8 @@ public final class MutationPlan {
             }
             if (explicitId != null && (handlerMethods.values().stream()
                     .anyMatch(handler -> bindsExplicitTarget(handler, explicitType))
-                                      || !appliesOnly && slots.stream().anyMatch(slot ->
+                                      || slots.stream().anyMatch(slot ->
+                    (!appliesOnly || slot.apply) &&
                     slot.handler == null && compatibleExplicit(slot.modelType, explicitType)))) {
                 List<String> sources = slots.stream()
                         .filter(slot -> acceptsExplicitTarget(slot.handler, explicitType)
@@ -1228,8 +1306,10 @@ public final class MutationPlan {
             if (!ancestors.isEmpty()) {
                 addProspectiveParents(payload, result);
             }
-            if (replayTarget != null && handlerMethods.values().stream()
-                    .anyMatch(handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())) {
+            if (replayTarget != null && (handlerMethods.values().stream()
+                    .anyMatch(handler -> handler.dynamicApplyResult() || handler.collectionApplyResult())
+                    || slots.stream().anyMatch(slot -> slot.handler == null && slot.apply
+                    && compatibleExplicit(slot.modelType, replayTarget.modelType())))) {
                 // Dynamic targets need not appear in the payload. Their stream supplies the authoritative
                 // before-value during replay, including earlier writes in this same commit.
                 merge(result, new ResolvedModel(replayTarget.modelId(), replayTarget.modelType(), Access.READ_WRITE, List.of()));
@@ -1366,9 +1446,15 @@ public final class MutationPlan {
         }
 
         private TargetPlan validate(Class<?> explicitType, boolean appliesOnly) {
+            return validate(explicitType, appliesOnly, null);
+        }
+
+        private TargetPlan validate(Class<?> explicitType, boolean appliesOnly, ResolvedModel replayTarget) {
             slots.stream().filter(slot -> !appliesOnly || slot.apply)
+                    .filter(slot -> replayTarget == null || !slot.receiver
+                            || !slot.requestedType.isAssignableFrom(replayTarget.modelType()))
                     // Field-only targets without an ID are optional until an explicit Graph target binds them.
-                    .filter(slot -> slot.handler != null)
+                    .filter(slot -> slot.handler != null || slot.apply)
                     .filter(slot -> acceptsExplicitTarget(slot.handler, explicitType))
                     .filter(slot -> !compatibleExplicit(slot.modelType, explicitType))
                     .map(slot -> slot.property).filter(Property::missing).findFirst().ifPresent(property -> {

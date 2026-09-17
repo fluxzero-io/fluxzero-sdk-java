@@ -47,6 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -237,11 +238,16 @@ public class ImmutableEntity<T> implements Entity<T> {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Entity<T> apply(DeserializingMessage message) {
+        return applyTracked(message, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<T> applyTracked(DeserializingMessage message, Consumer<HandlerInvoker> invoked) {
         Optional<HandlerInvoker> directInvoker = entityHelper.applyInvoker(message, this);
         if (directInvoker.isPresent() && explicitlyTargetsCurrent(message.getPayload())) {
+            if (invoked != null) { invoked.accept(directInvoker.get()); }
             T updatedValue = (T) directInvoker.get().invoke();
             Entity<T> selfMemberAddition = updatedValue == get() ? null : applyAsSelfMemberAddition(updatedValue);
             if (selfMemberAddition != null) {
@@ -249,20 +255,13 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
             return updatedValue == get() ? this : toBuilder().value(updatedValue).build();
         }
-        ImmutableEntity<T> result = this;
-        for (Entity<?> entity : result.resolvePossibleTargets(message.getPayload())) {
-            ImmutableEntity<?> immutableEntity = (ImmutableEntity<?>) entity;
-            Entity<?> updated = immutableEntity.apply(message);
-            if (updated != immutableEntity) {
-                result = result.toBuilder().value((T) immutableEntity
-                        .holder().updateOwner(result.get(), entity, updated)).build();
-            }
-        }
+        ImmutableEntity<T> result = applyMembers(message, invoked);
         boolean explicitlyTargetsOther = directInvoker.isPresent() && result == this
                 && explicitTarget(message.getPayload()) == ExplicitTarget.OTHER;
         Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this && !explicitlyTargetsOther ? directInvoker
                 : entityHelper.applyInvoker(message, result);
         if (invoker.isPresent()) {
+            if (invoked != null) { invoked.accept(invoker.get()); }
             T updatedValue = (T) invoker.get().invoke();
             Entity<T> selfMemberAddition = updatedValue == result.get() ? null : result.applyAsSelfMemberAddition(updatedValue);
             if (selfMemberAddition != null) {
@@ -273,6 +272,20 @@ public class ImmutableEntity<T> implements Entity<T> {
         if (result == this && !Entity.isLoading()
             && getBooleanProperty("fluxzero.assert.apply-compatibility", true)) {
             assertApplyCompatibility(message, this);
+        }
+        return result;
+    }
+
+    /** Applies only embedded entities, retaining this root's identity and immutable container semantics. */
+    @SuppressWarnings("unchecked")
+    ImmutableEntity<T> applyMembers(DeserializingMessage message, Consumer<HandlerInvoker> invoked) {
+        ImmutableEntity<T> result = this;
+        for (Entity<?> entity : resolvePossibleTargets(message.getPayload())) {
+            ImmutableEntity<?> member = (ImmutableEntity<?>) entity;
+            Entity<?> updated = invoked == null ? member.apply(message) : member.applyTracked(message, invoked);
+            if (updated != member) {
+                result = result.toBuilder().value((T) member.holder().updateOwner(result.get(), entity, updated)).build();
+            }
         }
         return result;
     }

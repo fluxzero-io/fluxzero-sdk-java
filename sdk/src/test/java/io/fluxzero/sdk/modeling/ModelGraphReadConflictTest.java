@@ -680,6 +680,42 @@ class ModelGraphReadConflictTest {
         return failure;
     }
 
+    @Test
+    void memberAssertionDependenciesAreRetriedWithTheOwningModelCommit() {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new SetProduct("product", true));
+            commit(app, new CreateMemberOwner("owner"));
+            app.apply(fc -> fc.modelRepository().load("product", Product.class));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("owner") && once.compareAndSet(false, true)) {
+                    assertTrue(request.getReadModelIds().contains("product"));
+                    commit(app, new SetProduct("product", false));
+                }
+            };
+            CompletionException failure = assertThrows(CompletionException.class,
+                    () -> commit(app, new RenameGuardedMember(new MemberOwnerId("owner"), "member", "product")));
+            assertInstanceOf(IllegalCommandException.class, rootCause(failure));
+            assertTrue(once.get());
+            int changes = app.apply(fc -> fc.modelRepository().load("owner", MemberOwner.class).get().members().getFirst().changes());
+            assertEquals(0, changes);
+            assertEquals(1, app.eventStore().getEvents("owner").count());
+        }
+    }
+
+    @Model
+    record MemberOwner(@EntityId String ownerId, @Member List<GuardedMember> members) {}
+    static class MemberOwnerId extends Id<MemberOwner> { MemberOwnerId(String id) { super(id); } }
+    record CreateMemberOwner(String ownerId) {
+        @Apply MemberOwner create() { return new MemberOwner(ownerId, List.of(new GuardedMember("member", 0))); }
+    }
+    record RenameGuardedMember(MemberOwnerId ownerId, String itemId, String productId) {}
+    record GuardedMember(@EntityId String itemId, int changes) {
+        @AssertLegal void check(RenameGuardedMember event, Graph<Product> product) { requireActive(product.get()); }
+        @Apply GuardedMember apply(RenameGuardedMember event) { return new GuardedMember(itemId, changes + 1); }
+    }
+
     private static Object reservation(String reservationId, String productId, String route) {
         return switch (route) {
             case "model" -> new ReserveWithModel(reservationId, productId);

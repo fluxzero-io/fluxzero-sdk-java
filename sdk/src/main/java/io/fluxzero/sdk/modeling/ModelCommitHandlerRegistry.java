@@ -228,8 +228,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (!EntityMetadata.of(targetType).isModel()) {
             return List.of(target);
         }
-        LinkedHashSet<Class<?>> payloadTypes = EntityMetadata.of(targetType)
-                .handlerMethods().stream()
+        LinkedHashSet<Class<?>> payloadTypes = Stream.concat(EntityMetadata.of(targetType)
+                .handlerMethods().stream(), EmbeddedModelPlan.methods(targetType).stream())
                 .filter(handler -> handler.kind() != EntityMetadata.HandlerKind.ASSERT_LEGAL)
                 .filter(handler -> handlerFilter.test(
                         handler.executable().getDeclaringClass(), handler.executable()))

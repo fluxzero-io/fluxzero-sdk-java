@@ -49,6 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -73,7 +74,7 @@ final class ModelPipeline {
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
-    private final Function<Class<?>, MutationPlan> definitions;
+    private final BiFunction<Class<?>, Class<?>, MutationPlan> definitions;
     private final java.util.function.BooleanSupplier localHandlingEnabled;
     private final ModelCommitAdmission commitAdmission = new ModelCommitAdmission();
 
@@ -89,7 +90,7 @@ final class ModelPipeline {
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
-            Function<Class<?>, MutationPlan> definitions,
+            BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
             java.util.function.BooleanSupplier localHandlingEnabled) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
@@ -131,7 +132,12 @@ final class ModelPipeline {
     }
 
     private MutationPlan definitionFor(Class<?> payloadType) {
-        return definitions.apply(payloadType);
+        return definitions.apply(payloadType, null);
+    }
+
+    private MutationPlan definitionFor(DeserializingMessage message) {
+        return definitions.apply(message.getPayloadClass(), message.getContext(ExplicitModelTarget.class)
+                .map(ExplicitModelTarget::modelType).orElse(null));
     }
 
     public CompletableFuture<Void> assertAndApply(Message update) {
@@ -1061,7 +1067,7 @@ final class ModelPipeline {
                         "Pinned model evaluation moved from state index %d to %d"
                                 .formatted(pinnedStateIndex, boundary));
             }
-            MutationPlan definition = definitionFor(substep.getPayloadClass());
+            MutationPlan definition = definitionFor(substep);
             requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
             if (substep == directMessage
                 && prefetched != null
@@ -1093,7 +1099,7 @@ final class ModelPipeline {
         @Override
         public ModelReducer.ResolvedSubstep resolveAssertion(
                 DeserializingMessage message, CommitAttempt context, Map<String, Object> values) {
-            MutationPlan definition = definitionFor(message.getPayloadClass());
+            MutationPlan definition = definitionFor(message);
             MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
             return new ModelReducer.ResolvedSubstep(
                     resolve(resolution, context.readStateIndex(), values), definition.reducer());

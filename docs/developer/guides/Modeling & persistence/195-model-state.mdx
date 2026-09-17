@@ -35,6 +35,29 @@ Use multiple small named values when the concepts differ. It has no independentl
 plain `ProjectDetails` needs neither `@Model`, `@EntityId` nor `@Member`. Replacing that value is a change to
 its owning Model, not a separate entity update. The Model/Member lifecycle rules still apply to actual entities.
 
+## Intentionally embedded members
+
+Use `@Member` only for values whose entire lifecycle belongs to the Model. Member updates must identify that owning
+Model with a typed command ID or an explicitly selected `Fluxzero.loadGraph(ownerId).assertAndApply(update)`.
+A member ID is not an independently addressable stream.
+
+Member `@Apply` methods rebuild their immutable owner, including list/map/singleton containers, record constructors,
+Kotlin copy methods and custom member withers. An operation composes payload-root changes, then embedded member
+changes, then root-model applies. It commits one resulting root state and one event membership per update, rather
+than one stream per member. Missing owners and incompatible member factories fail instead of silently succeeding.
+
+Member assertions and payload assertions that inject a member use the owning operation's before/after state.
+Their Model/Graph reads remain dependencies of that root commit. Event replay applies the same member updates without
+re-running assertions. A failed assertion or later member update rolls back the whole operation.
+
+For polymorphic members, put handler contracts on the declared member type or its sealed permitted subtypes.
+Subtype-only handlers in an open hierarchy are not automatically discoverable during Model planning; declare the
+shared handler contract instead.
+
+The corrected member replay also applies to existing RC events, without an opt-in or legacy replay mode.
+Snapshots produced while member handlers were skipped can contain a different state. Reconstruct affected RC data
+from its event history; reusing an old snapshot does not retroactively apply the previously skipped handlers.
+
 ## One Project, from creation to rename
 
 This example starts with a name and an optional description. If only a name is needed initially, keep the same

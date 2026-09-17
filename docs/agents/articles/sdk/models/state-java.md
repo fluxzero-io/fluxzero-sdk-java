@@ -172,3 +172,19 @@ Choose this only if each line has no meaningful lifecycle outside its invoice: c
 retention and deletion all belong to the root. If any of those concerns can diverge, use a separate `@Model` plus
 `@Parent`. A list-shaped field, frequent updates, or convenient whole-document storage is never sufficient reason to
 use `@Member`.
+
+Member updates still address the owning Model: include its typed ID in a command or select it explicitly with
+`Fluxzero.loadGraph(ownerId).assertAndApply(update)`. A member ID alone does not identify a Model stream.
+Matching member `@Apply` methods update the immutable owner (including lists, maps and singletons); records use their
+constructor, Kotlin data classes their copy operation, or a configured member wither. Payload-root changes run first,
+then embedded member changes, then the root's Model apply. Each runs once and the composed result has one root event
+membership, not a separate member stream. Member and member-dependent payload assertions participate in the root
+operation before/after application, including their Model/Graph read dependencies. Replay reconstructs the same
+member changes without re-running assertions.
+
+Declare member handler contracts on the declared member type or on its sealed permitted subtypes.
+Handlers found only on an otherwise undiscoverable subtype of an open hierarchy are not a supported automatic
+planning contract; declare those handlers on the shared type instead.
+The corrected member replay also applies to existing RC event history. Previously produced snapshots may retain
+the old, incomplete state: reconstruct affected RC data from its event history rather than treating those snapshots
+as equivalent to a fresh replay.

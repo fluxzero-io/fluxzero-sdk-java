@@ -44,6 +44,9 @@ Choose [Graph relationships](docs/developer/guides/Modeling%20%26%20persistence/
 See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
 Returned validation objects can select their own Model dependencies while retaining the triggering command context.
 
+Intentionally embedded `@Member` handlers update their owning Model in the same atomic operation and replay stream;
+see [embedded members](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx#intentionally-embedded-members).
+
 [Parent-owned schedules](docs/developer/guides/Messaging/086-parent-owned-schedules.mdx) use `@Parent` or
 `Schedule.withParents(...)` to cancel delayed work automatically when a committed Model is deleted.
 
