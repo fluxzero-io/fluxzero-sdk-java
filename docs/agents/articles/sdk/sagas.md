@@ -1,8 +1,28 @@
+## Choose business state or process memory first
+
+Keep business facts and invariants in Models: an order, payment capture, refund obligation or invoice has meaning
+independently of the system used to execute it. Use `@Stateful` for durable execution progress: provider correlation,
+operation keys, pending effects, retries and compensation. An attempt having its own identity or lifecycle does not
+by itself make it business state. Do not add provider attempts to the business graph solely to retain their progress.
+A provider-specific workflow invokes provider-independent domain commands when verified observations justify them.
+
+For webhooks, verify the boundary input and durably publish an internal notification before acknowledging receipt.
+Let the associated workflow interpret it; receipt alone does not complete the business transaction. Keep each external
+HTTP interaction in a specific local command/query handler using the Fluxzero webrequest API. A consumer is appropriate
+for the durable workflow, not as a substitute for calling one local integration operation.
+
+Persist execution intent before issuing the effect. A later `@HandleDocument` observer can reload that intent and call
+the local operation. Configure its starting position to include retained pending documents when recovery requires it.
+Keep a stable idempotency key through retries, and acknowledge completion only after the domain command is durable.
+Stateful storage, external HTTP and domain persistence are separate failure boundaries; test restart and both sides of
+each acknowledgement. Partition independent workflows by their correlation identity; do not serialize all business
+transactions behind one global consumer or put unbounded related-state scans in the core transaction.
+
 Use `@Stateful` when a workflow needs its own persisted memory, explicit correlation keys, timers, or a lifecycle that is not naturally owned by one aggregate. Use a stateless Spring `@Component` when the handler can derive progress from aggregates or queries every time.
 
 Default path:
 
-- Keep domain state in aggregates.
+- Keep domain state in Models.
 - Use a stateless handler for simple event reactions.
 - Add `@Stateful` only when the process needs durable workflow state, searchable process documents, or independent `@Association` routing.
 
@@ -18,14 +38,15 @@ Lifecycle is driven by handler return type:
 @Stateful
 @Consumer(name = "payment-saga")
 public record PaymentSaga(
-    @EntityId PaymentId paymentId,
+    @EntityId @Association PaymentId paymentId,
+    String operationKey,
     @Association String providerPaymentId,
     int retries
 ) {
     @HandleEvent
     static PaymentSaga on(PaymentRequested event) {
-        String providerId = startPayment(event);
-        return new PaymentSaga(event.paymentId(), providerId, 0);
+        // A later observer executes this committed intent using the same operation key.
+        return new PaymentSaga(event.paymentId(), event.operationKey(), null, 0);
     }
 
     @HandleEvent
@@ -37,7 +58,7 @@ public record PaymentSaga(
 
 ## Separate stateful persistence from outgoing effects
 
-The stateful handler method runs before Fluxzero persists its returned state or deletion. Therefore publishing an event, scheduling work, or calling an external system inside the method and then returning new state is not an atomic state/effect transaction. In particular, do not add this sequence to the deletion handler above:
+The stateful handler method runs before Fluxzero persists its returned state or deletion. Therefore publishing an event, scheduling work, or calling an external system inside the method and then returning new state is not an atomic state/effect transaction. In particular, do not publish completion and delete the workflow in one handler invocation:
 
 ```java
 Fluxzero.publishEvent(new PaymentCompleted(paymentId));

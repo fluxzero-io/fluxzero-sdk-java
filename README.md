@@ -42,6 +42,10 @@ See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updat
 
 Changing existing state? Use [Model migration tests](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) to distinguish value-preserving upcasts, event reconstruction, retained storage and search reindexing.
 
+Keep business facts in Models; use [stateful handlers](https://fluxzero.io/docs/guides/modeling-and-persistence/stateful-handlers)
+for durable integration progress, correlation and retries. A provider callback and a completed business transaction
+are distinct facts, with an explicit recovery boundary between them.
+
 ## Start building
 
 Building with a coding agent? Give it this:

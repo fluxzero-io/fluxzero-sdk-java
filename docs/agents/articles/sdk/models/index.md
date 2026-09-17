@@ -28,7 +28,9 @@ Choose the focused state, actions or Graph article for the application's languag
 - Conflicts: read dependencies, empty collections, `RETRY`/`FAIL`/`ACCEPT` and the cost of actual navigation.
 - Migration: deletion, cascade, physical erasure and migration of already persisted aggregates.
 
-Choose boundaries by lifecycle, not collection shape or storage convenience. State whose creation, changes, history,
+First distinguish business state from workflow memory: provider correlation, retries and pending external effects
+usually belong in `@Stateful`, not in a business Model solely because an attempt has its own lifecycle.
+Then choose business Model boundaries by lifecycle, not collection shape or storage convenience. State whose creation, changes, history,
 retention or deletion can be independent is a separate Model connected with `@Parent`. A parent-scoped identity is
 enough. Use `@Member` only when all these concerns deliberately belong to its root.
 

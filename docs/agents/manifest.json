@@ -6764,7 +6764,8 @@
         "Graph",
         "@Parent",
         "ModelPersistence",
-        "atomic multi-model commit"
+        "atomic multi-model commit",
+        "@Stateful"
       ],
       "links": [
         {
@@ -6842,6 +6843,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Choose durable workflow memory for integration execution before applying Model lifecycle rules"
         }
       ]
     },
@@ -6863,7 +6868,8 @@
         "@Valid",
         "details value object",
         "configuration",
-        "execution bookkeeping"
+        "execution bookkeeping",
+        "@Stateful"
       ],
       "links": [
         {
@@ -6889,6 +6895,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Choose durable workflow memory for integration execution before applying Model lifecycle rules"
         }
       ]
     },
@@ -7055,7 +7065,8 @@
         "@Valid",
         "details value object",
         "configuration",
-        "execution bookkeeping"
+        "execution bookkeeping",
+        "@Stateful"
       ],
       "links": [
         {
@@ -7081,6 +7092,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Choose durable workflow memory for integration execution before applying Model lifecycle rules"
         }
       ]
     },

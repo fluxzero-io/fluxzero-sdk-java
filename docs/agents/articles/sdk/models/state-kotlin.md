@@ -6,7 +6,7 @@
 2. Put action-specific `@AssertLegal`, `@InterceptApply` and `@Apply` methods on the command/update payload by default.
 3. Keep `@Apply` pure and deterministic. It is reused during event sourcing.
 4. Do not load, search, publish or perform I/O from `@Apply`.
-5. Choose every model boundary by lifecycle first. State that can be created, changed, retained, deleted, or whose
+5. Choose every business-model boundary by lifecycle first. Business state that can be created, changed, retained, deleted, or whose
    history matters independently is a separate `@Model`, even when it is normally placed in a parent's collection.
 6. Treat a meaningful identity, separate retention, or independent updates as evidence for that boundary, not as
    competing criteria. A child without a globally unique functional ID can use `@EntityId(parentScoped = true)`.
@@ -14,6 +14,13 @@
    deliberately belong to the root. Collection shape, searchability, storage choice, and update frequency never make
    independently living state a member.
 8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
+
+## Choose the owner before the lifecycle boundary
+
+First distinguish business facts from integration execution. A payment capture or refund obligation belongs in a
+Model; provider attempt IDs, idempotency keys and retry progress usually belong in a `@Stateful` workflow. Choose
+Model versus Member only after deciding that the state belongs in the domain. See
+[stateful handlers](https://fluxzero.io/docs/guides/modeling-and-persistence/stateful-handlers) for durable effects and recovery.
 
 ## Choose details, configuration and state
 
@@ -27,7 +34,7 @@ only `name`. Choose the group by domain meaning and shared validation, not by fi
 | Identity | On the Model, with a typed ID | `@EntityId ProjectId projectId` is not an editable detail. |
 | Relationships | An explicit typed reference on the Model | `ownerId` or `@Parent workspaceId`; a reference is not the related Model's details. |
 | Current status / control | A simple Model field, or a focused state value when several fields form one invariant | `archived`, `status`, `completedAt`; a business date such as a requested delivery date belongs with its business details instead. |
-| Execution bookkeeping | Separate from editable details | `attemptCount`, `lastAttemptAt`, `nextRunAt`; group as execution state if cohesive, or use a separate Model if it has its own lifecycle. |
+| Execution bookkeeping | Decide whether it is domain state or workflow memory first | Provider correlation, retries and pending effects usually belong in `@Stateful`; an independent attempt lifecycle alone does not justify a business Model. |
 
 A boolean can be a user preference or observed state; a timestamp can be business input or execution bookkeeping.
 Their meaning decides placement. A details object is not a bag for every field left over after the ID.

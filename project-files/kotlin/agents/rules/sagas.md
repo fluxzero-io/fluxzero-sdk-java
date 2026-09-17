@@ -3,6 +3,28 @@
 Use `@Stateful` when you need a long-lived workflow or process manager that must remember its progress between messages
 and be directly addressable via `@Association` keys.
 
+
+## Choose business state or process memory first
+
+Keep business facts and invariants in Models: an order, payment capture, refund obligation or invoice has meaning
+independently of the system used to execute it. Use `@Stateful` for durable execution progress: provider correlation,
+operation keys, pending effects, retries and compensation. An attempt having its own identity or lifecycle does not
+by itself make it business state. Do not add provider attempts to the business graph solely to retain their progress.
+A provider-specific workflow invokes provider-independent domain commands when verified observations justify them.
+
+For webhooks, verify the boundary input and durably publish an internal notification before acknowledging receipt.
+Let the associated workflow interpret it; receipt alone does not complete the business transaction. Keep each external
+HTTP interaction in a specific local command/query handler using the Fluxzero webrequest API. A consumer is appropriate
+for the durable workflow, not as a substitute for calling one local integration operation.
+
+Persist execution intent before issuing the effect. A later `@HandleDocument` observer can reload that intent and call
+the local operation. Configure its starting position to include retained pending documents when recovery requires it.
+Keep a stable idempotency key through retries, and acknowledge completion only after the domain command is durable.
+Stateful storage, external HTTP and domain persistence are separate failure boundaries; test restart and both sides of
+each acknowledgement. Partition independent workflows by their correlation identity; do not serialize all business
+transactions behind one global consumer or put unbounded related-state scans in the core transaction.
+
+
 ---
 
 ## Quick Navigation
@@ -94,36 +116,33 @@ fun split(event: PaymentSplitRequested): Collection<StripeTransaction> {
 @Stateful
 @Consumer(name = "stripe")
 data class StripeTransaction(
-    @Association val transactionId: TransactionId,
-    @Association val stripeId: String, 
-    val retries: Int = 0
+    @EntityId @Association val transactionId: TransactionId,
+    val operationKey: String,
+    @Association val stripeId: String?,
+    val phase: Phase
 ) {
+    enum class Phase { REQUESTED, RECORD_CAPTURE, COMPLETE }
+
     companion object {
         @HandleEvent
         @JvmStatic
         fun handle(event: MakePayment): StripeTransaction {
-            val stripeId = makePayment(event)
-            // Create: Automatically stores the handler
-            return StripeTransaction(event.transactionId(), stripeId, 0)
+            // A document observer executes this committed intent using the retained key.
+            return StripeTransaction(event.transactionId, event.operationKey, null, Phase.REQUESTED)
         }
     }
 
     @HandleEvent
-    fun handle(event: StripeApproval): StripeTransaction? {
-        // Update: Handled if it has a matching `stripeId` property
-        Fluxzero.publishEvent(PaymentCompleted(transactionId))
-        // Complete: Returns null to delete the saga
-        return null 
+    fun handle(event: StripeApproval): StripeTransaction {
+        // Verified observation also carries transactionId, so it can bind the first provider ID.
+        if (phase == Phase.COMPLETE) return this
+        return copy(stripeId = event.stripeId, phase = Phase.RECORD_CAPTURE)
     }
 
     @HandleEvent
-    fun handle(event: StripeFailure): StripeTransaction? {
-        if (retries > 3) {
-            Fluxzero.publishEvent(PaymentRejected(transactionId, "failed repeatedly"))
-            return null
-        }
-        // Update: Return a modified copy
-        return copy(stripeId = makePayment(event), retries = retries + 1)
+    fun handle(event: PaymentRecorded): StripeTransaction {
+        // The observer emits this acknowledgement only after the idempotent core command is durable.
+        return copy(phase = Phase.COMPLETE)
     }
 }
 ```

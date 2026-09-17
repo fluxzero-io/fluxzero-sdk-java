@@ -12,26 +12,47 @@ import { Aside } from '@astrojs/starlight/components';
 While models represent domain entities, Fluxzero also supports long-lived **stateful handlers** for modeling workflows,
 external interactions, or background processes that span multiple messages.
 
+## Choose business state or process memory first
+
+Keep business facts and invariants in Models: an order, payment capture, refund obligation or invoice has meaning
+independently of the system used to execute it. Use `@Stateful` for durable execution progress: provider correlation,
+operation keys, pending effects, retries and compensation. An attempt having its own identity or lifecycle does not
+by itself make it business state. Do not add provider attempts to the business graph solely to retain their progress.
+A provider-specific workflow invokes provider-independent domain commands when verified observations justify them.
+
+For webhooks, verify the boundary input and durably publish an internal notification before acknowledging receipt.
+Let the associated workflow interpret it; receipt alone does not complete the business transaction. Keep each external
+HTTP interaction in a specific local command/query handler using the Fluxzero webrequest API. A consumer is appropriate
+for the durable workflow, not as a substitute for calling one local integration operation.
+
+Persist execution intent before issuing the effect. A later `@HandleDocument` observer can reload that intent and call
+the local operation. Configure its starting position to include retained pending documents when recovery requires it.
+Keep a stable idempotency key through retries, and acknowledge completion only after the domain command is durable.
+Stateful storage, external HTTP and domain persistence are separate failure boundaries; test restart and both sides of
+each acknowledgement. Partition independent workflows by their correlation identity; do not serialize all business
+transactions behind one global consumer or put unbounded related-state scans in the core transaction.
+
 To declare a stateful handler, annotate a class with `@Stateful`:
 
 <Tabs>
   <TabItem label="Java">
     ```java
     @Stateful
-    public record PaymentProcess(@EntityId String paymentId,
+    public record PaymentProcess(@EntityId @Association String paymentId,
+                                 String operationKey,
                                  @Association String pspReference,
                                  PaymentStatus status) {
 
         @HandleEvent
         static PaymentProcess on(PaymentInitiated event) {
-            String pspRef = Fluxzero.sendCommandAndWait(new ExecutePayment(...));
-            return new PaymentProcess(event.getPaymentId(), pspRef, PaymentStatus.PENDING);
+            // Execute later, after this intent is stored.
+            return new PaymentProcess(event.getPaymentId(), event.getOperationKey(), null, PaymentStatus.PENDING);
         }
 
         @HandleEvent
         PaymentProcess on(PaymentConfirmed event) {
-            // pspReference property in PaymentConfirmed is matched
-            return withStatus(PaymentStatus.CONFIRMED);
+            // PaymentConfirmed carries paymentId, even before a provider reference has been bound.
+            return new PaymentProcess(paymentId, operationKey, event.getPspReference(), PaymentStatus.CONFIRMED);
         }
     }
     ```
@@ -40,23 +61,24 @@ To declare a stateful handler, annotate a class with `@Stateful`:
     ```kotlin
     @Stateful
     data class PaymentProcess(
-        @EntityId val paymentId: String,
-        @Association val pspReference: String,
+        @EntityId @Association val paymentId: String,
+        val operationKey: String,
+        @Association val pspReference: String?,
         val status: PaymentStatus
     ) {
 
         companion object {
             @HandleEvent
             fun on(event: PaymentInitiated): PaymentProcess {
-                val pspRef = Fluxzero.sendCommandAndWait(ExecutePayment(...))
-                return PaymentProcess(event.paymentId, pspRef, PaymentStatus.PENDING)
+                // Execute later, after this intent is stored.
+                return PaymentProcess(event.paymentId, event.operationKey, null, PaymentStatus.PENDING)
             }
         }
 
         @HandleEvent
         fun on(event: PaymentConfirmed): PaymentProcess {
-            // pspReference property in PaymentConfirmed is matched
-            return copy(status = PaymentStatus.CONFIRMED)
+            // PaymentConfirmed carries paymentId, even before a provider reference has been bound.
+            return copy(pspReference = event.pspReference, status = PaymentStatus.CONFIRMED)
         }
     }
     ```
