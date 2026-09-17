@@ -724,7 +724,10 @@ transactional navigation; opaque custom Graphs fail explicitly, while ordinary c
 - Physical descendant erasure remains a separate destructive operation and requires `planDeletion(...)` followed by
   confirmation/execution of that exact plan.
 - Erasure fences prevent delayed document, snapshot or projection writes from resurrecting deleted data.
-- Detached descendants remain discoverable through deleted-parent lineage for later GDPR/lifecycle erasure.
+- Relations closed by parent deletion remain discoverable for later descendant erasure, including nested logical
+  cascades. Earlier ordinary detachments or moves are not added back to the deleted tree.
+- Always inspect the deletion plan before confirming it. Upgrading does not repair missing lineage markers written
+  by older implementations; an already logically deleted tree needs separately verified scope before erasure.
 
 ## Testing
 

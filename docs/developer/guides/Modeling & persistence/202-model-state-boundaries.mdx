@@ -150,6 +150,11 @@ its own explicitly selected scope/plan. Shared event payloads can remain while a
 them. The global event log is not removed by Model erasure. Copies in other stores, logs, exports and backups require
 their own retention/deletion and restore policy.
 
+Descendant planning also follows retained deleted-parent relationships after a nested logical cascade. Ordinary
+detachments and moves made before deletion do not become deleted-parent lineage. Inspect the plan before confirming
+it: upgrading does not retroactively restore lineage markers omitted by older implementations. Verify the full scope
+of an already deleted tree independently before physical erasure; an incomplete plan is not proof of complete cleanup.
+
 Use a matching SDK and service implementation for the storage/wire capabilities you enable. Older shared
 DOCUMENT storage is not automatically equivalent to independent internal sources and public projections:
 preserve DOCUMENT-only state and follow the explicit migration/rebuild procedure before switching writers.

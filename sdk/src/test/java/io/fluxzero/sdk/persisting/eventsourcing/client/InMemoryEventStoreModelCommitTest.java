@@ -60,6 +60,72 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryEventStoreModelCommitTest {
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void deletionLineageSurvivesSameStepTreeDeletion(boolean reverseOrder) {
+        InMemoryEventStore store = denseStore();
+        var parents = java.util.Map.of("a", "root", "b", "root", "c", "root", "d", "root",
+                "aa", "a", "ab", "a", "ca", "c");
+        var ids = List.of("root", "a", "b", "c", "d", "aa", "ab", "ca");
+        var created = ids.stream().map(id -> storedTarget(id).toBuilder().updateRelationships(true)
+                .relationships(parents.containsKey(id) ? List.of(ModelRelationship.builder()
+                        .parentId(parents.get(id)).deleteOnParentDeletion(true).build()) : List.of())
+                .build()).toArray(ModelCommitTarget[]::new);
+        store.commitModels(commit("tree-create", -1L, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("tree-create")).targets(List.of(created)).build())).join();
+        var ordered = reverseOrder ? ids.reversed() : ids;
+        var deleted = ordered.stream().map(id -> storedTarget(id).toBuilder()
+                .delete(true).cascadeDelete(true).updateRelationships(true).relationships(List.of()).build())
+                .toArray(ModelCommitTarget[]::new);
+        store.commitModels(commit("tree-delete", 0L, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("tree-delete")).targets(List.of(deleted)).build())).join();
+        var plan = store.planModelDeletion(new PlanModelDeletion(
+                "root", ModelDeletionCascade.DESCENDANTS, 10, 100, 100));
+        assertEquals(java.util.Set.copyOf(ids), java.util.Set.copyOf(plan.getSampleModelIds()));
+        assertEquals(8, plan.getModelCount());
+        assertEquals(7, store.getModelGraph(new GetModelGraph("root", ModelReadBoundary.state(0L, false),
+                10, 100, 0, 0L, false)).getEdges().size());
+        var result = store.deleteModel(DeleteModel.builder().deletionId("tree-erase").modelId("root")
+                .cascade(ModelDeletionCascade.DESCENDANTS).maxDepth(10).maxModels(100)
+                .planFingerprint(plan.getFingerprint()).build()).join();
+        assertEquals(8, result.getDeletedModelCount());
+        ids.forEach(id -> assertTrue(store.getEvents(id).toList().isEmpty()));
+    }
+
+    @Test
+    void recreatedParentDoesNotRetainDeletedChildAsCascadeLineage() {
+        InMemoryEventStore store = denseStore();
+        var root = storedTarget("root").toBuilder().updateRelationships(true).build();
+        var child = storedTarget("child").toBuilder().updateRelationships(true)
+                .relationships(List.of(ModelRelationship.builder().parentId("root")
+                        .deleteOnParentDeletion(true).build())).build();
+        store.commitModels(commit("recreation-create", -1L, ModelConflictPolicy.ACCEPT, ModelCommitStep.builder().event(event("create")).targets(List.of(root, child)).build())).join();
+        store.commitModels(commit("recreation-delete", 0L, ModelConflictPolicy.ACCEPT, ModelCommitStep.builder().event(event("delete")).targets(List.of(root.toBuilder().delete(true).cascadeDelete(true).build(),
+                child.toBuilder().delete(true).relationships(List.of()).build())).build(),
+                ModelCommitStep.builder().event(event("recreate")).targets(List.of(root)).build())).join();
+        var plan = store.planModelDeletion(new PlanModelDeletion(
+                "root", ModelDeletionCascade.DESCENDANTS, 10, 100, 100));
+        assertEquals(List.of("root"), plan.getSampleModelIds());
+    }
+
+    @Test
+    void deletionLineageExcludesEarlierDetachAndSameStepMove() {
+        InMemoryEventStore store = denseStore();
+        var relation = ModelRelationship.builder().parentId("root").deleteOnParentDeletion(true).build();
+        var detached = storedTarget("detached").toBuilder().updateRelationships(true).relationships(List.of(relation)).build();
+        var moved = storedTarget("moved").toBuilder().updateRelationships(true).relationships(List.of(relation)).build();
+        store.commitModels(commit("lineage-create", -1L, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("lineage-create")).targets(List.of(storedTarget("root"), storedTarget("other"), detached, moved)).build())).join();
+        store.commitModels(commit("lineage-detach", 0L, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("lineage-detach")).targets(List.of(detached.toBuilder().relationships(List.of()).build())).build())).join();
+        store.commitModels(commit("lineage-delete", 1L, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("lineage-delete")).targets(List.of(storedTarget("root").toBuilder().delete(true).cascadeDelete(true).updateRelationships(true).build(),
+                moved.toBuilder().relationships(List.of(relation.toBuilder().parentId("other").build())).build())).build())).join();
+        var plan = store.planModelDeletion(new PlanModelDeletion(
+                "root", ModelDeletionCascade.DESCENDANTS, 10, 100, 100));
+        assertEquals(List.of("root"), plan.getSampleModelIds());
+    }
+
     @Test
     void expectedSequenceCollisionRejectsASecondCreate() {
         InMemoryEventStore store = denseStore();

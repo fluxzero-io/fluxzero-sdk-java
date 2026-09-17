@@ -457,7 +457,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         description.relationshipStep(substepNumber);
                 for (ModelCommitAssignment.RelationshipChange change : relationshipStep.changes()) {
                     updateModelRelationships(
-                            commit.getReadStateIndex(), change, stateIndex, commitRelationshipView);
+                            commit.getReadStateIndex(), change, stateIndex, commitRelationshipView,
+                            relationshipStep.finalDeletedParentIds());
                 }
                 cascadeDeletedModelRelationships(
                         relationshipStep.finalDeletedParentIds(),
@@ -1557,7 +1558,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             long readStateIndex,
             ModelCommitAssignment.RelationshipChange change,
             long stateIndex,
-            Map<String, Set<ModelRelationship>> commitRelationshipView) {
+            Map<String, Set<ModelRelationship>> commitRelationshipView,
+            Set<String> deletedParentIds) {
         Set<ModelRelationship> desired = change.desired();
         Set<ModelRelationship> expected = commitRelationshipView.computeIfAbsent(
                 change.childId(),
@@ -1580,7 +1582,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .toList();
         modelRelationStateIndices.put(change.childId(), stateIndex);
         for (ModelRelationship relationship : removed) {
-            actual.remove(relationship).validUntil = stateIndex;
+            MutableModelRelationship closed = actual.remove(relationship);
+            closed.validUntil = stateIndex;
+            // A child and its parent can disappear in the same cascade substep. The later
+            // parent pass only sees open edges, so retain that lineage while closing it here.
+            closed.parentDeleted = change.deleted() && deletedParentIds.contains(relationship.getParentId());
             recordRelationshipChange(change.childId(), relationship, stateIndex);
             modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
         }
