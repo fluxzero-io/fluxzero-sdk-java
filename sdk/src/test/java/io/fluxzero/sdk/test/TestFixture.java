@@ -109,6 +109,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -2261,6 +2262,14 @@ public class TestFixture implements Given<TestFixture>, When {
                 InterceptedMessage key = new InterceptedMessage(
                         messageType, topic, serializedMessage.getMessageId());
                 try {
+                    if (messageType == DOCUMENT) {
+                        testFixture.fluxzero.serializer().deserializeMessages(Stream.of(serializedMessage), DOCUMENT)
+                                .forEach(message -> monitorDispatch(
+                                        new PendingDocument(message.toMessage(), serializedMessage),
+                                        DOCUMENT, topic, namespace, false,
+                                        serializedMessage.getSegment(), serializedMessage.getIndex()));
+                        continue;
+                    }
                     DeserializingMessage message = null;
                     if (tracksStoredSchedules(messageType, namespace)) {
                         message = testFixture.fluxzero.serializer().deserializeMessage(serializedMessage, messageType);
@@ -2313,6 +2322,10 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                     boolean request) {
+            if (messageType == DOCUMENT) {
+                monitorDispatch(message, messageType, topic, namespace, request, null, null);
+                return;
+            }
             InterceptedMessage key = new InterceptedMessage(messageType, topic, message.getMessageId());
             DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.SDK);
             if (previous == DispatchOrigin.STORED) {
@@ -2375,8 +2388,7 @@ public class TestFixture implements Given<TestFixture>, When {
                 testFixture.consumers.entrySet().stream()
                         .filter(t -> {
                             var consumer = t.getKey();
-                            String consumerNamespace = ofNullable(consumer.getConfiguration().getNamespace()).orElseGet(
-                                    () -> testFixture.getFluxzero().client().namespace());
+                            String consumerNamespace = effectiveNamespace(consumer.getConfiguration());
                             return (
 
                                     //message type and topic match
@@ -2403,7 +2415,9 @@ public class TestFixture implements Given<TestFixture>, When {
                         document.getDocument(), Metadata.of("$start", document.getTimestamp(), "$end",
                                                             document.getEnd()),
                         document.getId(), document.getTimestamp());
-                monitorDispatch(testFixture.fluxzero.serializer().deserializeMessage(message, DOCUMENT).toMessage(),
+                monitorDispatch(new PendingDocument(
+                                        testFixture.fluxzero.serializer().deserializeMessage(message, DOCUMENT).toMessage(),
+                                        document),
                                 DOCUMENT, document.getCollection(), testFixture.fluxzero.client().namespace(), false);
             } catch (Exception e) {
                 log.warn("Failed to monitor an indexed document. This may cause your test to fail.", e);
@@ -2411,16 +2425,13 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public void cancelDocumentDispatch(List<SerializedDocument> documents) {
-            Map<String, Set<String>> messageIdsByTopic = new HashMap<>();
-            documents.forEach(document -> messageIdsByTopic
-                    .computeIfAbsent(document.getCollection(), ignored -> new CopyOnWriteArraySet<>())
-                    .add(document.getId()));
+            Set<SerializedDocument> cancelled = Collections.newSetFromMap(new IdentityHashMap<>());
+            cancelled.addAll(documents);
             synchronized (testFixture.consumers) {
                 testFixture.consumers.forEach((consumer, pending) -> {
                     if (consumer.getMessageType() == DOCUMENT) {
-                        ofNullable(messageIdsByTopic.get(consumer.getTopic()))
-                                .ifPresent(messageIds -> pending.removeIf(
-                                        message -> messageIds.contains(message.getMessageId())));
+                        pending.removeIf(message -> message instanceof PendingDocument document
+                                                    && cancelled.contains(document.document));
                     }
                 });
                 testFixture.checkConsumers();
@@ -2457,8 +2468,35 @@ public class TestFixture implements Given<TestFixture>, When {
                                                         .getName().matches(f)).orElse(true)).toList()));
             }
             return b -> {
+                Map<PendingConsumer, Set<Message>> completedDocuments = tracker.getMessageType() == DOCUMENT
+                        ? new IdentityHashMap<>() : Collections.emptyMap();
+                if (tracker.getMessageType() == DOCUMENT) {
+                    synchronized (testFixture.consumers) {
+                        testFixture.consumers.forEach((c, candidate) -> {
+                            if (c.getMessageType() == DOCUMENT && Objects.equals(c.getTopic(), tracker.getTopic())
+                                && Objects.equals(effectiveNamespace(c.getConfiguration()),
+                                                  effectiveNamespace(tracker.getConfiguration()))) {
+                                List<SerializedMessage> completed = candidate == pending ? b.getMessages()
+                                        : b.getMessages().stream().filter(m -> isOutsideBounds(
+                                                c.getConfiguration(), m.getIndex())).toList();
+                                completedDocuments.put(candidate, completedDocuments(candidate.messages().toList(), completed));
+                            }
+                        });
+                    }
+                }
                 consumer.accept(b);
                 synchronized (testFixture.consumers) {
+                    if (tracker.getMessageType() == DOCUMENT) {
+                        completedDocuments.forEach((candidate, completed) -> {
+                            if (candidate == pending) {
+                                candidate.completeDocuments(b, completed);
+                            } else {
+                                candidate.removeIf(completed::contains);
+                            }
+                        });
+                        testFixture.checkConsumers();
+                        return;
+                    }
                     b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
                             .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
                                          && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
@@ -2478,6 +2516,45 @@ public class TestFixture implements Given<TestFixture>, When {
                         .forEach(e -> e.getValue().recordStoredPosition(
                                 message.getMessageId(), message.getSegment(), message.getIndex()));
             }
+        }
+
+        private String effectiveNamespace(ConsumerConfiguration configuration) {
+            return ofNullable(configuration.getNamespace())
+                    .orElseGet(() -> testFixture.getFluxzero().client().namespace());
+        }
+
+        private Set<Message> completedDocuments(List<Message> pending, List<SerializedMessage> batch) {
+            Set<Message> result = Collections.newSetFromMap(new IdentityHashMap<>());
+            Map<String, List<PendingDocument>> byId = new HashMap<>();
+            pending.forEach(message -> {
+                if (message instanceof PendingDocument document) {
+                    byId.computeIfAbsent(message.getMessageId(), ignored -> new ArrayList<>()).add(document);
+                }
+            });
+            for (SerializedMessage processed : batch) {
+                List<Message> revisions = new ArrayList<>();
+                for (PendingDocument document : byId.getOrDefault(processed.getMessageId(), List.of())) {
+                    if (document.stored != null && document.stored.getIndex() != null
+                        && processed.getIndex() != null) {
+                        if (document.stored.getIndex() <= processed.getIndex()) {
+                            result.add(document);
+                        }
+                    } else {
+                        revisions.add(document);
+                        if (Objects.equals(document.document == null ? document.stored.getData()
+                                                   : document.document.getDocument(), processed.getData())
+                            && Objects.equals(document.getMetadata().get("$start"),
+                                              processed.getMetadata().get("$start"))
+                            && Objects.equals(document.getMetadata().get("$end"),
+                                              processed.getMetadata().get("$end"))) {
+                            // Document streams may coalesce older revisions. Only claim revisions visible before
+                            // handling starts, through the revision actually returned in this batch.
+                            result.addAll(revisions);
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
         private boolean isOutsideBounds(ConsumerConfiguration configuration, Long index) {
@@ -2548,6 +2625,23 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         private record InterceptedMessage(MessageType messageType, String topic, String messageId) {
+        }
+    }
+
+    private static final class PendingDocument extends Message {
+        private final SerializedDocument document;
+        private final SerializedMessage stored;
+
+        private PendingDocument(Message message, SerializedDocument document) {
+            super(message.getPayload(), message.getMetadata(), message.getMessageId(), message.getTimestamp());
+            this.document = document;
+            this.stored = null;
+        }
+
+        private PendingDocument(Message message, SerializedMessage stored) {
+            super(message.getPayload(), message.getMetadata(), message.getMessageId(), message.getTimestamp());
+            this.document = null;
+            this.stored = stored;
         }
     }
 
@@ -2713,6 +2807,14 @@ public class TestFixture implements Given<TestFixture>, When {
             Set<String> messageIds = batch.getMessages().stream()
                     .map(SerializedMessage::getMessageId).collect(toSet());
             messages.removeIf(pending -> messageIds.contains(pending.message().getMessageId())
+                                         || isCompleted(pending.segment(), pending.index()));
+        }
+
+        void completeDocuments(MessageBatch batch, Set<Message> completed) {
+            if (batch.getLastIndex() != null) {
+                completedPosition = completedPosition.merge(new Position(batch.getSegment(), batch.getLastIndex()));
+            }
+            messages.removeIf(pending -> completed.contains(pending.message())
                                          || isCompleted(pending.segment(), pending.index()));
         }
 
