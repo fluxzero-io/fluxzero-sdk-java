@@ -1277,9 +1277,10 @@ class ModelCacheTrackerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"false,false,false", "true,false,false", "false,true,false", "false,false,true"})
+    @CsvSource({"false,false,false,true", "true,false,false,true", "false,true,false,true", "false,false,true,true",
+            "false,false,false,false", "true,false,false,false", "false,true,false,false", "false,false,true,false"})
     void localCommitCanRestoreItsKnownEntryBeforeTheTrackedPageFinishes(
-            boolean newerUpdate, boolean hardDelete, boolean forget) throws Exception {
+            boolean newerUpdate, boolean hardDelete, boolean forget, boolean alreadyLoaded) throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         var polls = polls(eventStore);
         ModelCache cache = new ModelCache(new DefaultCache());
@@ -1306,9 +1307,12 @@ class ModelCacheTrackerTest {
             refreshCount.incrementAndGet();
             return new ModelCacheTracker.RefreshedBatch(boundary, Map.of("sample-1", modelEntity(boundary)));
         })) {
-            tracker.loaded("sample-1", SampleModel.class, 10L);
+            assertTrue(tracker.readiness().get(5, TimeUnit.SECONDS));
+            if (alreadyLoaded) {
+                tracker.loaded("sample-1", SampleModel.class, 10L);
+                assertSame(initial, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            }
             var page = awaitNext(polls);
-            assertSame(initial, awaitCurrent(tracker, "sample-1", SampleModel.class));
             Runnable completeLocalCommit = tracker.beginLocalCommit(List.of("sample-1"));
             List<ModelUpdate> updates = new ArrayList<>(List.of(
                     new ModelUpdate(ModelUpdateKind.COMMIT, "local", 0, 11L, null,
@@ -1356,6 +1360,55 @@ class ModelCacheTrackerTest {
                 assertSame(committed, tracker.current("sample-1", SampleModel.class));
                 assertEquals(0, refreshCount.get());
             }
+        } finally {
+            proceed.countDown();
+            cache.close();
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"14,false", "15,true", "16,true"})
+    void lateLocalCommitPlaceholderRetainsTheEntireActivePageAsItsAdmissionFloor(
+            long acceptedBoundary, boolean admitted) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        var polls = polls(eventStore);
+        ModelCache cache = new ModelCache(new DefaultCache());
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch proceed = new CountDownLatch(1);
+        AtomicInteger refreshes = new AtomicInteger();
+        List<ModelCommitTargetResult> blockingTargets = new AbstractList<>() {
+            @Override
+            public int size() {
+                return 1;
+            }
+
+            @Override
+            public ModelCommitTargetResult get(int index) {
+                processing.countDown();
+                awaitLatch(proceed);
+                return new ModelCommitTargetResult("unrelated", 0L, true);
+            }
+        };
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            refreshes.incrementAndGet();
+            return new ModelCacheTracker.RefreshedBatch(boundary, Map.of());
+        })) {
+            assertTrue(tracker.readiness().get(5, TimeUnit.SECONDS));
+            awaitNext(polls).complete(new TrackModelUpdatesResult(1L, 15L, 15L, 15L, List.of(
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "already-visited", 0, 14L, null,
+                                    List.of(new ModelCommitTargetResult("sample-1", 1L, true))),
+                    new ModelUpdate(ModelUpdateKind.COMMIT, "blocked", 0, 15L, null, blockingTargets))));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+            Runnable complete = tracker.beginLocalCommit(List.of("sample-1"));
+            Entity<?> committed = modelEntity(acceptedBoundary);
+            cache.put("sample-1", committed);
+            tracker.committed("sample-1", SampleModel.class, acceptedBoundary);
+            complete.run();
+            assertSame(admitted ? committed : null, tracker.current("sample-1", SampleModel.class));
+            proceed.countDown();
+            awaitNext(polls);
+            assertSame(admitted ? committed : null, tracker.current("sample-1", SampleModel.class));
+            assertEquals(0, refreshes.get());
         } finally {
             proceed.countDown();
             cache.close();
