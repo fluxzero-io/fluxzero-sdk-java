@@ -44,6 +44,7 @@ import lombok.Setter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +78,8 @@ import static java.util.stream.Collectors.toMap;
  * <p>
  * Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use
  * in test scenarios where a real Fluxzero Runtime connection is not available or needed.
+ * Document updates are retained for later readers even when no monitor is registered, subject to retention and
+ * replacement by a newer update for the same document.
  */
 @AllArgsConstructor
 public class InMemorySearchStore implements SearchClient {
@@ -91,6 +94,7 @@ public class InMemorySearchStore implements SearchClient {
 
     private final AtomicLong nextIndex = new AtomicLong();
     private final Map<String, ConcurrentSkipListMap<Long, SerializedMessage>> messageLogs = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Long>> messageIndices = new ConcurrentHashMap<>();
     private final List<BiConsumer<String, List<SerializedMessage>>> monitors = new CopyOnWriteArrayList<>();
     private final Set<String> collections = ConcurrentHashMap.newKeySet();
     private final Set<String> auditTrails = ConcurrentHashMap.newKeySet();
@@ -267,28 +271,33 @@ public class InMemorySearchStore implements SearchClient {
     public synchronized void truncateCollection(String collection) {
         documents.values().removeIf(d -> Objects.equals(collection, d.getCollection()));
         messageLogs.remove(collection);
+        messageIndices.remove(collection);
         collections.remove(collection);
         auditTrails.remove(collection);
         notifyMonitors(collection, List.of());
     }
 
     protected synchronized void storeMessages(Map<String, SerializedDocument> updates) {
-        if (!monitors.isEmpty()) {
-            Map<String, List<SerializedMessage>> byCollection
-                    = updates.values().stream().collect(groupingBy(SerializedDocument::getCollection, mapping(
-                    this::asSerializedMessage, toList())));
-            try {
-                byCollection.forEach((collection, messages) -> {
-                    var log = messageLogs.computeIfAbsent(collection, c -> new ConcurrentSkipListMap<>());
-                    messages.forEach(m -> {
-                        log.values().removeIf(mOld -> mOld.getMessageId().equals(m.getMessageId()));
-                        log.put(m.getIndex(), m);
-                    });
+        Map<String, List<SerializedMessage>> byCollection
+                = updates.values().stream().collect(groupingBy(SerializedDocument::getCollection, mapping(
+                this::asSerializedMessage, toList())));
+        try {
+            byCollection.forEach((collection, messages) -> {
+                var log = messageLogs.computeIfAbsent(collection, c -> new ConcurrentSkipListMap<>());
+                var indices = messageIndices.computeIfAbsent(collection, c -> new HashMap<>());
+                messages.forEach(m -> {
+                    Long previous = indices.put(m.getMessageId(), m.getIndex());
+                    if (previous != null) {
+                        log.remove(previous);
+                    }
+                    log.put(m.getIndex(), m);
                 });
-                if (retentionTime != null) {
-                    purgeExpiredMessages(retentionTime);
-                }
-            } finally {
+            });
+            if (retentionTime != null) {
+                purgeExpiredMessages(retentionTime);
+            }
+        } finally {
+            if (!monitors.isEmpty()) {
                 byCollection.forEach(this::notifyMonitors);
             }
         }
@@ -303,10 +312,14 @@ public class InMemorySearchStore implements SearchClient {
         return result;
     }
 
-    protected void purgeExpiredMessages(Duration messageExpiration) {
+    protected synchronized void purgeExpiredMessages(Duration messageExpiration) {
         var threshold = Fluxzero.currentTime().minus(messageExpiration).toEpochMilli();
-        messageLogs.values().forEach(messageLog -> messageLog.headMap(
-                IndexUtils.maxIndexFromMillis(threshold), true).clear());
+        messageLogs.forEach((collection, messageLog) -> {
+            var expired = messageLog.headMap(IndexUtils.maxIndexFromMillis(threshold), true);
+            var indices = messageIndices.get(collection);
+            expired.values().forEach(message -> indices.remove(message.getMessageId(), message.getIndex()));
+            expired.clear();
+        });
     }
 
     protected void notifyMonitors(String collection, List<SerializedMessage> messages) {

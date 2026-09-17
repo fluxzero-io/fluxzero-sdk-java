@@ -523,6 +523,24 @@ class TestServerWebsocketContractTest {
         throw new IllegalStateException("Started test server has no bound local port");
     }
 
+    @Test
+    void documentConsumerStartedAfterIndexingReceivesStoredUpdate() throws Exception {
+        WebSocketClient client = WebSocketClient.newInstance(clientConfig(
+                "late-document-reader", "late-document-reader-" + UUID.randomUUID(), null));
+        try {
+            await(client.getSearchClient().index(List.of(document("id", "late-documents", "stored", Set.of())),
+                                                STORED, false));
+            TrackingClient tracking = client.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT,
+                                                               "late-documents");
+            MessageBatch batch = await(tracking.read("late-reader", null, ConsumerConfiguration.builder()
+                    .name("late-reader").minIndex(0L).maxWaitDuration(Duration.ZERO).build()));
+            assertEquals(List.of("stored"), batch.getMessages().stream()
+                    .map(TestServerWebsocketContractTest::payload).toList());
+        } finally {
+            client.shutDown();
+        }
+    }
+
     private static SerializedMessage message(String value) {
         return message(value, value.getBytes(UTF_8));
     }
