@@ -245,6 +245,12 @@ public class ImmutableEntity<T> implements Entity<T> {
 
     @SuppressWarnings("unchecked")
     private Entity<T> applyTracked(DeserializingMessage message, Consumer<HandlerInvoker> invoked) {
+        return applyTracked(message, invoked, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<T> applyTracked(DeserializingMessage message, Consumer<HandlerInvoker> invoked,
+                                    MemberInvocation invocation) {
         Optional<HandlerInvoker> directInvoker = entityHelper.applyInvoker(message, this);
         if (directInvoker.isPresent() && explicitlyTargetsCurrent(message.getPayload())) {
             if (invoked != null) { invoked.accept(directInvoker.get()); }
@@ -255,7 +261,7 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
             return updatedValue == get() ? this : toBuilder().value(updatedValue).build();
         }
-        ImmutableEntity<T> result = applyMembers(message, invoked);
+        ImmutableEntity<T> result = applyMembers(message, invoked, invocation);
         boolean explicitlyTargetsOther = directInvoker.isPresent() && result == this
                 && explicitTarget(message.getPayload()) == ExplicitTarget.OTHER;
         Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this && !explicitlyTargetsOther ? directInvoker
@@ -279,10 +285,23 @@ public class ImmutableEntity<T> implements Entity<T> {
     /** Applies only embedded entities, retaining this root's identity and immutable container semantics. */
     @SuppressWarnings("unchecked")
     ImmutableEntity<T> applyMembers(DeserializingMessage message, Consumer<HandlerInvoker> invoked) {
+        return applyMembers(message, invoked, null);
+    }
+
+    @FunctionalInterface
+    interface MemberInvocation {
+        Entity<?> apply(Entity<?> member, java.util.function.Supplier<Entity<?>> operation);
+    }
+
+    @SuppressWarnings("unchecked")
+    ImmutableEntity<T> applyMembers(DeserializingMessage message, Consumer<HandlerInvoker> invoked,
+                                     MemberInvocation invocation) {
         ImmutableEntity<T> result = this;
         for (Entity<?> entity : resolvePossibleTargets(message.getPayload())) {
             ImmutableEntity<?> member = (ImmutableEntity<?>) entity;
-            Entity<?> updated = invoked == null ? member.apply(message) : member.applyTracked(message, invoked);
+            Entity<?> updated = invocation != null
+                    ? invocation.apply(member, () -> member.applyTracked(message, invoked, invocation))
+                    : invoked == null ? member.apply(message) : member.applyTracked(message, invoked);
             if (updated != member) {
                 result = result.toBuilder().value((T) member.holder().updateOwner(result.get(), entity, updated)).build();
             }

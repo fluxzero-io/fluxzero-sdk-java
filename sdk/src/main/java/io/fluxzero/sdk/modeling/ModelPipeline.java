@@ -995,6 +995,8 @@ final class ModelPipeline {
     record ExplicitModelTarget(String modelId, Class<?> modelType) {
     }
 
+    enum AutomaticExecution { INSTANCE }
+
     private final class CommitLoader implements ModelReducer.SubstepResolver {
         @Override
         public DefaultModelRepository repository() { return repository; }
@@ -1110,23 +1112,7 @@ final class ModelPipeline {
                 DeserializingMessage message, MutationPlan.AssertionScope scope,
                 EntityMetadata.ExecutableParameters parameters,
                 CommitAttempt context, Map<String, Object> stagedValues) {
-            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters, scope);
-            boolean scopedAncestors = scope.hasNestedAncestorRoots(parameters);
-            LinkedHashMap<String, MutationPlan.ResolvedModel> targets = new LinkedHashMap<>();
-            if (!scopedAncestors) {
-                context.targets().stream().filter(target -> parameters.values().stream().noneMatch(parameter ->
-                        EntityMetadata.compatibleTypes(parameter.modelType(), target.modelType())
-                        && (parameter.associationProperty() == null
-                            || target.sourceProperties().contains(parameter.associationProperty()))
-                        && bound.references().get(parameter).present()))
-                        .forEach(target -> MutationPlan.merge(targets, target));
-            }
-            bound.models().forEach(target -> MutationPlan.merge(targets, target));
-            MutationPlan.Resolution resolution = new MutationPlan.Resolution(
-                    List.copyOf(targets.values()), List.of(), bound.ancestorDependencies().stream()
-                    .filter(dependency -> scopedAncestors
-                                          || context.resolve(dependency.modelType(), dependency.association()) == null)
-                    .toList(), bound.references());
+            MutationPlan.Resolution resolution = MutationPlan.bind(message, parameters, scope, context);
             Map<String, Object> values = new LinkedHashMap<>(stagedValues);
             context.entities().forEach((id, entity) -> values.put(id, entity.get()));
             return resolve(resolution, context.readStateIndex(), values).withValues(values);
@@ -1350,6 +1336,7 @@ final class ModelPipeline {
             DeserializingMessage message,
             ModelCommitPolicy commitPolicy,
             ModelBatchScope.CommitCoordination preparedEntry) {
+        message.putContext(AutomaticExecution.class, AutomaticExecution.INSTANCE);
         ExecutionRequest request = new ExecutionRequest(
                 message, null, -1, Mode.AUTOMATIC);
         CompletableFuture<Object> completion = execute(request, commitPolicy, preparedEntry);

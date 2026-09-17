@@ -186,9 +186,12 @@ membership, not a separate member stream. Member and member-dependent payload as
 operation before/after application, including their Model/Graph read dependencies. Replay reconstructs the same
 member changes without re-running assertions.
 
-Declare member handler contracts on the declared member type or on its sealed permitted subtypes.
-Handlers found only on an otherwise undiscoverable subtype of an open hierarchy are not a supported automatic
-planning contract; declare those handlers on the shared type instead.
+Handlers on concrete subtypes of an open member hierarchy also work when the owning Model is addressed.
+Use `loadGraph(ownerId).assertAndApply(update)`, or `Fluxzero.assertAndApply(update)` with a typed owner ID.
+The loaded member determines its handlers and Model/Graph dependencies, including after payload-root changes.
+Those dependencies use the same commit boundary; replay loads their historical values.
+Automatic command subscriptions still require a discoverable payload/declared/sealed handler contract: registering
+an owner does not scan the classpath for arbitrary implementations of an open member interface.
 The corrected member replay also applies to existing RC event history. Previously produced snapshots may retain
 the old, incomplete state: reconstruct affected RC data from its event history rather than treating those snapshots
 as equivalent to a fresh replay.

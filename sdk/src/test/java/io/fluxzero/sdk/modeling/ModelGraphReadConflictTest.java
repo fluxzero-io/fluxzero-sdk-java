@@ -704,6 +704,72 @@ class ModelGraphReadConflictTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void openMemberApplyDependenciesAreProtectedDuringRetryAndAccept(boolean accept) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new SetProduct("product", true));
+            commit(app, new CreateOpenOwner("owner"));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("owner") && once.compareAndSet(false, true)) {
+                    assertTrue(request.getReadModelIds().contains("product"));
+                    commit(app, new SetProduct("product", false));
+                }
+            };
+            commit(app, accept ? new AcceptOpen(new OpenOwnerId("owner"), "member", "product")
+                    : new RetryOpen(new OpenOwnerId("owner"), "member", "product"));
+            assertTrue(once.get());
+            int changes = app.apply(fc -> fc.modelRepository().load("owner", OpenOwner.class).get().members()
+                    .getFirst().changes());
+            assertEquals(2, changes);
+        }
+    }
+
+    @Test
+    void openMemberAssertionIsReevaluatedAfterItsExternalDependencyChanges() {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(app, new SetProduct("product", true));
+            commit(app, new CreateOpenOwner("owner"));
+            AtomicBoolean once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("owner") && once.compareAndSet(false, true)) {
+                    assertTrue(request.getReadModelIds().contains("product"));
+                    commit(app, new SetProduct("product", false));
+                }
+            };
+            var failure = assertThrows(CompletionException.class,
+                    () -> commit(app, new GuardOpen(new OpenOwnerId("owner"), "member", "product")));
+            assertInstanceOf(IllegalCommandException.class, rootCause(failure));
+            assertTrue(once.get());
+            assertEquals(1, app.eventStore().getEvents("owner").count());
+        }
+    }
+
+    @Model record OpenOwner(@EntityId String ownerId, @Member List<OpenPart> members) {}
+    @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.CLASS)
+    interface OpenPart { @EntityId String itemId(); int changes(); }
+    record OpenConcrete(String itemId, int changes) implements OpenPart {
+        @AssertLegal void check(GuardOpen event, Graph<Product> product) { requireActive(product.get()); }
+        @Apply OpenConcrete apply(GuardOpen event) { return new OpenConcrete(itemId, changes + 1); }
+        @Apply OpenConcrete apply(RetryOpen event, Graph<Product> product) {
+            return new OpenConcrete(itemId, product.get().active() ? 1 : 2);
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.ACCEPT)
+        OpenConcrete apply(AcceptOpen event, Graph<Product> product) {
+            return new OpenConcrete(itemId, product.get().active() ? 1 : 2);
+        }
+    }
+    static class OpenOwnerId extends Id<OpenOwner> { OpenOwnerId(String id) { super(id); } }
+    record CreateOpenOwner(String ownerId) {
+        @Apply OpenOwner create() { return new OpenOwner(ownerId, List.of(new OpenConcrete("member", 0))); }
+    }
+    record RetryOpen(OpenOwnerId ownerId, String itemId, String productId) {}
+    record AcceptOpen(OpenOwnerId ownerId, String itemId, String productId) {}
+    record GuardOpen(OpenOwnerId ownerId, String itemId, String productId) {}
+
     @Model
     record MemberOwner(@EntityId String ownerId, @Member List<GuardedMember> members) {}
     static class MemberOwnerId extends Id<MemberOwner> { MemberOwnerId(String id) { super(id); } }

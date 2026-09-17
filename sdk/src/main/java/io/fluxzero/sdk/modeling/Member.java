@@ -64,7 +64,10 @@ import java.lang.annotation.Target;
  * and payload assertions requiring a member participate in the same operation, including their Model read dependencies.
  * Replay executes the same member applies without re-running assertions.</p>
  * <p>Model planning discovers handlers on the declared member type and its sealed permitted subtypes.
- * Subtype-only handlers in an open hierarchy must instead expose their handler contract on the declared type.
+ * Explicitly addressed owners also support subtype-only handlers in open hierarchies, selected from the loaded
+ * member value. Their dependencies share the commit boundary and use historical values during replay.
+ * Automatic command subscriptions still need a discoverable handler contract; the SDK does not scan for arbitrary
+ * implementations of an open member interface.
  * Corrected member replay also applies to existing RC events; snapshots produced with previously skipped member
  * handlers must not be treated as equivalent to a fresh reconstruction of that history.</p>
  * <p>

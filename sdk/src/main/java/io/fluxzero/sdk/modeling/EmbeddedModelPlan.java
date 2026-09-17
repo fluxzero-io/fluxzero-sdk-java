@@ -24,11 +24,21 @@ import java.util.Map;
 import java.util.Set;
 
 /** Embedded handlers authorize a change to their owning Model, never to a separate member stream. */
-record EmbeddedModelPlan(Class<?> rootType, List<EntityMetadata.HandlerMethod> methods, boolean writes) {
+record EmbeddedModelPlan(Class<?> rootType, List<EntityMetadata.HandlerMethod> methods, boolean writes,
+                         boolean lateDependencies) {
+    private EmbeddedModelPlan(Class<?> root, List<EntityMetadata.HandlerMethod> methods, boolean writes) {
+        this(root, methods, writes, open(root) || methods.stream().anyMatch(method -> !method.modelParameters().isEmpty()));
+    }
     static boolean hasMembers(Class<?> root) { return !structure(root).types().isEmpty(); }
 
+    boolean dynamic() { return open(rootType); }
+
+    private static boolean open(Class<?> root) {
+        return structure(root).open();
+    }
+
     boolean requiresStorageBoundary() {
-        return structure(rootType).types().stream().anyMatch(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
+        return dynamic() || structure(rootType).types().stream().anyMatch(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
                 || methods.stream().anyMatch(method -> method.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
                 || method.modelParameters().stream().anyMatch(EntityMetadata.ModelParameter::graphWrapped)
                 || method.kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL
@@ -43,6 +53,11 @@ record EmbeddedModelPlan(Class<?> rootType, List<EntityMetadata.HandlerMethod> m
         @Override public Entity<?> getEntity() { return entity; }
     }
     static List<EmbeddedModelPlan> compile(Class<?> payloadType, Collection<Class<?>> roots) {
+        return compile(payloadType, roots, roots, roots);
+    }
+
+    static List<EmbeddedModelPlan> compile(Class<?> payloadType, Collection<Class<?>> roots,
+                                           Collection<Class<?>> addressedRoots, Collection<Class<?>> writableRoots) {
         List<EmbeddedModelPlan> result = new ArrayList<>();
         for (Class<?> root : new LinkedHashSet<>(roots)) {
             Structure structure = structure(root);
@@ -54,7 +69,9 @@ record EmbeddedModelPlan(Class<?> rootType, List<EntityMetadata.HandlerMethod> m
                     method.executable() instanceof java.lang.reflect.Method executable
                     && structure.types().stream().anyMatch(type -> type.isAssignableFrom(executable.getReturnType())))
                     .forEach(methods::add);
-            boolean writes = methods.stream().anyMatch(m -> m.kind() != EntityMetadata.HandlerKind.ASSERT_LEGAL);
+            boolean dynamicRoot = addressedRoots.contains(root) && open(root);
+            boolean writes = dynamicRoot && writableRoots.contains(root)
+                    || methods.stream().anyMatch(m -> m.kind() != EntityMetadata.HandlerKind.ASSERT_LEGAL);
             boolean memberAssertion = EntityMetadata.of(payloadType).handlerMethods().stream()
                     .filter(method -> method.kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL)
                     .anyMatch(method -> Arrays.stream(method.executable().getParameters())
@@ -63,7 +80,7 @@ record EmbeddedModelPlan(Class<?> rootType, List<EntityMetadata.HandlerMethod> m
                                             .orElse(Object.class)
                                     : parameter.getType())
                             .anyMatch(parameter -> structure.types().stream().anyMatch(parameter::isAssignableFrom)));
-            if (writes || memberAssertion || !methods.isEmpty() || structure.types().stream()
+            if (dynamicRoot || writes || memberAssertion || !methods.isEmpty() || structure.types().stream()
                     .anyMatch(type -> !EntityMetadata.of(type).assertionFields().isEmpty())) {
                 result.add(new EmbeddedModelPlan(root, List.copyOf(methods), writes));
             }
@@ -80,8 +97,12 @@ record EmbeddedModelPlan(Class<?> rootType, List<EntityMetadata.HandlerMethod> m
         return ReflectionUtils.getTypeMetadata(root).specializedMetadata(Structure.class, Structure::new);
     }
 
-    private record Structure(List<Class<?>> types) {
+    private record Structure(List<Class<?>> types, boolean open) {
         Structure(Class<?> root) { this(find(root)); }
+        private Structure(List<Class<?>> types) {
+            this(types, types.stream().anyMatch(type -> !type.isSealed()
+                    && !java.lang.reflect.Modifier.isFinal(type.getModifiers())));
+        }
 
         private static List<Class<?>> find(Class<?> root) {
             Set<Class<?>> visited = new LinkedHashSet<>();

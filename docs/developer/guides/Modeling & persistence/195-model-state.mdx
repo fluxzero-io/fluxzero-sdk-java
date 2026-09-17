@@ -50,9 +50,16 @@ Member assertions and payload assertions that inject a member use the owning ope
 Their Model/Graph reads remain dependencies of that root commit. Event replay applies the same member updates without
 re-running assertions. A failed assertion or later member update rolls back the whole operation.
 
-For polymorphic members, put handler contracts on the declared member type or its sealed permitted subtypes.
-Subtype-only handlers in an open hierarchy are not automatically discoverable during Model planning; declare the
-shared handler contract instead.
+Concrete subtypes of open member hierarchies may declare their own handlers. Address the owner explicitly with
+`loadGraph(ownerId).assertAndApply(update)`, or use `Fluxzero.assertAndApply(update)` with a typed owner ID.
+Handler selection uses the actual member value, including a subtype introduced by a payload-root apply.
+Late Model/Graph dependencies share the operation's read boundary and conflict protection; replay resolves them
+at the stored event's historical boundary. An `automaticHandling = DISABLED` member handler requires explicit
+execution, even when a payload handler would otherwise enable automatic handling.
+
+This does not discover automatic command subscriptions from arbitrary open-interface implementations.
+Keep a discoverable payload, declared-member or sealed-subtype handler contract for automatic dispatch, or route
+the command explicitly to its owner from a command handler.
 
 The corrected member replay also applies to existing RC events, without an opt-in or legacy replay mode.
 Snapshots produced while member handlers were skipped can contain a different state. Reconstruct affected RC data

@@ -103,11 +103,20 @@ public final class MutationPlan {
         return reducer.direct();
     }
 
+    /** Whether replay can discover dependencies on concrete embedded subtypes during execution. */
+    public boolean requiresReplayDependencies() {
+        return reducer.requiresMemberDependencies();
+    }
+
     /** Compiles immutable definition data with application-specific parameter resolvers. */
     public static final class Compiler {
         private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
         private final ConcurrentHashMap<ReplayKey, MutationPlan> replayPlans = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<Class<?>, AssertionPlan> assertionPlans = new ConcurrentHashMap<>();
+        // Matchers capture this application's parameter resolvers, unlike central class metadata.
+        private final ConcurrentHashMap<Executable, HandlerMatcher<Object, DeserializingMessage>> memberSelectors =
+                new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<?>, List<CompiledHandler>> memberInterceptors = new ConcurrentHashMap<>();
 
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
@@ -207,6 +216,17 @@ public final class MutationPlan {
             resolvers.add((parameter, annotation) -> models.containsKey(parameter) ? message -> null : null);
             resolvers.addAll(parameterResolvers);
             return compileMatcher(handler, resolvers);
+        }
+
+        boolean selectsMember(EntityMetadata.HandlerMethod method, DeserializingMessage message) {
+            return memberSelectors.computeIfAbsent(method.executable(), ignored -> compileCompatibilityMatcher(method))
+                    .canHandle(message);
+        }
+
+        List<CompiledHandler> memberInterceptors(Class<?> type) {
+            return memberInterceptors.computeIfAbsent(type, key -> compileHandlers(EntityMetadata.of(key)
+                    .handlerMethods().stream().filter(method -> method.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY)
+                    .toList()).all());
         }
 
         private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
@@ -576,6 +596,26 @@ public final class MutationPlan {
                 List.copyOf(targets.values()), List.of(), List.copyOf(ancestors), references);
     }
 
+    static Resolution bind(DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                           AssertionScope scope, CommitAttempt context) {
+        Resolution bound = bind(message, parameters, scope);
+        boolean scopedAncestors = scope.hasNestedAncestorRoots(parameters);
+        LinkedHashMap<String, ResolvedModel> targets = new LinkedHashMap<>();
+        if (!scopedAncestors) {
+            context.targets().stream().filter(target -> parameters.values().stream().noneMatch(parameter ->
+                    EntityMetadata.compatibleTypes(parameter.modelType(), target.modelType())
+                    && (parameter.associationProperty() == null
+                        || target.sourceProperties().contains(parameter.associationProperty()))
+                    && bound.references().get(parameter).present()))
+                    .forEach(target -> merge(targets, target));
+        }
+        bound.models().forEach(target -> merge(targets, target));
+        return new Resolution(List.copyOf(targets.values()), List.of(), bound.ancestorDependencies().stream()
+                .filter(dependency -> scopedAncestors
+                        || context.resolve(dependency.modelType(), dependency.association()) == null)
+                .toList(), bound.references());
+    }
+
     /** Nested validators select references per parameter, without replacing the original invocation payload. */
     record AssertionScope(DeserializingMessage message, AssertionScope parent) {
         DirectReferences references(EntityMetadata.ModelParameter parameter) {
@@ -692,10 +732,16 @@ public final class MutationPlan {
             registeredModelTypes.stream().filter(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
                     .forEach(assertionModels::add);
             LinkedHashSet<Class<?>> roots = new LinkedHashSet<>(referencedModelTypes(payloadType));
-            roots.addAll(registeredModelTypes);
             handlers.forEach(handler -> roots.addAll(handler.targetModelTypes()));
             if (explicitType != null) { roots.add(explicitType); }
-            List<EmbeddedModelPlan> embedded = EmbeddedModelPlan.compile(payloadType, roots);
+            Set<Class<?>> addressedRoots = Set.copyOf(roots);
+            Set<Class<?>> writableRoots = new LinkedHashSet<>(addressedRoots);
+            writableRoots.removeIf(root -> !Objects.equals(root, explicitType)
+                    && handlers.stream().noneMatch(handler -> handler.targetModelTypes().contains(root))
+                    && handlers.stream().anyMatch(handler -> handler.modelParameters().stream()
+                            .anyMatch(parameter -> parameter.modelType() == root)));
+            roots.addAll(registeredModelTypes);
+            List<EmbeddedModelPlan> embedded = EmbeddedModelPlan.compile(payloadType, roots, addressedRoots, writableRoots);
             boolean writes = embedded.stream().anyMatch(EmbeddedModelPlan::writes);
             LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>(traits.policies());
             embedded.stream().filter(EmbeddedModelPlan::writes).map(EmbeddedModelPlan::rootType)
@@ -706,7 +752,10 @@ public final class MutationPlan {
                     compiler.compileReducer(handlers, payloadType, assertionModels, embedded),
                     compile(payloadType, handlers, assertionModels, embedded),
                     ModelCommitPolicy.merge(policies),
-                    traits.commit() || writes, (traits.commit() || writes) && traits.automatic()
+                    traits.commit() || writes, (traits.commit() || embedded.stream()
+                            .anyMatch(plan -> plan.methods().stream()
+                                    .anyMatch(method -> method.kind() != EntityMetadata.HandlerKind.ASSERT_LEGAL)))
+                            && traits.automatic()
                     && embedded.stream().filter(EmbeddedModelPlan::writes).allMatch(plan -> {
                         AutomaticModelHandling rootPolicy = EntityMetadata.of(plan.rootType()).rootConfiguration()
                                 .orElseThrow().automaticHandling();
