@@ -1,0 +1,42 @@
+{
+  "name" : "ReplayContinuation",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableRoot$ReplayContinuation",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ "S", "E" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableRoot$ReplayContinuation#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "state",
+      "type" : "S",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "event",
+      "type" : "E",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

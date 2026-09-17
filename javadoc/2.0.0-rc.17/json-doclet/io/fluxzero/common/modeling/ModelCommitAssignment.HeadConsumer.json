@@ -1,0 +1,52 @@
+{
+  "name" : "HeadConsumer",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$HeadConsumer",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : "Receives assigned heads so a store can build only its own persistence representation. ",
+  "typeParameters" : [ "H" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "accept",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$HeadConsumer#accept",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "step",
+      "type" : "io.fluxzero.common.api.modeling.ModelCommitStep",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "io.fluxzero.common.api.modeling.ModelCommitTarget",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "substep",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "head",
+      "type" : "H",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

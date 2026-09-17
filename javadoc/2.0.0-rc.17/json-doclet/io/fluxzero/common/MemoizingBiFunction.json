@@ -1,0 +1,109 @@
+{
+  "name" : "MemoizingBiFunction",
+  "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link BiFunction} that memoizes (caches) its results based on a pair of input arguments. The result is stored per\n distinct (T, U) key pair and reused for identical subsequent calls.\n\n <p>Use {@code io.fluxzero.sdk.common.ClientUtils#memoize(BiFunction)} to create an instance.\n\n <pre>{@code\n MemoizingBiFunction<String, Integer, String> repeater =\n     ClientUtils.memoize((s, i) -> s.repeat(i));\n\n String result = repeater.apply(\"a\", 3); // computes \"aaa\"\n boolean cached = repeater.isCached(\"a\", 3); // true\n repeater.remove(\"a\", 3); // evicts the cached result\n }</pre>\n\n <p>Time-limited memoization is also supported:\n <pre>{@code\n MemoizingBiFunction<String, Locale, Translation> translator =\n     ClientUtils.memoize(this::translate, Duration.ofMinutes(10));\n }</pre>\n\n @param <T> the first input type\n @param <U> the second input type\n @param <R> the result type\n",
+  "typeParameters" : [ "T", "U", "R" ],
+  "superClass" : null,
+  "interfaces" : [ "java.util.function.BiFunction<T,U,R>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction#clear",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Clears all cached values.\n"
+  }, {
+    "name" : "compose",
+    "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction#compose",
+    "returnType" : "io.fluxzero.common.@lombok.NonNull MemoizingFunction<K1,R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "K1" ],
+    "parameters" : [ {
+      "name" : "before",
+      "type" : "java.util.function.@lombok.NonNull Function<? super K1,java.util.Map.Entry<? extends T,? extends U>>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@link MemoizingFunction} by composing this memoizing bi-function with an input transformation. This is\n useful when you want to adapt this function to take a single composite key (like a {@link Entry}).\n\n @param before function that transforms the input into a {@link Entry pair} of arguments\n @param <K1>   the type of the composed input\n @return a composed {@link MemoizingFunction}\n"
+  }, {
+    "name" : "forEach",
+    "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction#forEach",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.util.function.Consumer<? super R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the given consumer to all currently cached values.\n"
+  }, {
+    "name" : "isCached",
+    "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction#isCached",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "u",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns {@code true} if the function has already cached a value for the given inputs.\n"
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.common.MemoizingBiFunction#remove",
+    "returnType" : "R",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "u",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes the cached result for the given input pair, if present.\n\n @return the previously cached result or {@code null}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

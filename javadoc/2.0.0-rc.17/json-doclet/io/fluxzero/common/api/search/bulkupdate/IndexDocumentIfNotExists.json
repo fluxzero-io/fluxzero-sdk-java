@@ -1,0 +1,101 @@
+{
+  "name" : "IndexDocumentIfNotExists",
+  "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists",
+  "packageName" : "io.fluxzero.common.api.search.bulkupdate",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " A bulk update operation that indexes a document only if it does not already exist in the store.\n <p>\n Useful to ensure immutability or to avoid overwriting existing entries.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.search.BulkUpdate" ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists.collection",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The collection name to which this document belongs.\n",
+    "constantValue" : null
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists.end",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The optional end timestamp of the document.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists.id",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The document's unique ID within the collection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "object",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists.object",
+    "type" : "java.lang.@lombok.NonNull Object",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonTypeInfo",
+      "values" : {
+        "use" : "CLASS"
+      }
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The document to index, if not already present.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists.timestamp",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The optional start timestamp of the document.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "IndexDocumentIfNotExists",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists#IndexDocumentIfNotExists",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getType",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists#getType",
+    "returnType" : "io.fluxzero.common.api.search.BulkUpdate.Type",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

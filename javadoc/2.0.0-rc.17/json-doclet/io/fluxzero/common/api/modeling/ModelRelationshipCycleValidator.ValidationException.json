@@ -1,0 +1,33 @@
+{
+  "name" : "ValidationException",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$ValidationException",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Signals that the proposed relationship boundary could not be proven acyclic.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.IllegalArgumentException",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ValidationException",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$ValidationException#ValidationException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

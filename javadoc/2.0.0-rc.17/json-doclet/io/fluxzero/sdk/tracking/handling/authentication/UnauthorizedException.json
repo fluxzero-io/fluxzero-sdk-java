@@ -1,0 +1,33 @@
+{
+  "name" : "UnauthorizedException",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Thrown when an authenticated user attempts to access a resource or perform an action for which they lack the required\n permissions.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.exception.FunctionalException",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "UnauthorizedException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException#UnauthorizedException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new {@code UnauthorizedException} with the specified detail message.\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

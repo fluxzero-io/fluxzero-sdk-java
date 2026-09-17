@@ -1,0 +1,230 @@
+{
+  "name" : "HandlerMethodApplicability",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Describes whether a handler method applies to a group of equivalent inputs and, when it does, how to invoke it.\n\n <p>Fluxzero uses this result to cache both matches and non-matches without changing handler selection. Equal\n {@code cacheKey} values must therefore mean that the same {@link HandlerMethodPreparation} is valid for both\n inputs.</p>\n\n @param cacheKey a stable key containing every input property that affects the result, or {@code null} when safe\n                 caching is unsupported\n @param payloadClassKey whether the payload's runtime class alone is a complete key for this result\n @param preparation whether the method matches and, if so, the prepared invocation plan\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability.cacheKey",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payloadClassKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability.payloadClassKey",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "preparation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability.preparation",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unsupported",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability.unsupported",
+    "type" : "io.fluxzero.common.handling.HandlerMethodApplicability<?>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandlerMethodApplicability",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#HandlerMethodApplicability",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cacheKey",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClassKey",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "preparation",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#cacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cacheable",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#cacheable",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodApplicability<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "cacheKey",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadClassKey",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "preparation",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a result that may be reused for inputs with the same cache key.\n\n @param cacheKey a stable key containing every input property that affects the result\n @param payloadClassKey whether the payload's runtime class alone is sufficient as the key\n @param preparation a prepared match or definitive non-match\n @return the cacheable applicability result\n"
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isCacheable",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#isCacheable",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this result may be reused for another input with the same key.\n\n @return {@code true} if this result has a complete cache key\n"
+  }, {
+    "name" : "payloadClassKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#payloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "preparation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#preparation",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unsupported",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#unsupported",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodApplicability<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a result indicating that applicability cannot be prepared safely for this input.\n\n <p>The caller should use normal per-message handler selection instead.</p>\n\n @return an unsupported result\n"
+  }, {
+    "name" : "withPreparation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodApplicability#withPreparation",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodApplicability<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "newPreparation",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Copies this result with a different preparation while retaining its cache guarantees.\n\n <p>This is intended for handler decorators that do not change when the underlying handler applies, but that do\n wrap, reject, or otherwise transform its invocation plan. If the new preparation is unsupported, the returned\n applicability is unsupported as well.</p>\n\n @param newPreparation the replacement preparation\n @return a result with the same key guarantees and the replacement preparation\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "cacheKey",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "payloadClassKey",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "preparation",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

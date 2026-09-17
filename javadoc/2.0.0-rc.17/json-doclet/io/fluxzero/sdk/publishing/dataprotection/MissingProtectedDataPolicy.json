@@ -1,0 +1,104 @@
+{
+  "name" : "MissingProtectedDataPolicy",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+  "packageName" : "io.fluxzero.sdk.publishing.dataprotection",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Determines how a handler responds when a message references protected data that is no longer available.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy.PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Application property that configures the default missing protected data policy.\n",
+    "constantValue" : "fluxzero.dataProtection.onMissingProtectedData"
+  } ],
+  "constructors" : [ {
+    "name" : "MissingProtectedDataPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy#MissingProtectedDataPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "parse",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy#parse",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Parses a configured policy value case-insensitively.\n\n @param value configured value\n @return parsed policy\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy#valueOf",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy#values",
+    "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Inherit the policy from the consumer, application configuration, or SDK default.\n"
+  }, {
+    "name" : "FAIL",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy.FAIL",
+    "annotations" : [ ],
+    "documentation" : " Fail the handler invocation with a {@link MissingProtectedDataException}.\n"
+  }, {
+    "name" : "HANDLE",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy.HANDLE",
+    "annotations" : [ ],
+    "documentation" : " Invoke the handler with the unavailable protected fields set to {@code null}.\n"
+  }, {
+    "name" : "SKIP",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy.SKIP",
+    "annotations" : [ ],
+    "documentation" : " Skip the handler invocation and continue message tracking normally.\n"
+  }, {
+    "name" : "WARN",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy.WARN",
+    "annotations" : [ ],
+    "documentation" : " Log a warning and invoke the handler with the unavailable protected fields set to {@code null}.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

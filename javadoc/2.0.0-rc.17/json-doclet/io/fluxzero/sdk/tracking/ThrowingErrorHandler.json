@@ -1,0 +1,103 @@
+{
+  "name" : "ThrowingErrorHandler",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.ThrowingErrorHandler",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " An {@link ErrorHandler} implementation that forcefully halts message tracking by throwing any encountered errors.\n <p>\n This handler is designed for critical scenarios where continuation after an error is not acceptable, such as:\n <ul>\n     <li>Data integrity violations</li>\n     <li>Irrecoverable technical failures</li>\n     <li>Strict consistency or audit requirements</li>\n </ul>\n <p>\n Upon encountering an error, this handler logs the issue (if configured to do so) and rethrows the original\n {@code Throwable}. This causes message tracking to stop until it is explicitly restarted—typically after resolving\n the failure or redeploying the application.\n\n <p><strong>Logging Behavior:</strong>\n <ul>\n     <li>Technical exceptions (i.e., not {@link FunctionalException}) are logged if {@code logTechnicalErrors} is {@code true}.</li>\n     <li>{@link FunctionalException}s are logged if {@code logFunctionalErrors} is {@code true}.</li>\n     <li>In either case, the log level is {@code ERROR} and includes the full stack trace.</li>\n </ul>\n\n <p><strong>Usage:</strong> Can be registered via {@link Consumer#errorHandler()} or programmatically via {@link ConsumerConfiguration}.\n\n <pre>{@code\n @Consumer(name = \"criticalConsumer\", errorHandler = ThrowingErrorHandler.class)\n public class CriticalHandler {\n     @HandleCommand\n     void handle(UpdateBankBalance command) {\n         // Fails fast on any error\n     }\n }\n }</pre>\n\n @see ErrorHandler\n @see FunctionalException\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.ErrorHandler" ],
+  "fields" : [ {
+    "name" : "logFunctionalErrors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ThrowingErrorHandler.logFunctionalErrors",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "logTechnicalErrors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ThrowingErrorHandler.logTechnicalErrors",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ThrowingErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ThrowingErrorHandler#ThrowingErrorHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a default ThrowingErrorHandler that logs both functional and technical errors.\n"
+  } ],
+  "methods" : [ {
+    "name" : "handleError",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ThrowingErrorHandler#handleError",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorMessage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retryFunction",
+      "type" : "java.util.concurrent.Callable<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Handles the given error by optionally logging it and then throwing it to halt message tracking.\n\n @param error the {@link Throwable} encountered during message processing\n @param errorMessage context about the failure\n @param retryFunction the operation that was attempted (ignored in this implementation)\n @return never returns normally – always throws the original error\n"
+  }, {
+    "name" : "logError",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ThrowingErrorHandler#logError",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorMessage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Logs the given error based on its type and logging configuration.\n\n @param error the error to log\n @param errorMessage message to accompany the log entry\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
