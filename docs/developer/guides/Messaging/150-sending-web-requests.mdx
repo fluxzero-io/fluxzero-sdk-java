@@ -30,6 +30,11 @@ These self-handlers run locally by default. They need no `@TrackSelf`, `@Consume
 `@LocalHandler`, injected API-service bean, or explicit handler registration. Dispatch the payload; do not call its
 `handle()` method directly.
 
+Gzip responses received through the SDK message gateway are decompressed before typed deserialization,
+including in asynchronous tests. Use `response.getPayloadAs(MyReply.class)` normally; no compression workaround
+is needed. For these decoded responses, `Content-Encoding` is removed and any `Content-Length` reflects the
+uncompressed bytes. The response published on the wire remains unchanged.
+
 The example partner API returns an order as JSON, with HTTP 200 for lookup and 201 for creation:
 
 <Tabs>

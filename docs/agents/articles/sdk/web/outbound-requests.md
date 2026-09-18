@@ -176,6 +176,10 @@ TLS or proxy behavior that the fixture does not exercise. See `/docs/sdk/testing
 `/docs/sdk/tracking`. Give a remote stub its own consumer when the caller waits for its response; do not change
 production consumer defaults only to make a test pass.
 
+For request/response calls, the SDK message gateway decompresses gzip before typed deserialization. Use
+`response.getPayloadAs(MyReply.class)` normally, including in async fixtures. Decoded responses omit
+`Content-Encoding` and update any `Content-Length` to the uncompressed byte length; wire responses are unchanged.
+
 ## Build an exact one-way POST
 
 The proxy forwards only absolute `http://` or `https://` URLs. Validate required base URLs at configuration startup, resolve the operation path, and preserve the typed body contract.

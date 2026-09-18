@@ -245,6 +245,10 @@ Use `WebRequest` and `WebRequestGateway` for external HTTP APIs. The default mes
 auditability and correlation and supports configurable retries and `TestFixture` assertions/stubs. Do not replace
 it with a separate HTTP client for an ordinary integration.
 
+The SDK message gateway decompresses gzip responses before typed deserialization, including in async fixtures.
+Use `response.getPayloadAs<MyReply>(MyReply::class.java)` normally. Decoded responses omit `Content-Encoding` and
+update any `Content-Length` to the uncompressed byte length; the published wire response is unchanged.
+
 Fluxzero Auditlog masks standard credential headers such as `Authorization` and `X-Api-Key` case-insensitively as
 `<value scrambled>` in visible records and Auditlog downloads. Authenticated requests therefore remain auditable
 without showing these secrets. Resolve credentials through `ApplicationProperties` and use the API's required

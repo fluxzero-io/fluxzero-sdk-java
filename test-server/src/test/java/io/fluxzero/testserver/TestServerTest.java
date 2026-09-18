@@ -32,6 +32,8 @@ import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
+import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.WebRequest;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.server.Server;
@@ -160,6 +162,22 @@ class TestServerTest {
         testFixture.given(fc -> fc.documentStore().index("existing", documentId, "test").get())
                 .whenExecuting(fc -> fc.documentStore().indexIfNotExists("ignored", documentId, "test").get())
                 .expectNoEventsLike("ignored");
+    }
+
+    @Test
+    void typedGzipResponseRoundTripsOverWebsocket() {
+        testFixture.registerHandlers(new Object() {
+            @HandleGet("/gzip-reply")
+            CompressedReply handle() {
+                return new CompressedReply("a".repeat(3000));
+            }
+        }).whenWebRequest(WebRequest.get("/gzip-reply").header("Accept-Encoding", "gzip").build())
+                .expectWebResult(r -> r.<CompressedReply>getPayloadAs(CompressedReply.class)
+                        .equals(new CompressedReply("a".repeat(3000))))
+                .expectNoErrors();
+    }
+
+    private record CompressedReply(String text) {
     }
 
     @Test
