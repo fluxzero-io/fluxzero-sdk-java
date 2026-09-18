@@ -17,7 +17,9 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.HasMessage;
@@ -457,6 +459,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private CompletableFuture<Message> deserializeResponse(SerializedMessage m) {
         Object result;
         try {
+            if (messageType == MessageType.WEBREQUEST) {
+                var headers = WebResponse.getHeaders(m.getMetadata());
+                if (List.of("gzip").equals(headers.get("Content-Encoding"))) {
+                    var data = m.getData();
+                    byte[] encoded = data.getValue();
+                    // HEAD/304 may retain representation headers without carrying a body.
+                    byte[] decoded = encoded.length == 0 ? encoded : CompressionAlgorithm.GZIP.decompress(encoded);
+                    if (decoded != encoded) {
+                        // Decode before type resolution/upcasting; do not decode the body twice.
+                        headers.remove("Content-Encoding");
+                        if (headers.containsKey("Content-Length")) {
+                            headers.put("Content-Length", List.of(String.valueOf(decoded.length)));
+                        }
+                        m = m.withData(new Data<>(decoded, data.getType(), data.getRevision(), data.getFormat()))
+                                .withMetadata(m.getMetadata().with(WebResponse.headersKey, headers));
+                    }
+                }
+            }
             result = serializer.deserialize(m);
         } catch (Exception e) {
             log.error("Failed to deserialize result with id {}", m.getMessageId(), e);

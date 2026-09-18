@@ -231,6 +231,10 @@ fun onSchedule(schedule: RefreshData) {
 
 ## External Web Requests
 
+The SDK message gateway decompresses gzip responses before typed deserialization, including in async fixtures.
+Use `response.getPayloadAs<MyReply>(MyReply::class.java)` normally. Decoded responses omit `Content-Encoding` and
+update any `Content-Length` to the uncompressed byte length; the published wire response is unchanged.
+
 Use `WebRequest` to interact with external HTTP APIs.
 
 **Example: POST to External API**

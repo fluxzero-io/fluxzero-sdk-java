@@ -71,6 +71,9 @@ import static java.util.stream.Collectors.toList;
  * <p>
  * The response payload may be encoded and compressed (e.g. gzip) based on metadata.
  * It supports transformation, enrichment, and construction via a {@code Builder}.
+ * Serialized GZIP responses received through the SDK request/response gateway are decompressed before payload
+ * deserialization. Their Content-Encoding header is removed and any Content-Length reflects the decoded bytes.
+ * Empty bodies retain their representation headers, as required for responses such as HEAD and 304.
  * </p>
  *
  * @see WebRequest

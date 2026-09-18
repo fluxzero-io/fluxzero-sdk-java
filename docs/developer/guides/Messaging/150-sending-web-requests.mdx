@@ -19,6 +19,11 @@ Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` mes
 
 ## Sending a request
 
+Gzip responses received through the SDK message gateway are decompressed before typed deserialization,
+including in asynchronous tests. Use `response.getPayloadAs(MyReply.class)` normally; no compression workaround
+is needed. For these decoded responses, `Content-Encoding` is removed and any `Content-Length` reflects the
+uncompressed bytes. The response published on the wire remains unchanged.
+
 <Tabs>
   <TabItem label="Java">
 
