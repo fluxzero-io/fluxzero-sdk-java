@@ -31,6 +31,8 @@ public interface ModelConflictResolver {
 
     /**
      * Resolves one rolled-back conflict.
+     * The synchronous local pipeline invokes the resolver inline; the asynchronous pipeline uses its contextual
+     * worker executor, keeping application code off transport callbacks.
      */
     Resolution resolve(Context context);
 

@@ -1,5 +1,7 @@
 # Models and state
 
+For complete companion, derived-preference and execution examples, read [Model recipes](model-recipes.md).
+
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
 (Kotlin: kapt) in every Model contract module; Model declarations contribute
 `META-INF/io.fluxzero.sdk.modeling.Model`. Rebuild older contract JARs to generate this index. A classic shaded JAR
@@ -142,6 +144,22 @@ Persistence does not control event storage or publication. Those remain owned by
 `publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
 make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
 `ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT`-only Models.
+
+## Persistence and protection boundaries
+
+Storage and query visibility are not authorization. `DOCUMENT` with effective `eventPublication = NEVER`
+can persist current state without Model events, but has no history or `previous()`. Event-sourced state changes
+must store their event. This does not suppress incoming request logs, results or application logs.
+`@DocumentProjection(searchable = false)` removes unrestricted typed search, not identity or exact
+parent/ancestor reads. Graph predicates can still use internal content indexes independently of the public projection.
+
+`@ProtectData` on an input does not carry over to copies in Model state, snapshots, documents or return values.
+Result payloads can declare their own protected fields for normal RESULT dispatch; do not infer HTTP-body protection.
+Use trusted handlers and deployment access controls for sensitive state; do not treat a Graph or non-searchable
+document as a secret store. There is no implicit KMS, encryption-at-rest or backup guarantee.
+Returning `null` from `@Apply` is logical deletion, not physical erasure. Model erasure fences stale writes
+but global event logs, surviving shared event references, external copies and backups have separate lifecycles.
+Use one Model action for atomic related state changes; external I/O and schedules are outside that transaction.
 
 ## Apply actions
 
@@ -291,6 +309,12 @@ Return a validation object (or collection) from `@AssertLegal` to run its matchi
 payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
 and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
 
+Model references are selected per parameter: first from the nested validator, then enclosing validators, and finally
+the triggering payload. A returned `RemainingItem(otherItemId)` therefore validates that other item; a reference-less
+validator returned by it inherits that selection. Explicit nulls and empty collections do not fall back. Explicit
+`@Association` metadata retains its normal precedence for that parameter without replacing unrelated selections.
+Ancestors are resolved from the selected references. The original command remains available as a payload parameter.
+
 Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
 delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
 validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
@@ -360,6 +384,9 @@ Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(..
 Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
 of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
 changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
+Each part's assertions see earlier staged changes too, including removed child memberships. If a validation needs
+the pre-deletion collection, put its command before the Graph deletions in the returned collection. A later
+validation failure rolls back the whole commit; reordering does not turn the parts into separate transactions.
 RETRY rereads the selected graph and reevaluates the operation on a conflict. Do not add manual `previousValues` fields
 to compensate for lost revisions; historical inspection through `previous()` requires `EVENT_SOURCED`.
 
@@ -482,6 +509,25 @@ retention and deletion all belong to the root. If any of those concerns can dive
 `@Parent`. A list-shaped field, frequent updates, or convenient whole-document storage is never sufficient reason to
 use `@Member`.
 
+Member updates still address the owning Model: include its typed ID in a command or select it explicitly with
+`Fluxzero.loadGraph(ownerId).assertAndApply(update)`. A member ID alone does not identify a Model stream.
+Matching member `@Apply` methods update the immutable owner (including lists, maps and singletons); records use their
+constructor, Kotlin data classes their copy operation, or a configured member wither. Payload-root changes run first,
+then embedded member changes, then the root's Model apply. Each runs once and the composed result has one root event
+membership, not a separate member stream. Member and member-dependent payload assertions participate in the root
+operation before/after application, including their Model/Graph read dependencies. Replay reconstructs the same
+member changes without re-running assertions.
+
+Handlers on concrete subtypes of an open member hierarchy also work when the owning Model is addressed.
+Use `loadGraph(ownerId).assertAndApply(update)`, or `Fluxzero.assertAndApply(update)` with a typed owner ID.
+The loaded member determines its handlers and Model/Graph dependencies, including after payload-root changes.
+Those dependencies use the same commit boundary; replay loads their historical values.
+Automatic command subscriptions still require a discoverable payload/declared/sealed handler contract: registering
+an owner does not scan the classpath for arbitrary implementations of an open member interface.
+The corrected member replay also applies to existing RC event history. Previously produced snapshots may retain
+the old, incomplete state: reconstruct affected RC data from its event history rather than treating those snapshots
+as equivalent to a fresh replay.
+
 ## Loading and event parameters
 
 ```java
@@ -500,15 +546,39 @@ injection; relationships are fetched only when traversed. Typed ancestor lookup 
 and loads only the selected ancestor value. Every child is itself a graph, so `parent()`, `root()`,
 `previous()`, `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)` remain available at every placement.
 
+`graph.assertAndApply(command)` selects that Model's writes, but does not narrow assertions on the command:
+an `@AssertLegal` that reads another Model still runs, including before/after checks and returned validation objects.
+Its read dependencies participate in RETRY/FAIL. Model-owned handlers retain their existing target filtering;
+unselected applies do not become extra writes. Required assertion bindings must resolve rather than silently disappear.
+
 `id()` is the collision-safe repository identity; `functionalId()` is the public ID from the current or last present
 model value and omits repository affixes or parent scope. `stateIndex()` pins the complete graph read, while
 `revisionStateIndex()` reports when the selected node revision became current.
 
-Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
-`loadCurrentGraph(...)` when deliberately reconciling against current intent: for example after a synchronous nested
-command, or when a tracked scheduling consumer must decide which deadlines still belong to a Model despite handling
-an old event. It does not inherit the event's historical boundary. Keep ordinary invariant checks and event-exact
-before/after processing on injected Models/Graphs; do not use current loading as the default route.
+Within a Model mutation, injected Graphs and synchronous `loadGraph`, `loadCurrentGraph` and `graph.current()`
+reads on the same repository/namespace share the attempt's pinned boundary and staged state. Actual value and
+relationship reads join its conflict dependencies, including empty collections. `current` does not open a second
+snapshot mid-mutation. Outside mutations, ordinary event-handler reads remain event-bound; explicit current reads
+open a fresh view for deliberate reconciliation, such as scheduling against current intent.
+
+Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of a
+cached root. Reading `get()` before `children(...)` therefore does not hide already committed relation changes.
+Typed lazy loads pin on their first storage read; an untyped load pins when it resolves the root identity.
+Once pinned, that Graph stays on its snapshot: use a new view to observe later commits.
+
+A mutation may start from a coherent cached boundary. Successful decisions validate their relevant read dependencies
+at commit: RETRY reevaluates after a conflict; FAIL rejects. An assertion that already rejects is not refreshed or
+retried merely because newer state might allow it. Existing injection paths can establish freshness up front, but a
+manual Graph discovered during apply keeps the attempt's boundary; it does not force a read-RPC on every ordinary
+cache-only command. Relationships remain lazy. Pending state belongs to the owning repository family and namespace,
+never another application's cache or batch. See the invariant example at `/docs/sdk/entities/assert-legal`.
+
+Open `graph.current()` for the same Model without replacing the original Graph. Outside mutations it pins a new
+current boundary during the call and captures pending batch changes; inside a mutation it shares that attempt's
+boundary, staged values and read dependencies. It retains exact identity and owning repository/namespace, including
+affixes and parent scope. A moved node gets the parents at that selected boundary; a deleted Model is empty. Filters,
+mapped values, uncommitted edits on the source Graph and response context are not copied. Reapply presentation filters.
+Unknown nodes and custom repositories without the required current-read capability fail explicitly.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.
@@ -540,7 +610,9 @@ nodes do not hide known descendants. Values remain lazy and pinned; injected mem
 empty selections, participate in conflict handling. Full materialization still requires the value/replay contracts.
 Lazy root aliases resolve through head metadata without replay in the default repository. The initial lookup uses
 the current alias table, even for historical reads; its canonical ID or absence and value/relationship boundary
-then stay pinned. This is not a new transaction-level alias-mapping conflict dependency.
+then stay pinned. Inside a Model mutation, consumed alias lookups participate in commit conflict detection,
+including missing aliases, `id()` and relation-only access. Exact-ID reads do not depend on alias mappings.
+This does not introduce historical alias reconstruction. `ACCEPT` retains only apply-time dependencies.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 
@@ -558,9 +630,10 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
-An explicit `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root is
-cached. A root cache's older observation boundary cannot prove that its relationships are still current. Values
-remain lazy and may reuse an exact matching cached revision; ordinary Model and Graph cache paths are unchanged.
+Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root
+is cached; an older root observation cannot prove unchanged relationships. Within a mutation it instead reuses the
+attempt boundary and joins its readset. Values remain lazy and use their authoritative persistence source, including
+current document authority for DOCUMENT-only Models.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 
@@ -617,6 +690,8 @@ when a Project deletion caused it. No parent-specific cleanup handler or extra p
 The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
 boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving
 shared ancestors also observe removal; an already deleted ancestor is not notified twice for the same deletion.
+The cascaded child's `previous()` retains the state before its own deletion substep: its value is available, but
+an ancestor already deleted in an earlier substep is no longer reachable. It does not rewind the whole commit.
 This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
 physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
 
@@ -651,14 +726,18 @@ properties. Public policies are:
 
 If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
 
-The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
-`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
-fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
-and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+`DEFAULT` inherits explicit Model/application configuration and otherwise means `RETRY`, for both updates and first
+creations, independently of `fluxzero.defaults.version`. Use `fluxzero.model.conflictPolicy`
+(`FLUXZERO_MODEL_CONFLICT_POLICY`) or builder/Model/Apply settings to choose an explicit policy.
+A changed Product or parent collection therefore reevaluates a new child's creation. This does not make a factory an
+upsert: the normal apply-compatibility check still rejects an occupied target after retry. An intentionally nullable
+existing-Model apply is a separate upsert choice. A staged Graph update that started from absence also cannot overwrite
+a concurrent creation. Explicit ACCEPT still fails a first-creation conflict instead of rebasing it into an overwrite.
+ACCEPT validates apply dependencies and writes, excluding
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
-Injected Graph reads also count: values/type/alias/revision reads protect Model heads; child collections (including empty
+Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
 Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8
 SDK/Runtime. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through
@@ -685,7 +764,10 @@ transactional navigation; opaque custom Graphs fail explicitly, while ordinary c
 - Physical descendant erasure remains a separate destructive operation and requires `planDeletion(...)` followed by
   confirmation/execution of that exact plan.
 - Erasure fences prevent delayed document, snapshot or projection writes from resurrecting deleted data.
-- Detached descendants remain discoverable through deleted-parent lineage for later GDPR/lifecycle erasure.
+- Relations closed by parent deletion remain discoverable for later descendant erasure, including nested logical
+  cascades. Earlier ordinary detachments or moves are not added back to the deleted tree.
+- Always inspect the deletion plan before confirming it. Upgrading does not repair missing lineage markers written
+  by older implementations; an already logically deleted tree needs separately verified scope before erasure.
 
 ## Testing
 

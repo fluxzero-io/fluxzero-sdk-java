@@ -1,4 +1,8 @@
-Use validation for structural payload checks, access annotations, response filtering, and sensitive-field handling. Use `@AssertLegal` for state-dependent business invariants that require aggregate data.
+Use validation for structural payload checks, access annotations, response filtering, and sensitive-field handling. Use `@AssertLegal` for state-dependent business invariants that require Model state.
+
+For concurrent Model invariants, use the binding and read-boundary example at `/docs/sdk/entities/assert-legal`.
+Identify the Model values/relations, ID source and conflict policy; neither `@AssertLegal`, current reads nor RETRY
+make arbitrary search or helper I/O transactional. Resolve an unclear binding before adding an application workaround.
 
 Structural validation uses Jakarta annotations on command/query records and value objects. Put business detail fields in a dedicated value object and cascade with `@Valid`. For HTTP wrappers and nested collections, read request DTO validation and OpenAPI contracts: `@Valid` cascades into a present value but does not make the value, list, or item required.
 
@@ -13,6 +17,36 @@ public record CreateUser(
     }
 }
 ```
+
+### Fields before method constraints
+
+The default Fluxzero payload validator checks field constraints, including container-element constraints and
+field-based `@Valid` cascades, before the containing object's method constraints. Pure constraint methods may
+dereference values required by active field constraints without repeating null guards. For example:
+
+```java
+public record ConfigureReminder(@NotNull Duration delay) {
+    @AssertTrue(message = "Choose a non-negative delay.")
+    boolean hasNonNegativeDelay() {
+        return !delay.isNegative();
+    }
+}
+```
+
+For collections, require both the container and its elements, for example
+`@NotNull List<@NotNull @Valid ReminderDetails> reminders`. `@Valid` checks a present nested value; it does not
+make a missing value or element invalid. Use `@NotNull` or the appropriate field constraint separately.
+Optional values still need a null-aware rule. Conditionally required values need a combination rule.
+
+This applies to automatic payload validation and `assertValid`/`checkValidity`/`isValid` with the default validator.
+It is not a promise that a method is never called for invalid input: after finding field failures, the validator may
+try method constraints again to collect additional violations, suppressing failures from that diagnostic pass.
+Keep constraint methods pure. The raw `getConstraintViolations`/Jakarta `validate` APIs do not suppress such method
+exceptions; use the normal payload-validation API for this contract.
+
+Only constraints in the active groups and reached through enabled cascades establish these preconditions.
+A requirement in a later group-sequence stage cannot protect a method in an earlier stage. Method-level
+`@Valid` return values are not prevalidated fields. A replacement validator owns its own ordering and failure behavior.
 
 Use `@ValidateWith` for validation groups when the same value object has different rules in draft and final contexts:
 

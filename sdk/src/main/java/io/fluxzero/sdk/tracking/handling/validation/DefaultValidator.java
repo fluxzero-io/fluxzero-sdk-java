@@ -27,6 +27,13 @@ import java.time.Clock;
  * constraints, custom constraints, groups, cascaded validation, type-use/container validation, executable parameter
  * and return-value validation, metadata lookup, value extractors, and Fluxzero-clock based temporal checks.
  * <p>
+ * Normal payload validation ({@code assertValid}, {@code checkValidity}, {@code isValid}) checks fields and their
+ * cascades before the containing object's constrained methods. Pure methods need not repeat null guards for values
+ * required by active field/container constraints. Optional values and inactive groups do not establish that precondition.
+ * A diagnostic pass may still invoke methods after field failures, retaining field violations if that pass throws.
+ * Raw {@code getConstraintViolations} and Jakarta {@code validate} do not suppress such method exceptions.
+ * This ordering is specific to this implementation, not a requirement on replacement validators.
+ * <p>
  * It is intentionally not a full standalone Jakarta Validation provider replacement for every TCK edge case:
  * XML mappings, {@code validation.xml}, CDI lifecycle integration, TraversableResolver reachability rules, and full
  * Expression Language message evaluation are outside the supported SDK profile.

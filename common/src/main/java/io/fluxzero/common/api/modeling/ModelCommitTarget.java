@@ -95,7 +95,8 @@ public class ModelCommitTarget {
     /**
      * Independent, optional public document projection. It shares the source's lifecycle fence but is never used to
      * reconstruct Model state or compose Graphs. A null document within the mutation deletes the projection.
-     * Requests carrying this field must use {@link CommitModelsWithDocumentProjections}.
+     * Requests carrying this field must use {@link CommitModelsWithDocumentProjections} or
+     * {@link CommitModelsWithAliasReads}.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     ModelDocumentMutation documentProjection;

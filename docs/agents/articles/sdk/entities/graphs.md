@@ -32,9 +32,11 @@ With the default repository or a custom resolver supporting metadata navigation,
 evidence. Custom repositories without that capability retain their existing materialization fallback. These are not
 implicit document-backed value reads.
 
-Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
-`loadCurrentGraph(...)` only after a synchronous nested command when later handler logic deliberately needs that
-command's newer state. Do not use it as the default loading route.
+Within a Model mutation, synchronous `loadGraph`, `loadCurrentGraph` and `graph.current()` reads on its repository
+share the attempt's snapshot, staged state and inspected read dependencies. Current shortcuts do not advance an
+ongoing mutation's boundary. Outside mutations, ordinary event reads stay event-bound; explicit current reads open
+a fresh view for reconciliation, such as checking current schedule intent. See `/docs/sdk/entities/assert-legal`
+for binding, conflict policy and the limits of separate search/state reads.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.

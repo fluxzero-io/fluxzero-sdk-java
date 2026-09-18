@@ -71,7 +71,7 @@ public record Change(
         if (directReplay == null) {
             throw new IllegalStateException("Only a direct Graph mutation has a replay operation");
         }
-        return new GraphMutation(modelId, modelType, null, null, directReplay);
+        return new GraphMutation(modelId, modelType, null, null, false, null, directReplay);
     }
 
     static Change resolve(GraphMutation mutation, Entity<?> target, Object resolvedAfter) {

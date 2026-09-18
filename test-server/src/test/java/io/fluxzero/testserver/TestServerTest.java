@@ -181,6 +181,27 @@ class TestServerTest {
     }
 
     @Test
+    void documentRevisionChainCompletesOverWebsocket() {
+        String documentId = UUID.randomUUID().toString();
+        testFixture.registerHandlers(new Object() {
+            @HandleDocument("revision-chain")
+            void handle(DocumentRevision document) {
+                if (document.revision() < 5) {
+                    Fluxzero.index(new DocumentRevision(document.id(), document.revision() + 1),
+                                   document.id(), "revision-chain").join();
+                } else {
+                    Fluxzero.publishEvent("completed-" + document.id());
+                }
+            }
+        }).whenExecuting(fc -> Fluxzero.index(new DocumentRevision(documentId, 0),
+                                             documentId, "revision-chain").join())
+                .expectEvents("completed-" + documentId).expectNoErrors();
+    }
+
+    private record DocumentRevision(String id, int revision) {
+    }
+
+    @Test
     void handleCustom() {
         testFixture.whenCustom("test", "testCustom")
                 .expectEvents("testCustom");

@@ -122,6 +122,107 @@ class ModelRecursiveAssertionsTest {
         assertEquals(List.of("before:1", "after:2"), calls);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void returnedGuardUsesItsOwnModelReferenceButKeepsTheOriginalInvocation(boolean async) {
+        fixture(async).givenCommands(new Seed("target", 1), new Seed("witness", 2))
+                .whenCommand(new Message(new WithOwnReference("target", "witness"), Metadata.of("marker", "original")))
+                .expectSuccessfulResult();
+        assertEquals(List.of("witness:2"), calls);
+        assertEquals(2, fixture.getFluxzero().modelRepository().load("target", State.class).get().count());
+        assertEquals(2, fixture.getFluxzero().modelRepository().load("witness", State.class).get().count());
+    }
+
+    @Test
+    void returnedGuardsOwnReadIsValidatedByTheOuterCommit() {
+        fixture(false).givenCommands(new Seed("target", 1), new Seed("witness", 2));
+        race.set(() -> CompletableFuture.runAsync(() -> fixture.getFluxzero().apply(fc -> {
+            Fluxzero.assertAndApply(new Seed("witness", 0));
+            return null;
+        }), task -> Thread.ofVirtual().name("nested-witness-update").start(task)).join());
+        fixture.whenExecuting(fc -> Fluxzero.assertAndApply(
+                        new Message(new WithOwnReference("target", "witness"), Metadata.of("marker", "original"))))
+                .expectExceptionalResult(IllegalCommandException.class);
+        assertEquals(List.of("witness:2", "witness:0"), calls);
+        assertEquals(1, fixture.getFluxzero().modelRepository().load("target", State.class).get().count());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"typed", "null", "collection", "empty", "metadata"})
+    void returnedGuardReferenceFormsDoNotFallBackToTheCommandsModel(String form) {
+        Object guard = switch (form) {
+            case "typed" -> new TypedGuard(new StateId("witness"));
+            case "null" -> new NullableGuard(null);
+            case "collection" -> new OwnCollectionGuard(List.of("witness"));
+            case "empty" -> new OwnCollectionGuard(List.of());
+            default -> new AssociatedGuard("target");
+        };
+        fixture(false).givenCommands(new Seed("target", 1), new Seed("witness", 2))
+                .whenCommand(new Message(new WithGuard("target", guard), Metadata.of("selection", "witness")))
+                .expectSuccessfulResult();
+        assertEquals(List.of(switch (form) {
+            case "null" -> "absent";
+            case "empty" -> "[]";
+            case "collection" -> "[witness]";
+            default -> "witness";
+        }), calls);
+        assertEquals(2, fixture.getFluxzero().modelRepository().load("target", State.class).get().count());
+    }
+
+    @Test
+    void referenceLessGuardInheritsTheNearestValidatorsSelection() {
+        fixture(false).givenCommands(new Seed("target", 1), new Seed("witness", 2))
+                .whenCommand(new WithGuard("target", new ChainedGuard("witness")))
+                .expectSuccessfulResult();
+        assertEquals(List.of("witness", "witness"), calls);
+    }
+
+    @Test
+    void associationMetadataDoesNotReplaceUnrelatedPayloadSelections() {
+        fixture(false).givenCommands(new Seed("target", 1), new SetInventory("stock", true))
+                .whenCommand(new Message(new WithGuard("target", new MetadataGuard()),
+                                         Metadata.of("selection", "stock")))
+                .expectSuccessfulResult();
+        assertEquals(List.of("target:stock"), calls);
+    }
+
+    @Test
+    void returnedGuardResolvesAncestorsFromItsOwnChild() {
+        fixture(false).givenCommands(new SetInventory("first-parent", true), new SetInventory("other-parent", true),
+                                     new SetChild("target", "first-parent", 1),
+                                     new SetChild("witness", "other-parent", 2))
+                .whenCommand(new WithOwnAncestor(new ChildId("target"), "witness"))
+                .expectSuccessfulResult();
+        assertEquals(List.of("first-parent", "witness:other-parent"), calls);
+    }
+
+    @Test
+    void nullUntypedChildInGuardCannotFallBackToTheOriginalTypedChild() {
+        fixture(false).givenCommands(new SetInventory("first-parent", true), new SetChild("target", "first-parent", 1))
+                .whenCommand(new WithOwnAncestor(new ChildId("target"), null))
+                .expectExceptionalResult(IllegalStateException.class);
+        assertEquals(List.of("first-parent"), calls);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ancestorOnlyGuardDoesNotBorrowTheOuterChild(boolean nullReference) {
+        var result = fixture(false).givenCommands(new Seed("target", 1), new SetInventory("first-parent", true),
+                                     new SetInventory("other-parent", true),
+                                     new SetChild("target-child", "first-parent", 1),
+                                     new SetChild("witness", "other-parent", 2))
+                .whenCommand(new AncestorOnlyCheck("target", new ChildId("target-child"),
+                                                  nullReference ? null : "witness"));
+        if (nullReference) {
+            // Without a root there is no ancestor traversal, even for a nullable ancestor parameter.
+            result.expectExceptionalResult(IllegalStateException.class);
+            assertEquals(List.of("first-parent"), calls);
+        } else {
+            result.expectSuccessfulResult();
+            assertEquals(List.of("first-parent", "other-parent"), calls);
+        }
+    }
+
     @Test
     void applicationParameterResolversAlsoApplyToNestedGuards() {
         Token token = new Token();
@@ -260,7 +361,9 @@ class ModelRecursiveAssertionsTest {
 
     @Test
     void acceptRebasesChangedWritesWithoutRerunningNestedGuards() {
-        fixture(false).givenCommands(new Seed("accept", 1), new SetInventory("stock", true));
+        fixture = TestFixture.create(DefaultFluxzero.builder().configureModelConflictHandling(
+                ModelConflictPolicy.ACCEPT, ModelConflictResolver.retryIfAllowed(), 3));
+        fixture.givenCommands(new Seed("accept", 1), new SetInventory("stock", true));
         race.set(() -> CompletableFuture.runAsync(() -> fixture.getFluxzero().apply(fc -> {
             Fluxzero.assertAndApply(new SetInventory("stock", false));
             Fluxzero.assertAndApply(new Seed("accept", 10));
@@ -401,6 +504,103 @@ class ModelRecursiveAssertionsTest {
 
         @Apply
         State apply(State state) { return new State(id, state.count() + 1); }
+    }
+
+    record WithOwnReference(String id, String otherId) {
+        @AssertLegal Object check() { return new OwnReferenceGuard(otherId); }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+        State apply(State state) { return new State(id, state.count() + 1); }
+    }
+
+    record OwnReferenceGuard(String id) {
+        @AssertLegal void check(WithOwnReference original, Metadata metadata, State selected) {
+            assertEquals("target", original.id());
+            assertEquals("original", metadata.get("marker"));
+            assertEquals(id, selected.id());
+            calls.add(selected.id() + ":" + selected.count());
+            Runnable concurrent = race.getAndSet(null);
+            if (concurrent != null) { concurrent.run(); }
+            if (selected.count() == 0) { throw new IllegalCommandException("Witness is unavailable"); }
+        }
+    }
+
+    record WithGuard(String id, Object guard) {
+        @AssertLegal Object check() { return guard; }
+        @Apply State apply(State state) { return new State(id, state.count() + 1); }
+    }
+
+    static class StateId extends Id<State> {
+        StateId(String id) { super(id); }
+    }
+
+    record TypedGuard(StateId selection) {
+        @AssertLegal void check(State state) { calls.add(state.id()); }
+    }
+
+    record NullableGuard(String id) {
+        @AssertLegal void check(@jakarta.annotation.Nullable State state) {
+            assertNull(state);
+            calls.add("absent");
+        }
+    }
+
+    record OwnCollectionGuard(List<String> ids) {
+        @AssertLegal void check(@Association("ids") List<Graph<State>> states) {
+            calls.add(states.stream().map(Graph::get).map(State::id).toList().toString());
+        }
+    }
+
+    record AssociatedGuard(String selection) {
+        @AssertLegal void check(@Association("selection") State state) { calls.add(state.id()); }
+    }
+
+    record ChainedGuard(String id) {
+        @AssertLegal Object check(State state) {
+            calls.add(state.id());
+            return new ReferenceLessGuard();
+        }
+    }
+
+    record ReferenceLessGuard() {
+        @AssertLegal void check(State state) { calls.add(state.id()); }
+    }
+
+    record MetadataGuard() {
+        @AssertLegal void check(State state, @Association("selection") Inventory inventory) {
+            calls.add(state.id() + ":" + inventory.inventoryId());
+        }
+    }
+
+    record WithOwnAncestor(ChildId childId, String otherId) {
+        @AssertLegal Object check(Inventory inventory) {
+            calls.add(inventory.inventoryId());
+            return new OwnAncestorGuard(otherId);
+        }
+        @Apply Child apply(Child child) { return new Child(child.childId(), child.inventoryId(), child.count() + 1); }
+    }
+
+    record OwnAncestorGuard(String childId) {
+        @AssertLegal void check(Child child, Inventory inventory) {
+            calls.add(child.childId() + ":" + inventory.inventoryId());
+        }
+    }
+
+    static class ChildId extends Id<Child> {
+        ChildId(String id) { super(id); }
+    }
+
+    record AncestorOnlyCheck(String id, ChildId childId, String witness) {
+        @AssertLegal Object check(@Association("childId") Child child, Inventory inventory) {
+            calls.add(inventory.inventoryId());
+            return new AncestorOnlyGuard(witness == null ? null : new ChildId(witness));
+        }
+        @Apply State apply(State state) { return new State(id, state.count() + 1); }
+    }
+
+    record AncestorOnlyGuard(ChildId childId) {
+        @AssertLegal void check(@jakarta.annotation.Nullable Inventory inventory) {
+            calls.add(inventory == null ? "absent" : inventory.inventoryId());
+        }
     }
 
     record PhaseGuard(boolean after) {

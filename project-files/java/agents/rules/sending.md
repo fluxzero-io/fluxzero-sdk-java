@@ -44,6 +44,20 @@ interface.
 
 <a name="internal-messages"></a>
 
+## Logical identity and transport envelopes
+
+`Message` contains payload, metadata, message ID and timestamp. Source/target/request ID/log index belong to
+`SerializedMessage`, not the logical Message. Redispatch preserves logical identity unless explicitly replaced,
+but starts a new request envelope: local handling has no transport source; tracked requests use the sending
+client's ID for response correlation. Blocking versus future-returning methods do not select local versus remote.
+Never use a supplied source or message ID as authentication.
+
+Use `incoming.withMessage(incoming.toMessage().withMessageId("new-logical-id"))` for an intentional identity
+replacement. Complete raw serialized edits before deserializing; the wrapper lazily caches its logical Message
+and does not synchronize later raw mutations. Re-deserialize after edits. Dispatch interceptors should return
+logical replacements; serialized modification only affects serialized publication. Real native HTTP carries
+headers/body, not a Fluxzero command/query envelope. Fixture HTTP stubs do not prove network behavior.
+
 ## Internal Messages
 
 ### Commands

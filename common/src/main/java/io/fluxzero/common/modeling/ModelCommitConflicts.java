@@ -176,6 +176,20 @@ public final class ModelCommitConflicts {
         return conflicts == null ? existing : List.copyOf(conflicts.values());
     }
 
+    /** Adds alias conflicts without mixing resolved owners into the canonical head-assignment map. */
+    public static List<ModelCommitConflict> detectAliases(
+            CommitModels commit, List<ModelCommitConflict> existing, ToLongFunction<String> positions) {
+        List<ModelCommitConflict> conflicts = null;
+        for (String alias : commit.getReadAliasIds()) {
+            long position = positions.applyAsLong(alias);
+            if (position > commit.getReadStateIndex() && !contains(existing, alias)) {
+                if (conflicts == null) { conflicts = new ArrayList<>(existing); }
+                conflicts.add(new ModelCommitConflict(alias, position, -1L));
+            }
+        }
+        return conflicts == null ? existing : List.copyOf(conflicts);
+    }
+
     /** Adds membership conflicts using relationship positions read under the same atomic boundary as the write. */
     public static List<ModelCommitConflict> detectRelationships(
             CommitModels commit, List<ModelCommitConflict> existing,

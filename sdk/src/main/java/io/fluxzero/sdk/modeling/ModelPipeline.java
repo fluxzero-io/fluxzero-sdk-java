@@ -28,6 +28,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
@@ -48,6 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -67,13 +69,12 @@ final class ModelPipeline {
     private final DefaultModelRepository repository;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
-    private final ModelConflictPolicy creationConflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
-    private final Function<Class<?>, MutationPlan> definitions;
+    private final BiFunction<Class<?>, Class<?>, MutationPlan> definitions;
     private final java.util.function.BooleanSupplier localHandlingEnabled;
     private final ModelCommitAdmission commitAdmission = new ModelCommitAdmission();
 
@@ -86,17 +87,15 @@ final class ModelPipeline {
             DispatchInterceptor eventDispatchInterceptor,
             String source,
             ModelConflictPolicy conflictPolicy,
-            ModelConflictPolicy creationConflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
-            Function<Class<?>, MutationPlan> definitions,
+            BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
             java.util.function.BooleanSupplier localHandlingEnabled) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
-        this.creationConflictPolicy = ModelConflictPolicy.resolve(creationConflictPolicy);
         this.conflictResolver = Objects.requireNonNull(conflictResolver, "conflictResolver");
         if (maxConflictRetries < 0) {
             throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
@@ -133,7 +132,12 @@ final class ModelPipeline {
     }
 
     private MutationPlan definitionFor(Class<?> payloadType) {
-        return definitions.apply(payloadType);
+        return definitions.apply(payloadType, null);
+    }
+
+    private MutationPlan definitionFor(DeserializingMessage message) {
+        return definitions.apply(message.getPayloadClass(), message.getContext(ExplicitModelTarget.class)
+                .map(ExplicitModelTarget::modelType).orElse(null));
     }
 
     public CompletableFuture<Void> assertAndApply(Message update) {
@@ -222,6 +226,11 @@ final class ModelPipeline {
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
+            CommitAttempt parent = CommitAttempt.currentReadContext(repository);
+            if (parent != null) {
+                ModelReducer.assertWithin(message, parent);
+                return COMPLETED_VOID;
+            }
             return execute(new ExecutionRequest(message, null, -1, Mode.ASSERT), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
@@ -287,6 +296,7 @@ final class ModelPipeline {
                 throw new IllegalStateException("Model evaluation replaced its commit attempt");
             }
             warnEmptyExplicitApply(request, initial);
+            entry.repositoryOwner = repository.modelDefinitionCompiler();
             ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
             entry.initialize(initial.readModelIds());
         } catch (Throwable failure) {
@@ -421,7 +431,7 @@ final class ModelPipeline {
             boolean migration,
             boolean existingEvent) {
         ModelConflictPolicy effectiveConflictPolicy =
-                evaluation.conflictPolicy(conflictPolicy, creationConflictPolicy);
+                evaluation.conflictPolicy(conflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                 ? Retry.accepting((result, current) -> {
                     try {
@@ -539,7 +549,7 @@ final class ModelPipeline {
                     } else if (result.isAccepted()) {
                         return CompletableFuture.completedFuture(optional);
                     }
-                    return retryDecision(result, attempts, retry, context)
+                    return retryDecision(result, attempts, retry, context, asynchronousReevaluation)
                             .thenCompose(ignored -> invoke(
                                     context,
                                     () -> retry.evaluator().reevaluate(
@@ -661,23 +671,23 @@ final class ModelPipeline {
             CommitModelsResult result,
             int attempts,
             Retry retry,
-            ThreadLocalContext.Snapshot context) {
+            ThreadLocalContext.Snapshot context,
+            boolean asynchronous) {
         if (retry.accepting()) {
             return COMPLETED_VOID;
         }
-        return CompletableFuture.supplyAsync(context.wrap(() ->
-                        Objects.requireNonNull(
-                                retry.resolver().resolve(
-                                        new ModelConflictResolver.Context(
-                                                result, attempts, retry.maxAttempts())),
-                                "Model conflict resolver returned null")), ASYNC_EXECUTOR)
-                .thenCompose(resolution ->
-                        resolution == ModelConflictResolver.Resolution.RETRY
-                        && result.isRetryAllowed()
-                        && attempts < retry.maxAttempts()
-                                ? COMPLETED_VOID
-                                : CompletableFuture.failedFuture(
-                                        new ModelCommitConflictException(result)));
+        // Use the same execution mode as reevaluation: a local synchronous commit must not return
+        // before its retry decision, while transport callbacks must keep user code off their thread.
+        return invoke(context, () -> {
+            ModelConflictResolver.Resolution resolution = Objects.requireNonNull(
+                    retry.resolver().resolve(new ModelConflictResolver.Context(result, attempts, retry.maxAttempts())),
+                    "Model conflict resolver returned null");
+            return resolution == ModelConflictResolver.Resolution.RETRY
+                   && result.isRetryAllowed()
+                   && attempts < retry.maxAttempts()
+                    ? COMPLETED_VOID
+                    : CompletableFuture.failedFuture(new ModelCommitConflictException(result));
+        }, "Model conflict decision returned null", asynchronous);
     }
 
     private static <T> CompletableFuture<T> invokeAsync(
@@ -725,10 +735,7 @@ final class ModelPipeline {
                     ModelBatchScope.withMessageDependency(
                             message,
                             () -> expandCascadeDeletes(
-                                    ModelReducer.apply(
-                                            new CommitAttempt(),
-                                            List.of(message),
-                                            new CommitLoader(retryStateIndex)))));
+                                    ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict))));
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -988,14 +995,21 @@ final class ModelPipeline {
     record ExplicitModelTarget(String modelId, Class<?> modelType) {
     }
 
+    enum AutomaticExecution { INSTANCE }
+
     private final class CommitLoader implements ModelReducer.SubstepResolver {
+        @Override
+        public DefaultModelRepository repository() { return repository; }
+
         private Long pinnedStateIndex;
         private final boolean applyOnly;
         private final boolean migration;
         private final boolean advanceIncompleteDocumentBoundary;
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
+        private boolean requiresStorageBoundary;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
+        private Map<String, String> aliasResolutions = Map.of();
         private final Map<AncestorPlanKey, AncestorPlan> ancestorPlans =
                 new LinkedHashMap<>();
 
@@ -1055,20 +1069,22 @@ final class ModelPipeline {
                         "Pinned model evaluation moved from state index %d to %d"
                                 .formatted(pinnedStateIndex, boundary));
             }
-            MutationPlan definition = definitionFor(substep.getPayloadClass());
+            MutationPlan definition = definitionFor(substep);
+            requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
                 && requestedStateIndex == null
                 && stagedValues.isEmpty()) {
                 MutationPlan.ResolvedModel target = prefetched.target;
-                commitEntities.put(target.modelId(), prefetched.entity);
-                return new ModelReducer.ResolvedSubstep(
-                        CommitAttempt.createSingle(
-                                prefetched.stateIndex,
-                                target.modelId(), target.modelType(), target.access(), target.sourceProperties(),
-                        prefetched.entity),
-                        definition.reducer());
+                CommitAttempt context = CommitAttempt.createSingle(
+                        prefetched.stateIndex, target.modelId(), target.modelType(), target.access(),
+                        target.sourceProperties(), prefetched.entity);
+                if (DeserializingMessage.getMessageBatchIndex() >= 0) {
+                    context = repository.overlayPendingContext(context);
+                }
+                commitEntities.put(target.modelId(), context.entity(target.modelId()));
+                return new ModelReducer.ResolvedSubstep(context, definition.reducer());
             }
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
@@ -1083,17 +1099,20 @@ final class ModelPipeline {
         }
 
         @Override
+        public ModelReducer.ResolvedSubstep resolveAssertion(
+                DeserializingMessage message, CommitAttempt context, Map<String, Object> values) {
+            MutationPlan definition = definitionFor(message);
+            MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
+            return new ModelReducer.ResolvedSubstep(
+                    resolve(resolution, context.readStateIndex(), values), definition.reducer());
+        }
+
+        @Override
         public CommitAttempt resolveAssertion(
-                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                DeserializingMessage message, MutationPlan.AssertionScope scope,
+                EntityMetadata.ExecutableParameters parameters,
                 CommitAttempt context, Map<String, Object> stagedValues) {
-            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters);
-            LinkedHashMap<String, MutationPlan.ResolvedModel> targets = new LinkedHashMap<>();
-            context.targets().forEach(target -> MutationPlan.merge(targets, target));
-            bound.models().forEach(target -> MutationPlan.merge(targets, target));
-            MutationPlan.Resolution resolution = new MutationPlan.Resolution(
-                    List.copyOf(targets.values()), List.of(), bound.ancestorDependencies().stream()
-                    .filter(dependency -> context.resolve(dependency.modelType(), dependency.association()) == null)
-                    .toList(), bound.references());
+            MutationPlan.Resolution resolution = MutationPlan.bind(message, parameters, scope, context);
             Map<String, Object> values = new LinkedHashMap<>(stagedValues);
             context.entities().forEach((id, entity) -> values.put(id, entity.get()));
             return resolve(resolution, context.readStateIndex(), values).withValues(values);
@@ -1105,7 +1124,7 @@ final class ModelPipeline {
                     ? ancestorPlanKey(resolution, stagedValues) : null;
             AncestorPlan ancestorPlan = ancestorPlans.get(planKey);
             List<MutationPlan.ResolvedModel> effectiveTargets = planKey == null
-                    ? resolution.models() : ancestorPlan == null ? null : ancestorPlan.targets();
+                    ? canonicalTargets(resolution.models()) : ancestorPlan == null ? null : ancestorPlan.targets();
             List<MutationPlan.ResolvedModel> missing = effectiveTargets == null ? List.of()
                     : effectiveTargets.stream()
                             .filter(target -> !commitEntities.containsKey(target.modelId()))
@@ -1125,8 +1144,9 @@ final class ModelPipeline {
                                         : resolution.withResolvedModels(effectiveTargets)
                                 : new MutationPlan.Resolution(missing, List.of());
                 stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
+                effectiveTargets = canonicalTargets(effectiveTargets);
             }
-            MutationPlan.Resolution effectiveResolution = planKey == null
+            MutationPlan.Resolution effectiveResolution = planKey == null && effectiveTargets == resolution.models()
                     ? resolution : resolution.withResolvedModels(effectiveTargets);
             LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
             effectiveTargets.forEach(target -> selected.put(
@@ -1134,7 +1154,31 @@ final class ModelPipeline {
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
             return CommitAttempt.create(stateIndex, effectiveResolution, selected)
-                    .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads());
+                    .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads())
+                    .withAliasResolutions(aliasResolutionsFor(resolution.models()));
+        }
+
+        private Map<String, String> aliasResolutionsFor(List<MutationPlan.ResolvedModel> targets) {
+            if (aliasResolutions.isEmpty()) { return Map.of(); }
+            Map<String, String> selected = new LinkedHashMap<>();
+            for (MutationPlan.ResolvedModel target : targets) {
+                String owner = aliasResolutions.get(target.modelId());
+                if (owner != null) { selected.put(target.modelId(), owner); }
+            }
+            return selected;
+        }
+
+        private List<MutationPlan.ResolvedModel> canonicalTargets(List<MutationPlan.ResolvedModel> targets) {
+            if (aliasResolutions.isEmpty()) { return targets; }
+            return targets.stream().map(target -> {
+                String resolved = aliasResolutions.get(target.modelId());
+                if (resolved == null || resolved.equals(target.modelId())) { return target; }
+                if (target.access().writes()) {
+                    throw new EventSourcingException("Writable model target '%s' resolved through alias to '%s'"
+                            .formatted(target.modelId(), resolved));
+                }
+                return new MutationPlan.ResolvedModel(resolved, target.modelType(), target.access(), target.sourceProperties());
+            }).toList();
         }
 
         @Override
@@ -1193,7 +1237,9 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            CommitAttempt loaded = advanceIncompleteDocumentBoundary
+            CommitAttempt loaded = boundary == null && requiresStorageBoundary && !migration
+                    ? repository.loadCurrentContext(resolution, stagedValues, true)
+                    : advanceIncompleteDocumentBoundary
                     ? repository.loadRebaseContext(
                             resolution, boundary, stagedValues, true, migration)
                     : migration
@@ -1212,6 +1258,11 @@ final class ModelPipeline {
             }
             for (String modelId : loaded.modelIds()) {
                 commitEntities.put(modelId, loaded.entity(modelId));
+            }
+            if (!loaded.aliasResolutions().isEmpty()) {
+                Map<String, String> combined = new LinkedHashMap<>(aliasResolutions);
+                combined.putAll(loaded.aliasResolutions());
+                aliasResolutions = Map.copyOf(combined);
             }
             return loaded;
         }
@@ -1285,6 +1336,7 @@ final class ModelPipeline {
             DeserializingMessage message,
             ModelCommitPolicy commitPolicy,
             ModelBatchScope.CommitCoordination preparedEntry) {
+        message.putContext(AutomaticExecution.class, AutomaticExecution.INSTANCE);
         ExecutionRequest request = new ExecutionRequest(
                 message, null, -1, Mode.AUTOMATIC);
         CompletableFuture<Object> completion = execute(request, commitPolicy, preparedEntry);
@@ -1305,7 +1357,7 @@ final class ModelPipeline {
     private PrefetchSlot prefetch(DeserializingMessage message) {
         MutationPlan definition = definitionFor(message.getPayloadClass());
         MutationPlan.TargetPlan targets = definition.targets();
-        if (!targets.isDirectSingleTarget()) {
+        if (!targets.isDirectSingleTarget() || definition.reducer().requiresStorageBoundary()) {
             return null;
         }
         return new PrefetchSlot(targets.resolveSingle(message));

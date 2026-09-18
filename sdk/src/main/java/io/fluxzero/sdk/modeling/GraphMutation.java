@@ -16,6 +16,8 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+
 import java.util.Objects;
 import java.util.function.UnaryOperator;
 
@@ -24,6 +26,8 @@ record GraphMutation(
         String modelId,
         Class<?> modelType,
         Long expectedStateIndex,
+        Long readStateIndex,
+        boolean initiallyAbsent,
         Object preview,
         UnaryOperator<Entity<?>> replay) {
 
@@ -41,7 +45,17 @@ record GraphMutation(
                                        addition.modelType.getName()));
         }
         return new GraphMutation(
-                modelId, modelType, expectedStateIndex, addition.preview,
+                modelId, modelType, expectedStateIndex, readStateIndex, initiallyAbsent, addition.preview,
                 current -> addition.replay.apply(replay.apply(current)));
+    }
+
+    /** Reevaluate the original intent at the retry boundary without losing its absence precondition. */
+    GraphMutation forRetry(CommitModelsResult conflict) {
+        return new GraphMutation(modelId, modelType, null, null, initiallyAbsent, null, current -> {
+            if (initiallyAbsent && current.isPresent()) {
+                throw new ModelCommitConflictException(conflict);
+            }
+            return replay.apply(current);
+        });
     }
 }

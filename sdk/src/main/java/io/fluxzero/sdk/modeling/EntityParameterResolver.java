@@ -184,7 +184,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             Optional<CommitAttempt> context = modelContext(input);
             return references.modelIds().isEmpty()
                    || context.map(value -> references.modelIds().stream()
-                                   .allMatch(id -> value.entity(id) != null))
+                                   .allMatch(id -> value.resolveRead(id) != null))
                            .orElseGet(() -> input instanceof DeserializingMessage message
                                            && resolvedModelBinding(message, plan).isPresent());
         }
@@ -263,7 +263,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         ModelRepository repository = modelRepository(input);
         List<Graph<?>> result = new ArrayList<>(references.modelIds().size());
         for (String modelId : references.modelIds()) {
-            Entity<?> entity = context.entity(modelId);
+            Entity<?> entity = context.resolveRead(modelId);
             if (entity == null) {
                 throw new IllegalStateException(
                         "Model context does not contain '%s' required by graph collection parameter %s"

@@ -79,6 +79,26 @@ public class KotlinReflectionUtils {
                 : ReflectJvmMapping.getKotlinFunction((Constructor<?>) executable);
     }
 
+    static boolean isDataClassComponent(Method method) {
+        KClass<?> owner = JvmClassMappingKt.getKotlinClass(method.getDeclaringClass());
+        if (!owner.isData()) {
+            return false;
+        }
+        KFunction<?> function = ReflectJvmMapping.getKotlinFunction(method);
+        KFunction<?> constructor = KClasses.getPrimaryConstructor(owner);
+        if (constructor == null || function == null) {
+            return false;
+        }
+        int index = 0;
+        for (KParameter parameter : constructor.getParameters()) {
+            if (parameter.getKind() == KParameter.Kind.VALUE
+                && function.getName().equals("component" + ++index)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Class<?> convertIfKotlinClass(Object classObject) {
         return classObject instanceof KClass<?> k ? JvmClassMappingKt.getJavaClass(k) : null;
     }

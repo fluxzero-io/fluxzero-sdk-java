@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 
 /**
  * One message-batch-local model scope for read-your-writes, exact dependencies and commit release.
- * Pending values stay visible only at their namespace, routing segment and message position. Reading one registers its
+ * Pending values stay visible only within their repository family, namespace, routing segment and message position. Reading one registers its
  * producing entry as a predecessor; successful or failed entries immediately yield to authoritative storage.
  */
 public final class ModelBatchScope {
@@ -61,6 +61,15 @@ public final class ModelBatchScope {
             String namespace,
             CommitAttempt evaluation,
             CommitCoordination producer) {
+        stage(namespace, evaluation, producer, producer == null ? null : producer.repositoryOwner);
+    }
+
+    static void stageOwned(Object repositoryOwner, String namespace, CommitAttempt evaluation) {
+        stage(namespace, evaluation, null, repositoryOwner);
+    }
+
+    private static void stage(String namespace, CommitAttempt evaluation, CommitCoordination producer,
+                              Object repositoryOwner) {
         int position = DeserializingMessage.getMessageBatchIndex();
         if (position < 0 || evaluation.transitions().isEmpty()) {
             return;
@@ -90,7 +99,7 @@ public final class ModelBatchScope {
                     : previous != null ? previous.getClass()
                             : transition.modelType();
             scope.stageModel(
-                    producer,
+                    repositoryOwner, producer,
                     effectiveNamespace, modelId, type, previous, value,
                     initial.beforeSequenceNumber(), position, segment);
         });
@@ -169,14 +178,20 @@ public final class ModelBatchScope {
     }
 
     /** Overlays a durable direct load with the newest pending model or alias visible to the current message. */
-    @SuppressWarnings({"rawtypes", "unchecked"})
     public static <T> Entity<T> overlayCurrent(
             String namespace,
             String requestedId,
             Class<T> requestedType,
             Entity<T> durable) {
+        return overlayCurrent(namespace, requestedId, requestedType, durable, null);
+    }
+
+    /** Overlays only pending values produced by this repository family. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static <T> Entity<T> overlayCurrent(String namespace, String requestedId, Class<T> requestedType,
+                                               Entity<T> durable, Object repositoryOwner) {
         ModelBatchScope scope = current();
-        PendingValue lookup = scope == null ? null : scope.lookup(namespace, requestedId, false);
+        PendingValue lookup = scope == null ? null : scope.lookup(namespace, requestedId, false, repositoryOwner);
         if (lookup == null
             || !lookup.modelId().equals(requestedId) && durable.isPresent()
                && requestedId.equals(String.valueOf(durable.id()))) {
@@ -205,12 +220,22 @@ public final class ModelBatchScope {
     public static CommitAttempt overlayCurrent(
             String namespace,
             CommitAttempt durable) {
-        return durable.withValues(currentValues(namespace, durable.modelIds()));
+        return overlayCurrent(namespace, durable, null);
+    }
+
+    /** Overlays only pending values produced by this repository family at the durable boundary. */
+    public static CommitAttempt overlayCurrent(String namespace, CommitAttempt durable, Object repositoryOwner) {
+        return durable.withValues(currentValues(namespace, durable.modelIds(), repositoryOwner));
     }
 
     /** Returns pending exact values visible to the current message, in message order. */
     public static Map<String, Entity<?>> currentValues(String namespace) {
-        List<Map.Entry<ModelKey, PendingValue>> entries = visiblePendingValues(namespace);
+        return currentValues(namespace, (Object) null);
+    }
+
+    /** Returns pending values from this repository family only. */
+    public static Map<String, Entity<?>> currentValues(String namespace, Object repositoryOwner) {
+        List<Map.Entry<ModelKey, PendingValue>> entries = visiblePendingValues(namespace, repositoryOwner);
         if (entries.isEmpty()) {
             return Map.of();
         }
@@ -225,7 +250,12 @@ public final class ModelBatchScope {
 
     /** Captures pending state without making uninspected Models commit dependencies. */
     public static Snapshot snapshot(String namespace) {
-        List<Map.Entry<ModelKey, PendingValue>> entries = visiblePendingValues(namespace);
+        return snapshot(namespace, null);
+    }
+
+    /** Captures pending state belonging to the supplied repository-family identity. */
+    public static Snapshot snapshot(String namespace, Object repositoryOwner) {
+        List<Map.Entry<ModelKey, PendingValue>> entries = visiblePendingValues(namespace, repositoryOwner);
         if (entries.isEmpty()) {
             return Snapshot.EMPTY;
         }
@@ -247,6 +277,23 @@ public final class ModelBatchScope {
             this.values = Collections.unmodifiableMap(values);
         }
 
+        private Snapshot(Snapshot source, Map<String, Entity<?>> overrides) {
+            pending = source.pending;
+            LinkedHashMap<String, Entity<?>> combined = new LinkedHashMap<>(source.values);
+            combined.putAll(overrides);
+            values = Collections.unmodifiableMap(combined);
+        }
+
+        /** Adds an active attempt's immutable values while preserving dependencies on earlier batch writes. */
+        public Snapshot withValues(Map<String, Entity<?>> overrides) {
+            return overrides.isEmpty() ? this : new Snapshot(this, overrides);
+        }
+
+        private void dependOn(String id) {
+            PendingValue value = pending.get(id);
+            if (value != null) { ModelBatchScope.dependOn(value); }
+        }
+
         /** Returns captured exact values without registering reads. */
         public Map<String, Entity<?>> values() { return values; }
 
@@ -255,14 +302,24 @@ public final class ModelBatchScope {
 
         /** Resolves one exact identity or alias against the snapshot, preserving exact-ID precedence. */
         public Entity<?> overlay(String requestedId, Class<?> type, Entity<?> durable) {
-            PendingValue exact = pending.get(requestedId);
+            Entity<?> exact = values.get(requestedId);
             if (exact != null && type.isAssignableFrom(exact.type())) {
-                dependOn(exact);
-                return values.get(exact.modelId());
+                dependOn(requestedId);
+                return exact;
             }
             Entity<?> overlay = overlayIdentity(requestedId, type, String.valueOf(durable.id()),
-                                                 exact == null && durable.isPresent());
+                                                 exact == null && (durable.isPresent() || durable.sequenceNumber() >= 0L));
             return overlay == null ? durable : overlay;
+        }
+
+        /** Returns a pending exact identity override with its dependency, without inspecting aliases. */
+        public Entity<?> overlayExactIdentity(String modelId, Class<?> type) {
+            Entity<?> match = values.get(modelId);
+            if (match != null && type.isAssignableFrom(match.type())) {
+                dependOn(modelId);
+                return match;
+            }
+            return null;
         }
 
         /**
@@ -270,31 +327,31 @@ public final class ModelBatchScope {
          * not a fabricated empty value, so an existing exact ID still takes precedence over pending aliases.
          */
         public Entity<?> overlayIdentity(String requestedId, Class<?> type, String durableId, boolean durablePresent) {
-            PendingValue match = pending.get(requestedId);
+            Entity<?> match = values.get(requestedId);
             if (match == null && durablePresent && requestedId.equals(durableId)) {
                 return null;
             }
             if (match == null) {
-                for (PendingValue candidate : pending.values()) {
-                    if (type.isAssignableFrom(candidate.type()) && aliases(candidate.value(), candidate.type()).contains(requestedId)) {
+                for (Entity<?> candidate : values.values()) {
+                    if (type.isAssignableFrom(candidate.type()) && aliases(candidate.get(), candidate.type()).contains(requestedId)) {
                         match = candidate;
                     }
                 }
             }
             if (match != null && type.isAssignableFrom(match.type())) {
-                dependOn(match);
-                return values.get(match.modelId());
+                dependOn(match.id().toString());
+                return match;
             }
-            PendingValue owner = pending.get(durableId);
-            if (owner != null && !requestedId.equals(owner.modelId()) && type.isAssignableFrom(owner.type())) {
-                dependOn(owner);
+            Entity<?> owner = values.get(durableId);
+            if (owner != null && !requestedId.equals(owner.id().toString()) && type.isAssignableFrom(owner.type())) {
+                dependOn(durableId);
                 return ImmutableModelRoot.initial(requestedId, type, EntityMetadata.of(type).entityIdName(), null);
             }
             return null;
         }
     }
 
-    private static List<Map.Entry<ModelKey, PendingValue>> visiblePendingValues(String namespace) {
+    private static List<Map.Entry<ModelKey, PendingValue>> visiblePendingValues(String namespace, Object repositoryOwner) {
         ModelBatchScope scope = current();
         int position = DeserializingMessage.getMessageBatchIndex();
         if (scope == null || position < 0) {
@@ -303,7 +360,7 @@ public final class ModelBatchScope {
         String effectiveNamespace = normalize(namespace);
         List<Map.Entry<ModelKey, PendingValue>> visible = new ArrayList<>();
         scope.values.forEach((key, candidates) -> {
-            PendingValue candidate = key.namespace().equals(effectiveNamespace)
+            PendingValue candidate = key.repositoryOwner() == repositoryOwner && key.namespace().equals(effectiveNamespace)
                     ? visible(candidates, key.modelId(), position, true) : null;
             if (candidate != null && status(candidate) == Status.PENDING) {
                 visible.add(Map.entry(key, candidate));
@@ -318,8 +375,13 @@ public final class ModelBatchScope {
 
     /** Returns one pending exact value; aliases are deliberately not resolved. */
     public static Entity<?> currentValue(String namespace, String modelId) {
+        return currentValue(namespace, modelId, null);
+    }
+
+    /** Returns an exact pending value from this repository family only. */
+    public static Entity<?> currentValue(String namespace, String modelId, Object repositoryOwner) {
         ModelBatchScope scope = current();
-        PendingValue value = scope == null ? null : scope.lookup(namespace, modelId, true);
+        PendingValue value = scope == null ? null : scope.lookup(namespace, modelId, true, repositoryOwner);
         return value == null ? null : stagedEntity(value);
     }
 
@@ -327,6 +389,12 @@ public final class ModelBatchScope {
     public static Map<String, Object> currentValues(
             String namespace,
             MutationPlan.Resolution resolution) {
+        return currentValues(namespace, resolution, null);
+    }
+
+    /** Resolves the pending context and ancestor dependencies within this repository family only. */
+    public static Map<String, Object> currentValues(String namespace, MutationPlan.Resolution resolution,
+                                                   Object repositoryOwner) {
         ModelBatchScope scope = current();
         if (scope == null) {
             return Map.of();
@@ -336,7 +404,7 @@ public final class ModelBatchScope {
         String effectiveNamespace = normalize(namespace);
         if (resolution.hasAncestorDependencies()) {
             scope.values.forEach((key, candidates) -> {
-                PendingValue candidate = key.namespace().equals(effectiveNamespace)
+                PendingValue candidate = key.repositoryOwner() == repositoryOwner && key.namespace().equals(effectiveNamespace)
                         ? visible(candidates, key.modelId(), position, true) : null;
                 if (candidate != null && status(candidate) != Status.FAILURE
                     && resolution.ancestorDependencies().stream().anyMatch(dependency ->
@@ -350,7 +418,7 @@ public final class ModelBatchScope {
         List<String> pending = new ArrayList<>();
         resolution.models().forEach(target -> pending.add(target.modelId()));
         for (int index = 0; index < pending.size(); index++) {
-            PendingValue value = scope.lookup(namespace, pending.get(index), true);
+            PendingValue value = scope.lookup(namespace, pending.get(index), true, repositoryOwner);
             String modelId = pending.get(index);
             if (value == null || result.containsKey(modelId)) {
                 continue;
@@ -369,13 +437,17 @@ public final class ModelBatchScope {
     static Map<String, Object> currentValues(
             String namespace,
             Collection<String> modelIds) {
+        return currentValues(namespace, modelIds, null);
+    }
+
+    static Map<String, Object> currentValues(String namespace, Collection<String> modelIds, Object repositoryOwner) {
         ModelBatchScope scope = current();
         if (scope == null) {
             return Map.of();
         }
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         modelIds.forEach(modelId -> {
-            PendingValue value = scope.lookup(namespace, modelId, true);
+            PendingValue value = scope.lookup(namespace, modelId, true, repositoryOwner);
             if (value != null) {
                 result.put(modelId, value.value());
             }
@@ -384,7 +456,7 @@ public final class ModelBatchScope {
     }
 
     private void stageModel(
-            CommitCoordination producer,
+            Object repositoryOwner, CommitCoordination producer,
             String namespace,
             String modelId,
             Class<?> modelType,
@@ -393,7 +465,7 @@ public final class ModelBatchScope {
             long sequenceNumber,
             int position,
             int segment) {
-        ConcurrentLinkedDeque<PendingValue> exact = candidates(namespace, modelId);
+        ConcurrentLinkedDeque<PendingValue> exact = candidates(repositoryOwner, namespace, modelId);
         Set<String> beforeAliases = aliases(before, modelType);
         Set<String> afterAliases = aliases(after, modelType);
         PendingValue value = new PendingValue(
@@ -402,26 +474,26 @@ public final class ModelBatchScope {
                 position, segment, false);
         exact.addFirst(value);
         beforeAliases.stream().filter(alias -> !alias.equals(modelId) && !afterAliases.contains(alias))
-                .forEach(alias -> candidates(namespace, alias).addFirst(value.removedAlias()));
+                .forEach(alias -> candidates(repositoryOwner, namespace, alias).addFirst(value.removedAlias()));
         afterAliases.stream().filter(alias -> !alias.equals(modelId))
-                .forEach(alias -> candidates(namespace, alias).addFirst(value));
+                .forEach(alias -> candidates(repositoryOwner, namespace, alias).addFirst(value));
     }
 
     private ConcurrentLinkedDeque<PendingValue> candidates(
-            String namespace,
+            Object repositoryOwner, String namespace,
             String modelId) {
         return values.computeIfAbsent(
-                new ModelKey(namespace, modelId),
+                new ModelKey(repositoryOwner, namespace, modelId),
                 ignored -> new ConcurrentLinkedDeque<>());
     }
 
-    private PendingValue lookup(String namespace, String id, boolean exactOnly) {
+    private PendingValue lookup(String namespace, String id, boolean exactOnly, Object repositoryOwner) {
         int position = DeserializingMessage.getMessageBatchIndex();
         if (position < 0) {
             return null;
         }
         ConcurrentLinkedDeque<PendingValue> candidates = values.get(
-                new ModelKey(normalize(namespace), id));
+                new ModelKey(repositoryOwner, normalize(namespace), id));
         PendingValue candidate = visible(candidates, id, position, true);
         if (candidate == null && !exactOnly) {
             candidate = visible(candidates, id, position, false);
@@ -556,6 +628,8 @@ public final class ModelBatchScope {
         final ModelCommitPolicy policy;
         private final Runnable flushBatch;
         private final Batch batch;
+        // Set by the owning pipeline before publishing staged values; independent of the ambient application.
+        Object repositoryOwner;
         private volatile boolean claimed;
         private volatile boolean cancelled;
         private volatile boolean progressRequested;
@@ -1061,7 +1135,7 @@ public final class ModelBatchScope {
         }
     }
 
-    private record ModelKey(String namespace, String modelId) {
+    private record ModelKey(Object repositoryOwner, String namespace, String modelId) {
         private ModelKey {
             Objects.requireNonNull(namespace, "namespace");
             Objects.requireNonNull(modelId, "modelId");

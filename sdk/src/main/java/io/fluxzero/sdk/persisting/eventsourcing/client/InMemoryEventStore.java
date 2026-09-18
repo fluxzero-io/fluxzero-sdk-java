@@ -342,15 +342,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             ModelCommitAssignment.Description description =
                     ModelCommitAssignment.describe(commit);
-            CommitModelsResult conflict = ModelCommitConflicts.result(
-                    commit,
-                    ModelCommitConflicts.detect(
+            var headConflicts = ModelCommitConflicts.detect(
                             commit, modelHeads,
                             ModelStreamHead::sequenceNumber,
                             ModelStreamHead::stateIndex,
                             modelRelationStateIndices,
-                            description.cascadeRootIds()),
-                    modelStateIndex);
+                            description.cascadeRootIds());
+            if (!commit.getReadAliasIds().isEmpty()) {
+                headConflicts = ModelCommitConflicts.detectAliases(commit, headConflicts, alias -> {
+                    ModelStreamHead head = modelHeads.get(alias);
+                    if (head == null) {
+                        String owner = modelAliases.get(alias);
+                        head = owner == null ? null : modelHeads.get(owner);
+                    }
+                    return head == null ? -1L : head.stateIndex();
+                });
+            }
+            CommitModelsResult conflict = ModelCommitConflicts.result(commit, headConflicts, modelStateIndex);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }
@@ -449,7 +457,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         description.relationshipStep(substepNumber);
                 for (ModelCommitAssignment.RelationshipChange change : relationshipStep.changes()) {
                     updateModelRelationships(
-                            commit.getReadStateIndex(), change, stateIndex, commitRelationshipView);
+                            commit.getReadStateIndex(), change, stateIndex, commitRelationshipView,
+                            relationshipStep.finalDeletedParentIds());
                 }
                 cascadeDeletedModelRelationships(
                         relationshipStep.finalDeletedParentIds(),
@@ -684,13 +693,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private synchronized TrackModelUpdatesResult modelUpdates(
             TrackModelUpdates request) {
-        List<ModelUpdate> updates =
-                modelUpdates.stream()
-                        .filter(update ->
-                                        update.getStateIndex()
-                                        > request.getLastStateIndex())
-                        .limit(request.getMaxSize())
-                        .toList();
+        // Updates are appended in state-index order under this monitor. Start at the requested suffix instead of
+        // rescanning all preceding commits while holding the same lock needed by current reads and writes.
+        int first = 0, end = modelUpdates.size();
+        while (first < end) {
+            int middle = (first + end) >>> 1;
+            if (modelUpdates.get(middle).getStateIndex() <= request.getLastStateIndex()) {
+                first = middle + 1;
+            } else {
+                end = middle;
+            }
+        }
+        List<ModelUpdate> updates = List.copyOf(modelUpdates.subList(
+                first, first + Math.min(request.getMaxSize(), modelUpdates.size() - first)));
         if (request.getMaxBytes() > 0L
             && !updates.isEmpty()) {
             long bytes = 0L;
@@ -1543,7 +1558,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             long readStateIndex,
             ModelCommitAssignment.RelationshipChange change,
             long stateIndex,
-            Map<String, Set<ModelRelationship>> commitRelationshipView) {
+            Map<String, Set<ModelRelationship>> commitRelationshipView,
+            Set<String> deletedParentIds) {
         Set<ModelRelationship> desired = change.desired();
         Set<ModelRelationship> expected = commitRelationshipView.computeIfAbsent(
                 change.childId(),
@@ -1566,7 +1582,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .toList();
         modelRelationStateIndices.put(change.childId(), stateIndex);
         for (ModelRelationship relationship : removed) {
-            actual.remove(relationship).validUntil = stateIndex;
+            MutableModelRelationship closed = actual.remove(relationship);
+            closed.validUntil = stateIndex;
+            // A child and its parent can disappear in the same cascade substep. The later
+            // parent pass only sees open edges, so retain that lineage while closing it here.
+            closed.parentDeleted = change.deleted() && deletedParentIds.contains(relationship.getParentId());
             recordRelationshipChange(change.childId(), relationship, stateIndex);
             modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
         }
@@ -1648,9 +1668,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         for (var streamRequest : request.getRequests()) {
             String resolvedModelId = resolvedModelIds.get(
                     streamRequest.getModelId());
-            List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0
+            List<ModelStreamMembership> history = modelStreams.getOrDefault(resolvedModelId, List.of());
+            // A cached revision usually already reaches the tail. Checking that must not scan its whole history.
+            List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0 || history.isEmpty()
+                                                    || history.getLast().sequenceNumber() <= streamRequest.getLastSequenceNumber()
                     ? List.of()
-                    : modelStreams.getOrDefault(resolvedModelId, List.of()).stream()
+                    : history.stream()
                             .filter(entry -> entry.sequenceNumber() > streamRequest.getLastSequenceNumber())
                             .filter(entry -> entry.stateIndex() <= stateIndex)
                             .limit((long) streamRequest.getMaxSize() + 1L)
@@ -1682,10 +1705,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         for (var streamRequest : request.getRequests()) {
             String resolvedModelId = resolvedModelIds.get(
                     streamRequest.getModelId());
-            ModelStreamHead head = modelHeadHistory.getOrDefault(
-                            resolvedModelId, List.of()).stream()
-                    .filter(candidate -> candidate.stateIndex() <= stateIndex)
-                    .reduce((first, second) -> second).orElse(null);
+            ModelStreamHead head = stateIndex == modelStateIndex ? modelHeads.get(resolvedModelId)
+                    : modelHeadHistory.getOrDefault(resolvedModelId, List.of()).stream()
+                            .filter(candidate -> candidate.stateIndex() <= stateIndex)
+                            .reduce((first, second) -> second).orElse(null);
             streams.add(new ModelEventStream(
                     streamRequest.getModelId(),
                     head == null ? null : new ModelHeadState(
@@ -1742,7 +1765,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return ModelRelationshipQueries.graph(
                 request, boundary, exactBoundary,
                 frontier -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS
-                        ? relationshipsByChildren(frontier, boundary)
+                        ? relationshipsByChildren(frontier, boundary, before)
                         : relationshipsByParents(frontier, boundary, before),
                 this::getModelEvents);
     }
@@ -1846,10 +1869,15 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private List<MutableModelRelationship> relationshipsByChildren(
             Collection<String> childIds,
             long stateIndex) {
+        return relationshipsByChildren(childIds, stateIndex, false);
+    }
+
+    private List<MutableModelRelationship> relationshipsByChildren(
+            Collection<String> childIds, long stateIndex, boolean before) {
         Set<String> children = Set.copyOf(childIds);
         return modelRelationshipHistory.stream()
                 .filter(relation -> children.contains(relation.childId())
-                                    && relation.isValidAt(stateIndex))
+                                    && (before ? relation.isValidBefore(stateIndex) : relation.isValidAt(stateIndex)))
                 .toList();
     }
 

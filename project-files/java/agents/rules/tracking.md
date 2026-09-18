@@ -68,6 +68,15 @@ class OrderTracker {
 
 <a name="batch-interceptor"></a>
 
+### External HTTP stubs and registration
+
+An absolute URL does not create a separate consumer. Under `perPackage`, an endpoint and same-package stub can
+share a single-threaded consumer and deadlock if one waits for the other. Give the test stub its own explicit
+`@Consumer`; keep application consumer settings unchanged. See [HTTP tests](testing.md#mocking-external-backends-real-web-handlers).
+Same-name conflicting configurations report handler types from that registration without rerunning filters or
+inspecting instance state. Identical configurations can accept handlers after startup; this is neither live
+reconfiguration nor a rewind for previously consumed messages.
+
 ## Batch Interceptor
 
 Wraps around the processing of a **full message batch** by a consumer.

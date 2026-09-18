@@ -454,6 +454,7 @@ This allows you to test your integration logic with "real" web handlers and URLs
 
 [//]: # (@formatter:off)
 ```java
+@Consumer(name = "external-stripe-stub")
 class StripeMock {
     @HandlePost("https://api.stripe.com/v1/charges")
     WebResponse mockCharge(ChargeRequest request) {
@@ -470,3 +471,15 @@ void testStripeIntegration() {
 }
 ```
 [//]: # (@formatter:on)
+
+An absolute URL only selects the route: stubs use normal consumer selection. Give an external blocking stub
+its own consumer, as above, especially with `perPackage`; do not alter application settings only in the fixture.
+See [consumer defaults](tracking.md#configuration-consumer). Repeat with `createAsync` to qualify tracking.
+Identical consumer configurations support late handler registration, but do not rewind its position; register
+a stub before its first request. Namespaces, interceptors and authorization still apply.
+
+Configure a UserProvider for identities passed with `...ByUser`; this does not establish real cookie/bearer
+authentication. In async HTTP tests, a denied downstream stub can return an error WebResponse to the caller;
+the sync fixture may expose its exception directly. Assert the boundary you intend to test.
+Native-HTTP settings are also routed to fixture handlers, with retry count/status policy but without real
+delays. Use separate real HTTP tests for headers, sockets, TLS and failures; use transport tests for envelopes.

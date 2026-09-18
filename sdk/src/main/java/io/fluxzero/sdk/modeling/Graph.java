@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer;
@@ -53,7 +54,8 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * is itself a graph view, so root, parent, history and update operations remain available without exposing the
  * persistence-only {@link Entity} wrapper.
  * <p>
- * When injected into a Model evaluation, inspected values and relationship collections become conflict dependencies.
+ * When injected or synchronously loaded within a Model evaluation, inspected values and relationship collections
+ * become conflict dependencies on that evaluation's pinned boundary and owning repository/namespace.
  * Empty child collections and examined/rejected filter candidates count too; merely loading a graph does not protect
  * every descendant. Cached transformations retain their read evidence. Reads, including joined parallel scans, must
  * finish within the synchronous evaluation. Explicit historical views and unrelated repository/search reads are not
@@ -81,8 +83,10 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  *
  * Metadata-first child selection does not reconstruct selected child values. The default repository also resolves
  * lazy root aliases from head metadata without replay. Initial alias lookup uses the current alias table, including
- * for historical reads; the resulting identity (or absence), values and relationships then stay pinned. This does not
- * introduce transaction-level alias-mapping conflict detection. Custom repositories may retain value-based lookup.
+ * for historical reads; the resulting identity (or absence), values and relationships then stay pinned. Consumed
+ * alias lookups inside a Model mutation also participate in commit conflict detection, including missing aliases
+ * and metadata-only navigation. Exact-ID reads do not acquire alias dependencies. Custom repositories may retain
+ * value-based lookup.
  * Remote alias navigation requires a Runtime transport that preserves canonical IDs in alias heads.
  *
  * @param <T> model value type at the current graph placement
@@ -701,8 +705,10 @@ public interface Graph<T> {
     <E extends Exception> Graph<T> assertLegal(Object update) throws E;
 
     /**
-     * Verifies and applies the supplied update. For an independent {@link Model}, this enters the regular model
-     * pipeline and returns after the selected model commit is durable; payload IDs do not replace this graph's explicit
+     * Verifies and applies the supplied update. For an independent {@link Model}, applies are restricted to the
+     * selected Model type and Model-owned handlers retain their target filtering. Assertions on the update payload
+     * run, including assertions that read other Models; their reads participate in the configured conflict policy.
+     * Returns after the selected model commit is durable; payload IDs do not replace this graph's explicit
      * identity. Interceptor payload transformations retain that identity, while returning an explicit
      * {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their
      * surrounding aggregate lifecycle.
@@ -725,6 +731,27 @@ public interface Graph<T> {
             result = result.assertAndApply(update);
         }
         return result;
+    }
+
+    /**
+     * Opens a new, deliberately current view of this Model using its exact repository identity and owning repository.
+     * The new namespace boundary is pinned during this call, ignoring an active event-handler boundary; values and
+     * relationships remain lazy. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current
+     * message-batch overlay. It is not a continuously updating view and does not modify this graph or commit its edits.
+     * <p>The result is rooted at this Model, even when this node was reached through a parent. Reparenting is reflected
+     * in its new navigation; a deleted Model has an empty value. View-only path selections, filters, mapped values and
+     * response context are not carried over: reapply those deliberately to the new view.</p>
+     * <p>Requires a locally known Model type and repository support for exact-identity current reads. Custom Graphs
+     * may override this method; the default fails rather than silently switching repositories or read boundaries.</p>
+     * <p>Within a mutation on this repository/namespace, the view joins that active attempt's pinned boundary,
+     * staged values and inspected read dependencies; it does not open a second snapshot. Outside mutations it has
+     * no transaction provenance and deliberately opens the fresh boundary described above.</p>
+     *
+     * @throws UnsupportedOperationException if this Graph or its repository cannot open such a view
+     * @throws IllegalStateException if this node's Model type is unknown locally
+     */
+    default Graph<T> current() {
+        throw new UnsupportedOperationException("This Graph does not support current Model reads");
     }
 
     /**

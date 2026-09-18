@@ -40,6 +40,9 @@ public @interface DocumentProjection {
      * maintains its independently required internal component indexes; use
      * {@link io.fluxzero.common.search.SearchExclude @SearchExclude}, {@code @Facet} and {@code @Sortable} to shape
      * those indexes explicitly.
+     * <p>This controls query visibility, not authorization, encryption or secret protection. Identity and related
+     * reads remain available to callers with store access; {@code @ProtectData} on an input message does not protect
+     * values copied into this document.</p>
      */
     boolean searchable() default true;
 

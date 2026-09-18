@@ -153,6 +153,13 @@ The practical difference is the isolation boundary: package, handler class, or a
 handling follows the same selection rules as an explicit command handler and therefore also uses a consumer configured
 for the command payload package, including a root-package `@Consumer`.
 
+An absolute HTTP URL does not select a separate consumer. In tests, give blocking external-service stubs
+an explicit consumer while preserving application consumer configuration; see
+[HTTP stubs and consumers](/docs/guides/messaging/testing-web-endpoints/#external-http-stubs-and-consumers).
+Same-name incompatible configurations report the handler types in that registration without invoking their
+filters again. Identical configurations can accept additional handlers after startup; this neither reconfigures
+the live consumer nor rewinds its position.
+
 ## Namespaces
 
 Namespaces isolate message logs and tracking state, so a single Fluxzero Runtime can host multiple environments

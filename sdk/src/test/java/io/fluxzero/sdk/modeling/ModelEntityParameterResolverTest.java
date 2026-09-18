@@ -95,13 +95,17 @@ class ModelEntityParameterResolverTest {
                             fluxzero.eventStore()
                                     .getEvents(accountId)
                                     .findFirst().orElseThrow();
-                    return firstEvent.apply(message -> List.of(
-                            Fluxzero.loadGraph(accountId).get(),
-                            Fluxzero.loadCurrentGraph(accountId).get()));
+                    return firstEvent.apply(message -> {
+                        Graph<Account> historical = Fluxzero.loadGraph(accountId);
+                        return List.of(historical.get(), Fluxzero.loadCurrentGraph(accountId).get(),
+                                       historical.current().get(), historical.get());
+                    });
                 })
                 .expectResult(List.of(
                         new Account(accountId, 10),
-                        new Account(accountId, 20)));
+                        new Account(accountId, 20),
+                        new Account(accountId, 20),
+                        new Account(accountId, 10)));
     }
 
     @Test
@@ -802,8 +806,9 @@ class ModelEntityParameterResolverTest {
                             current -> {
                                 if (DeserializingMessage
                                         .getMessageBatchIndex() == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     -1L,
                                                     List.of(

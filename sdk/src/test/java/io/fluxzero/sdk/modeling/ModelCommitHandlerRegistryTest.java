@@ -218,6 +218,9 @@ class ModelCommitHandlerRegistryTest {
     void retryReevaluatesAllHandlersAtTheConflictBoundary() {
         DefaultModelRepository repository =
                 mock(DefaultModelRepository.class);
+        when(repository.loadCurrentContext(any(), anyMap(), anyBoolean()))
+                .thenAnswer(invocation -> repository.loadContext(invocation.getArgument(0), null,
+                                                                 invocation.getArgument(1), invocation.getArgument(2)));
         when(repository.beginLocalCommit(any()))
                 .thenReturn(() -> {
                 });
@@ -289,7 +292,6 @@ class ModelCommitHandlerRegistryTest {
                         "test",
                         List.of(),
                         HandlerDecorator.noOp,
-                        ModelConflictPolicy.ACCEPT,
                         ModelConflictPolicy.ACCEPT,
                         ModelConflictResolver.retryIfAllowed(),
                         1,
@@ -1881,7 +1883,6 @@ class ModelCommitHandlerRegistryTest {
                         List.of(),
                         HandlerDecorator.noOp,
                         io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
-                        io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
                         ModelConflictResolver.fail(),
                         0,
                         AutomaticModelHandling.ENABLED,
@@ -1973,7 +1974,6 @@ class ModelCommitHandlerRegistryTest {
                 List.of(),
                 HandlerDecorator.noOp,
                 io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
-                io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
                 ModelConflictResolver.fail(),
                 0,
                 automaticHandling,
@@ -2008,6 +2008,9 @@ class ModelCommitHandlerRegistryTest {
                 any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean(), anyBoolean()))
                 .thenAnswer(answer);
+        when(repository.loadCurrentContext(any(), anyMap(), anyBoolean()))
+                .thenAnswer(invocation -> repository.loadContext(invocation.getArgument(0), null,
+                                                                 invocation.getArgument(1), invocation.getArgument(2)));
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
     }

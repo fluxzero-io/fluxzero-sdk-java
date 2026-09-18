@@ -109,6 +109,8 @@ import static java.util.stream.Collectors.toMap;
  * <p>
  * Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use
  * in test scenarios where a real Fluxzero Runtime connection is not available or needed.
+ * Document updates are retained for later readers even when no monitor is registered, subject to retention and
+ * replacement by a newer update for the same document.
  */
 public class InMemorySearchStore implements SearchClient {
     protected static final Function<SerializedDocument, String> identifier =
@@ -1332,7 +1334,7 @@ public class InMemorySearchStore implements SearchClient {
 
     private Runnable prepareMessages(
             Map<String, SerializedDocument> updates) {
-        if (monitors.isEmpty()) {
+        if (updates.isEmpty()) {
             return () -> { };
         }
         Map<String, List<SerializedMessage>> byCollection =
@@ -1348,7 +1350,7 @@ public class InMemorySearchStore implements SearchClient {
 
     private Runnable prepareMessages(
             String collection, List<SerializedMessage> messages) {
-        if (messages.isEmpty() || monitors.isEmpty()) {
+        if (messages.isEmpty()) {
             return () -> { };
         }
         storeMessagesInLog(collection, messages);

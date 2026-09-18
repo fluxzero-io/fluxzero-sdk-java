@@ -37,29 +37,29 @@ import java.util.function.Function;
 /**
  * Keeps model cache visibility separate from a delegate's physical publication. No delegate operation runs under a
  * bookkeeping lock. Overlapping writes conservatively discard their cache result; ordinary reads validate the same
- * publication before and after accessing the delegate. Values and keys passed to configured caches are unchanged.
+ * publication before and after accessing the delegate. Values passed to configured caches are unchanged; physical keys include the owning repository family.
  */
 @Slf4j
 final class ModelCache implements Cache {
     // Construction-only registry. Weak references break the cache/listener/view cycle; equality is by cache identity.
     private static final List<SharedView> SHARED = new ArrayList<>();
 
-    static ModelCache shared(Cache source, String namespace) {
+    static ModelCache shared(Cache source, Object owner, String namespace) {
         synchronized (SHARED) {
-            ModelCache existing = findShared(source, namespace);
+            ModelCache existing = findShared(source, owner, namespace);
             if (existing != null) {
                 existing.sharedUsers++;
                 return existing;
             }
         }
-        ModelCache candidate = new ModelCache(new RepositoryCache(source, "$Model", namespace));
+        ModelCache candidate = new ModelCache(new RepositoryCache(source, owner, namespace));
         ModelCache result;
         synchronized (SHARED) {
-            result = findShared(source, namespace);
+            result = findShared(source, owner, namespace);
             if (result == null) {
                 candidate.sharedUsers = 1;
                 candidate.shared = true;
-                SHARED.add(new SharedView(new WeakReference<>(source), namespace, new WeakReference<>(candidate)));
+                SHARED.add(new SharedView(new WeakReference<>(source), owner, namespace, new WeakReference<>(candidate)));
                 return candidate;
             }
             result.sharedUsers++;
@@ -68,10 +68,10 @@ final class ModelCache implements Cache {
         return result;
     }
 
-    private static ModelCache findShared(Cache source, String namespace) {
+    private static ModelCache findShared(Cache source, Object owner, String namespace) {
         SHARED.removeIf(view -> view.source.get() == null || view.cache.get() == null);
         for (SharedView view : SHARED) {
-            if (view.source.get() == source && Objects.equals(view.namespace, namespace)) {
+            if (view.source.get() == source && view.owner == owner && Objects.equals(view.namespace, namespace)) {
                 ModelCache cached = view.cache.get();
                 if (cached != null) {
                     return cached;
@@ -825,6 +825,6 @@ final class ModelCache implements Cache {
     private record Epoch(boolean blocked) {
     }
 
-    private record SharedView(WeakReference<Cache> source, String namespace, WeakReference<ModelCache> cache) {
+    private record SharedView(WeakReference<Cache> source, Object owner, String namespace, WeakReference<ModelCache> cache) {
     }
 }

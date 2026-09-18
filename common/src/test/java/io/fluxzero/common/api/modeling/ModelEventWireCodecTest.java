@@ -44,7 +44,19 @@ class ModelEventWireCodecTest {
                 "canonical", new ModelHeadState("canonical", "Root", 0, 2, true, false), List.of())));
         var alias = new GetModelEventsResult(2L, 2L, List.of(), List.of(new ModelEventStream(
                 "alias", canonical.getStreams().getFirst().getHead(), List.of())));
-        assertEquals(canonical, ModelEventWireCodec.tryDecode(ModelEventWireCodec.tryEncode(canonical)));
+        byte[] encoded = ModelEventWireCodec.tryEncode(canonical);
+        var decoded = assertInstanceOf(GetModelEventsResult.class, ModelEventWireCodec.tryDecode(encoded));
+        // The local construction timestamp is not part of the compact wire contract.
+        assertEquals(canonical.getRequestId(), decoded.getRequestId());
+        assertEquals(canonical.getStateIndex(), decoded.getStateIndex());
+        assertEquals(canonical.isExactBoundary(), decoded.isExactBoundary());
+        assertEquals(canonical.getPayloads(), decoded.getPayloads());
+        assertEquals(canonical.getStreams(), decoded.getStreams());
+        assertArrayEquals(canonical.getPayloadStateIndices(), decoded.getPayloadStateIndices());
+        assertEquals(canonical.getPayloadBlocks(), decoded.getPayloadBlocks());
+        assertArrayEquals(canonical.getPayloadEventIndices(), decoded.getPayloadEventIndices());
+        assertEquals(canonical.getMembershipBlocks(), decoded.getMembershipBlocks());
+        assertArrayEquals(encoded, ModelEventWireCodec.tryEncode(decoded));
         assertNull(ModelEventWireCodec.tryEncode(alias));
         assertNull(ModelEventWireCodec.tryEncode(new ResultBatch(List.of(canonical, alias))));
         assertNull(ModelEventWireCodec.tryEncode(new ResultBatch(List.of(alias, canonical))));

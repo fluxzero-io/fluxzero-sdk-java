@@ -351,6 +351,7 @@ class ModelParentWriteTest {
             commit(fc, new SetTicket(other, true));
             ConflictExpiry.assertions.set(0);
             ConflictExpiry.applies.set(0);
+            ConflictExpiry.replays.set(0);
             List<CommitModels> requests = new ArrayList<>();
             client.beforeCommit = request -> {
                 if (request.getSubsteps().getFirst().getTargets().size() == 2) {
@@ -388,6 +389,11 @@ class ModelParentWriteTest {
                                  Fluxzero.loadModel(reservationId).get());
                     return null;
                 });
+            }
+            assertEquals(policy == ModelConflictPolicy.FAIL ? 1 : 2, ConflictExpiry.applies.get(),
+                         "Reconstruction by the fresh reader must not count as another live apply");
+            if (policy != ModelConflictPolicy.FAIL) {
+                assertTrue(ConflictExpiry.replays.get() > 0);
             }
         }
     }
@@ -464,13 +470,15 @@ class ModelParentWriteTest {
     record ConflictExpiry(ReservationId reservationId) {
         static final AtomicInteger assertions = new AtomicInteger();
         static final AtomicInteger applies = new AtomicInteger();
+        static final AtomicInteger replays = new AtomicInteger();
         @AssertLegal
         void check(Reservation reservation) { assertions.incrementAndGet(); }
         @Apply
         Reservation remove(Reservation reservation) { return null; }
         @Apply
         Ticket release(Ticket ticket) {
-            applies.incrementAndGet();
+            // Cache refresh and the independent reader replay the same stored event asynchronously.
+            (Entity.isLoading() ? replays : applies).incrementAndGet();
             return new Ticket(ticket.ticketId(), false);
         }
     }

@@ -50,6 +50,12 @@ public final class ModelCommitValidator {
             throw new IllegalArgumentException("Model commit guarantee is required");
         }
         requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
+        if (!commit.getReadAliasIds().isEmpty()) {
+            Set<String> aliases = uniqueIds(commit.getReadAliasIds(), "read alias");
+            if (!(commit instanceof CommitModelsWithAliasReads) || !commit.getReadModelIds().containsAll(aliases)) {
+                throw new IllegalArgumentException("Alias reads require an alias-aware commit and exact lookup head reads");
+            }
+        }
         if (validateSimpleCommit(commit)) {
             return;
         }
@@ -179,7 +185,8 @@ public final class ModelCommitValidator {
                 }
                 validateDocument(target, target.getDocument());
                 if (target.getDocumentProjection() != null) {
-                    if (!(commit instanceof CommitModelsWithDocumentProjections) || commit.isMigration()) {
+                    if (!(commit instanceof CommitModelsWithDocumentProjections
+                          || commit instanceof CommitModelsWithAliasReads) || commit.isMigration()) {
                         throw new IllegalArgumentException("Independent document projections require a projection-aware, non-migration commit");
                     }
                     if (target.getDocument() == null || target.getDocument().getCollection()
@@ -333,9 +340,6 @@ public final class ModelCommitValidator {
             }
         }
         boolean ancestors = request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS;
-        if (ancestors && request.getBoundary().before()) {
-            throw new IllegalArgumentException("Model ancestor graphs do not support before-boundaries");
-        }
         if (ancestors && request.isComposableOnly()) {
             throw new IllegalArgumentException("Composable-only traversal is only supported for descendant graphs");
         }

@@ -1385,6 +1385,7 @@ class AbstractWebsocketClientTest {
         AtomicInteger publishedMetrics = new AtomicInteger();
         CountDownLatch firstMetric = new CountDownLatch(1);
         CountDownLatch secondMetric = new CountDownLatch(2);
+        CountDownLatch finishMetric = new CountDownLatch(1);
         TransportMetricObservingClient client = new TransportMetricObservingClient(
                 clientConfig, true, transportMetricsProperties(), taskScheduler) {
             @Override
@@ -1392,6 +1393,12 @@ class AbstractWebsocketClientTest {
                 publishedMetrics.incrementAndGet();
                 firstMetric.countDown();
                 secondMetric.countDown();
+                try {
+                    assertTrue(finishMetric.await(1, TimeUnit.SECONDS));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(e);
+                }
             }
         };
         WebsocketSession session = mockSession("client123_runtime456");
@@ -1400,6 +1407,16 @@ class AbstractWebsocketClientTest {
         try {
             client.schedulePing(session);
             assertEquals(1, taskScheduler.pendingTaskCount());
+
+            client.onRuntimeIngressBackpressure(
+                    session, true,
+                    runtimeIngressState(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES));
+            assertTrue(firstMetric.await(1, TimeUnit.SECONDS));
+            assertEquals(2, taskScheduler.pendingTaskCount(),
+                         "The metric publication has its own timeout alongside the unchanged heartbeat");
+            finishMetric.countDown();
+            assertTrue(taskScheduler.awaitPendingTaskCount(1, Duration.ofSeconds(1)),
+                       "Completing metric publication must remove only its timeout");
 
             for (int i = 0; i < 100; i++) {
                 client.onRuntimeIngressBackpressure(
@@ -1417,6 +1434,7 @@ class AbstractWebsocketClientTest {
             assertEquals(1, publishedMetrics.get(),
                          "Normal sustained capacity pressure is diagnosed once per physical session");
         } finally {
+            finishMetric.countDown();
             client.close();
         }
     }

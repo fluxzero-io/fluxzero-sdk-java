@@ -46,6 +46,8 @@ import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Method;
@@ -702,8 +704,9 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(ModelConflictPolicy.FAIL, captor.getValue().getConflictPolicy());
     }
 
-    @Test
-    void relationSafeConflictCanReloadAndRetryWithinTheConfiguredBound() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void relationSafeConflictCanReloadAndRetryWithinTheConfiguredBound(boolean asynchronous) throws Exception {
         OrderId orderId = new OrderId("1");
         Order before = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
         Order first = new Order(orderId, null, "confirmed", Instant.parse("2026-01-02T00:00:00Z"));
@@ -730,16 +733,29 @@ class DefaultModelRepositoryCommitTest {
                     commits.getAndIncrement() == 0 ? conflict(request, true) : result(request));
         });
         AtomicInteger reloads = new AtomicInteger();
+        Thread caller = Thread.currentThread();
 
-        var result = ModelPipeline.commit(
+        var completion = ModelPipeline.commit(
                 protocol, "commit-1", firstEvaluation,
                 ModelConflictPolicy.RETRY,
                 ModelPipeline.Retry.conflicts(
-                        ModelConflictResolver.retryIfAllowed(), 1,
+                        context -> {
+                            if (!asynchronous) {
+                                assertSame(caller, Thread.currentThread(), "local retry decision must remain synchronous");
+                            }
+                            return ModelConflictResolver.retryIfAllowed().resolve(context);
+                        }, 1,
                         (conflict, current) -> {
+                    if (!asynchronous) {
+                        assertSame(caller, Thread.currentThread(), "local reevaluation must remain synchronous");
+                    }
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(reloadedEvaluation);
-                }), null, -1, true).join();
+                }), null, -1, asynchronous);
+        if (!asynchronous) {
+            assertTrue(completion.isDone(), "an immediately completed local retry must finish before returning");
+        }
+        var result = completion.join();
 
         assertTrue(result.orElseThrow().isAccepted());
         assertEquals(2, commits.get());
@@ -759,8 +775,9 @@ class DefaultModelRepositoryCommitTest {
                 update, Order.class));
     }
 
-    @Test
-    void silentRetryIsBoundedAndCanBeMappedToAnApplicationError() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void silentRetryIsBoundedAndCanBeMappedToAnApplicationError(boolean asynchronous) throws Exception {
         OrderId orderId = new OrderId("1");
         Order order = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
         Order updated = new Order(orderId, null, "updated", Instant.parse("2026-01-02T00:00:00Z"));
@@ -784,7 +801,7 @@ class DefaultModelRepositoryCommitTest {
                         (conflict, current) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(evaluation);
-                }), null, -1, true).join());
+                }), null, -1, asynchronous).join());
 
         assertInstanceOf(ModelCommitConflictException.class, bounded.getCause());
         assertEquals(1, reloads.get());
@@ -799,7 +816,7 @@ class DefaultModelRepositoryCommitTest {
                         }, 0,
                         (conflict, current) ->
                                 CompletableFuture.completedFuture(evaluation)),
-                null, -1, true).join());
+                null, -1, asynchronous).join());
         assertEquals(applicationError, mapped.getCause());
     }
 
@@ -1242,17 +1259,25 @@ class DefaultModelRepositoryCommitTest {
 
     @Test
     void asynchronousRebasePreservesPreparationAndSubmissionContext() throws Exception {
-        assertRetryPreparationContext(true, true);
-        assertRetryPreparationContext(true, false);
+        assertRetryPreparationContext(true, true, true);
+        assertRetryPreparationContext(true, false, true);
     }
 
     @Test
     void asynchronousConflictRetryPreservesPreparationAndSubmissionContext() throws Exception {
-        assertRetryPreparationContext(false, true);
-        assertRetryPreparationContext(false, false);
+        assertRetryPreparationContext(false, true, true);
+        assertRetryPreparationContext(false, false, true);
     }
 
-    private void assertRetryPreparationContext(boolean accepting, boolean completedEvaluation) throws Exception {
+    @Test
+    void synchronousConflictRetryPreservesPreparationAndSubmissionContext() throws Exception {
+        assertRetryPreparationContext(false, true, false);
+        assertRetryPreparationContext(false, false, false);
+    }
+
+    private void assertRetryPreparationContext(boolean accepting, boolean completedEvaluation, boolean asynchronous)
+            throws Exception {
+        Thread caller = Thread.currentThread();
         Fluxzero expected = mock(Fluxzero.class);
         Fluxzero callbackContext = mock(Fluxzero.class);
         List<String> contextChecks = new CopyOnWriteArrayList<>();
@@ -1306,8 +1331,12 @@ class DefaultModelRepositoryCommitTest {
         });
         ModelPipeline.RetryEvaluator evaluator = (response, attempt) -> {
             assertSame(expected, Fluxzero.instance.get(), "evaluation context");
-            assertTrue(Thread.currentThread().isVirtual(), "reevaluation must not occupy a common-pool worker");
-            assertTrue(Thread.currentThread().getName().startsWith("fluxzero-model-async-"));
+            if (asynchronous) {
+                assertTrue(Thread.currentThread().isVirtual(), "reevaluation must not occupy a common-pool worker");
+                assertTrue(Thread.currentThread().getName().startsWith("fluxzero-model-async-"));
+            } else {
+                assertSame(caller, Thread.currentThread(), "local reevaluation must remain synchronous");
+            }
             evaluated.countDown();
             return completedEvaluation ? CompletableFuture.completedFuture(rebased) : deferredEvaluation;
         };
@@ -1318,11 +1347,15 @@ class DefaultModelRepositoryCommitTest {
                     accepting ? ModelConflictPolicy.ACCEPT : ModelConflictPolicy.RETRY,
                     accepting ? ModelPipeline.Retry.accepting(evaluator)
                             : ModelPipeline.Retry.conflicts(ignored -> {
-                                assertTrue(Thread.currentThread().isVirtual(), "conflict resolver must use a virtual worker");
+                                if (asynchronous) {
+                                    assertTrue(Thread.currentThread().isVirtual(), "conflict resolver must use a virtual worker");
+                                } else {
+                                    assertSame(caller, Thread.currentThread(), "local resolver must remain synchronous");
+                                }
                                 assertSame(expected, Fluxzero.instance.get(), "conflict resolver context");
                                 return ModelConflictResolver.Resolution.RETRY;
                             }, 1, evaluator),
-                    null, -1, true);
+                    null, -1, asynchronous);
         } finally {
             Fluxzero.instance.remove();
         }

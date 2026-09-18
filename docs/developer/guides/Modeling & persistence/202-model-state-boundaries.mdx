@@ -1,0 +1,164 @@
+---
+title: Model state and protection boundaries
+slug: docs/guides/modeling-and-persistence/model-state-boundaries
+description: Atomic Model state, search visibility, eventless documents and erasure without implicit security guarantees
+sidebar:
+  order: 202
+---
+
+Use the Model APIs for ordinary atomic state transitions before building a separate persistence layer. Storage,
+query visibility, authorization and protection of secrets are different decisions.
+
+| Need | Existing capability | Boundary |
+| --- | --- | --- |
+| Create or change related state atomically | One Model action with multiple `@Apply` targets, including parent/child creation | External calls, schedules and unrelated repositories are not in that transaction |
+| Load by identity | `Fluxzero.loadModel(id)` | Uses the Model's authoritative load path; identity knowledge is not authorization |
+| Persist current state without Model events | `DOCUMENT` plus `eventPublication = NEVER` | No Model history or `previous()`; does not suppress incoming command/webrequest logs, results or application logs |
+| Exclude unrestricted typed Model search | `@DocumentProjection(searchable = false)` | Exact parent/ancestor searches and identity reads remain possible; not a security boundary |
+| Check concurrent changes | `RETRY` or `FAIL` and injected Models/Graphs | Use assertions within the action; a separate query/read followed by a write is not an atomic check |
+| Delete from current state | Return `null` from `@Apply` | Does not erase retained history; follows configured parent ownership |
+| Erase selected Model storage | `modelRepository().deleteModel(...)` or a confirmed deletion plan | Fences stale writes; global event logs, other copies and backups have separate lifecycles |
+
+For example, current delivery status may need identity loads but neither replay nor unrestricted search:
+
+```java
+@Model(persistence = ModelPersistence.DOCUMENT,
+       eventPublication = EventPublication.NEVER,
+       document = @DocumentProjection(searchable = false))
+record DeliveryProgress(@EntityId DeliveryProgressId progressId, boolean completed) {}
+```
+
+```kotlin
+@Model(persistence = [ModelPersistence.DOCUMENT],
+       eventPublication = EventPublication.NEVER,
+       document = DocumentProjection(searchable = false))
+data class DeliveryProgress(@EntityId val progressId: DeliveryProgressId, val completed: Boolean)
+```
+
+Keep event sourcing when historical values or event-driven reactions are needed. An EVENT_SOURCED Model cannot
+change state without storing the corresponding event. With DOCUMENT, `NEVER` must be the effective setting:
+more specific apply/message configuration can override broader defaults. It suppresses the applied update's Model
+event; it is not a general-purpose “do not log this request” switch.
+
+## Model read boundaries
+
+A fresh read, a pinned snapshot and commit conflict protection are different guarantees.
+
+## A separately addressed Model invariant
+
+An independent Product must remain active when a Reservation is committed. Bind its ID explicitly in the command;
+it does not need a parent relation to the Reservation:
+
+```java
+@Model record Product(@EntityId String productId, boolean active) {}
+@Model record Reservation(@EntityId String reservationId) {}
+
+record Reserve(String reservationId, String productId) {
+    @AssertLegal
+    void check(@jakarta.annotation.Nullable Product product) {
+        if (product == null || !product.active()) {
+            throw new IllegalCommandException("Product is not active");
+        }
+    }
+
+    @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+    Reservation apply() { return new Reservation(reservationId); }
+}
+```
+
+In Kotlin, the same binding uses a nullable Model parameter:
+
+```kotlin
+@Model data class Product(@EntityId val productId: String, val active: Boolean)
+@Model data class Reservation(@EntityId val reservationId: String)
+
+data class Reserve(val reservationId: String, val productId: String) {
+    @AssertLegal
+    fun check(product: Product?) {
+        if (product?.active != true) throw IllegalCommandException("Product is not active")
+    }
+
+    @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+    fun apply() = Reservation(reservationId)
+}
+```
+
+`productId` matches the Product's `@EntityId` property. `@Nullable` permits an absent Product to reach the explicit
+business rejection; it does not make the rule optional. A typed `Id<Product>` or an explicit `@Association` can
+disambiguate a different property. With `@Association("product")`, trusted message metadata can supply `product`
+even when the payload has no such property. Metadata wins unless `excludeMetadata = true`; never trust caller-owned
+metadata for authorization. Binding must be available before handler invocation, including prefetch and retry:
+a value that a custom resolver invents only during the method body is not automatically an identified Model target.
+
+The same rule can inject `Graph<Product>` and check `get()`. A returned validation object may carry its own
+`productId`; nested `Fluxzero.assertLegal(new ProductGuard(productId))` inside the mutation joins that mutation's
+reads too. Independent calls made outside a mutation remain read-only checks, not reservations of future writes.
+
+If Product changes after a successful read but before commit, RETRY reevaluates and rejects an inactive Product;
+FAIL reports the conflict. A cached starting state is allowed. An assertion that already rejects is final: no
+freshness request or retry is made merely to see whether newer state might permit it.
+
+## Read boundaries are not interchangeable
+
+| Read during a Model mutation | Snapshot and commit protection |
+| --- | --- |
+| Injected `T` / `Graph<T>` | Attempt snapshot; injected values and inspected relationships are dependencies |
+| Synchronous `loadGraph`, `loadCurrentGraph`, `graph.current()` on its repository/namespace | Same attempt snapshot and staged state; inspected values/relationships join its readset, including empty collections |
+| Arbitrary `loadModel` in a helper | Authoritative load and applicable handler/cache boundary; does not itself register a new dependency: inject the Model or read its Graph |
+| Search / `loadCurrentModelState` | Search/document read contract, not a commit dependency or an event-bound Graph |
+| Historical `previous()` / `at...` | Historical view, not a current invariant dependency |
+
+Outside mutations, ordinary Model-event reads use the event's boundary; explicit current Graph reads open a fresh
+storage-verified view. Inside mutations, current shortcuts never create a second snapshot. Do not hand detached
+Graphs from a separate query or earlier operation to an invariant and assume their old reads become protected.
+Consumed Graph alias lookups also protect the selected mapping (including absence), canonical-ID precedence and
+the selected owner's head. This includes `id()` and relation-only access. Exact-ID reads do not depend on aliases;
+merely creating an unused Graph does not add a lookup dependency. `ACCEPT` retains only apply-time dependencies.
+
+SDK rc.13 and earlier do not attach manual Graph loads or separately invoked assertion helpers to the active
+readset; use direct injection there. The corrected behavior above applies after that fix. Reproduce invariants with
+active/inactive/missing state, warm caches and a second writer between read and commit, not just sequential commands.
+
+Before adding a workaround, identify the values and relationships that carry the invariant, their ID binding,
+read boundary and conflict policy. `@AssertLegal`, a current read or RETRY alone does not make arbitrary I/O
+transactional. The query guide at [Model query guide](../model-query-guide) covers document/search consistency separately.
+
+## Non-searchable is not private
+
+The internal current Model source and the optional public DOCUMENT projection are independent stored roles.
+DOCUMENT-only loads use the internal source; direct typed searches use the public projection. Model commits maintain
+both. Public document indexing or `@HandleDocument(documentClass = ...)` does not change authoritative Model state.
+
+A Model used in Graph composition may require its own internal content indexes even when its public projection is
+not searchable. `whereChild`/`whereDescendant` predicates use that internal source; exact parent/ancestor searches
+can still retrieve a non-searchable public projection. Do not use collection names or `searchable = false` to hide
+values from another application that can read the same store. Enforce access through trusted handlers and the
+deployment's actual namespace/access controls; an injected Graph is not itself an authorization check.
+
+`@ProtectData` redacts annotated fields in stored messages and restores retained values for handling. Protection on
+an input does **not** carry over to values copied into Model state, documents, snapshots, results or application logs.
+A result payload can declare its own protected fields, handled by the normal RESULT-dispatch interceptor; this is not
+a blanket guarantee for WebResponse bodies or native HTTP. There is no general encryption-at-rest, KMS/key-rotation,
+secret-store or backup guarantee. Verify each required protection separately; custom serialization is an extension
+point, not automatic key management.
+
+## Deletion, versions and rollout
+
+Logical deletion is not physical erasure. Physical Model erasure removes the selected stream, snapshots, current
+sources/projections and cache state, and fences delayed writes from restoring erased data. Descendant erasure requires
+its own explicitly selected scope/plan. Shared event payloads can remain while another surviving Model references
+them. The global event log is not removed by Model erasure. Copies in other stores, logs, exports and backups require
+their own retention/deletion and restore policy.
+
+Descendant planning also follows retained deleted-parent relationships after a nested logical cascade. Ordinary
+detachments and moves made before deletion do not become deleted-parent lineage. Inspect the plan before confirming
+it: upgrading does not retroactively restore lineage markers omitted by older implementations. Verify the full scope
+of an already deleted tree independently before physical erasure; an incomplete plan is not proof of complete cleanup.
+
+Use a matching SDK and service implementation for the storage/wire capabilities you enable. Older shared
+DOCUMENT storage is not automatically equivalent to independent internal sources and public projections:
+preserve DOCUMENT-only state and follow the explicit migration/rebuild procedure before switching writers.
+Do not let a mixed set of unsupported writers replace newly separated state or silently drop conflict dependencies.
+
+See [Model persistence](../model-persistence), [migration and retained-state tests](../model-migration-tests),
+and [sensitive message data](../../data-control-and-serialization/protecting-sensitive-data) for the owning APIs.

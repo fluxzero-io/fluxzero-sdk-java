@@ -92,7 +92,7 @@ class ModelSourceDocumentMigrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void documentTrackingRegistrationRetainsUpdatesBeforeTheFirstRead(boolean registerTracking) {
+    void documentUpdatesAreRetainedBeforeTheFirstReadRegardlessOfTrackingRegistration(boolean registerTracking) {
         TestFixture.create().whenExecuting(fc -> {
             var archive = fc.client().forNamespace("archive");
             if (registerTracking) {
@@ -102,7 +102,7 @@ class ModelSourceDocumentMigrationTest {
             assertEquals(0, archive.getSearchClient().fetchModelDocument(new GetDocument("project", SOURCE, true, true))
                     .getDocument().getDocument().getRevision());
             var store = (io.fluxzero.sdk.persisting.search.client.InMemorySearchStore) archive.getSearchClient();
-            assertEquals(registerTracking ? 1 : 0, store.openStream(SOURCE, -1L, 10).count());
+            assertEquals(1, store.openStream(SOURCE, -1L, 10).count());
         }).expectNoErrors();
     }
 

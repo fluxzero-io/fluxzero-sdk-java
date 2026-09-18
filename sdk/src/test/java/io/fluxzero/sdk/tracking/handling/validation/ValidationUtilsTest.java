@@ -21,13 +21,18 @@ import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
 import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Builder;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,6 +45,45 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ValidationUtilsTest {
+
+    @Test
+    void reminderExamplePreservesRequiredFieldFailuresWithoutNullGuards() {
+        assertThrows(ValidationException.class, () -> ValidationUtils.assertValid(new ConfigureReminder(null)));
+        assertThrows(ValidationException.class,
+                     () -> ValidationUtils.assertValid(new ConfigureReminder(Duration.ofSeconds(-1))));
+        ValidationUtils.assertValid(new ConfigureReminder(Duration.ZERO));
+        ValidationUtils.assertValid(new ConfigureReminder(Duration.ofMinutes(1)));
+    }
+
+    @Test
+    void requiredCollectionElementsAndCascadesProtectThePayloadValidationResult() {
+        assertThrows(ValidationException.class, () -> ValidationUtils.assertValid(new ConfigureReminders(null)));
+        assertThrows(ValidationException.class, () -> ValidationUtils.assertValid(
+                new ConfigureReminders(Arrays.asList((ConfigureReminder) null))));
+        assertThrows(ValidationException.class, () -> ValidationUtils.assertValid(
+                new ConfigureReminders(List.of(new ConfigureReminder(null)))));
+        ValidationUtils.assertValid(new ConfigureReminders(List.of(new ConfigureReminder(Duration.ZERO))));
+    }
+
+    @Test
+    void rawViolationsDoNotPromiseThePayloadExceptionSuppressionContract() {
+        assertThrows(RuntimeException.class,
+                     () -> ValidationUtils.getConstraintViolations(new ConfigureReminder(null)));
+    }
+
+    record ConfigureReminder(@NotNull Duration delay) {
+        @AssertTrue(message = "Choose a non-negative delay.")
+        boolean hasNonNegativeDelay() {
+            return !delay.isNegative();
+        }
+    }
+
+    record ConfigureReminders(@NotNull List<@NotNull @Valid ConfigureReminder> reminders) {
+        @AssertTrue
+        boolean allShortEnough() {
+            return reminders.stream().allMatch(r -> r.delay().compareTo(Duration.ofDays(1)) < 0);
+        }
+    }
 
     @Test
     void testValidation() {

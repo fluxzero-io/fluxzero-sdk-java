@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,6 +66,7 @@ import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,9 +78,54 @@ class ModelCommitHandlerIntegrationTest {
 
     @Test
     @Timeout(10)
+    void synchronousFixtureCompletesModelConflictRetryBeforeCheckingResults() {
+        Thread caller = Thread.currentThread();
+        AtomicInteger conflicts = new AtomicInteger();
+        TestFixture fixture = TestFixture.create(DefaultFluxzero.builder().configureModelConflictHandling(
+                io.fluxzero.common.api.modeling.ModelConflictPolicy.DEFAULT, context -> {
+                    assertSame(caller, Thread.currentThread(), "synchronous fixture must not race retry completion");
+                    conflicts.incrementAndGet();
+                    return ModelConflictResolver.retryIfAllowed().resolve(context);
+                }, 3));
+        fixture.givenCommands(new CreateAncestorCustomer("customer-before", "before"),
+                              new CreateAncestorCustomer("customer-after", "after"),
+                              new SetAncestorOrder("selection-order", "customer-before"),
+                              new CreateAncestorReport("selection-report"));
+        UpdateAncestorReport.assertions.set(0);
+        UpdateAncestorReport.applies.set(0);
+        UpdateAncestorReport.beforeApply.set(() -> {
+            try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                executor.submit(() -> fixture.getFluxzero().apply(fluxzero -> {
+                    Fluxzero.assertAndApply(new SetAncestorOrder("selection-order", "customer-after"));
+                    return null;
+                })).get();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        });
+        try {
+            fixture.whenCommand(new UpdateAncestorReport("selection-report", "selection-order"))
+                    .expectSuccessfulResult()
+                    .expectNoErrors()
+                    .expectThat(fluxzero -> {
+                        assertEquals(1, conflicts.get());
+                        assertEquals(2, UpdateAncestorReport.assertions.get());
+                        assertEquals(2, UpdateAncestorReport.applies.get());
+                        assertEquals("after", fluxzero.modelRepository()
+                                .load("selection-report", AncestorReport.class).get().customerName());
+                    });
+        } finally {
+            UpdateAncestorReport.beforeApply.set(null);
+        }
+    }
+
+    @Test
+    @Timeout(10)
     void acceptRebasesWhenAnAssertionLoadedRootChangesItsApplyAncestor() {
         for (boolean initiallyMissing : List.of(false, true)) {
-            TestFixture fixture = TestFixture.create();
+            TestFixture fixture = TestFixture.create(DefaultFluxzero.builder().configureModelConflictHandling(
+                    io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
+                    ModelConflictResolver.retryIfAllowed(), 3));
             fixture.givenCommands(new CreateAncestorCustomer("customer-before", "before"),
                                   new CreateAncestorCustomer("customer-after", "after"),
                                   new SetAncestorOrder("selection-order", initiallyMissing ? null : "customer-before"),
@@ -198,6 +245,84 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void explicitGraphCreationAfterAnotherCommitPreservesTheAbsentHead() {
+        for (boolean async : List.of(false, true)) {
+            for (boolean document : List.of(false, true)) {
+                TestFixture fixture = async ? TestFixture.createAsync() : TestFixture.create();
+                fixture.givenCommands(new CreateAccount(new AccountId("unrelated"), 1))
+                        .whenExecuting(ignored -> {
+                            if (document) {
+                                InventoryId id = new InventoryId("created-after-other");
+                                Fluxzero.loadGraph(id).update(value -> new Inventory(id, 41)).commit();
+                            } else {
+                                AccountId id = new AccountId("created-after-other");
+                                Fluxzero.loadGraph(id).update(value -> new Account(id, 41)).commit();
+                            }
+                        })
+                        .expectSuccessfulResult()
+                        .expectNoErrors()
+                        .expectThat(fluxzero -> {
+                            fluxzero.cache().clear();
+                            if (document) {
+                                assertEquals(41, Fluxzero.loadModel(new InventoryId("created-after-other"))
+                                        .get().available());
+                            } else {
+                                assertEquals(41, Fluxzero.loadModel(new AccountId("created-after-other"))
+                                        .get().balance());
+                            }
+                        });
+            }
+        }
+    }
+
+    @Test
+    void absentGraphCreationCannotOverwriteAConcurrentCreate() {
+        AccountId id = new AccountId("concurrent-graph-create");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(new AccountId("unrelated"), 1))
+                .whenExecuting(ignored -> {
+                    Graph<Account> staged = Fluxzero.loadGraph(id)
+                            .update(value -> new Account(id, value == null ? 1 : value.balance() + 1));
+                    Fluxzero.sendCommandAndWait(new CreateAccount(id, 41));
+                    staged.commit();
+                })
+                .expectExceptionalResult(ModelCommitConflictException.class)
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(41, Fluxzero.loadModel(id).get().balance());
+                });
+    }
+
+    @Test
+    void returningAnEmptyGraphAfterAnotherCommitPreservesTheAbsentHead() {
+        TestFixture.create()
+                .givenCommands(new CreateAccount(new AccountId("unrelated"), 1))
+                .whenCommand(new ReturnEmptyGraph(new AccountId("absent")))
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(ignored -> assertNull(Fluxzero.loadModel(new AccountId("absent")).get()));
+    }
+
+    @Test
+    void existingGraphUpdateReevaluatesAfterAConcurrentUpdate() {
+        AccountId id = new AccountId("concurrent-graph-update");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(id, 10), new CreateAccount(new AccountId("unrelated"), 1))
+                .whenExecuting(ignored -> {
+                    Graph<Account> staged = Fluxzero.loadGraph(id)
+                            .update(value -> new Account(id, value.balance() + 1));
+                    Fluxzero.sendCommandAndWait(new ApplyTargetedCredit(id, 30));
+                    staged.commit();
+                })
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(41, Fluxzero.loadModel(id).get().balance());
+                });
+    }
+
+    @Test
     void graphAssertAndApplyRetainsTheSelectedIdentityAcrossInterception() {
         AccountId payloadId = new AccountId("targeted-payload");
         AccountId selectedId = new AccountId("targeted-selected");
@@ -282,9 +407,57 @@ class ModelCommitHandlerIntegrationTest {
                 .whenExecuting(ignored -> Fluxzero.loadGraph("selected", SpecialCounter.class)
                         .assertAndApply(event))
                 .expectEvents(event)
-                .expectThat(fluxzero -> assertEquals(
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(
                         SpecialCounter.builder().counterId("selected").value(5).marker("special").build(),
-                        fluxzero.modelRepository().load("selected", SpecialCounter.class).get()));
+                        fluxzero.modelRepository().load("selected", SpecialCounter.class).get());
+                });
+    }
+
+    @Test
+    void replayRetainsAnExplicitBaseGraphDespiteATypedSubtypeId() {
+        SpecialCounterId id = new SpecialCounterId("explicit-base");
+        TestFixture.create(BaseCounter.class)
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id.getId(), BaseCounter.class)
+                        .assertAndApply(new CreateBaseThroughSubtypeId(id, 8)))
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(BaseCounter.builder().counterId(id.getId()).value(8).build(),
+                                 Fluxzero.loadModel(id.getId(), BaseCounter.class).get());
+                });
+    }
+
+    @Test
+    void coldReplayPreservesAHistoricalSiblingRead() {
+        AccountId target = new AccountId("replay-target");
+        AccountId source = new AccountId("replay-source");
+        TestFixture.create()
+                .givenCommands(new CreateAccount(target, 1), new CreateAccount(source, 10))
+                .whenExecuting(ignored -> {
+                    Fluxzero.sendCommandAndWait(new CopyAccountBalance(target, source));
+                    Fluxzero.sendCommandAndWait(new ApplyTargetedCredit(source, 20));
+                })
+                .expectSuccessfulResult()
+                .expectNoErrors()
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    long boundary = Fluxzero.loadCurrentGraph(source).revisionStateIndex();
+                    assertEquals(10, fluxzero.modelRepository().loadGraphAt(target, boundary).get().balance());
+                    assertEquals(30, Fluxzero.loadModel(source).get().balance());
+                });
+    }
+
+    @Test
+    void replayDoesNotWidenAnExplicitSubtypeParameter() {
+        var target = new MutationPlan.ResolvedModel("base", BaseCounter.class,
+                                                    MutationPlan.Access.READ_WRITE, List.of());
+        MutationPlan.Resolution resolution = MutationPlan.compile(
+                ReadSpecialCounter.class, EntityMetadata.of(ReadSpecialCounter.class).handlerMethods())
+                .resolveReplay(new ReadSpecialCounter("base"), target);
+        assertEquals(SpecialCounter.class, resolution.models().getFirst().modelType());
     }
 
     @Test
@@ -1364,6 +1537,8 @@ class ModelCommitHandlerIntegrationTest {
                         new CreatePathlessFamilyChild(pathlessId, rootId),
                         new CreateRetainedFamilyChild(retainedId, rootId))
                 .whenCommand(new DeleteFamilyRoot(rootId))
+                .expectSuccessfulResult()
+                .expectNoErrors()
                 .expectThat(fluxzero -> {
                     ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
                             fluxzero.modelRepository()).invalidateModels(List.of(
@@ -1399,6 +1574,35 @@ class ModelCommitHandlerIntegrationTest {
                                             "second-child")),
                             Set.copyOf(beforeDeletion.get()));
                 });
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void hardDeletionIncludesGrandchildrenAfterLogicalCascade(boolean async) {
+        var root = new FamilyRootId("erasure");
+        var child = new FamilyChildId("erasure-child");
+        var other = new FamilyChildId("erasure-other");
+        var grandchild = new FamilyGrandchildId("erasure-grandchild");
+        var ids = List.of(root.toString(), child.toString(), other.toString(), grandchild.toString());
+        var fixture = TestFixture.create();
+        (async ? fixture.async() : fixture)
+                .givenCommands(new CreateFamilyRoot(root, "root"),
+                               new CreateFamilyChild(child, root, "child"),
+                               new CreateFamilyChild(other, root, "other"),
+                               new CreateFamilyGrandchild(grandchild, child, other))
+                .whenCommand(new DeleteFamilyRoot(root))
+                .expectSuccessfulResult().expectNoErrors()
+                .andThen().whenExecuting(fc -> {
+                    ids.forEach(id -> {
+                        assertTrue(fc.modelRepository().load(id).isEmpty());
+                        assertFalse(fc.eventStore().getEvents(id).toList().isEmpty());
+                    });
+                    var plan = fc.modelRepository().planDeletion(root,
+                            io.fluxzero.common.api.modeling.ModelDeletionCascade.DESCENDANTS);
+                    assertEquals(Set.copyOf(ids), Set.copyOf(plan.getSampleModelIds()));
+                    assertEquals(4, fc.modelRepository().deleteModel(plan).join().getDeletedModelCount());
+                    ids.forEach(id -> assertTrue(fc.eventStore().getEvents(id).toList().isEmpty()));
+                }).expectSuccessfulResult().expectNoErrors();
     }
 
     @Test
@@ -2193,8 +2397,9 @@ class ModelCommitHandlerIntegrationTest {
                     DeserializingMessage.forEachInBatch(
                             List.of(moveMessage, readMessage), current -> {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     durable.stateIndex(),
                                                     List.of(firstChildId.toString()),
@@ -2291,8 +2496,9 @@ class ModelCommitHandlerIntegrationTest {
                                             fluxzero.serializer())),
                             current -> {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     -1L,
                                                     List.of(
@@ -2359,8 +2565,9 @@ class ModelCommitHandlerIntegrationTest {
                                 if (DeserializingMessage
                                             .getMessageBatchIndex()
                                     == 0) {
-                                    ModelBatchScope.stage(
-                                            null,
+                                    ModelBatchScope.stageOwned(
+                                            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                                                    fluxzero.modelRepository()).modelDefinitionCompiler(), null,
                                             CommitAttempt.fromChanges(
                                                     durable.stateIndex(),
                                                     List.of(
@@ -2620,6 +2827,11 @@ class ModelCommitHandlerIntegrationTest {
             throw new AssertionError("Assertion for an unselected model type was invoked");
         }
 
+        @AssertLegal
+        static void staticAssertionNotSelected(SetExplicitValue command, Graph<ExplicitAlternative> alternative) {
+            throw new AssertionError("Static assertion for an unselected model type was invoked");
+        }
+
         @InterceptApply
         SetExplicitValue interceptNotSelected(SetExplicitValue command) {
             throw new AssertionError("Interceptor for an unselected model type was invoked");
@@ -2820,6 +3032,28 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
+    private record CreateBaseThroughSubtypeId(SpecialCounterId counterId, int value) {
+        @Apply
+        BaseCounter apply(Graph<BaseCounter> graph) {
+            return BaseCounter.builder().counterId(graph.id().toString()).value(value).build();
+        }
+    }
+
+    private record ReadSpecialCounter(String counterId) {
+        @Apply
+        SpecialCounter apply(SpecialCounter counter) {
+            return counter;
+        }
+    }
+
+    private record CopyAccountBalance(AccountId accountId, AccountId sourceId) {
+        @Apply
+        Account apply(@io.fluxzero.sdk.tracking.handling.Association("accountId") Account account,
+                      @io.fluxzero.sdk.tracking.handling.Association("sourceId") Account source) {
+            return new Account(account.accountId(), source.balance());
+        }
+    }
+
     private static final AtomicReference<String> ASYNC_COMMIT_METADATA =
             new AtomicReference<>();
 
@@ -2879,6 +3113,13 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         Account apply(Account account) {
             return null;
+        }
+    }
+
+    private record ReturnEmptyGraph(AccountId accountId) {
+        @InterceptApply
+        Graph<Account> apply(Graph<Account> account) {
+            return account;
         }
     }
 

@@ -59,7 +59,7 @@
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.19</slf4j.version>
-        <fluxzero.maven.plugin.version>1.18.0</fluxzero.maven.plugin.version>
+        <fluxzero.maven.plugin.version>1.18.9</fluxzero.maven.plugin.version>
         <fluxzero.package.channel-tag>latest</fluxzero.package.channel-tag>
         <fluxzero.package.base-image>gcr.io/distroless/java25-debian13:nonroot@sha256:9ccf2b8bce700d9f450523e2055afabe4d4ee795e6d69a0647a2dcd6e180e411</fluxzero.package.base-image>
         <argLine/>
@@ -225,7 +225,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.1.4</version>
+                    <version>3.2.0</version>
                     <configuration>
                         <deployAtEnd>true</deployAtEnd>
                         <retryFailedDeploymentCount>3</retryFailedDeploymentCount>
@@ -234,7 +234,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-install-plugin</artifactId>
-                    <version>3.1.4</version>
+                    <version>3.2.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -415,7 +415,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.6.3</version>
+                <version>3.6.4</version>
                 <inherited>false</inherited>
                 <executions>
                     <execution>
@@ -442,7 +442,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.6.1</version>
+                <version>3.6.2</version>
                 <inherited>false</inherited>
                 <executions>
                     <execution>
@@ -506,7 +506,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>versions-maven-plugin</artifactId>
-                <version>2.21.0</version>
+                <version>2.22.0</version>
                 <configuration>
                     <rulesUri>file:///${user.dir}/versions-plugin-rules.xml</rulesUri>
                 </configuration>

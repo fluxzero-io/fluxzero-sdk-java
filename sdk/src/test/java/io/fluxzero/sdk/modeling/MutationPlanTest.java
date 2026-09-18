@@ -99,6 +99,56 @@ class MutationPlanTest {
     }
 
     @Test
+    void replayUsesTheStreamIdentityForASingleReference() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                RenameProduct.class, EntityMetadata.of(Product.class).handlerMethods());
+        var target = new MutationPlan.ResolvedModel("product-selected", Product.class, READ_WRITE, List.of());
+        assertEquals(List.of(new MutationPlan.ResolvedModel(
+                                     "product-selected", Product.class, READ_WRITE, List.of("productId"))),
+                     plan.resolveReplay(new RenameProduct(new ProductId("payload"), "name"), target).models());
+    }
+
+    @Test
+    void replayPreservesDistinctSameTypeDependencies() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                Transfer.class, EntityMetadata.of(Transfer.class).handlerMethods());
+        Transfer event = new Transfer(new AccountId("source"), new AccountId("destination"));
+        var target = new MutationPlan.ResolvedModel("account-destination", Account.class, READ_WRITE, List.of());
+        assertEquals(plan.resolve(event), plan.resolveReplay(event, target));
+    }
+
+    @Test
+    void replayPreservesCollectionReferences() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                RenameProducts.class, EntityMetadata.of(RenameProducts.class).handlerMethods());
+        RenameProducts event = new RenameProducts(List.of(new ProductId("first"), new ProductId("second")));
+        var target = new MutationPlan.ResolvedModel("product-second", Product.class, READ_WRITE, List.of());
+        assertEquals(plan.resolve(event), plan.resolveReplay(event, target));
+    }
+
+    @Test
+    void replayPreservesAScalarSourceOfMultipleOutputs() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                CopyProduct.class, EntityMetadata.of(CopyProduct.class).handlerMethods());
+        CopyProduct event = new CopyProduct(new ProductId("source"));
+        var target = new MutationPlan.ResolvedModel("product-copy", Product.class, READ_WRITE, List.of());
+        MutationPlan.Resolution replay = plan.resolveReplay(event, target);
+        assertEquals(List.of("product-source", "product-copy"),
+                     replay.models().stream().map(MutationPlan.ResolvedModel::modelId).toList());
+        assertEquals(plan.resolve(event).references(), replay.references());
+    }
+
+    @Test
+    void replayDoesNotRebindADifferentModelUsingTheSamePayloadProperty() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                UpdateConfiguredCounter.class, EntityMetadata.of(UpdateConfiguredCounter.class).handlerMethods());
+        var target = new MutationPlan.ResolvedModel("counter-selected", ConfiguredCounter.class, READ_WRITE, List.of());
+        MutationPlan.Resolution replay = plan.resolveReplay(new UpdateConfiguredCounter("payload"), target);
+        assertEquals(List.of("counter-selected", "settings-payload"),
+                     replay.models().stream().map(MutationPlan.ResolvedModel::modelId).toList());
+    }
+
+    @Test
     void modelApplyEffectsOverridePayloadEffectsFieldByField() {
         MutationPlan.EffectOverrides payload = new MutationPlan.EffectOverrides(
                 EventPublication.NEVER, EventPublicationStrategy.STORE_ONLY,
@@ -602,6 +652,28 @@ class MutationPlanTest {
                 @Association("productIds")
                 List<Graph<Product>> products) {
             return products.stream().map(Graph::get).toList();
+        }
+    }
+
+    private record CopyProduct(ProductId productId) {
+        @Apply
+        List<Product> copy(Graph<Product> source) {
+            return List.of(source.get(), new Product(new ProductId("copy"), source.get().name()));
+        }
+    }
+
+    @Model
+    private record ConfiguredCounter(@EntityId(prefix = "counter-") String id) {
+    }
+
+    @Model
+    private record CounterSettings(@EntityId(prefix = "settings-") String id) {
+    }
+
+    private record UpdateConfiguredCounter(String id) {
+        @Apply
+        ConfiguredCounter apply(ConfiguredCounter counter, CounterSettings settings) {
+            return counter;
         }
     }
 

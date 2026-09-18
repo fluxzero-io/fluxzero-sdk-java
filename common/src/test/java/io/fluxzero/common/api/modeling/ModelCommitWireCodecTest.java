@@ -42,8 +42,74 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void defaultMeansRetryWhileMissingLegacyWirePolicyKeepsItsMeaning() throws Exception {
+        for (ModelConflictPolicy policy : new ModelConflictPolicy[]{null, ModelConflictPolicy.DEFAULT,
+                ModelConflictPolicy.RETRY, ModelConflictPolicy.FAIL, ModelConflictPolicy.ACCEPT}) {
+            CommitModels original = commit("policy-transport", false);
+            CommitModels request = new CommitModels(original.getCommitId(), original.getReadStateIndex(),
+                    original.getReadModelIds(), original.getSubsteps(), policy, original.getGuarantee(), false);
+            ModelConflictPolicy expected = policy == null ? ModelConflictPolicy.ACCEPT
+                    : policy == ModelConflictPolicy.DEFAULT ? ModelConflictPolicy.RETRY : policy;
+            assertEquals(expected, ModelConflictPolicy.resolve(policy));
+            for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+                var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+                RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class,
+                        codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+                var received = assertInstanceOf(CommitModels.class, decoded.getRequests().getFirst());
+                assertEquals(policy, received.getConflictPolicy(), format.toString());
+                assertEquals(expected, ModelConflictPolicy.resolve(received.getConflictPolicy()));
+            }
+        }
+        var json = JsonUtils.valueToTree(commit("omitted-policy", false));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) json).remove("conflictPolicy");
+        assertNull(JsonUtils.writer.treeToValue(json, CommitModels.class).getConflictPolicy());
+    }
+
+    @Test
+    void aliasReadsUseLosslessFallbackOnEveryTransport() throws Exception {
+        CommitModels ordinary = commit("alias-transport", false);
+        ordinary.getSubsteps().getFirst().getEvent().setIndex(null);
+        CommitModels request = new CommitModelsWithAliasReads(new CommitModelsWithRelationships(ordinary,
+                List.of(new ModelRelationshipRead("parent", ModelRelationshipRead.Direction.CHILDREN, null))),
+                List.of(ordinary.getReadModelIds().getFirst()));
+        ModelCommitValidator.validate(request);
+        assertFalse(JsonUtils.valueToTree(ordinary).has("readAliasIds"));
+        assertEquals("commitModelsWithAliasReads", JsonUtils.valueToTree(request).get("@type").asText());
+        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(request))));
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class,
+                    codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+            assertEquals(request, decoded.getRequests().getFirst(), format.toString());
+        }
+        request.markPossibleDuplicate();
+        assertTrue(request.isPossibleDuplicate());
+        assertEquals(ordinary.getRequestId(), request.getRequestId());
+    }
+
+    @Test
+    void receiversWithoutAliasCapabilityRejectTheRequestType() throws Exception {
+        var legacy = JsonUtils.writer.copy();
+        legacy.setAnnotationIntrospector(new com.fasterxml.jackson.databind.introspect.JacksonAnnotationIntrospector() {
+            @Override
+            public List<com.fasterxml.jackson.databind.jsontype.NamedType> findSubtypes(
+                    com.fasterxml.jackson.databind.introspect.Annotated annotated) {
+                var types = super.findSubtypes(annotated);
+                return types == null ? null : types.stream()
+                        .filter(type -> type.getType() != CommitModelsWithAliasReads.class).toList();
+            }
+        });
+        CommitModels ordinary = commit("legacy-alias", false);
+        CommitModels request = new CommitModelsWithAliasReads(ordinary, ordinary.getReadModelIds());
+        byte[] bytes = JsonUtils.writer.writeValueAsBytes(request);
+        assertThrows(com.fasterxml.jackson.databind.exc.InvalidTypeIdException.class,
+                () -> legacy.readValue(bytes, io.fluxzero.common.api.JsonType.class));
+    }
+
+    @Test
     void independentDocumentsRetainBothRolesAndRelationshipReadsOnEveryTransport() throws Exception {
         CommitModels original = commit("document-roles", false);
+        original.getSubsteps().getFirst().getEvent().setIndex(null);
         ModelCommitTarget target = original.singleTarget();
         var document = new io.fluxzero.common.api.search.SerializedDocument(target.getModelId(), null, null, "source",
                 new io.fluxzero.common.api.Data<>(new byte[] {1}, "type", 0, "application/json"), null,
@@ -62,6 +128,14 @@ class ModelCommitWireCodecTest {
             var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
             RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class, codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
             assertEquals(request, decoded.getRequests().getFirst());
+        }
+        CommitModels aliases = new CommitModelsWithAliasReads(request, List.of(request.getReadModelIds().getFirst()));
+        ModelCommitValidator.validate(aliases);
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class,
+                    codec.decode(codec.encode(new RequestBatch<>(List.of(aliases)))));
+            assertEquals(aliases, decoded.getRequests().getFirst());
         }
     }
 

@@ -227,6 +227,14 @@ public class DeserializingMessage implements HasMessage {
         }
     }
 
+    /**
+     * Returns the lazily materialized logical message (payload, metadata, ID and timestamp).
+     * Transport fields such as source, target, request ID and index are not part of that logical message.
+     * <p>
+     * Treat the serialized input as read-only after handing it to this wrapper: later mutations do not update an
+     * already materialized logical message. Use {@link #withMessage(Message)} with an immutable Message replacement,
+     * or deserialize a deliberately edited serialized envelope again before dispatching it.
+     */
     @Override
     public Message toMessage() {
         if (message == null) {
