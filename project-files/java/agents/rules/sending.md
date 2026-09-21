@@ -290,6 +290,11 @@ without showing these secrets. Resolve credentials through `ApplicationPropertie
 header. This is visible-log masking, not deletion from the HTTP transport or a guarantee for arbitrary secret fields
 or application-written logs.
 
+Streamed responses arrive as bytes, including JSON bodies; use `getPayloadAs(...)` to convert them. Local gzip
+streams decode on body-value conversion. Requesting `InputStream` or `Object` does not consume the stream;
+the caller still owns its one-shot consumption and closure. Empty HEAD/304 bodies are not decompressed.
+
+
 Pass `WebRequestSettings` to `Fluxzero.sendWebRequestAndWait(request, settings)` or the gateway's `send`/`sendAndWait`.
 `timeout` bounds all attempts, `maxRetries` counts additional attempts (default zero), and `retryDelay` plus
 `retryableStatusCodes` select retry behavior. Repeat writes only with appropriate idempotent semantics.

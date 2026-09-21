@@ -54,6 +54,12 @@ Automatically mapped objects support JSON, strings support `text/plain` and JSON
 best-effort and leaves the normal default when none matches; do not promise `406` without an explicit application
 policy. An explicit `WebResponse` or `Content-Type` wins.
 
+Streamed responses are assembled as raw bytes by the SDK request gateway, including JSON content.
+Use `getPayloadAs(...)` to convert the body. Async fixtures exercise this same path. For locally returned gzip
+streams, conversion to a body value decodes the content; requesting `InputStream` or `Object` retains the original
+stream without consuming it. Streams remain one-shot resources owned by their caller. Empty HEAD/304 bodies
+may retain representation headers and must not be decompressed.
+
 Use `FluxzeroBuilder.replaceWebResponseMapper(...)` only for an application-wide policy. Preserve safe error mapping,
 HEAD body stripping, metadata/headers, and content negotiation in its tests. Prefer returning an explicit
 `WebResponse` from the exceptional endpoint that needs a different status over changing every endpoint.
