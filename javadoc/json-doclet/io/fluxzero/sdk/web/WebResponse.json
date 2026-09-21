@@ -432,7 +432,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Retrieves the payload and converts it to the specified type.\n\n @param <R>  the desired type of the returned payload\n @param type the target type to which the payload should be converted\n @return the payload converted to the specified type R\n"
+    "documentation" : " Retrieves the payload and converts it to the specified type.\n Gzip-encoded streams are decoded when converted to a body value; consuming a stream remains a one-shot operation.\n Requesting the stream itself (or {@code Object}) does not consume or decode it, and its owner remains responsible\n for closing it.\n Streamed responses received through the request gateway have a byte-array payload, including when their\n content type is JSON. Use this method to convert those bytes to a desired body type.\n\n @param <R>  the desired type of the returned payload\n @param type the target type to which the payload should be converted\n @return the payload converted to the specified type R\n"
   }, {
     "name" : "getStatus",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse#getStatus",
