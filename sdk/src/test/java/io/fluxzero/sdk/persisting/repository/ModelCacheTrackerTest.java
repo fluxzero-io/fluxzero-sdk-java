@@ -456,7 +456,7 @@ class ModelCacheTrackerTest {
         CountDownLatch continuePublication = new CountDownLatch(1);
         CountDownLatch nextRefresh = new CountDownLatch(1);
         CountDownLatch physicalCleanup = new CountDownLatch(1);
-        AtomicBoolean physicalWriteCompleted = new AtomicBoolean();
+        AtomicBoolean publicationReleased = new AtomicBoolean();
         AtomicReference<ModelCacheTracker> trackerReference = new AtomicReference<>();
         AtomicReference<ModelCache> cacheReference = new AtomicReference<>();
         SoftReferenceCache delegate = new SoftReferenceCache(100, Runnable::run, null) {
@@ -478,13 +478,12 @@ class ModelCacheTrackerTest {
                     awaitLatch(continuePublication);
                     return selected;
                 });
-                physicalWriteCompleted.set(true);
             }
 
             @Override
             public <T> T remove(Object id) {
                 T removed = super.remove(id);
-                if ("sample-1".equals(id) && physicalWriteCompleted.get()) {
+                if ("sample-1".equals(id) && publicationReleased.get()) {
                     physicalCleanup.countDown();
                 }
                 return removed;
@@ -537,6 +536,8 @@ class ModelCacheTrackerTest {
                     List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "other-update", 0, 12L, null,
                                             List.of(new ModelCommitTargetResult("other", 1L, true))))));
             awaitNext(polls);
+            // A cleanup blocked on the delegate's compute lock may run before updateAll returns.
+            publicationReleased.set(true);
             continuePublication.countDown();
             assertTrue(nextRefresh.await(5, TimeUnit.SECONDS));
             assertTrue(physicalCleanup.await(5, TimeUnit.SECONDS),
