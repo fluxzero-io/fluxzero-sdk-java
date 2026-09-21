@@ -753,7 +753,10 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#safeResolve",
     "returnType" : "java.net.URI",
     "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "base",

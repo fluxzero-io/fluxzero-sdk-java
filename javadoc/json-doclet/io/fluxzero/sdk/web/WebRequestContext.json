@@ -127,7 +127,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Retrieves the value of a parameter from the path section of the web request.\n\n @param name the name of the parameter to retrieve from the path.\n @return the {@code ParameterValue} associated with the specified parameter name, or {@code null}\n         if the parameter is not present in the path.\n"
+    "documentation" : " Retrieves the value of a parameter from the path section of the web request.\n The default SDK router percent-decodes matched values once as UTF-8, preserving literal plus signs.\n\n @param name the name of the parameter to retrieve from the path.\n @return the {@code ParameterValue} associated with the specified parameter name, or {@code null}\n         if the parameter is not present in the path.\n"
   }, {
     "name" : "getQueryParameter",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequestContext#getQueryParameter",
