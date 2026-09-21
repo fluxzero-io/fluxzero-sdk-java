@@ -1579,6 +1579,31 @@ class ProxyServerTest {
     @Isolated
     class Websocket {
         @Test
+        void websocketRoundTripSurvivesConfiguredHeaderGrowth() {
+            String previous = System.getProperty(ProxyServer.RESPONSE_HEADER_BUFFER_SIZE_PROPERTY);
+            ProxyServer configuredProxy = null;
+            try {
+                System.setProperty(ProxyServer.RESPONSE_HEADER_BUFFER_SIZE_PROPERTY, "1");
+                configuredProxy = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
+                URI uri = URI.create(format("ws://localhost:%s/", configuredProxy.getPort()));
+                testFixture.registerHandlers(new Object() {
+                            @HandleSocketMessage("/")
+                            String echo(String message) {
+                                return "echo " + message;
+                            }
+                        })
+                        .whenApplying(openSocketAnd(uri, builder -> {
+                        }, webSocket -> webSocket.sendText("configured", true)))
+                        .expectResult("echo configured");
+            } finally {
+                if (configuredProxy != null) {
+                    configuredProxy.cancel();
+                }
+                restoreProperty(ProxyServer.RESPONSE_HEADER_BUFFER_SIZE_PROPERTY, previous);
+            }
+        }
+
+        @Test
         void openSocket() {
             testFixture.registerHandlers(new Object() {
                         @HandleSocketOpen("/")
