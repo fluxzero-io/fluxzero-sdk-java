@@ -50,6 +50,24 @@ class PathParameterDecodingTest {
 
     @NoUserRequired
     static class Endpoint {
+        @HandlePost("/sources/{id}")
+        String sources(@PathParam("id") String id, @QueryParam("q") String query,
+                       @HeaderParam("X-Value") String header, @CookieParam("value") String cookie,
+                       @FormParam("form") String form) {
+            assertEquals("a+b/c%2F", id);
+            assertEquals("a b+c%2F", query);
+            assertEquals("a+b%2Fc", header);
+            assertEquals("a+b%2Fc", cookie);
+            return form;
+        }
+
+        @HandlePost("/body/{id}")
+        String body(@PathParam("id") String id, @QueryParam("q") String query,
+                    @HeaderParam("X-Value") String header, @CookieParam("value") String cookie,
+                    @BodyParam("body") String body) {
+            return sources(id, query, header, cookie, body);
+        }
+
         @HandleGet("/items/{id}")
         String get(@PathParam("id") String id, @QueryParam("q") String q, WebRequest request) {
             var context = DefaultWebRequestContext.getCurrentWebRequestContext();
@@ -72,5 +90,30 @@ class PathParameterDecodingTest {
 
         @HandleGet("/number/{id}")
         int number(@PathParam("id") int id) { return id; }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void otherParameterSourcesRetainTheirOwnEncodingRules(boolean async) {
+        TestFixture fixture = async ? TestFixture.createAsync(new Endpoint()) : TestFixture.create(new Endpoint());
+        try {
+            java.util.function.Supplier<WebRequest.Builder> request = () -> WebRequest.post("/sources/a+b%2Fc%252F?q=a+b%2Bc%252F")
+                    .header("X-Value", "a+b%2Fc").header("Cookie", "value=a+b%2Fc");
+            fixture.whenWebRequest(request.get().contentType("application/x-www-form-urlencoded")
+                            .payload("form=a+b%2Bc%252F").build())
+                    .expectWebResult(r -> "a b+c%2F".equals(r.getPayloadAs(String.class))).expectNoErrors();
+            fixture.whenWebRequest(request.get().url("/body/a+b%2Fc%252F?q=a+b%2Bc%252F").contentType("application/json")
+                            .payload(Map.of("body", "a+b%2Fc")).build())
+                    .expectWebResult(r -> "a+b%2Fc".equals(r.getPayloadAs(String.class))).expectNoErrors();
+            String boundary = "path-param-boundary";
+            fixture.whenWebRequest(request.get()
+                            .contentType("multipart/form-data; boundary=" + boundary)
+                            .payload(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"form\"\r\n\r\n"
+                                      + "a+b%2Fc\r\n--" + boundary + "--\r\n")
+                                             .getBytes(java.nio.charset.StandardCharsets.UTF_8)).build())
+                    .expectWebResult(r -> "a+b%2Fc".equals(r.getPayloadAs(String.class))).expectNoErrors();
+        } finally {
+            fixture.getFluxzero().close();
+        }
     }
 }
