@@ -1,0 +1,114 @@
+{
+  "name" : "Ordering",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Plans each required prefix once per progress request; unselected entries keep their original dependencies. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "dependencies",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.dependencies",
+    "type" : "java.util.Map<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination,java.util.Set<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "frontier",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.frontier",
+    "type" : "java.util.Set<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "next",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.next",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sequential",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.sequential",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "tails",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.tails",
+    "type" : "java.util.Map<java.lang.String,java.util.Set<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unclaimed",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.unclaimed",
+    "type" : "java.util.Set<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unscoped",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.unscoped",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unscopedDependencies",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering.unscopedDependencies",
+    "type" : "java.util.Map<io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination,io.fluxzero.sdk.modeling.ModelBatchScope.Batch.Ordering.Prefix>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Ordering",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering#Ordering",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering#add",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entry",
+      "type" : "io.fluxzero.sdk.modeling.ModelBatchScope.CommitCoordination",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Prefix",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelBatchScope$Batch$Ordering$Prefix",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

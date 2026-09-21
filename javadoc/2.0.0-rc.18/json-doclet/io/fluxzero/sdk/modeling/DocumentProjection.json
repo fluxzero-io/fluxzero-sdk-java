@@ -1,0 +1,75 @@
+{
+  "name" : "DocumentProjection",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : ""
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Configures the independent public document projection maintained by a {@link Model} whose\n {@link Model#persistence() persistence} stores a document.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#collection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Collection receiving current Model documents. Blank defaults to the resolved logical Model name. "
+  }, {
+    "name" : "endPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#endPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Optional property path used as the document's end timestamp. "
+  }, {
+    "name" : "searchable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#searchable",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this current document is exposed through the Model's public search collection.\n <p>\n When {@code false}, Fluxzero does not expose the document through an unrestricted typed Model search. The direct\n document remains in {@link #collection() its normal resolved collection}, without a text summary, facets or\n sortable indexes, and is retrievable through exact parent or ancestor relationships. Model loads and verified\n current-state reads use a separate internal source. A Model that participates in Graph composition still\n maintains its independently required internal component indexes; use\n {@link io.fluxzero.common.search.SearchExclude @SearchExclude}, {@code @Facet} and {@code @Sortable} to shape\n those indexes explicitly.\n <p>This controls query visibility, not authorization, encryption or secret protection. Identity and related\n reads remain available to callers with store access; {@code @ProtectData} on an input message does not protect\n values copied into this document.</p>\n"
+  }, {
+    "name" : "timestampPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#timestampPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Optional property path used as the document's start timestamp. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

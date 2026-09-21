@@ -1,0 +1,153 @@
+{
+  "name" : "ScheduleAutoCancelled",
+  "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled",
+  "packageName" : "io.fluxzero.common.api.scheduling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Best-effort metric emitted after an owned schedule was removed following parent deletion.\n It contains no command payload. A schedule already delivered to a consumer cannot be recalled.\n This metric is operational telemetry, not an exactly-once audit record.\n\n @param scheduleId removed schedule identity\n @param messageId removed scheduled message identity, not the replacement's identity\n @param deadline scheduled delivery time in epoch milliseconds\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "deadline",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled.deadline",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageId",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled.messageId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "scheduleId",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled.scheduleId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ScheduleAutoCancelled",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#ScheduleAutoCancelled",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scheduleId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "deadline",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#deadline",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "messageId",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#messageId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scheduleId",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#scheduleId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.ScheduleAutoCancelled#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "deadline",
+    "type" : "long",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "messageId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "scheduleId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

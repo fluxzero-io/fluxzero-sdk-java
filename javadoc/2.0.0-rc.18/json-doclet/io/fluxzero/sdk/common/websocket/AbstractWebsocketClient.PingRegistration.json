@@ -1,0 +1,88 @@
+{
+  "name" : "PingRegistration",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "protected", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.Registration" ],
+  "fields" : [ {
+    "name" : "awaitingPong",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration.awaitingPong",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration.delegate",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.Delegate",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration.id",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PingRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration#PingRegistration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "PingRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration#PingRegistration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "awaitingPong",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,99 @@
+{
+  "name" : "HandlerFilter",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Represents a predicate used to determine whether a given method should be considered a valid message handler.\n <p>\n A {@code HandlerFilter} operates on the class (typically an application component) and a method, and can be used to\n include or exclude handler methods during the handler discovery process.\n\n <p>\n It supports composition via {@code and}, {@code or}, and {@code negate}, allowing developers to build complex\n filtering logic declaratively.\n\n <h2>Usage Example</h2>\n <pre>{@code\n HandlerFilter publicMethodsOnly = (type, method) -> Modifier.isPublic(method.getModifiers());\n HandlerFilter annotatedOnly = (type, method) -> method.isAnnotationPresent(HandleCommand.class);\n HandlerFilter combined = publicMethodsOnly.and(annotatedOnly);\n }</pre>\n\n @see HandlerInspector\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "ALWAYS_HANDLE",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter.ALWAYS_HANDLE",
+    "type" : "io.fluxzero.common.handling.HandlerFilter",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "and",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter#and",
+    "returnType" : "io.fluxzero.common.handling.HandlerFilter",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this filter with another using logical AND. The resulting filter passes only if both filters pass.\n\n @param other another {@code HandlerFilter} to combine with\n @return a new {@code HandlerFilter} representing the conjunction of both filters\n"
+  }, {
+    "name" : "negate",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter#negate",
+    "returnType" : "io.fluxzero.common.handling.HandlerFilter",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Inverts the current filter. The resulting filter passes only if the original filter does not.\n\n @return a new {@code HandlerFilter} representing the logical negation of this filter\n"
+  }, {
+    "name" : "or",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter#or",
+    "returnType" : "io.fluxzero.common.handling.HandlerFilter",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.handling.@lombok.NonNull HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Combines this filter with another using logical OR. The resulting filter passes if either of the filters passes.\n\n @param other another {@code HandlerFilter} to combine with\n @return a new {@code HandlerFilter} representing the disjunction of both filters\n"
+  }, {
+    "name" : "test",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerFilter#test",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "ownerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Evaluates whether the specified method on the given class should be considered a valid handler.\n\n @param ownerType  the class that declares the handler method\n @param executable the candidate method to evaluate\n @return {@code true} if the method should be included as a handler, {@code false} otherwise\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

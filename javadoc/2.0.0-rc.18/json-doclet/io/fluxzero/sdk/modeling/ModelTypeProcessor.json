@@ -1,0 +1,33 @@
+{
+  "name" : "ModelTypeProcessor",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelTypeProcessor",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "javax.annotation.processing.SupportedAnnotationTypes",
+    "values" : {
+      "value" : "\"*\""
+    }
+  } ],
+  "documentation" : " SDK-local provider for independent Model indexing. Both SDK and common order their observer before their own\n claiming processors, regardless of JAR order. Explicit processor lists must retain that ordering.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.modeling.ModelTypeProcessor",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelTypeProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelTypeProcessor#ModelTypeProcessor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,133 @@
+{
+  "name" : "StallingBatchInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.NoArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link BatchInterceptor} that stalls batch processing until a minimum desired batch size is reached or a timeout occurs.\n <p>\n This interceptor helps regulate the trade-off between **throughput** and **latency** by introducing intentional delays\n when batches are too small. It’s especially useful in cases where:\n <ul>\n   <li>Handlers benefit from larger batches (e.g., bulk writes, deduplication, aggregation)</li>\n   <li>The event rate is low and batching is desirable</li>\n </ul>\n\n <h2>Behavior</h2>\n <ul>\n   <li>If the batch size is greater than or equal to {@code desiredBatchSize}, it is processed immediately.</li>\n   <li>If the batch size is too small:\n     <ul>\n       <li>The interceptor delays processing using {@code Thread.sleep} in intervals of {@code retryFrequency}.</li>\n       <li>Once {@code maximumStallingDuration} has elapsed since the first refusal, the batch is processed regardless of size.</li>\n     </ul>\n   </li>\n </ul>\n\n <h2>Usage Considerations</h2>\n <ul>\n   <li>This interceptor causes blocking in the tracker thread. It is meant for controlled environments where latency can be traded for efficiency.</li>\n   <li>It is thread-safe and maintains its own internal stall timer across batches using an {@link AtomicReference}.</li>\n </ul>\n\n <h2>Example Usage</h2>\n <pre>{@code\n ConsumerConfiguration.builder()\n     .name(\"batchedHandler\")\n     .batchInterceptor(StallingBatchInterceptor.builder()\n         .desiredBatchSize(100)\n         .maximumStallingDuration(Duration.ofSeconds(30))\n         .retryFrequency(Duration.ofMillis(500))\n         .build())\n     .build();\n }</pre>\n\n <h2>Defaults</h2>\n <ul>\n   <li>{@code desiredBatchSize} = 512</li>\n   <li>{@code maximumStallingDuration} = 60 seconds</li>\n   <li>{@code retryFrequency} = 1 second</li>\n </ul>\n\n @see BatchInterceptor\n @see MessageBatch\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.BatchInterceptor" ],
+  "fields" : [ {
+    "name" : "desiredBatchSize",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor.desiredBatchSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : 512
+  }, {
+    "name" : "firstRefusal",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor.firstRefusal",
+    "type" : "java.util.concurrent.atomic.AtomicReference<java.time.Instant>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maximumStallingDuration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor.maximumStallingDuration",
+    "type" : "java.time.@lombok.NonNull Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "retryFrequency",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor.retryFrequency",
+    "type" : "java.time.@lombok.NonNull Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "StallingBatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor#StallingBatchInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "hasPassedDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor#hasPassedDeadline",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "intercept",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor#intercept",
+    "returnType" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.api.tracking.MessageBatch>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "tracker",
+      "type" : "io.fluxzero.sdk.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stall",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.StallingBatchInterceptor#stall",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

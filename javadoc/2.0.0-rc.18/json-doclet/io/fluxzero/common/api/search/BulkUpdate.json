@@ -1,0 +1,74 @@
+{
+  "name" : "BulkUpdate",
+  "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonTypeInfo",
+    "values" : {
+      "property" : "type",
+      "use" : "NAME"
+    }
+  }, {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonSubTypes",
+    "values" : {
+      "value" : "@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.bulkupdate.IndexDocument.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists.class),@com.fasterxml.jackson.annotation.JsonSubTypes.Type(io.fluxzero.common.api.search.bulkupdate.DeleteDocument.class)"
+    }
+  } ],
+  "documentation" : " Represents a single operation in a bulk document update.\n <p>\n Bulk updates are used to efficiently apply multiple indexing or deletion operations to a document store\n in a single request. Implementations include:\n <ul>\n   <li>{@link IndexDocument} – to add or replace a document</li>\n   <li>{@link IndexDocumentIfNotExists} – to add a document only if it doesn't exist</li>\n   <li>{@link DeleteDocument} – to remove a document by ID and collection</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate#getCollection",
+    "returnType" : "java.lang.@lombok.NonNull Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The name of the collection to which this document belongs.\n"
+  }, {
+    "name" : "getId",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate#getId",
+    "returnType" : "java.lang.@lombok.NonNull Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The unique identifier of the document within the collection.\n"
+  }, {
+    "name" : "getType",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate#getType",
+    "returnType" : "io.fluxzero.common.api.search.BulkUpdate.Type",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates the operation type: {@code index}, {@code indexIfNotExists}, or {@code delete}.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Type",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate$Type",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

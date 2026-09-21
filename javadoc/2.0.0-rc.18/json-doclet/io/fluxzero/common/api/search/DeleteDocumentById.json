@@ -1,0 +1,74 @@
+{
+  "name" : "DeleteDocumentById",
+  "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to delete a single document from the search store by its collection and ID.\n <p>\n This provides a lightweight alternative to a query-based deletion when the document ID is known.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The collection that contains the document.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The guarantee that determines whether the deletion must be sent, acknowledged, or stored.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById.id",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The unique ID of the document to delete.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeleteDocumentById",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById#DeleteDocumentById",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteDocumentById#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Uses the document ID as the routing key, ensuring consistency during deletion.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
