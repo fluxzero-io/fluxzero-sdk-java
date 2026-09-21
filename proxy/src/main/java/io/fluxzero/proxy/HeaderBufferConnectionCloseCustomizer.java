@@ -28,7 +28,14 @@ import org.eclipse.jetty.util.Callback;
 
 import java.nio.ByteBuffer;
 
-/** Preserves an explicit HTTP/1.1 request close decision when Jetty retries oversized response headers. */
+/**
+ * Preserves an explicit HTTP/1.1 request close decision when Jetty retries oversized response headers.
+ * <p>
+ * Workaround for <a href="https://github.com/jetty/jetty.project/issues/15840">Jetty #15840</a>:
+ * the overflow retry resets the generator's persistence state. This covers explicit request close only;
+ * other Jetty decisions, such as an early final response to {@code Expect: 100-continue}, require an upstream fix.
+ * Revisit this customizer when upgrading to a Jetty version that preserves persistence across header growth.
+ */
 final class HeaderBufferConnectionCloseCustomizer implements HttpConfiguration.Customizer {
     @Override
     public Request customize(Request request, HttpFields.Mutable responseHeaders) {

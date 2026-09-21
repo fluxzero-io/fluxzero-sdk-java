@@ -71,6 +71,12 @@ with 8 KiB. Larger headers use Jetty's existing overflow path to the effective m
 response bodies do not require a larger header buffer. Frequent large headers can therefore make
 an undersized initial buffer more expensive through extra allocation and header generation.
 
+Jetty [#15840](https://github.com/jetty/jetty.project/issues/15840) tracks a known HTTP/1.1
+limitation during header growth: a previously determined connection-close decision can be lost.
+The proxy preserves explicit request `Connection: close`; other Jetty close decisions require the
+upstream fix. Setting the initial capacity to the effective response maximum avoids this growth
+path, at the cost of larger buffers for small responses. HTTP/2 does not use this retry path.
+
 Without this property the initial capacity is 8192 bytes. `FLUXZERO_PROXY_MAX_HEADER_SIZE`
 continues to default to 1048576 bytes, so the existing request and response limits remain
 unchanged. With the current Jetty configuration, a maximum configured below 16 KiB still retains
