@@ -44,6 +44,7 @@ public interface WebRequestContext {
 
     /**
      * Retrieves the value of a parameter from the path section of the web request.
+     * The default SDK router percent-decodes matched values once as UTF-8, preserving literal plus signs.
      *
      * @param name the name of the parameter to retrieve from the path.
      * @return the {@code ParameterValue} associated with the specified parameter name, or {@code null}

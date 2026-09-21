@@ -146,6 +146,33 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void streamedJsonResponseRemainsRawBytesOverWebsocket() {
+        var fixture = io.fluxzero.sdk.test.TestFixture.createAsync(
+                io.fluxzero.sdk.configuration.DefaultFluxzero.builder(), client("streamed-response"),
+                new StreamedResponseHandler());
+        try {
+            fixture.whenGet("/streamed-response")
+                    .expectWebResult(r -> r.getPayload() instanceof byte[] bytes
+                            && java.util.Arrays.equals(bytes, StreamedResponseHandler.BODY)
+                            && "application/json".equals(r.getContentType()))
+                    .expectNoErrors();
+        } finally {
+            fixture.getFluxzero().close();
+        }
+    }
+
+    @io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired
+    static class StreamedResponseHandler {
+        static final byte[] BODY = "{\"value\":\"streamed\"}".getBytes(UTF_8);
+
+        @io.fluxzero.sdk.web.HandleGet("/streamed-response")
+        io.fluxzero.sdk.web.WebResponse get() {
+            return io.fluxzero.sdk.web.WebResponse.ok(() -> new java.io.ByteArrayInputStream(BODY),
+                                                     Map.of("Content-Type", "application/json"));
+        }
+    }
+
+    @Test
     void namespacesAndTopicsAreIsolatedOverFullServer() throws Exception {
         WebSocketClient namespaceA = client("namespace-a", "contract-namespace-a-" + UUID.randomUUID());
         WebSocketClient namespaceB = client("namespace-b", "contract-namespace-b-" + UUID.randomUUID());

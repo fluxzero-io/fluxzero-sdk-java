@@ -21,6 +21,8 @@ import java.lang.annotation.Target;
 
 /**
  * Injects a path variable from the URI into a handler method parameter.
+ * Values are percent-decoded exactly once as UTF-8 after matching the raw URI path and before type conversion.
+ * A literal {@code +} remains a plus sign; {@code %2F} becomes part of the parameter value, not a route separator.
  * <p>
  * Standard validation annotations such as {@code @NotNull} and {@code @Positive} may be declared directly on the
  * injected parameter.

@@ -14,6 +14,8 @@
 
 package io.fluxzero.sdk.web;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -304,7 +306,10 @@ class WebRouteMatcher<T> {
             }
             Map<String, String> pathParameters = new LinkedHashMap<>();
             for (ParameterGroup parameter : parameters) {
-                pathParameters.put(parameter.name(), matcher.group(parameter.groupName()));
+                String value = matcher.group(parameter.groupName());
+                // Match the raw path first. Unlike form encoding, a path's '+' is literal.
+                pathParameters.put(parameter.name(), value == null || value.indexOf('%') < 0 ? value
+                        : URLDecoder.decode(value.replace("+", "%2B"), StandardCharsets.UTF_8));
             }
             return Optional.of(pathParameters);
         }
