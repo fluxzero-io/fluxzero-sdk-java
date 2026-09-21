@@ -614,7 +614,7 @@ representation matches, keep the normal default instead of expecting `406 Not Ac
 
 Use annotations to inject specific parts of the HTTP request:
 
-- **@PathParam**: Extracts values from the URL path template (e.g., `/api/users/{id}`).
+- **@PathParam**: Extracts values from the URL path template (e.g., `/api/users/{id}`). Percent-decodes once as UTF-8 after raw-path matching, preserving literal `+`; do not decode the injected value again.
 - **@QueryParam**: Extracts values from the query string (e.g., `?name=Charlie`).
 - **@HeaderParam**: Extracts values from HTTP headers.
 - **@FormParam**: Extracts values from `application/x-www-form-urlencoded` bodies or `multipart/form-data` parts.

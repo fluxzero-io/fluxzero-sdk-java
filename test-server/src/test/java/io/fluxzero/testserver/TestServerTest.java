@@ -33,6 +33,7 @@ import io.fluxzero.sdk.tracking.handling.HandleSchedule;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
 import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.PathParam;
 import io.fluxzero.sdk.web.WebRequest;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -162,6 +163,18 @@ class TestServerTest {
         testFixture.given(fc -> fc.documentStore().index("existing", documentId, "test").get())
                 .whenExecuting(fc -> fc.documentStore().indexIfNotExists("ignored", documentId, "test").get())
                 .expectNoEventsLike("ignored");
+    }
+
+    @Test
+    void pathParameterDecodesOnceOverWebsocket() {
+        testFixture.registerHandlers(new Object() {
+            @HandleGet("/path-proof/{id}")
+            String handle(@PathParam("id") String id) {
+                return id;
+            }
+        }).whenGet("/path-proof/order%253A%2F+%C3%A9")
+                .expectWebResult(r -> "order%3A/+é".equals(r.getPayloadAs(String.class)))
+                .expectNoErrors();
     }
 
     @Test
