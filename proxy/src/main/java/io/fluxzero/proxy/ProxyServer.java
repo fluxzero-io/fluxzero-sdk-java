@@ -85,6 +85,11 @@ public class ProxyServer implements Registration {
     public static final int DEFAULT_MAX_HEADER_SIZE = 1 << 20;
 
     /**
+     * Default initial response header buffer capacity: 8 KiB
+     */
+    public static final int DEFAULT_RESPONSE_HEADER_BUFFER_SIZE = 8 << 10;
+
+    /**
      * Default connector idle timeout: 60 seconds
      */
     public static final long DEFAULT_IDLE_TIMEOUT_MILLIS = 60_000L;
@@ -126,6 +131,22 @@ public class ProxyServer implements Registration {
 
     static final String MAX_REQUEST_BODY_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_REQUEST_BODY_SIZE";
     static final String MAX_MULTIPART_REQUEST_BODY_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_MULTIPART_REQUEST_BODY_SIZE";
+    /**
+     * Initial response header buffer capacity in bytes. The environment variable is
+     * {@code FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE}. The default is 8 KiB. This controls
+     * header buffering, not response body size or the maximum accepted header size. Larger headers use Jetty's
+     * overflow path up to the separately configured maximum.
+     */
+    public static final String RESPONSE_HEADER_BUFFER_SIZE_PROPERTY = "fluxzero.proxy.responseHeaderBufferSize";
+
+    /**
+     * Whether Jetty uses direct buffers for HTTP output. The environment variable is
+     * {@code FLUXZERO_PROXY_USE_OUTPUT_DIRECT_BYTE_BUFFERS}. Disable this to account output buffers on the Java heap.
+     * The default is {@code true}.
+     */
+    public static final String USE_OUTPUT_DIRECT_BYTE_BUFFERS_PROPERTY =
+            "fluxzero.proxy.useOutputDirectByteBuffers";
+
     static final String MAX_HEADER_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_HEADER_SIZE";
     static final String IDLE_TIMEOUT_MILLIS_PROPERTY = "FLUXZERO_PROXY_IDLE_TIMEOUT_MILLIS";
     static final String MAX_THREADS_PROPERTY = "FLUXZERO_PROXY_MAX_THREADS";
@@ -271,7 +292,21 @@ public class ProxyServer implements Registration {
                                                  Registration shutdownRegistration, Runnable forceShutdown,
                                                  Registration ownedClientShutdown, boolean gracefulShutdown,
                                                  LifecycleState initialState, String healthEndpoint, String host) {
-        Server server = new Server(createThreadPool());
+        return startHttpProxyOnly(new Server(createThreadPool()), port, proxyHandler, shutdownRegistration,
+                                  forceShutdown, ownedClientShutdown, gracefulShutdown, initialState, healthEndpoint, host);
+    }
+
+    /** Uses a caller-owned Jetty pool for isolated allocation tests and benchmarks. */
+    static ProxyServer startHttpProxyOnly(Server server, ProxyRequestHandler handler, boolean ready) {
+        return startHttpProxyOnly(server, 0, handler, Registration.noOp(), () -> {}, Registration.noOp(), false,
+                                  ready ? LifecycleState.READY : LifecycleState.STARTING,
+                                  ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT, "127.0.0.1");
+    }
+
+    private static ProxyServer startHttpProxyOnly(Server server, int port, ProxyRequestHandler proxyHandler,
+                                                 Registration shutdownRegistration, Runnable forceShutdown,
+                                                 Registration ownedClientShutdown, boolean gracefulShutdown,
+                                                 LifecycleState initialState, String healthEndpoint, String host) {
         server.setStopAtShutdown(false);
         // Standalone proxy shutdown remains graceful; tests use the HTTP-only helper with immediate Jetty stop.
         server.setStopTimeout(gracefulShutdown ? GRACEFUL_STOP_TIMEOUT_MILLIS : IMMEDIATE_STOP_TIMEOUT_MILLIS);
@@ -281,7 +316,10 @@ public class ProxyServer implements Registration {
         httpConfiguration.setSendXPoweredBy(false);
         int maxHeaderSize = getIntegerProperty(MAX_HEADER_SIZE_PROPERTY, DEFAULT_MAX_HEADER_SIZE);
         httpConfiguration.setRequestHeaderSize(maxHeaderSize);
-        httpConfiguration.setResponseHeaderSize(maxHeaderSize);
+        Integer initialHeaderSize = getIntegerProperty(RESPONSE_HEADER_BUFFER_SIZE_PROPERTY);
+        configureResponseHeaders(httpConfiguration, maxHeaderSize, initialHeaderSize);
+        httpConfiguration.setUseOutputDirectByteBuffers(
+                getBooleanProperty(USE_OUTPUT_DIRECT_BYTE_BUFFERS_PROPERTY, true));
         ServerConnector connector = new ServerConnector(
                 server,
                 new HttpConnectionFactory(httpConfiguration),
@@ -319,6 +357,24 @@ public class ProxyServer implements Registration {
         return new ProxyServer(proxyHandler, server, connector.getLocalPort(), shutdownRegistration, forceShutdown,
                                ownedClientShutdown, gracefulShutdown, lifecycleState,
                                drainDelay, shutdownTimeout);
+    }
+
+    static void configureResponseHeaders(HttpConfiguration configuration, int maxHeaderSize, Integer initialSize) {
+        // First establish the legacy effective maximum: Jetty retains its own 16 KiB maximum
+        // when setResponseHeaderSize receives a smaller value. Do not tighten that contract.
+        configuration.setResponseHeaderSize(maxHeaderSize);
+        int configuredInitialSize = initialSize == null
+                ? Math.min(DEFAULT_RESPONSE_HEADER_BUFFER_SIZE, configuration.getMaxResponseHeaderSize())
+                : initialSize;
+        if (configuredInitialSize < 1 || configuredInitialSize > configuration.getMaxResponseHeaderSize()) {
+            throw new IllegalArgumentException(RESPONSE_HEADER_BUFFER_SIZE_PROPERTY
+                                               + " must be between 1 and "
+                                               + configuration.getMaxResponseHeaderSize());
+        }
+        configuration.setResponseHeaderSize(configuredInitialSize);
+        if (configuredInitialSize < configuration.getMaxResponseHeaderSize()) {
+            configuration.addCustomizer(new HeaderBufferConnectionCloseCustomizer());
+        }
     }
 
     private static QueuedThreadPool createThreadPool() {
