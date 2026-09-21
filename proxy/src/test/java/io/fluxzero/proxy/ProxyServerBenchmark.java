@@ -115,7 +115,11 @@ public class ProxyServerBenchmark {
 
     public static void main(String[] args) {
         try {
-            new ProxyServerBenchmark().run(BenchmarkConfig.fromSystemProperties());
+            if (Boolean.getBoolean("headerBuffers")) {
+                ProxyHeaderBufferBenchmark.main(args);
+            } else {
+                new ProxyServerBenchmark().run(BenchmarkConfig.fromSystemProperties());
+            }
             System.exit(0);
         } catch (Throwable e) {
             e.printStackTrace();
