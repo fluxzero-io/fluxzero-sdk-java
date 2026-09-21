@@ -65,6 +65,9 @@ Use a plain request DTO parameter for the whole JSON body. Use `@BodyParam` on m
 
 Name injected parameters explicitly when the route or public contract depends on a different name. Java annotation processing records method parameter metadata, but an explicit `@PathParam("articleId")` or `@QueryParam("offset")` keeps the binding and OpenAPI intent visible.
 
+Path parameters are percent-decoded once as UTF-8 after raw-path route matching and before type conversion.
+Literal `+` stays `+`; `%2F` is part of the parameter value, not a route separator. Do not decode injected values again.
+
 ## Verify runtime and generated paths together
 
 For each static route added or changed:

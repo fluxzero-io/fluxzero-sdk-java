@@ -173,6 +173,10 @@ fun getUser(@PathParam id: String): UserAccount {
 
 If no name is provided to `@PathParam`, the parameter name is used by default.
 
+Path parameters are percent-decoded once as UTF-8 after route matching and before type conversion.
+For example, `order%3A1` becomes `order:1`; a literal `+` stays `+`. Encoded slashes (`%2F`)
+belong to the parameter value and do not introduce route segments. Do not decode the injected value again.
+
 ### Other parameter annotations
 
 You can also use these to extract other parts of the request:

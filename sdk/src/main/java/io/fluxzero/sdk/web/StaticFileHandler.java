@@ -258,17 +258,20 @@ public class StaticFileHandler implements Closeable {
         return resourceUrl.toURI();
     }
 
+    @SneakyThrows
     private static URI safeResolve(URI base, String relativePath) {
+        // Path parameters are already decoded. Quote them as path data, not URI syntax.
+        URI relativeUri = new URI(null, null, "./" + relativePath, null);
         if ("jar".equals(base.getScheme())) {
             int sep = base.getRawSchemeSpecificPart().indexOf("!/");
             if (sep != -1) {
                 String jarRoot = base.getRawSchemeSpecificPart().substring(0, sep);
                 String jarEntry = base.getRawSchemeSpecificPart().substring(sep + 2);
-                URI newEntry = URI.create(jarEntry + "/").resolve(relativePath);
+                URI newEntry = URI.create(jarEntry + "/").resolve(relativeUri);
                 return URI.create("jar:" + jarRoot + "!/" + newEntry);
             }
         }
-        return base.resolve(relativePath);
+        return base.resolve(relativeUri);
     }
 
     private static URI getJarRootUri(URI jarResourceUri) {
@@ -297,7 +300,8 @@ public class StaticFileHandler implements Closeable {
     }
 
     private static boolean isUnsafeRequestedPath(String requestedPath) {
-        if (requestedPath == null || requestedPath.isBlank() || requestedPath.contains("\\")) {
+        if (requestedPath == null || requestedPath.isBlank() || requestedPath.startsWith("/")
+            || requestedPath.contains("\\")) {
             return true;
         }
         return Arrays.stream(requestedPath.split("/")).anyMatch(".."::equals);
