@@ -101,6 +101,14 @@
     "documentation" : null,
     "constantValue" : "/proxy/ready"
   }, {
+    "name" : "DEFAULT_RESPONSE_HEADER_BUFFER_SIZE",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_RESPONSE_HEADER_BUFFER_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default initial response header buffer capacity: 8 KiB\n",
+    "constantValue" : 8192
+  }, {
     "name" : "DEFAULT_SHUTDOWN_TIMEOUT_MILLIS",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_SHUTDOWN_TIMEOUT_MILLIS",
     "type" : "long",
@@ -277,6 +285,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "RESPONSE_HEADER_BUFFER_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.RESPONSE_HEADER_BUFFER_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Initial response header buffer capacity in bytes. The environment variable is\n {@code FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE}. The default is 8 KiB. This controls\n header buffering, not response body size or the maximum accepted header size. Larger headers use Jetty's\n overflow path up to the separately configured maximum.\n",
+    "constantValue" : "fluxzero.proxy.responseHeaderBufferSize"
+  }, {
     "name" : "SHUTDOWN_TIMEOUT_MILLIS_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY",
     "type" : "java.lang.String",
@@ -292,6 +308,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : 0
+  }, {
+    "name" : "USE_OUTPUT_DIRECT_BYTE_BUFFERS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.USE_OUTPUT_DIRECT_BYTE_BUFFERS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Whether Jetty uses direct buffers for HTTP output. The environment variable is\n {@code FLUXZERO_PROXY_USE_OUTPUT_DIRECT_BYTE_BUFFERS}. Disable this to account output buffers on the Java heap.\n The default is {@code true}.\n",
+    "constantValue" : "fluxzero.proxy.useOutputDirectByteBuffers"
   }, {
     "name" : "USE_VIRTUAL_THREADS_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.USE_VIRTUAL_THREADS_PROPERTY",
@@ -546,6 +570,32 @@
     "parameters" : [ {
       "name" : "container",
       "type" : "org.eclipse.jetty.websocket.server.ServerWebSocketContainer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "configureResponseHeaders",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#configureResponseHeaders",
+    "returnType" : "void",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "org.eclipse.jetty.server.HttpConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxHeaderSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialSize",
+      "type" : "java.lang.Integer",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -981,6 +1031,93 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "startHttpProxyOnly",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
+    "returnType" : "io.fluxzero.proxy.ProxyServer",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "proxyHandler",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "shutdownRegistration",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceShutdown",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ownedClientShutdown",
+      "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "gracefulShutdown",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialState",
+      "type" : "io.fluxzero.proxy.ProxyServer.LifecycleState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "healthEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "host",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "startHttpProxyOnly",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#startHttpProxyOnly",
+    "returnType" : "io.fluxzero.proxy.ProxyServer",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "server",
+      "type" : "org.eclipse.jetty.server.Server",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ready",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses a caller-owned Jetty pool for isolated allocation tests and benchmarks. "
   }, {
     "name" : "writeStatus",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer#writeStatus",
