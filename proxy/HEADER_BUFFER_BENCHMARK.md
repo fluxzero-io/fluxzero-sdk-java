@@ -7,8 +7,10 @@ The benchmark uses only local endpoints and does not force GC or native trimming
 
 The HTTP/1 growth path uses Jetty's public stream-customization API to preserve an
 explicit `Connection: close` decision across Jetty 12.1's generator reset. HTTP/1.0 keep-alive,
-early responses to `Expect: 100-continue`, error responses and WebSocket upgrades have focused
-contract coverage.
+error responses and WebSocket upgrades have focused contract coverage. The early-response test
+for `Expect: 100-continue` does not establish header growth because the pool rounds up tiny
+capacities. Other non-persistent decisions during actual header growth remain affected by
+[Jetty #15840](https://github.com/jetty/jetty.project/issues/15840).
 
 ## Run
 
