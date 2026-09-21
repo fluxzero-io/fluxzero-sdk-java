@@ -107,6 +107,9 @@ public class DeserializingMessage implements HasMessage {
      *   <li>Extracting routing or correlation metadata</li>
      *   <li>Constructing exceptions or results that are scoped to the current message</li>
      * </ul>
+     *
+     * <p>Code that temporarily replaces this value must restore the value obtained directly from this holder. The
+     * public {@link #getCurrent()} method can return a logical payload-first fallback that was never stored here.</p>
      */
     private static final ThreadLocal<DeserializingMessage> current = ThreadLocalContext.create();
 
@@ -178,12 +181,13 @@ public class DeserializingMessage implements HasMessage {
     }
 
     public <T> T apply(Function<DeserializingMessage, T> action) {
-        DeserializingMessage previous = getCurrent();
+        DeserializingMessage previous = current.get();
+        boolean completeOnSuccess = previous == null && LocalExecution.currentMessage() == null;
         try {
             current.set(this);
             T result = action.apply(this);
             current.set(previous);
-            if (previous == null) {
+            if (completeOnSuccess) {
                 completeBatch(null);
             }
             return result;
@@ -201,7 +205,7 @@ public class DeserializingMessage implements HasMessage {
      * {@link #apply(Function)} call. The context that was active before capturing is restored immediately.
      */
     public ThreadLocalContext.Snapshot captureContext() {
-        DeserializingMessage previous = getCurrent();
+        DeserializingMessage previous = current.get();
         current.set(this);
         try {
             return ThreadLocalContext.capture();
@@ -466,8 +470,8 @@ public class DeserializingMessage implements HasMessage {
             forEachListInBatch(typedMessages, action);
             return;
         }
-        DeserializingMessage previous = getCurrent();
-        boolean completeOnSuccess = previous == null;
+        DeserializingMessage previous = current.get();
+        boolean completeOnSuccess = previous == null && LocalExecution.currentMessage() == null;
         try {
             for (DeserializingMessage message : batch) {
                 try {
@@ -489,8 +493,8 @@ public class DeserializingMessage implements HasMessage {
     @SneakyThrows
     private static void forEachListInBatch(List<DeserializingMessage> messages,
                                            Consumer<? super DeserializingMessage> action) {
-        DeserializingMessage previous = getCurrent();
-        boolean completeOnSuccess = previous == null;
+        DeserializingMessage previous = current.get();
+        boolean completeOnSuccess = previous == null && LocalExecution.currentMessage() == null;
         try {
             for (int i = 0; i < messages.size(); i++) {
                 DeserializingMessage message = messages.get(i);
@@ -562,7 +566,7 @@ public class DeserializingMessage implements HasMessage {
             boolean hadNext;
             try {
                 hadNext = upStream.tryAdvance(d -> {
-                    DeserializingMessage previous = getCurrent();
+                    DeserializingMessage previous = current.get();
                     try {
                         current.set(d);
                         action.accept(d);
