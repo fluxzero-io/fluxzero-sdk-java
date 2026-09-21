@@ -477,7 +477,10 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     }
                 }
             }
-            result = serializer.deserialize(m);
+            // Streamed HTTP responses carry raw body bytes, not a serialized Java payload.
+            // This also accepts chunks from older producers, which omit the serialized type and format.
+            result = messageType == MessageType.WEBREQUEST && m.chunked()
+                    ? m.getData().getValue() : serializer.deserialize(m);
         } catch (Exception e) {
             log.error("Failed to deserialize result with id {}", m.getMessageId(), e);
             return CompletableFuture.failedFuture(e);

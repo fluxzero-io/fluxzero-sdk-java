@@ -24,6 +24,11 @@ including in asynchronous tests. Use `response.getPayloadAs(MyReply.class)` norm
 is needed. For these decoded responses, `Content-Encoding` is removed and any `Content-Length` reflects the
 uncompressed bytes. The response published on the wire remains unchanged.
 
+Streamed responses are assembled as raw bytes, also for JSON content; use `getPayloadAs(...)` for conversion.
+Local gzip streams are decoded when converted to a body value, but requesting the stream itself does not consume
+it or transfer ownership. Stream consumption is one-shot. Empty HEAD/304 responses retain representation headers
+without requiring decompression.
+
 <Tabs>
   <TabItem label="Java">
 

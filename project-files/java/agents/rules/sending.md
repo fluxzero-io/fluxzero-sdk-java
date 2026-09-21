@@ -256,6 +256,10 @@ The SDK message gateway decompresses gzip responses before typed deserialization
 Use `response.getPayloadAs(MyReply.class)` normally. Decoded responses omit `Content-Encoding` and update any
 `Content-Length` to the uncompressed byte length; the published wire response is unchanged.
 
+Streamed responses arrive as bytes, including JSON bodies; use `getPayloadAs(...)` to convert them. Local gzip
+streams decode on body-value conversion. Requesting `InputStream` or `Object` does not consume the stream;
+the caller still owns its one-shot consumption and closure. Empty HEAD/304 bodies are not decompressed.
+
 Use `WebRequest` to interact with external HTTP APIs.
 
 **Example: POST to External API**
