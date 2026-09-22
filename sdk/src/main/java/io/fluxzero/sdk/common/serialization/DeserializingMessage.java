@@ -112,6 +112,9 @@ public class DeserializingMessage implements HasMessage {
      *   <li>Extracting routing or correlation metadata</li>
      *   <li>Constructing exceptions or results that are scoped to the current message</li>
      * </ul>
+     *
+     * <p>Code that temporarily replaces this value must restore the value obtained directly from this holder. The
+     * public {@link #getCurrent()} method can return a logical payload-first fallback that was never stored here.</p>
      */
     private static final ThreadLocal<DeserializingMessage> current = ThreadLocalContext.create();
 
@@ -190,19 +193,31 @@ public class DeserializingMessage implements HasMessage {
         });
     }
 
+    /**
+     * Runs an action with this message as the current message, restoring the previous context afterward.
+     * Nested actions share the enclosing batch: a nested failure propagates to its caller without completing that
+     * batch. The outermost action completes batch callbacks with its final outcome.
+     *
+     * @param action the action to run
+     * @param <T> the result type
+     * @return the action result
+     */
     public <T> T apply(Function<DeserializingMessage, T> action) {
-        DeserializingMessage previous = getCurrent();
+        DeserializingMessage previous = current.get();
+        boolean ownsBatch = previous == null && LocalExecution.currentMessage() == null;
         try {
             current.set(this);
             T result = action.apply(this);
             current.set(previous);
-            if (previous == null) {
+            if (ownsBatch) {
                 completeBatch(null);
             }
             return result;
         } catch (RuntimeException | Error e) {
             current.set(previous);
-            completeBatch(e);
+            if (ownsBatch) {
+                completeBatch(e);
+            }
             throw e;
         }
     }
@@ -214,7 +229,7 @@ public class DeserializingMessage implements HasMessage {
      * {@link #apply(Function)} call. The context that was active before capturing is restored immediately.
      */
     public ThreadLocalContext.Snapshot captureContext() {
-        DeserializingMessage previous = getCurrent();
+        DeserializingMessage previous = current.get();
         current.set(this);
         try {
             return ThreadLocalContext.capture();
@@ -570,7 +585,8 @@ public class DeserializingMessage implements HasMessage {
     /**
      * Processes messages while exposing each message through {@link #getCurrent()} and completing batch-scoped
      * callbacks after the last message. This is the lower-allocation counterpart to {@link #handleBatch(Stream)} for
-     * callers that already have an iterable batch.
+     * callers that already have an iterable batch. Nested calls leave completion to the enclosing message scope,
+     * including when an action fails.
      */
     @SneakyThrows
     public static void forEachInBatch(Iterable<DeserializingMessage> batch,
@@ -581,7 +597,7 @@ public class DeserializingMessage implements HasMessage {
             forEachListInBatch(typedMessages, action);
             return;
         }
-        DeserializingMessage previous = getCurrent();
+        DeserializingMessage previous = current.get();
         DeserializingMessage previousBatchMessage =
                 messageBatchMessage.get();
         boolean ownsBatch = previousBatchMessage == null;
@@ -591,7 +607,7 @@ public class DeserializingMessage implements HasMessage {
                                 ? collection.size() : -1)
                 : previousBatchMessage.activeMessageBatchResources;
         int messageIndex = 0;
-        boolean completeOnSuccess = previous == null;
+        boolean ownsCompletion = previous == null && LocalExecution.currentMessage() == null;
         try {
             for (DeserializingMessage message : batch) {
                 try {
@@ -609,10 +625,12 @@ public class DeserializingMessage implements HasMessage {
                 }
             }
         } catch (Throwable e) {
-            completeBatch(e);
+            if (ownsCompletion) {
+                completeBatch(e);
+            }
             throw e;
         }
-        if (completeOnSuccess) {
+        if (ownsCompletion) {
             completeBatch(null);
         }
     }
@@ -620,14 +638,14 @@ public class DeserializingMessage implements HasMessage {
     @SneakyThrows
     private static void forEachListInBatch(List<DeserializingMessage> messages,
                                            Consumer<? super DeserializingMessage> action) {
-        DeserializingMessage previous = getCurrent();
+        DeserializingMessage previous = current.get();
         DeserializingMessage previousBatchMessage =
                 messageBatchMessage.get();
         boolean ownsBatch = previousBatchMessage == null;
         MessageBatchResources sharedResources = ownsBatch
                 ? new MessageBatchResources(messages.size())
                 : previousBatchMessage.activeMessageBatchResources;
-        boolean completeOnSuccess = previous == null;
+        boolean ownsCompletion = previous == null && LocalExecution.currentMessage() == null;
         try {
             for (int i = 0; i < messages.size(); i++) {
                 DeserializingMessage message = messages.get(i);
@@ -642,17 +660,25 @@ public class DeserializingMessage implements HasMessage {
             current.set(previous);
             restoreMessageBatchMessage(
                     previousBatchMessage, ownsBatch);
-            completeBatch(e);
+            if (ownsCompletion) {
+                completeBatch(e);
+            }
             throw e;
         }
         current.set(previous);
         restoreMessageBatchMessage(
                 previousBatchMessage, ownsBatch);
-        if (completeOnSuccess) {
+        if (ownsCompletion) {
             completeBatch(null);
         }
     }
 
+    /**
+     * Registers a callback for the enclosing batch's completion, or invokes it immediately outside message handling.
+     * A caught failure in nested message handling does not complete the enclosing batch or become its failure.
+     *
+     * @param executable callback receiving the error that escapes the owning scope, or {@code null} on success
+     */
     @SneakyThrows
     public static void whenBatchCompletes(ThrowingConsumer<Throwable> executable) {
         if (getCurrent() == null) {
@@ -779,7 +805,7 @@ public class DeserializingMessage implements HasMessage {
             boolean hadNext;
             try {
                 hadNext = upStream.tryAdvance(d -> {
-                    DeserializingMessage previous = getCurrent();
+                    DeserializingMessage previous = current.get();
                     DeserializingMessage previousBatchMessage =
                             messageBatchMessage.get();
                     boolean ownsBatch = previousBatchMessage == null;
@@ -798,7 +824,9 @@ public class DeserializingMessage implements HasMessage {
                     }
                 });
             } catch (Throwable e) {
-                onBatchCompletion(e);
+                if (getCurrent() == null) {
+                    onBatchCompletion(e);
+                }
                 throw e;
             }
             if (!hadNext && getCurrent() == null) {

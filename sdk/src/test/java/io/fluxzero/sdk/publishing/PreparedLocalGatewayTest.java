@@ -20,6 +20,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
@@ -37,15 +38,24 @@ import jakarta.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Isolated;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.sdk.publishing.RecursivePublicationGuard.PUBLICATION_DEPTH_METADATA_KEY;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -190,6 +200,30 @@ class PreparedLocalGatewayTest {
             assertEquals("0", result.outerDepthBefore());
             assertEquals("1", result.innerDepth());
             assertEquals("0", result.outerDepthAfter());
+        }
+    }
+
+    @Test
+    void nestedMessageHandlingRestoresPreparedLocalFastPath() throws Exception {
+        PreparedCountingDispatchInterceptor interceptor = new PreparedCountingDispatchInterceptor();
+        NestedMessageContextHandler handler = new NestedMessageContextHandler();
+        try (Fluxzero fluxzero = createFluxzero(
+                builderWithUser("nested-message-user").addDispatchInterceptor(interceptor, COMMAND),
+                handler, new ValueHandler("prepared"))) {
+            assertEquals("handled", fluxzero.commandGateway().sendAndWait(new NestedMessageContextCommand()));
+            assertFalse(DeserializingMessage.hasThreadLocalContext());
+            assertNull(DeserializingMessage.getCurrent());
+            assertEquals(1, handler.batchCompletions.size());
+            assertNull(handler.batchCompletions.getFirst());
+
+            try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+                assertSame(handler.nestedMessage,
+                           executor.submit(() -> handler.snapshot.supply(DeserializingMessage::getCurrent)).get());
+                assertNull(executor.submit(DeserializingMessage::getCurrent).get());
+            }
+
+            assertEquals("prepared", fluxzero.commandGateway().sendAndWait(new ValueCommand()));
+            assertEquals(0, interceptor.canonicalInvocations.get());
         }
     }
 
@@ -384,6 +418,9 @@ class PreparedLocalGatewayTest {
     private record InnerCommand() {
     }
 
+    private record NestedMessageContextCommand() {
+    }
+
     private record NestedResult(String outerDepthBefore, String innerDepth, String outerDepthAfter) {
     }
 
@@ -405,6 +442,71 @@ class PreparedLocalGatewayTest {
 
         private static String currentDepth() {
             return DeserializingMessage.getCurrent().getMetadata().get(PUBLICATION_DEPTH_METADATA_KEY);
+        }
+    }
+
+    @LocalHandler
+    private static class NestedMessageContextHandler {
+        private final List<Throwable> batchCompletions = new ArrayList<>();
+        private DeserializingMessage nestedMessage;
+        private ThreadLocalContext.Snapshot snapshot;
+
+        @HandleCommand
+        String handle(NestedMessageContextCommand ignored) {
+            DeserializingMessage outer = DeserializingMessage.getCurrent();
+            nestedMessage = new DeserializingMessage(new Message("replayed"), EVENT, null);
+
+            DeserializingMessage.whenBatchCompletes(batchCompletions::add);
+            IllegalStateException failure = new IllegalStateException("nested failure");
+            assertSame(failure, assertThrows(IllegalStateException.class,
+                                             () -> nestedMessage.run(current -> {
+                                                 throw failure;
+                                             })));
+            assertPreparedContext(outer);
+            assertSame(failure, assertThrows(IllegalStateException.class,
+                                             () -> DeserializingMessage.forEachInBatch(
+                                                     List.of(nestedMessage), current -> {
+                                                         throw failure;
+                                                     })));
+            assertPreparedContext(outer);
+
+            assertSame(failure, assertThrows(IllegalStateException.class,
+                                             () -> DeserializingMessage.forEachInBatch(
+                                                     Set.of(nestedMessage), current -> {
+                                                         throw failure;
+                                                     })));
+            assertPreparedContext(outer);
+            assertSame(failure, assertThrows(IllegalStateException.class,
+                                             () -> DeserializingMessage.handleBatch(Stream.of(nestedMessage))
+                                                     .forEach(current -> {
+                                                         throw failure;
+                                                     })));
+            assertPreparedContext(outer);
+
+            nestedMessage.run(current -> assertSame(nestedMessage, current));
+            assertPreparedContext(outer);
+
+            DeserializingMessage.forEachInBatch(List.of(nestedMessage),
+                                                current -> assertSame(nestedMessage, current));
+            assertPreparedContext(outer);
+
+            DeserializingMessage.forEachInBatch(Set.of(nestedMessage),
+                                                current -> assertSame(nestedMessage, current));
+            assertPreparedContext(outer);
+
+            DeserializingMessage.handleBatch(Stream.of(nestedMessage))
+                    .forEach(current -> assertSame(nestedMessage, current));
+            assertPreparedContext(outer);
+
+            snapshot = nestedMessage.captureContext();
+            assertPreparedContext(outer);
+            return "handled";
+        }
+
+        private void assertPreparedContext(DeserializingMessage outer) {
+            assertTrue(batchCompletions.isEmpty());
+            assertSame(outer, DeserializingMessage.getCurrent());
+            assertFalse(DeserializingMessage.hasThreadLocalContext());
         }
     }
 

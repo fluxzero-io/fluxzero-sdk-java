@@ -92,6 +92,25 @@ SDK packages are published through [Fluxzero Packages](https://packages.fluxzero
 
 See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
+## Proxy response header buffers
+
+Set `fluxzero.proxy.responseHeaderBufferSize` (`FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE`)
+to select the initial response header buffer capacity. The default is 8192 bytes; the separate
+`FLUXZERO_PROXY_MAX_HEADER_SIZE` remains 1 MiB. Large headers can trigger a second allocation,
+whereas large response bodies do not require larger header buffers.
+
+HTTP/1.1 header growth has a known connection-close limitation tracked in
+[Jetty #15840](https://github.com/jetty/jetty.project/issues/15840); see the
+[buffering guidance](docs/agents/articles/sdk/web/advanced-transport.md#proxy-response-header-buffers)
+for the workaround scope and configuration fallback.
+
+Jetty uses direct HTTP output buffers by default. Set
+`fluxzero.proxy.useOutputDirectByteBuffers=false`
+(`FLUXZERO_PROXY_USE_OUTPUT_DIRECT_BYTE_BUFFERS=false`) to use heap output buffers instead. This
+setting applies to all HTTP output and should be selected together with the JVM and container
+memory budgets. See the [proxy buffering guidance](docs/agents/articles/sdk/web/advanced-transport.md#proxy-response-header-buffers)
+and [forked benchmark](proxy/HEADER_BUFFER_BENCHMARK.md).
+
 ## Work on the SDK
 
 The SDK is a Maven multi-module project.
