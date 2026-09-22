@@ -24,6 +24,8 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -41,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -92,6 +95,28 @@ class AggregateCommitPolicyTest {
 
         assertTrue(commits.started(1));
         commits.completeAll();
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AggregateCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
+    void caughtNestedRejectionDoesNotCommitAggregateBeforeBatchEnds(AggregateCommitPolicy policy) {
+        CommitProbe commits = new CommitProbe(true);
+        Entity<String> aggregate = aggregate("nested-rejection", policy, commits);
+        IllegalStateException rejection = new IllegalStateException("command rejected");
+
+        DeserializingMessage.forEachInBatch(List.of(message("one"), message("two")), current -> {
+            Invocation.performInvocation(() -> aggregate.update(value -> current.getMessageId()));
+            if ("one".equals(current.getMessageId())) {
+                assertSame(rejection, assertThrows(IllegalStateException.class,
+                        () -> message("rejected").run(nested -> {
+                            throw rejection;
+                        })));
+            }
+            assertFalse(commits.started(1));
+        });
+
+        assertEquals(1, commits.started.get());
+        assertEquals("two", aggregate.get());
     }
 
     @Test
