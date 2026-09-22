@@ -68,6 +68,7 @@ import java.util.Objects;
  * Deserialization is done by
  * invoking a constructor on your subtype that accepts a single String argument. If such constructor does not exist,
  * please specify your own deserializer, using e.g. {@link JsonDeserialize @JsonDeserialize} on your type.
+ * Discriminated properties also use that concrete subtype deserializer, with the original property context.
  *
  * @param <T> the entity type. I.e.: a typical class will look something like
  *            {@code public class ProjectId extends Id<Project>}.
@@ -303,6 +304,7 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
     public static class IdDeserializer extends JsonDeserializer<Id<?>> implements ContextualDeserializer {
         private final Class<? extends Id<?>> targetType;
         private final IdTypeContext binding;
+        private final BeanProperty property;
 
         public IdDeserializer() {
             this(null);
@@ -313,8 +315,13 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
         }
 
         private IdDeserializer(Class<? extends Id<?>> targetType, IdTypeContext binding) {
+            this(targetType, binding, null);
+        }
+
+        private IdDeserializer(Class<? extends Id<?>> targetType, IdTypeContext binding, BeanProperty property) {
             this.targetType = targetType;
             this.binding = binding;
+            this.property = property;
         }
 
         @Override
@@ -330,7 +337,7 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
             }
             @SuppressWarnings("unchecked")
             Class<? extends Id<?>> idType = (Class<? extends Id<?>>) rawType;
-            return new IdDeserializer(rawType == Id.class ? null : idType, new IdTypeContext(type, property));
+            return new IdDeserializer(rawType == Id.class ? null : idType, new IdTypeContext(type, property), property);
         }
 
         private static Class<?> idType(JavaType type) {
@@ -440,7 +447,18 @@ public abstract class Id<T> implements HasId, Comparable<Id<?>>, Leaf {
                 Id<?> result;
                 try (JsonParser scalar = node.get("id").traverse(parser.getCodec())) {
                     scalar.nextToken();
-                    result = new IdDeserializer(concrete).readValue(scalar, context);
+                    JavaType concreteType = context.constructType(concrete);
+                    JsonDeserializer<Object> deserializer = context.findNonContextualValueDeserializer(concreteType);
+                    // Bind the inherited default directly, avoiding both property-type ambiguity and
+                    // repeated contextual metadata work. Custom decoders retain Jackson's property context.
+                    Object decoded = deserializer.getClass() == IdDeserializer.class
+                            ? new IdDeserializer(concrete).readValue(scalar, context)
+                            : context.handleSecondaryContextualization(deserializer, property, concreteType)
+                                    .deserialize(scalar, context);
+                    if (!concrete.isInstance(decoded)) {
+                        return context.reportInputMismatch(Id.class, "Id decoder returned a conflicting subtype");
+                    }
+                    result = (Id<?>) decoded;
                 }
                 resolvedBinding.validate(result);
                 if (model != null && result.getType() != model || model == null && IdTypeContext.isModel(result.getType())) {

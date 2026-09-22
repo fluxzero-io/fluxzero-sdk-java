@@ -6,6 +6,7 @@ Model IDs use `{"name":"project","id":"owner-a"}` with their logical Model name;
 Each named Model must declare its concrete ID class as `@EntityId`. `@Parent(types=...)` restricts which Models may
 be decoded; outside parents a Model type argument or the generated Model index provides the mapping.
 Explicit Jackson type contracts/custom serializers keep precedence. Unknown or ambiguous discriminators fail closed.
+Discriminated values use the concrete ID's custom deserializer when configured, retaining the enclosing property context.
 Upgrade readers before writers; upcast ambiguous old polymorphic scalars and renamed non-Model `@class` values at
 their enclosing payload revision. See [Java Graph relations](models/graphs-java.md) and
 [Kotlin Graph relations](models/graphs-kotlin.md).

@@ -59,6 +59,7 @@ Graph relation and cascade ownership. Being displayed below or deleted with the 
   The standard serializer writes `{"name":"project","id":"owner-a"}` for such a property (using the actual logical
   Model name). Each allowed Model declares its concrete ID class as `@EntityId`; `types` is also the read allowlist.
   No additional `@JsonTypeInfo` is needed. Unknown, ambiguous or conflicting names fail rather than guessing.
+  Custom concrete ID deserializers retain the enclosing property context.
 - `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set

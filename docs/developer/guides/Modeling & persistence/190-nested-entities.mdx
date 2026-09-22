@@ -142,6 +142,7 @@ Without that annotation, a declared Model type argument or the generated Model i
 For non-Model IDs the shape is `{"@class":"example.ExternalId","id":"owner-a"}`. Only compatible concrete `Id`
 subclasses can be reconstructed, subject to the mapper's polymorphic type validator. Renaming such a class requires
 an upcaster for persisted payloads. Explicit Jackson type annotations/custom serializers retain their own contract.
+Discriminated values use the concrete ID's custom deserializer when configured, retaining the enclosing property context.
 This is not a general authorization mechanism for untrusted input.
 
 Unknown names/classes, conflicting discriminators and ambiguous old scalar values are rejected rather than guessed.

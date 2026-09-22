@@ -160,6 +160,12 @@ class PolymorphicIdTest {
     }
 
     @Test
+    void polymorphicIdsUseTheConcreteContextualDeserializer() {
+        var value = new Reference(new CustomId(java.util.UUID.fromString("00000000-0000-0000-0000-000000000001")));
+        assertEquals(value, serializer.deserialize(serializer.serialize(value), Reference.class));
+    }
+
+    @Test
     void contentFilteringRetainsPolymorphicIdAndActuallyFilters() {
         var value = new Filtered(new ExternalId("a"), "secret");
         var filter = new io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter(JsonUtils.writer);
@@ -201,5 +207,32 @@ class PolymorphicIdTest {
     }
     static final class ExternalId extends Id<String> {
         ExternalId(String id) { super(id); }
+    }
+
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = CustomIdDeserializer.class)
+    static final class CustomId extends Id<String> {
+        CustomId(java.util.UUID id) { super(id.toString(), String.class); }
+    }
+
+    static final class CustomIdDeserializer extends com.fasterxml.jackson.databind.JsonDeserializer<CustomId>
+            implements com.fasterxml.jackson.databind.deser.ContextualDeserializer {
+        private final String property;
+
+        public CustomIdDeserializer() { this(null); }
+        private CustomIdDeserializer(String property) { this.property = property; }
+
+        @Override
+        public com.fasterxml.jackson.databind.JsonDeserializer<?> createContextual(
+                com.fasterxml.jackson.databind.DeserializationContext context,
+                com.fasterxml.jackson.databind.BeanProperty property) {
+            return new CustomIdDeserializer(property == null ? null : property.getName());
+        }
+
+        @Override
+        public CustomId deserialize(com.fasterxml.jackson.core.JsonParser parser,
+                                    com.fasterxml.jackson.databind.DeserializationContext context) throws java.io.IOException {
+            assertEquals("id", property, "The original property must contextualize the concrete decoder");
+            return new CustomId(java.util.UUID.fromString(parser.getValueAsString()));
+        }
     }
 }
