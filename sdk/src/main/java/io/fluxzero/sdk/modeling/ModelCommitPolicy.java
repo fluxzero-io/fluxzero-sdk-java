@@ -26,8 +26,10 @@ import java.util.Objects;
  * One command produces one atomic model commit, even when it affects multiple models. The policy therefore applies to
  * the complete consistency boundary rather than to every affected model separately.
  * A validation rejection does not fail independent commands sharing the batch, including deferred commits.
- * Actual dependencies still propagate producer failures, and an abort of the owning batch stops pending batch work;
- * batch abort cannot roll back commits already accepted by storage.
+ * Model mutations that read provisional state wait for the producing commit, then reevaluate against durable state
+ * regardless of that producer's outcome. Each command retains its own validation and commit result. Ordinary handlers
+ * that consumed provisional state still require successful producer completion before publishing their result.
+ * An abort of the owning batch stops pending batch work but cannot roll back commits already accepted by storage.
  */
 public enum ModelCommitPolicy implements CommitPolicy {
 

@@ -39,7 +39,8 @@ Model conflict handling defaults to `RETRY` for updates and creations, independe
 choose `FAIL` or `ACCEPT` explicitly with `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`).
 ASYNC automatic Model handlers coordinate overlapping readsets within each tracking batch, including commits that start
 after the handler; independent scopes remain parallel once earlier readsets are known. External writers still require
-conflict validation and bounded retries.
+conflict validation and bounded retries. Model commands reevaluate after a provisional predecessor settles, including
+when that predecessor is rejected; each command retains its own result.
 Retry preserves create-only checks. A targeted `graph.assertAndApply(command)` limits writes, not the command's
 cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/conflicts.md).
 

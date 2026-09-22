@@ -134,11 +134,10 @@ public final class ModelBatchScope {
         }
     }
 
-    static <T> T withMessageDependency(
-            DeserializingMessage message,
-            Supplier<T> action) {
-        return withDependency(
-                message.getContext(CommitCoordination.class).orElse(null), action);
+    static boolean canReevaluate(Throwable failure) {
+        Throwable cause = io.fluxzero.common.ObjectUtils.unwrapException(failure);
+        return !(cause instanceof Error || cause instanceof java.util.concurrent.CancellationException
+                 || cause instanceof InterruptedException);
     }
 
     static CommitCoordination register(
@@ -552,7 +551,9 @@ public final class ModelBatchScope {
         CommitCoordination consumer = currentDependency.get();
         if (consumer != null) {
             if (consumer != owner) {
-                consumer.dependsOn(owner);
+                // A model mutation is reevaluated after its predecessors settle. Its tentative
+                // read orders that reevaluation; it must not inherit another command's rejection.
+                consumer.ordersAfter(owner);
             }
         } else if (DeserializingMessage.getCurrent() != null) {
             Invocation.awaitBeforeResultPublication(
@@ -707,19 +708,10 @@ public final class ModelBatchScope {
             }
         }
 
-        void dependsOn(CommitCoordination producer) {
-            dependencies().compute(producer, (key, previous) -> {
-                if (previous == null || previous.orderOnly) {
-                    dependencyVersion.incrementAndGet();
-                }
-                return previous != null && previous.claimed ? Dependency.CLAIMED : Dependency.PENDING;
-            });
-        }
-
-        private void ordersAfter(CommitCoordination producer) {
+        void ordersAfter(CommitCoordination producer) {
             dependencies().computeIfAbsent(producer, ignored -> {
                 dependencyVersion.incrementAndGet();
-                return Dependency.ORDER_PENDING;
+                return Dependency.PENDING;
             });
         }
 
@@ -765,9 +757,7 @@ public final class ModelBatchScope {
                 }
             }
             return CompletableFuture.allOf(awaited.stream()
-                    .map(producer -> dependencies.get(producer).orderOnly
-                            ? producer.attempt.completion().handle((value, failure) -> null)
-                            : producer.attempt.completion())
+                    .map(producer -> producer.attempt.completion().handle((value, failure) -> null))
                     .toArray(CompletableFuture[]::new));
         }
 
@@ -785,7 +775,7 @@ public final class ModelBatchScope {
                         break;
                     }
                     if (dependencies.replace(producer, dependency,
-                                             dependency.orderOnly ? Dependency.ORDER_CLAIMED : Dependency.CLAIMED)) {
+                                             Dependency.CLAIMED)) {
                         if (pending == null) {
                             pending = new ArrayList<>();
                         }
@@ -899,9 +889,13 @@ public final class ModelBatchScope {
                     ? dependenciesComplete().thenCompose(ignored ->
                             CompletableFuture.supplyAsync(() -> unlessAborted(action), ModelPipeline.ASYNC_EXECUTOR))
                     : dependenciesComplete().thenApply(ignored -> unlessAborted(action));
-            return result.thenCompose(value -> dependencyVersion() == version
-                    ? CompletableFuture.completedFuture(value)
-                    : afterDependencies(action, asynchronous));
+            return result.handle((value, failure) -> {
+                if (dependencyVersion() != version && canReevaluate(failure)) {
+                    return afterDependencies(action, asynchronous);
+                }
+                return failure == null ? CompletableFuture.completedFuture(value)
+                        : CompletableFuture.<T>failedFuture(failure);
+            }).thenCompose(Function.identity());
         }
 
         private int dependencyVersion() {
@@ -959,13 +953,11 @@ public final class ModelBatchScope {
         }
 
         private enum Dependency {
-            PENDING(false, false), CLAIMED(false, true), ORDER_PENDING(true, false), ORDER_CLAIMED(true, true);
+            PENDING(false), CLAIMED(true);
 
-            final boolean orderOnly;
             final boolean claimed;
 
-            Dependency(boolean orderOnly, boolean claimed) {
-                this.orderOnly = orderOnly;
+            Dependency(boolean claimed) {
                 this.claimed = claimed;
             }
         }
@@ -1061,11 +1053,11 @@ public final class ModelBatchScope {
                 CommitCoordination candidate = entries.get(ordering.next++);
                 ordering.add(candidate);
             }
-            ordering.dependencies.getOrDefault(entry, Set.of()).forEach(entry::dependsOn);
+            ordering.dependencies.getOrDefault(entry, Set.of()).forEach(entry::ordersAfter);
             Ordering.Prefix unscoped = ordering.unscopedDependencies.get(entry);
             if (unscoped != null) {
                 for (int index = 0; index < unscoped.size(); index++) {
-                    entry.dependsOn(unscoped.entries().get(index));
+                    entry.ordersAfter(unscoped.entries().get(index));
                 }
             }
             return true;
@@ -1188,7 +1180,7 @@ public final class ModelBatchScope {
             for (CommitCoordination entry : all) {
                 if (entry.cancelled || entry.initialized.isCompletedExceptionally()) {
                     // A command rejected before preparation completed creates no ordering tail or
-                    // transport slot. Explicit dependencies on it are intentionally not removed.
+                    // transport slot. Existing completion dependencies are intentionally retained.
                     all = all.stream().filter(candidate -> !candidate.cancelled
                             && !candidate.initialized.isCompletedExceptionally()).toList();
                     deferred = deferred.stream().filter(candidate -> !candidate.cancelled
@@ -1209,18 +1201,18 @@ public final class ModelBatchScope {
             Map<String, CommitCoordination> tails = new HashMap<>();
             CommitCoordination previous = null;
             for (CommitCoordination entry : all) {
-                // Async ready entries already have namespace-aware order-only edges. Retrospective deferred
-                // ordering must not turn those into dependencies on speculative values they never consumed.
+                // Async ready entries already have namespace-aware ordering edges. Only legacy/deferred
+                // entries need the additional release ordering below.
                 boolean addDependencies = entry.ordered == CommitCoordination.COMPLETED;
                 if (addDependencies && sequential && previous != null) {
-                    entry.dependsOn(previous);
+                    entry.ordersAfter(previous);
                 }
                 previous = entry;
                 if (entry.modelIds != null) {
                     entry.modelIds.forEach(modelId -> {
                         CommitCoordination predecessor = tails.put(modelId, entry);
                         if (addDependencies && predecessor != null) {
-                            entry.dependsOn(predecessor);
+                            entry.ordersAfter(predecessor);
                         }
                     });
                 }

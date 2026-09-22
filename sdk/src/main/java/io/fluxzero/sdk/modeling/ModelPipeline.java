@@ -288,22 +288,29 @@ final class ModelPipeline {
         CommitAttempt attempt = entry.attempt();
         ThreadLocalContext.Snapshot context = request.message().captureContext();
         boolean asynchronousReevaluation = !localHandlingEnabled.getAsBoolean();
-        CommitAttempt initial;
+        boolean evaluated = false;
         try {
-            initial = context.supply(() -> ModelBatchScope.withDependency(
+            CommitAttempt initial = context.supply(() -> ModelBatchScope.withDependency(
                     entry, () -> evaluateInitial(request, attempt, entry.batched())));
             if (initial != attempt) {
                 throw new IllegalStateException("Model evaluation replaced its commit attempt");
             }
-            warnEmptyExplicitApply(request, initial);
-            entry.repositoryOwner = repository.modelDefinitionCompiler();
-            ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
-            entry.initialize(initial.readModelIds());
+            evaluated = true;
         } catch (Throwable failure) {
-            entry.fail(failure);
-            return attempt.completion();
+            if (!entry.hasDependencies() || !ModelBatchScope.canReevaluate(failure)) {
+                entry.fail(failure);
+                return attempt.completion();
+            }
+            // Validation against a pending predecessor is provisional too. Never stage partial
+            // changes; the dependent path below reevaluates once those predecessors settle.
         }
         try {
+            entry.repositoryOwner = repository.modelDefinitionCompiler();
+            if (evaluated) {
+                warnEmptyExplicitApply(request, attempt);
+                ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
+            }
+            entry.initialize(attempt.readModelIds());
             entry.submit(dependent -> {
                 CompletableFuture<CommitAttempt> ready = dependent
                         ? entry.afterDependencies(
@@ -311,7 +318,7 @@ final class ModelPipeline {
                                         entry, () -> evaluate(
                                                 request, attempt, true, entry.batched()))),
                                 entry.batched() && asynchronousReevaluation)
-                        : CompletableFuture.completedFuture(initial);
+                        : CompletableFuture.completedFuture(attempt);
                 return ready.thenCompose(context.wrap(evaluation -> {
                     if (request.mode().skipEmpty && evaluation.transitions().isEmpty()) {
                         return CompletableFuture.completedFuture(null);
@@ -319,7 +326,7 @@ final class ModelPipeline {
                     ModelCommitBatchingClient.ModelCommitBatch batch =
                             entry.transport;
                     return executeEvaluation(
-                            request.message(), evaluation,
+                            entry, request.message(), evaluation,
                             batch == null ? request.transport() : batch,
                             batch == null ? request.transportSlot() : entry.slot,
                             request.mode() == Mode.MIGRATE,
@@ -453,6 +460,7 @@ final class ModelPipeline {
     }
 
     private CompletableFuture<Object> executeEvaluation(
+            ModelBatchScope.CommitCoordination entry,
             DeserializingMessage message,
             CommitAttempt evaluation,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
@@ -465,14 +473,14 @@ final class ModelPipeline {
                 ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(current, result.getRebaseStateIndex(), migration));
+                                rebase(entry, current, result.getRebaseStateIndex(), migration));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
                 })
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
-                        (conflict, current) -> reload(message, current, conflict));
+                        (conflict, current) -> reload(entry, message, current, conflict));
         ModelCommitAdmission.Session admissionSession =
                 effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                         ? commitAdmission.open() : null;
@@ -750,6 +758,7 @@ final class ModelPipeline {
     }
 
     private CompletableFuture<CommitAttempt> reload(
+            ModelBatchScope.CommitCoordination entry,
             DeserializingMessage message,
             CommitAttempt staleEvaluation,
             CommitModelsResult conflict) {
@@ -759,15 +768,8 @@ final class ModelPipeline {
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
-        try {
-            return CompletableFuture.completedFuture(
-                    ModelBatchScope.withMessageDependency(
-                            message,
-                            () -> expandCascadeDeletes(
-                                    ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict))));
-        } catch (Throwable failure) {
-            return CompletableFuture.failedFuture(failure);
-        }
+        return reevaluate(entry, message, () -> expandCascadeDeletes(
+                ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict)));
     }
 
     private static long retryStateIndex(
@@ -811,12 +813,14 @@ final class ModelPipeline {
     }
 
     private CommitAttempt rebase(
+            ModelBatchScope.CommitCoordination entry,
             CommitAttempt evaluation,
             long stateIndex,
             boolean migration) {
         List<CommitAttempt.Step> steps = evaluation.steps();
-        return ModelBatchScope.withMessageDependency(
-                steps.getFirst().message(),
+        // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
+        // Keep this existing apply-only path free of waits on speculative producers.
+        return ModelBatchScope.withDependency(entry,
                 () -> expandCascadeDeletes(ModelReducer.reapplySteps(
                         new CommitAttempt(),
                         steps.stream()
@@ -826,6 +830,17 @@ final class ModelPipeline {
                         new CommitLoader(
                                 stateIndex, true, migration,
                                 readsDocumentModel(evaluation)))));
+    }
+
+    private CompletableFuture<CommitAttempt> reevaluate(
+            ModelBatchScope.CommitCoordination entry, DeserializingMessage message, Supplier<CommitAttempt> action) {
+        ThreadLocalContext.Snapshot context = message.captureContext();
+        Supplier<CommitAttempt> evaluation = () -> context.supply(() -> ModelBatchScope.withDependency(entry, action));
+        try {
+            return entry.afterDependencies(evaluation, false);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
     }
 
     /**

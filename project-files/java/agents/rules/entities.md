@@ -758,10 +758,13 @@ commits use the same cached-head/atomic-boundary optimization regardless of poli
 With ASYNC consumer handling, automatic Model commits that start after the handler also coordinate overlapping
 readsets within the tracking batch. Evaluation stays parallel; a ready commit first waits for earlier evaluations to
 discover their readsets, then waits only for overlapping predecessors in the same namespace and reevaluates before
-committing. Disjoint scopes can commit concurrently. An ordering-only predecessor failure permits fresh evaluation;
-actually consumed pending values retain their producer-failure dependency. This is local batch coordination, not a
-global lock: other consumers/processes and newly discovered dependencies still use authoritative conflict validation
-and the configured retry bound.
+committing. Disjoint scopes can commit concurrently. A Model command that read pending state waits for its producer
+to finish, then reevaluates even if that producer failed. Its own assertions determine its result; it does not inherit
+another command's rejection. A validation failure against pending state is provisional too: partial changes are never
+staged, and evaluation resumes after the discovered predecessors settle. This dependency coordination does not consume
+or increase the configured conflict retry budget. External writers and newly discovered readsets still require atomic
+conflict validation. Ordinary handlers that return results based on pending state retain their producer-success barrier;
+they cannot publish a successful result from state that was rejected.
 
 Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.

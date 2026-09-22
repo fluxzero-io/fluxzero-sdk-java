@@ -47,8 +47,74 @@ import static org.mockito.Mockito.mock;
 class ModelBatchScopeTest {
 
     @ParameterizedTest
+    @org.junit.jupiter.params.provider.MethodSource("terminalFailures")
+    void terminalFailureDoesNotReevaluateAfterDiscoveringAPredecessor(Throwable terminal) {
+        var producer = ModelBatchScope.CommitCoordination.direct();
+        var consumer = ModelBatchScope.CommitCoordination.direct();
+        var evaluations = new AtomicInteger();
+        assertFalse(ModelBatchScope.canReevaluate(terminal));
+        var result = consumer.afterDependencies(() -> {
+            evaluations.incrementAndGet();
+            consumer.ordersAfter(producer);
+            throw new java.util.concurrent.CompletionException(terminal);
+        }, false);
+        assertTrue(result.isDone(), "Terminal signals must not wait for a pending producer");
+        assertSame(terminal, io.fluxzero.common.ObjectUtils.unwrapException(
+                assertThrows(java.util.concurrent.CompletionException.class, result::join)));
+        producer.attempt().completion().complete(null);
+        assertEquals(1, evaluations.get());
+    }
+
+    private static java.util.stream.Stream<Throwable> terminalFailures() {
+        return java.util.stream.Stream.of(new AssertionError("fatal"),
+                new java.util.concurrent.CancellationException("cancelled"), new InterruptedException("interrupted"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ModelCommitPolicy.class, names = {"SYNC_AFTER_HANDLER", "ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
+    void provisionalModelReaderReevaluatesAfterItsPredecessorIsRejected(ModelCommitPolicy policy) {
+        var rejected = new IllegalStateException("Producer rejected on reevaluation");
+        var durable = new CompletableFuture<Object>();
+        var lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        var before = new AliasModel("shared", "shared", 2);
+        var provisional = new AliasModel("shared", "shared", 6);
+        var reader = new AtomicReference<ModelBatchScope.CommitCoordination>();
+        var reevaluations = new AtomicInteger();
+        var failure = assertThrows(java.util.concurrent.CompletionException.class, () ->
+                DeserializingMessage.forEachInBatch(List.of(message("producer"), message("reader")), current -> {
+                    if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                        var producer = ModelBatchScope.register(this, current,
+                                ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
+                        producer.attempt().evaluated(0L, List.of("shared"), Map.of("shared", AliasModel.class),
+                                evaluation(current, before, provisional).steps());
+                        ModelBatchScope.stage(null, producer);
+                        producer.initialize(List.of("shared"));
+                        producer.submit(ignored -> durable);
+                    } else {
+                        var consumer = ModelBatchScope.register(this, current, policy, lifecycle);
+                        reader.set(consumer);
+                        assertEquals(provisional, ModelBatchScope.withDependency(consumer, () ->
+                                ModelBatchScope.overlayCurrent(null, "shared", AliasModel.class, entity(before))).get());
+                        consumer.initialize(List.of("shared"));
+                        consumer.submit(dependent -> {
+                            assertTrue(dependent, "The pipeline must reevaluate a provisional read");
+                            assertEquals(before, ModelBatchScope.withDependency(consumer, () ->
+                                    ModelBatchScope.overlayCurrent(null, "shared", AliasModel.class, entity(before))).get());
+                            reevaluations.incrementAndGet();
+                            return CompletableFuture.completedFuture(null);
+                        });
+                        assertFalse(consumer.attempt().completion().isDone());
+                        durable.completeExceptionally(rejected);
+                    }
+                }));
+        assertSame(rejected, failure.getCause(), "The batch must still report the rejected producer");
+        reader.get().attempt().completion().join();
+        assertEquals(1, reevaluations.get());
+    }
+
+    @ParameterizedTest
     @EnumSource(value = ModelCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
-    void latePreparationFailureReleasesIndependentWorkWithoutLosingExplicitDependencies(ModelCommitPolicy policy) {
+    void latePreparationFailureReleasesIndependentAndOrderedWork(ModelCommitPolicy policy) {
         RuntimeException rejection = new IllegalStateException("late preparation rejected");
         ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
         AtomicInteger submissions = new AtomicInteger();
@@ -63,9 +129,10 @@ class ModelBatchScopeTest {
                     });
                     ModelBatchScope.CommitCoordination dependent = ModelBatchScope.register(this, current, policy, lifecycle);
                     dependent.initialize(List.of("dependent"));
-                    dependent.dependsOn(producer);
+                    dependent.ordersAfter(producer);
                     dependent.submit(ignored -> {
-                        throw new AssertionError("Rejected producer must block its actual dependent");
+                        submissions.incrementAndGet();
+                        return CompletableFuture.completedFuture(null);
                     });
                     DeserializingMessage.whenBatchCompletes(ignored -> {
                         // Batch.close has registered its wait, but the last initializer is still pending.
@@ -73,12 +140,11 @@ class ModelBatchScopeTest {
                         assertFalse(dependent.attempt().completion().isDone());
                         producer.fail(rejection);
                         independent.attempt().completion().join();
-                        assertSame(rejection, assertThrows(java.util.concurrent.CompletionException.class,
-                                () -> dependent.attempt().completion().join()).getCause());
+                        dependent.attempt().completion().join();
                     });
                 }));
         assertSame(rejection, batchFailure.getCause());
-        assertEquals(1, submissions.get());
+        assertEquals(2, submissions.get());
     }
 
     @ParameterizedTest
@@ -111,7 +177,7 @@ class ModelBatchScopeTest {
 
     @ParameterizedTest
     @EnumSource(value = ModelCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
-    void failedPreparationStillFailsAnExplicitDependent(ModelCommitPolicy policy) {
+    void failedPreparationAllowsAnOrderedMutationToReevaluate(ModelCommitPolicy policy) {
         RuntimeException rejection = new IllegalStateException("rejected producer");
         ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
         AtomicReference<ModelBatchScope.CommitCoordination> dependent = new AtomicReference<>();
@@ -121,15 +187,15 @@ class ModelBatchScopeTest {
                     ModelBatchScope.CommitCoordination consumer = ModelBatchScope.register(this, current, policy, lifecycle);
                     dependent.set(consumer);
                     consumer.initialize(List.of("consumer"));
-                    consumer.dependsOn(producer);
+                    consumer.ordersAfter(producer);
                     consumer.submit(ignored -> {
-                        throw new AssertionError("Failed preparation must retain an explicit dependency");
+                        assertTrue(ignored);
+                        return CompletableFuture.completedFuture(null);
                     });
                     producer.fail(rejection);
                 }));
         assertSame(rejection, batchFailure.getCause());
-        assertSame(rejection, assertThrows(java.util.concurrent.CompletionException.class,
-                () -> dependent.get().attempt().completion().join()).getCause());
+        dependent.get().attempt().completion().join();
     }
 
     @ParameterizedTest
@@ -450,7 +516,7 @@ class ModelBatchScopeTest {
                     String id = current.getPayload();
                     if (id.equals("consumer")) {
                         ModelBatchScope.CommitCoordination consumer = ModelBatchScope.CommitCoordination.direct();
-                        consumer.dependsOn(producer[0]);
+                        consumer.ordersAfter(producer[0]);
                         consumer.submit(ignored -> CompletableFuture.completedFuture(null));
                         assertEquals(1, flushed.get());
                         assertEquals(List.of("ready"), committed);
@@ -506,7 +572,7 @@ class ModelBatchScopeTest {
                             : ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
             entry.initialize(List.of(id));
             if (producer[0] != null) {
-                entry.dependsOn(producer[0]);
+                entry.ordersAfter(producer[0]);
             }
             entry.submit(ignored -> {
                 committed.add(id);
@@ -518,8 +584,9 @@ class ModelBatchScopeTest {
         assertEquals(List.of("producer", "consumer"), committed);
     }
 
-    @Test
-    void discoversAndReleasesNewDependenciesWithoutStartingIndependentWork() {
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void discoversAndReleasesNewDependenciesWithoutStartingIndependentWork(boolean provisionalFailure) {
         List<ModelBatchScope.CommitCoordination> entries = new ArrayList<>();
         List<String> committed = new ArrayList<>();
         AtomicInteger evaluations = new AtomicInteger();
@@ -537,10 +604,13 @@ class ModelBatchScopeTest {
             entries.add(entry);
             if (entries.size() == 3) {
                 ModelBatchScope.CommitCoordination consumer = ModelBatchScope.CommitCoordination.direct();
-                consumer.dependsOn(entries.getFirst());
+                consumer.ordersAfter(entries.getFirst());
                 consumer.submit(ignored -> consumer.afterDependencies(() -> {
-                    evaluations.incrementAndGet();
-                    consumer.dependsOn(entries.getLast());
+                    int evaluation = evaluations.incrementAndGet();
+                    consumer.ordersAfter(entries.getLast());
+                    if (provisionalFailure && evaluation == 1) {
+                        throw new IllegalStateException("Tentative rejection before the newly discovered producer settled");
+                    }
                     return "result";
                 }, false));
                 assertTrue(consumer.attempt().completion().isDone());
@@ -581,7 +651,8 @@ class ModelBatchScopeTest {
     }
 
     @Test
-    void predecessorFailureStillFailsTheWaitingConsumer() {
+    void waitingMutationReportsItsOwnFailureAfterARejectedPredecessor() {
+        RuntimeException ownFailure = new IllegalArgumentException("Parent no longer exists");
         RuntimeException failure = new IllegalStateException("producer failed");
         ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
         java.util.concurrent.CompletionException batchFailure = assertThrows(
@@ -592,11 +663,11 @@ class ModelBatchScopeTest {
             producer.initialize(List.of("shared"));
             producer.submit(ignored -> CompletableFuture.failedFuture(failure));
             ModelBatchScope.CommitCoordination consumer = ModelBatchScope.CommitCoordination.direct();
-            consumer.dependsOn(producer);
+            consumer.ordersAfter(producer);
             consumer.submit(ignored -> {
-                throw new AssertionError("A failed producer must prevent its consumer's commit");
+                return CompletableFuture.failedFuture(ownFailure);
             });
-            assertSame(failure, assertThrows(java.util.concurrent.CompletionException.class,
+            assertSame(ownFailure, assertThrows(java.util.concurrent.CompletionException.class,
                     () -> consumer.attempt().completion().join()).getCause());
         }));
         assertSame(failure, batchFailure.getCause());
@@ -655,7 +726,7 @@ class ModelBatchScopeTest {
 
             @Override
             public void flush() {
-                entries[2].dependsOn(entries[1]);
+                entries[2].ordersAfter(entries[1]);
                 durable.complete(null);
             }
 
@@ -675,7 +746,7 @@ class ModelBatchScopeTest {
             entries[index] = entry;
             entry.initialize(List.of(id));
             if (index == 2) {
-                entry.dependsOn(entries[0]);
+                entry.ordersAfter(entries[0]);
             }
             entry.submit(ignored -> index == 0 ? durable : CompletableFuture.completedFuture(null));
             if (index == 2) {
@@ -737,7 +808,7 @@ class ModelBatchScopeTest {
                     entries[index] = entry;
                     entry.initialize(List.of(current.getPayload().toString()));
                     if (index == 1) {
-                        entry.dependsOn(entries[0]);
+                        entry.ordersAfter(entries[0]);
                     }
                     entry.submit(ignored -> {
                         assertEquals(0, index);
@@ -771,7 +842,7 @@ class ModelBatchScopeTest {
                             return;
                         }
                         if (index == 2 && !barrier) {
-                            entry.dependsOn(entries[1]);
+                            entry.ordersAfter(entries[1]);
                             return;
                         }
                         entry.initialize(List.of(index == 2 ? "later" : "shared"));
@@ -974,7 +1045,7 @@ class ModelBatchScopeTest {
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
                         stagePending(null, evaluation(current, before, after));
-                        ModelBatchScope.withMessageDependency(current, () -> {
+                        ModelBatchScope.withDependency(current.getContext(ModelBatchScope.CommitCoordination.class).orElse(null), () -> {
                             assertSame(durable, ModelBatchScope.overlayCurrent(
                                     null, "model-1", AliasModel.class, durable));
                             return null;
@@ -986,8 +1057,9 @@ class ModelBatchScopeTest {
                 });
     }
 
-    @Test
-    void ordinaryPendingReadDelaysResultPublicationUntilItsProducerCompletes() {
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void ordinaryPendingReadDelaysResultPublicationUntilItsProducerCompletes(boolean producerFails) {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
         Entity<AliasModel> durable = entity(before);
@@ -1008,8 +1080,15 @@ class ModelBatchScopeTest {
                     }
                 });
 
-        producer.get().complete(null);
-        barrier.get().join();
+        if (producerFails) {
+            var rejected = new IllegalStateException("Producer rejected");
+            producer.get().completeExceptionally(rejected);
+            assertSame(rejected, assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> barrier.get().join()).getCause());
+        } else {
+            producer.get().complete(null);
+            barrier.get().join();
+        }
         assertTrue(barrier.get().isDone());
     }
 
