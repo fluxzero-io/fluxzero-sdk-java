@@ -306,7 +306,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Runs an action with this message as the current message, restoring the previous context afterward.\n Nested actions share the enclosing batch: a nested failure propagates to its caller without completing that\n batch. The outermost action completes batch callbacks with its final outcome.\n\n @param action the action to run\n @param <T> the result type\n @return the action result\n"
   }, {
     "name" : "asMessage",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#asMessage",
@@ -465,7 +465,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Processes messages while exposing each message through {@link #getCurrent()} and completing batch-scoped\n callbacks after the last message. This is the lower-allocation counterpart to {@link #handleBatch(Stream)} for\n callers that already have an iterable batch.\n"
+    "documentation" : " Processes messages while exposing each message through {@link #getCurrent()} and completing batch-scoped\n callbacks after the last message. This is the lower-allocation counterpart to {@link #handleBatch(Stream)} for\n callers that already have an iterable batch. Nested calls leave completion to the enclosing message scope,\n including when an action fails.\n"
   }, {
     "name" : "forEachListInBatch",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#forEachListInBatch",
@@ -845,7 +845,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers a callback for the enclosing batch's completion, or invokes it immediately outside message handling.\n A caught failure in nested message handling does not complete the enclosing batch or become its failure.\n\n @param executable callback receiving the error that escapes the owning scope, or {@code null} on success\n"
   }, {
     "name" : "withData",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withData",
