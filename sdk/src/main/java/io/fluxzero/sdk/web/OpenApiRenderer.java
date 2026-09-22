@@ -974,6 +974,7 @@ public final class OpenApiRenderer {
                         .map(componentType -> schema(componentType, visiting, schemaContext, responseSchema))
                         .orElseGet(() -> schema(component.getAnnotatedType(), visiting, schemaContext,
                                                 responseSchema));
+                property = idPropertySchema(component.getGenericType(), component, property);
                 applySchemaMetadata(property, metadata(component), schemaContext);
                 properties.set(component.getName(), property);
                 if (isRequired(component) || responseSchema && isRequiredArrayProperty(property)) {
@@ -1001,6 +1002,7 @@ public final class OpenApiRenderer {
             ObjectNode property = implementationType(field)
                     .map(fieldType -> schema(fieldType, visiting, schemaContext, responseSchema))
                     .orElseGet(() -> schema(field.getAnnotatedType(), visiting, schemaContext, responseSchema));
+            property = idPropertySchema(field.getGenericType(), field, property);
             applySchemaMetadata(property, metadata(field), schemaContext);
             properties.set(field.getName(), property);
             if (isRequired(field) || responseSchema && isRequiredArrayProperty(property)) {
@@ -1066,11 +1068,53 @@ public final class OpenApiRenderer {
                 .map(methodType -> schema(methodType, visiting, schemaContext, responseSchema))
                 .orElseGet(() -> schema(method.getAnnotatedReturnType(), visiting, schemaContext,
                                         responseSchema));
+        property = idPropertySchema(method.getGenericReturnType(), method, property);
         applySchemaMetadata(property, metadata(method), schemaContext);
         properties.set(propertyName, property);
         if (isRequired(method) || responseSchema && isRequiredArrayProperty(property)) {
             required.add(propertyName);
         }
+    }
+
+    private static ObjectNode idPropertySchema(Type type, AnnotatedElement member, ObjectNode original) {
+        if (member instanceof java.lang.reflect.RecordComponent component) {
+            member = component.getAccessor();
+        }
+        if (implementationType(member).isPresent()
+            || hasIdTypeInfo(member)
+            || annotation(member, "com.fasterxml.jackson.databind.annotation.JsonSerialize") != null) {
+            return original;
+        }
+        if (type instanceof ParameterizedType parameterized) {
+            Class<?> raw = rawClass(parameterized.getRawType());
+            Type[] arguments = parameterized.getActualTypeArguments();
+            if (raw != null && Optional.class.isAssignableFrom(raw)) {
+                ObjectNode result = idPropertySchema(arguments[0], member, original);
+                return IdWireSchema.retainNullability(original, result);
+            }
+            String content = raw != null && Collection.class.isAssignableFrom(raw) ? "items"
+                    : raw != null && Map.class.isAssignableFrom(raw) ? "additionalProperties" : null;
+            if (content != null && original.get(content) instanceof ObjectNode child) {
+                original.set(content, idPropertySchema(arguments[content.equals("items") ? 0 : 1], member, child));
+                return original;
+            }
+            type = parameterized.getRawType();
+        }
+        Class<?> raw = rawClass(type);
+        if (raw != null && raw.isArray() && original.get("items") instanceof ObjectNode child) {
+            original.set("items", idPropertySchema(raw.getComponentType(), member, child));
+        } else if (raw != null && io.fluxzero.sdk.modeling.Id.class.isAssignableFrom(raw)
+                   && Modifier.isAbstract(raw.getModifiers())
+                   && !hasIdTypeInfo(raw)
+                   && annotation(raw, "com.fasterxml.jackson.databind.annotation.JsonSerialize") == null) {
+            return IdWireSchema.schema(annotation(member, "io.fluxzero.sdk.modeling.Parent") != null);
+        }
+        return original;
+    }
+
+    private static boolean hasIdTypeInfo(AnnotatedElement element) {
+        Annotation info = annotation(element, "com.fasterxml.jackson.annotation.JsonTypeInfo");
+        return info != null && !"NONE".equals(stringValue(annotationValue(info, "use")));
     }
 
     private static Optional<ObjectNode> jsonValueSchema(Class<?> type, Set<Type> visiting,

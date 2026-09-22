@@ -59,6 +59,8 @@ Optional `DOCUMENT` projections are separate from internal Model/Graph sources: 
 while Graph composition and related-content predicates use the internal source. See the
 [migration guide](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) for independent reindexing.
 Choose [Graph relationships](docs/developer/guides/Modeling%20%26%20persistence/190-nested-entities.mdx) separately from ownership: a plain typed ID is only a reference; `@Parent` registers an edge, with cascade deletion configurable per relation.
+Polymorphic ID properties retain their type on the wire: Model IDs use their logical `name`, other IDs use `@class`;
+concrete ID properties remain scalar. See the relationship guide for allowlists and migration boundaries.
 See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
 Returned validation objects can select their own Model dependencies while retaining the triggering command context.
 

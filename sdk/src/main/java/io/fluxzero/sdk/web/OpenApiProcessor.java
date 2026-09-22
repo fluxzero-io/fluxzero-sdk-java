@@ -1371,6 +1371,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                     }
                     ObjectNode property = schema(implementationType(enclosed).orElse(enclosed.asType()), visiting,
                                                  schemaContext, responseSchema);
+                    property = idPropertySchema(enclosed.asType(), enclosed, property);
                     applySchemaMetadata(property, metadata(enclosed), schemaContext);
                     properties.set(enclosed.getSimpleName().toString(), property);
                     if (isRequired(enclosed) || responseSchema && isRequiredArrayProperty(property)) {
@@ -1400,6 +1401,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             }
             ObjectNode property = schema(implementationType(field).orElse(field.asType()), visiting, schemaContext,
                                          responseSchema);
+            property = idPropertySchema(field.asType(), field, property);
             applySchemaMetadata(property, metadata(field), schemaContext);
             properties.set(field.getSimpleName().toString(), property);
             if (isRequired(field) || responseSchema && isRequiredArrayProperty(property)) {
@@ -1413,6 +1415,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             }
             ObjectNode property = schema(implementationType(method).orElse(method.getReturnType()), visiting,
                                          schemaContext, responseSchema);
+            property = idPropertySchema(method.getReturnType(), method, property);
             applySchemaMetadata(property, metadata(method), schemaContext);
             properties.set(propertyName.get(), property);
             if (isRequired(method) || responseSchema && isRequiredArrayProperty(property)) {
@@ -1430,6 +1433,46 @@ public class OpenApiProcessor extends AbstractProcessor {
         addOneOf(node, type, typeMetadata.oneOf(), visiting, schemaContext, responseSchema);
         addPolymorphism(node, type, visiting, schemaContext, responseSchema);
         return node;
+    }
+
+    private ObjectNode idPropertySchema(TypeMirror type, Element member, ObjectNode original) {
+        if (isRecordComponent(member)) {
+            var propertyName = member.getSimpleName();
+            member = member.getEnclosingElement().getEnclosedElements().stream()
+                    .map(candidate -> (Element) candidate)
+                    .filter(candidate -> candidate.getKind() == ElementKind.FIELD
+                                         && candidate.getSimpleName().equals(propertyName))
+                    .findFirst().orElse(member);
+        }
+        if (implementationType(member).isPresent()
+            || hasIdTypeInfo(member)
+            || findAnnotation(member, "com.fasterxml.jackson.databind.annotation.JsonSerialize") != null) {
+            return original;
+        }
+        if (type instanceof ArrayType array && original.get("items") instanceof ObjectNode child) {
+            original.set("items", idPropertySchema(array.getComponentType(), member, child));
+        } else if (type instanceof DeclaredType declared) {
+            var arguments = declared.getTypeArguments();
+            if (isAssignable(type, "java.util.Optional") && !arguments.isEmpty()) {
+                ObjectNode result = idPropertySchema(arguments.getFirst(), member, original);
+                return IdWireSchema.retainNullability(original, result);
+            }
+            String content = isAssignable(type, "java.util.Collection") ? "items"
+                    : isAssignable(type, "java.util.Map") ? "additionalProperties" : null;
+            if (content != null && !arguments.isEmpty() && original.get(content) instanceof ObjectNode child) {
+                original.set(content, idPropertySchema(arguments.get(content.equals("items") ? 0 : 1), member, child));
+            } else if (isAssignable(type, MODEL_ID) && declared.asElement().getModifiers().contains(Modifier.ABSTRACT)
+                       && !hasIdTypeInfo(declared.asElement())
+                       && findAnnotation(declared.asElement(), "com.fasterxml.jackson.databind.annotation.JsonSerialize") == null) {
+                return IdWireSchema.schema(findAnnotation(member, "io.fluxzero.sdk.modeling.Parent") != null);
+            }
+        }
+        return original;
+    }
+
+    private boolean hasIdTypeInfo(Element element) {
+        AnnotationMirror info = findAnnotation(element, "com.fasterxml.jackson.annotation.JsonTypeInfo");
+        return info != null && !"NONE".equals(stringValue(annotationValues(info).get("use")));
     }
 
     private Optional<ObjectNode> jsonValueSchema(TypeElement type, Set<String> visiting, SchemaContext schemaContext,
