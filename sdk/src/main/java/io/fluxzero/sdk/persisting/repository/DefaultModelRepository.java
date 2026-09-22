@@ -1243,6 +1243,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (mutation == null) {
             result = replayCursor.graph(rootId, rootType, options, boundary, messageBatchNamespace(), staged);
         } else {
+            mutation.ensureReadBoundary();
             Map<String, Entity<?>> overlay = new LinkedHashMap<>(staged);
             overlay.putAll(mutation.graphEntities());
             result = mutation.trackGraph(replayCursor.graphAtBoundary(
@@ -1400,16 +1401,28 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * Loads one transaction's initial context at a freshly observed storage boundary. A cached root's validation
      * cursor is not evidence of current Graph membership. Values still reuse exact matching cached revisions;
      * incomplete document history follows the existing bounded boundary-advance protocol before evaluation begins.
+     * Direct DOCUMENT-only contexts retain document authority, verifying all heads at one namespace boundary and
+     * retrying the complete preparation before user code runs instead of replaying published history.
      */
     public CommitAttempt loadCurrentContext(MutationPlan.Resolution resolution, Map<String, Object> stagedValues,
                                             boolean includeMessageBatch) {
-        if (!resolution.hasAncestorDependencies() && resolution.models().stream().allMatch(target ->
-                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced())) {
+        if (!resolution.hasAncestorDependencies() && (resolution.models().stream().allMatch(target ->
+                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced())
+                || resolution.models().stream().noneMatch(target ->
+                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()))) {
             return loadContext(resolution, ModelReadBoundary.current(), stagedValues, includeMessageBatch,
                                false, false, true);
         }
         long current = replayCursor.loadHeads(List.of(), ModelReadBoundary.current()).stateIndex();
         return loadRebaseContext(resolution, current, stagedValues, includeMessageBatch, false);
+    }
+
+    /** Internal fast preparation for a direct DOCUMENT target; pending mutations retain eager preparation. */
+    public CommitAttempt loadDeferredDocumentContext(MutationPlan.Resolution resolution) {
+        if (!ModelBatchScope.currentValues(messageBatchNamespace(), modelDefinitionCompiler).isEmpty()) {
+            return loadCurrentContext(resolution, Map.of(), true);
+        }
+        return replayCursor.deferredDocumentContext(resolution);
     }
 
     private String messageBatchNamespace() {

@@ -120,6 +120,7 @@ public final class Graphs {
         Class<?> requestedType = modelId instanceof Id<?> id ? id.getType() : Object.class;
         CommitAttempt context = CommitAttempt.currentReadContext(repository);
         if (context != null) {
+            context.ensureReadBoundary();
             if (!(repository instanceof ModelGraphResolver resolver)) {
                 throw new UnsupportedOperationException("Transactional Graph reads require a ModelGraphResolver");
             }
@@ -242,6 +243,7 @@ public final class Graphs {
                                           Class<T> type, ModelRepository repository) {
         CommitAttempt context = CommitAttempt.currentReadContext(repository);
         if (context == null) { return null; }
+        context.ensureReadBoundary();
         if (!(repository instanceof ModelGraphResolver)) {
             throw new UnsupportedOperationException("Transactional Graph reads require a ModelGraphResolver");
         }
@@ -258,6 +260,7 @@ public final class Graphs {
 
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
     static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
+        context.ensureReadBoundary();
         GraphState state = GraphState.entity(
                 entity, context.readStateIndex(), repository, context.graphEntities(), false, true,
                 context.mutationContext() ? ModelReadBoundary.state(context.readStateIndex(), true)

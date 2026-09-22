@@ -111,6 +111,16 @@ freshness request or retry is made merely to see whether newer state might permi
 Outside mutations, ordinary Model-event reads use the event's boundary; explicit current Graph reads open a fresh
 storage-verified view. Inside mutations, current shortcuts never create a second snapshot. Do not hand detached
 Graphs from a separate query or earlier operation to an invariant and assume their old reads become protected.
+
+DOCUMENT-only mutations retain document authority even when events were published: preparation does not replay them.
+Simple single-target writes with built-in RETRY defer the extra namespace head read until an additional transactional
+dependency is requested. It verifies the original target revision before pinning. A mismatch restarts the entire
+evaluation eagerly and consumes the normal retry budget, including when discovered in a helper or after-assertion.
+Assertions and applies must remain repeatable. Complex targets, known Graph dependencies, aliases, parent bindings,
+batches and custom conflict handling retain eager preparation: one batched head read, with head/document races
+retried at most eight times before user code runs. Once pinned, an unavailable document version fails explicitly
+rather than moving the snapshot; use EVENT_SOURCED for historical reconstruction.
+
 Consumed Graph alias lookups also protect the selected mapping (including absence), canonical-ID precedence and
 the selected owner's head. This includes `id()` and relation-only access. Exact-ID reads do not depend on aliases;
 merely creating an unused Graph does not add a lookup dependency. `ACCEPT` retains only apply-time dependencies.

@@ -830,11 +830,37 @@ final class ModelReplayCursor {
         return position.getMaterializedStateIndex();
     }
 
-    /** Validates cached event-sourced bases at storage without first performing a separate namespace-head read. */
+    /** Loads one authoritative document, deferring its namespace proof until a dependency is requested. */
+    CommitAttempt deferredDocumentContext(MutationPlan.Resolution resolution) {
+        MutationPlan.ResolvedModel target = resolution.models().getFirst();
+        DocumentVersion document = documentReader.load(target.modelId(), target.modelType(), false);
+        long initialBoundary = document.head() == null ? -1L : document.head().getStateIndex();
+        return CommitAttempt.create(initialBoundary, resolution, Map.of(target.modelId(), document.entity()))
+                .withDeferredBoundary(() -> {
+                    LoadResult current = loadHeads(List.of(target.modelId()), ModelReadBoundary.current());
+                    ModelHeadState head = current.heads().get(target.modelId());
+                    if (!Objects.equals(head, document.head())) {
+                        throw new CommitAttempt.ReadBoundaryConflict(target.modelId(), current.stateIndex());
+                    }
+                    return current.stateIndex();
+                });
+    }
+
+    /** Establishes a namespace boundary and validates current values before mutation evaluation begins. */
     CommitAttempt contextAtStorage(MutationPlan.Resolution resolution, Map<String, Object> stagedValues,
                                     Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker) {
-        return contextAtBoundary(resolution, ModelReadBoundary.current(), stagedValues, pendingAncestor,
-                                 cacheTracker, true, false, true);
+        for (int attempt = 0; attempt < MAX_DOCUMENT_REBASE_ATTEMPTS; attempt++) {
+            try {
+                return contextAtBoundary(resolution, ModelReadBoundary.current(), stagedValues, pendingAncestor,
+                                         cacheTracker, true, false, true);
+            } catch (DocumentPreparationMovedException failure) {
+                if (attempt + 1 == MAX_DOCUMENT_REBASE_ATTEMPTS) {
+                    throw new EventSourcingException("Current document mutation context remained unstable after "
+                            + MAX_DOCUMENT_REBASE_ATTEMPTS + " attempts", failure);
+                }
+            }
+        }
+        throw new IllegalStateException("Unreachable document context retry state");
     }
 
     private CommitAttempt contextAtBoundary(
@@ -927,6 +953,13 @@ final class ModelReplayCursor {
             }
         }
 
+        // A document's own revision is not the namespace snapshot: unrelated dependencies may be newer, and a
+        // missing target has no revision at all. Observe all heads together without turning current document loads
+        // into historical replay (DOCUMENT may still publish events that this application cannot deserialize).
+        LoadResult currentDocumentHeads = forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
+                && replayTargets.isEmpty() && !documentTargets.isEmpty()
+                ? loadHeads(documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(), boundary)
+                : null;
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
         long stateIndex;
         Map<String, ModelCache.Stamp> cachePublications = new LinkedHashMap<>();
@@ -939,7 +972,7 @@ final class ModelReplayCursor {
                         current.stateIndex(), resolution,
                         current.entities());
             }
-            stateIndex = ancestorStateIndex == null
+            stateIndex = currentDocumentHeads != null ? currentDocumentHeads.stateIndex() : ancestorStateIndex == null
                     ? historicalDocumentStateIndex >= 0L
                             ? historicalDocumentStateIndex
                             : requireBoundary && documentTargets.isEmpty()
@@ -996,7 +1029,7 @@ final class ModelReplayCursor {
                         historicalHead, document.head());
             }
             if (entity.isEmpty() && metadata.hasAliases()) {
-                LoadResult alias = loadHeads(
+                LoadResult alias = currentDocumentHeads != null ? currentDocumentHeads : loadHeads(
                         List.of(target.modelId()),
                         stateIndex < 0L ? boundary
                                 : ModelReadBoundary.at(stateIndex));
@@ -1016,6 +1049,19 @@ final class ModelReplayCursor {
                     entity = document.entity();
                 }
             }
+            if (currentDocumentHeads != null
+                && !Objects.equals(currentDocumentHeads.heads().get(target.modelId()), document.head())) {
+                ModelHeadState expected = currentDocumentHeads.heads().get(target.modelId());
+                if (expected != null && (document.head() == null
+                        || document.head().getStateIndex() < expected.getStateIndex())) {
+                    // Materialization may lag the committed head. Retry all targets, not only this document.
+                    if (awaitMaterializedBoundary(expected.getStateIndex()) < expected.getStateIndex()) {
+                        throw new EventSourcingException("Document model '%s' did not materialize at state index %d"
+                                .formatted(target.modelId(), expected.getStateIndex()));
+                    }
+                }
+                throw new DocumentPreparationMovedException(target.modelId());
+            }
             loaded.put(target.modelId(), entity);
             documentHeads.put(target.modelId(), document.head());
             if (metadata.rootConfiguration().orElseThrow().cached()
@@ -1032,7 +1078,7 @@ final class ModelReplayCursor {
                     modelCache.put(resolvedId, entity);
                 }
             }
-            if (requireBoundary && replayTargets.isEmpty()
+            if (currentDocumentHeads == null && requireBoundary && replayTargets.isEmpty()
                 && ancestorStateIndex == null
                 && document.head() != null) {
                 stateIndex = Math.max(stateIndex, document.head().getStateIndex());
@@ -1119,6 +1165,12 @@ final class ModelReplayCursor {
         }
         return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads)
                 .withAliasResolutions(aliasReads == null ? Map.of() : aliasReads);
+    }
+
+    private static final class DocumentPreparationMovedException extends EventSourcingException {
+        private DocumentPreparationMovedException(String modelId) {
+            super("Document model '%s' moved while preparing mutation context".formatted(modelId));
+        }
     }
 
     private static final class IncompleteDocumentBoundaryException

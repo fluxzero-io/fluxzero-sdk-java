@@ -47,7 +47,7 @@ public interface ModelConflictResolver {
      * Silently retries conflicts whose commit policy permits retry and whose retry bound is not exhausted.
      */
     static ModelConflictResolver retryIfAllowed() {
-        return context -> context.canRetry() ? Resolution.RETRY : Resolution.FAIL;
+        return DefaultModelConflictResolver.INSTANCE;
     }
 
     /**
@@ -83,4 +83,11 @@ public interface ModelConflictResolver {
             return result.isRetryAllowed() && retries < maxRetries;
         }
     }
+}
+
+enum DefaultModelConflictResolver implements ModelConflictResolver {
+    INSTANCE;
+
+    @Override
+    public Resolution resolve(Context context) { return context.canRetry() ? Resolution.RETRY : Resolution.FAIL; }
 }
