@@ -40,6 +40,16 @@ import java.util.function.Supplier;
  */
 public interface ModelGraphResolver {
     /**
+     * Checks whether a pending undecorated alias may supply a missing prefixed root at this boundary.
+     * An unrelated durable primary identity must retain precedence over the pending alias. Custom resolvers
+     * keep their existing overlay behavior by default; metadata-aware implementations can reject such collisions.
+     * Called only when a pending alias candidate exists, not on ordinary reads.
+     */
+    default boolean allowsAliasFallback(String requestedId, Class<?> modelType, ModelReadBoundary boundary) {
+        return true;
+    }
+
+    /**
      * Captures this repository's message-batch overlay once for a new navigation view. Another application's pending
      * writes must never enter this snapshot, even when its batch is active on the calling thread.
      */
@@ -104,11 +114,23 @@ public interface ModelGraphResolver {
 
     /**
      * Resolves a deliberately current root, optionally using an exact repository key without functional-ID affixes
-     * or alias fallback. Must ignore the active handler boundary and pin a fresh storage boundary without requiring
-     * value reconstruction. Returning {@code null} declares this optional capability unsupported.
+     * or alias fallback. Must ignore the active handler boundary and pin a fresh storage boundary. Event-sourced
+     * roots need no value reconstruction; a DOCUMENT-only root may capture its current value with the head before
+     * exposing the identity, since later replacement cannot be reconstructed. The returned identity and supplier
+     * must never advance independently. Returning {@code null} declares this optional capability unsupported.
      */
     default Identity resolveCurrentGraphIdentity(Object modelId, boolean exact, Class<?> modelType) {
         return exact ? null : resolveCurrentGraphIdentity(modelId, modelType);
+    }
+
+    /**
+     * Resolves a current root against the caller's captured batch overlay. Implementations that capture a durable
+     * document may omit that body read when the overlay wins. The default preserves custom resolver behavior.
+     */
+    default Identity resolveCurrentGraphIdentity(Object modelId, boolean exact, Class<?> modelType,
+                                                 ModelBatchScope.Snapshot snapshot) {
+        return exact ? resolveCurrentGraphIdentity(modelId, true, modelType)
+                : resolveCurrentGraphIdentity(modelId, modelType);
     }
 
     /** Optional untyped root discovery; an implementation supplies its resolved class through {@link HeadValue}. */

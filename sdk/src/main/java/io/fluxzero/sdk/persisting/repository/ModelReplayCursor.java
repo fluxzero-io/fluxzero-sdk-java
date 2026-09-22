@@ -98,7 +98,7 @@ final class ModelReplayCursor {
 
     private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
     private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
-    private static final int MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS = 8;
+    static final int MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS = 8;
     private static final int MAX_DOCUMENT_REBASE_ATTEMPTS = 8;
     private static final long DOCUMENT_MATERIALIZATION_TIMEOUT_NANOS =
             5_000_000_000L;
@@ -327,6 +327,12 @@ final class ModelReplayCursor {
             Consumer<ValidatedPage> pageConsumer,
             boolean headsOnly,
             boolean requireCompleteHistory) {
+        return load(lastSequenceNumbers, boundary, pageConsumer, headsOnly, requireCompleteHistory, null);
+    }
+
+    private LoadResult load(Map<String, Long> lastSequenceNumbers, ModelReadBoundary boundary,
+                            Consumer<ValidatedPage> pageConsumer, boolean headsOnly,
+                            boolean requireCompleteHistory, HeadProbe probe) {
         Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
@@ -349,7 +355,7 @@ final class ModelReplayCursor {
                 ? settings.maxStreamsPerRequest()
                 : Math.min(settings.maxStreamsPerRequest(), settings.maxMembershipsPerRequest());
         if (ids.size() <= maxStreamsPerChunk) {
-            return loadChunk(validatedCursors, boundary, pageConsumer, headsOnly, requireCompleteHistory);
+            return loadChunk(validatedCursors, boundary, pageConsumer, headsOnly, requireCompleteHistory, probe);
         }
         ModelReadBoundary pinned = boundary;
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
@@ -360,7 +366,7 @@ final class ModelReplayCursor {
             chunkIds.forEach(modelId -> chunkCursors.put(modelId, validatedCursors.get(modelId)));
             LoadResult chunk = loadChunk(
                     chunkCursors, pinned,
-                    pageConsumer, headsOnly, requireCompleteHistory);
+                    pageConsumer, headsOnly, requireCompleteHistory, probe);
             pinned = ModelReadBoundary.state(chunk.stateIndex(), false);
             heads.putAll(chunk.heads());
         }
@@ -396,7 +402,7 @@ final class ModelReplayCursor {
             ModelReadBoundary boundary,
             Consumer<ValidatedPage> pageConsumer,
             boolean headsOnly,
-            boolean requireCompleteHistory) {
+            boolean requireCompleteHistory, HeadProbe probe) {
         // This is already a private validated/chunk-local copy of the original caller's cursors.
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         ModelReadBoundary pinned = boundary;
@@ -406,7 +412,7 @@ final class ModelReplayCursor {
 
         while (pageRequest != null) {
             GetModelEventsResult response = prefetched == null
-                    ? requestBatcher.get(pageRequest.request())
+                    ? readPage(pageRequest, probe)
                     : await(prefetched);
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
@@ -442,6 +448,40 @@ final class ModelReplayCursor {
         }
         return new LoadResult(
                 Objects.requireNonNull(pinned.stateIndex()), heads);
+    }
+
+    /** Invocation-local metadata, never an alias cache: evidence is usable only at the returned boundary. */
+    static final class HeadProbe {
+        final String id;
+        private LoadResult result;
+
+        HeadProbe(String id) { this.id = id; }
+    }
+
+    private GetModelEventsResult readPage(PageRequest page, HeadProbe probe) {
+        GetModelEvents request = page.request();
+        if (probe == null || probe.id.isBlank() || probe.result != null || page.active().contains(probe.id)
+            || request.getRequests().size() >= settings.maxStreamsPerRequest()) {
+            return requestBatcher.get(request);
+        }
+        List<ModelEventStreamRequest> requests = new ArrayList<>(request.getRequests());
+        requests.add(new ModelEventStreamRequest(probe.id, -1L, 0));
+        GetModelEventsResult response = requestBatcher.get(
+                new GetModelEvents(requests, request.getBoundary(), request.getMaxBytes()));
+        validateBoundary(response, request.getBoundary().stateIndex());
+        if (response.getStreams().size() != requests.size()) {
+            throw invalid("Model event response has unexpected stream count for fallback head probe");
+        }
+        Map<String, ModelHeadState> heads = new LinkedHashMap<>();
+        // Validate the head separately: an unrelated Model may have incomplete history. It must not
+        // transfer memberships, deserialize payloads, or become a reconstruction/cache target.
+        validatePage(new GetModelEventsResult(response.getRequestId(), response.getStateIndex(),
+                                              response.isExactBoundary(), List.of(),
+                                              List.of(response.getStreams().getLast())),
+                     List.of(probe.id), new LinkedHashMap<>(Map.of(probe.id, -1L)), heads, 0, 0, false);
+        probe.result = new LoadResult(response.getStateIndex(), heads);
+        return new GetModelEventsResult(response.getRequestId(), response.getStateIndex(), response.isExactBoundary(),
+                                        response.getPayloads(), response.getStreams().subList(0, requests.size() - 1));
     }
 
     private PageRequest nextPageRequest(
@@ -790,11 +830,37 @@ final class ModelReplayCursor {
         return position.getMaterializedStateIndex();
     }
 
-    /** Validates cached event-sourced bases at storage without first performing a separate namespace-head read. */
+    /** Loads one authoritative document, deferring its namespace proof until a dependency is requested. */
+    CommitAttempt deferredDocumentContext(MutationPlan.Resolution resolution) {
+        MutationPlan.ResolvedModel target = resolution.models().getFirst();
+        DocumentVersion document = documentReader.load(target.modelId(), target.modelType(), false);
+        long initialBoundary = document.head() == null ? -1L : document.head().getStateIndex();
+        return CommitAttempt.create(initialBoundary, resolution, Map.of(target.modelId(), document.entity()))
+                .withDeferredBoundary(() -> {
+                    LoadResult current = loadHeads(List.of(target.modelId()), ModelReadBoundary.current());
+                    ModelHeadState head = current.heads().get(target.modelId());
+                    if (!Objects.equals(head, document.head())) {
+                        throw new CommitAttempt.ReadBoundaryConflict(target.modelId(), current.stateIndex());
+                    }
+                    return current.stateIndex();
+                });
+    }
+
+    /** Establishes a namespace boundary and validates current values before mutation evaluation begins. */
     CommitAttempt contextAtStorage(MutationPlan.Resolution resolution, Map<String, Object> stagedValues,
                                     Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker) {
-        return contextAtBoundary(resolution, ModelReadBoundary.current(), stagedValues, pendingAncestor,
-                                 cacheTracker, true, false, true);
+        for (int attempt = 0; attempt < MAX_DOCUMENT_REBASE_ATTEMPTS; attempt++) {
+            try {
+                return contextAtBoundary(resolution, ModelReadBoundary.current(), stagedValues, pendingAncestor,
+                                         cacheTracker, true, false, true);
+            } catch (DocumentPreparationMovedException failure) {
+                if (attempt + 1 == MAX_DOCUMENT_REBASE_ATTEMPTS) {
+                    throw new EventSourcingException("Current document mutation context remained unstable after "
+                            + MAX_DOCUMENT_REBASE_ATTEMPTS + " attempts", failure);
+                }
+            }
+        }
+        throw new IllegalStateException("Unreachable document context retry state");
     }
 
     private CommitAttempt contextAtBoundary(
@@ -813,6 +879,21 @@ final class ModelReplayCursor {
                                              Map<String, Object> stagedValues,
                                              Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker,
                                              boolean requireBoundary, boolean migration, boolean forceStorageBoundary) {
+        return contextAtBoundary(resolution, boundary, stagedValues, pendingAncestor, cacheTracker,
+                                 requireBoundary, migration, forceStorageBoundary, null);
+    }
+
+    CommitAttempt contextWithHeadProbe(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                       ModelCacheTracker cacheTracker, boolean requireBoundary, HeadProbe probe) {
+        return contextAtBoundary(resolution, boundary, Map.of(), null, cacheTracker,
+                                 requireBoundary, false, false, probe);
+    }
+
+    private CommitAttempt contextAtBoundary(MutationPlan.Resolution resolution, ModelReadBoundary boundary,
+                                             Map<String, Object> stagedValues,
+                                             Function<String, Entity<?>> pendingAncestor, ModelCacheTracker cacheTracker,
+                                             boolean requireBoundary, boolean migration, boolean forceStorageBoundary,
+                                             HeadProbe probe) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -872,6 +953,13 @@ final class ModelReplayCursor {
             }
         }
 
+        // A document's own revision is not the namespace snapshot: unrelated dependencies may be newer, and a
+        // missing target has no revision at all. Observe all heads together without turning current document loads
+        // into historical replay (DOCUMENT may still publish events that this application cannot deserialize).
+        LoadResult currentDocumentHeads = forceStorageBoundary && !historicalBoundary && ancestorStateIndex == null
+                && replayTargets.isEmpty() && !documentTargets.isEmpty()
+                ? loadHeads(documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(), boundary)
+                : null;
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
         long stateIndex;
         Map<String, ModelCache.Stamp> cachePublications = new LinkedHashMap<>();
@@ -884,7 +972,7 @@ final class ModelReplayCursor {
                         current.stateIndex(), resolution,
                         current.entities());
             }
-            stateIndex = ancestorStateIndex == null
+            stateIndex = currentDocumentHeads != null ? currentDocumentHeads.stateIndex() : ancestorStateIndex == null
                     ? historicalDocumentStateIndex >= 0L
                             ? historicalDocumentStateIndex
                             : requireBoundary && documentTargets.isEmpty()
@@ -897,7 +985,8 @@ final class ModelReplayCursor {
                     ? currentProjection(replayTargets, cacheTracker)
                     : null;
             if (current == null) {
-                ReconstructionBatch batch = session().reconstruct(replayTargets, boundary);
+                ReconstructionBatch batch = session().reconstruct(
+                        replayTargets, ReplayWindow.complete(boundary), !boundary.historical(), probe);
                 stateIndex = batch.stateIndex();
                 loaded.putAll(batch.entities());
                 cachePublications.putAll(batch.cachePublications());
@@ -940,7 +1029,7 @@ final class ModelReplayCursor {
                         historicalHead, document.head());
             }
             if (entity.isEmpty() && metadata.hasAliases()) {
-                LoadResult alias = loadHeads(
+                LoadResult alias = currentDocumentHeads != null ? currentDocumentHeads : loadHeads(
                         List.of(target.modelId()),
                         stateIndex < 0L ? boundary
                                 : ModelReadBoundary.at(stateIndex));
@@ -960,6 +1049,19 @@ final class ModelReplayCursor {
                     entity = document.entity();
                 }
             }
+            if (currentDocumentHeads != null
+                && !Objects.equals(currentDocumentHeads.heads().get(target.modelId()), document.head())) {
+                ModelHeadState expected = currentDocumentHeads.heads().get(target.modelId());
+                if (expected != null && (document.head() == null
+                        || document.head().getStateIndex() < expected.getStateIndex())) {
+                    // Materialization may lag the committed head. Retry all targets, not only this document.
+                    if (awaitMaterializedBoundary(expected.getStateIndex()) < expected.getStateIndex()) {
+                        throw new EventSourcingException("Document model '%s' did not materialize at state index %d"
+                                .formatted(target.modelId(), expected.getStateIndex()));
+                    }
+                }
+                throw new DocumentPreparationMovedException(target.modelId());
+            }
             loaded.put(target.modelId(), entity);
             documentHeads.put(target.modelId(), document.head());
             if (metadata.rootConfiguration().orElseThrow().cached()
@@ -976,7 +1078,7 @@ final class ModelReplayCursor {
                     modelCache.put(resolvedId, entity);
                 }
             }
-            if (requireBoundary && replayTargets.isEmpty()
+            if (currentDocumentHeads == null && requireBoundary && replayTargets.isEmpty()
                 && ancestorStateIndex == null
                 && document.head() != null) {
                 stateIndex = Math.max(stateIndex, document.head().getStateIndex());
@@ -1065,6 +1167,12 @@ final class ModelReplayCursor {
                 .withAliasResolutions(aliasReads == null ? Map.of() : aliasReads);
     }
 
+    private static final class DocumentPreparationMovedException extends EventSourcingException {
+        private DocumentPreparationMovedException(String modelId) {
+            super("Document model '%s' moved while preparing mutation context".formatted(modelId));
+        }
+    }
+
     private static final class IncompleteDocumentBoundaryException
             extends EventSourcingException {
         private final long stateIndex;
@@ -1148,12 +1256,42 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
                                                boolean historical, ModelCacheTracker cacheTracker, boolean exact) {
-        Entity<?> cached = cachedGraphValue(requestedId, type, boundary, historical, cacheTracker);
+        return graphIdentity(requestedId, type, boundary, historical, cacheTracker, exact, false);
+    }
+
+    /** An undecorated fallback may resolve an alias, but must not reconstruct an unrelated primary Model. */
+    ModelGraphResolver.Identity graphFallbackIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
+                                                       boolean historical, ModelCacheTracker cacheTracker) {
+        return graphIdentity(requestedId, type, boundary, historical, cacheTracker, false, true);
+    }
+
+    ModelGraphResolver.Identity graphFallbackIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
+                                                       boolean historical, ModelCacheTracker cacheTracker, HeadProbe probe) {
+        return graphIdentity(requestedId, type, boundary, historical, cacheTracker, false, true,
+                             probe == null || !probe.id.equals(requestedId) ? null : probe.result);
+    }
+
+    private ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
+                                                       boolean historical, ModelCacheTracker cacheTracker,
+                                                       boolean exact, boolean fallback) {
+        return graphIdentity(requestedId, type, boundary, historical, cacheTracker, exact, fallback, null);
+    }
+
+    private ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
+                                                       boolean historical, ModelCacheTracker cacheTracker,
+                                                       boolean exact, boolean fallback, LoadResult probed) {
+        Entity<?> cached = fallback ? null : cachedGraphValue(requestedId, type, boundary, historical, cacheTracker);
         if (cached != null) {
             return new ModelGraphResolver.Identity(requestedId, true, boundary, false, () -> cached);
         }
-        LoadResult loaded = loadHeads(List.of(requestedId), boundary);
+        LoadResult loaded = probed != null && Objects.equals(boundary.stateIndex(), probed.stateIndex())
+                ? probed : loadHeads(List.of(requestedId), boundary);
         ModelHeadState resolved = loaded.heads().get(requestedId);
+        if (fallback && resolved != null && requestedId.equals(resolved.getModelId())
+            && !type.isAssignableFrom(modelTypeResolver.knownModelType(
+                    resolved.getModelType(), requestedId).orElse(Object.class))) {
+            return null;
+        }
         ModelHeadState head = exact && resolved != null && !requestedId.equals(resolved.getModelId()) ? null : resolved;
         String id = head == null ? requestedId : head.getModelId();
         Class<?> storedType = head == null ? type : modelType(head.getModelType(), id);
@@ -1212,6 +1350,31 @@ final class ModelReplayCursor {
 
     ModelGraphResolver.Value graphValue(String id, Class<?> type, ModelReadBoundary boundary,
                                         ModelCacheTracker cacheTracker, boolean historical) {
+        return graphValue(id, type, boundary, cacheTracker, historical, null);
+    }
+
+    ModelGraphResolver.Value graphFallbackValue(ModelGraphResolver.Identity identity,
+                                                 ModelCacheTracker cacheTracker, boolean historical) {
+        var source = (ModelGraphResolver.HeadValue) identity.entity();
+        if (identity.boundary().before()
+            || !EntityMetadata.validate(source.type()).rootConfiguration().orElseThrow().eventSourced()) {
+            return new ModelGraphResolver.Value(source.get(), identity.boundary(), historical);
+        }
+        // Keep the pinned value-first path's existing cache-publication behavior. A cold alias read must
+        // not acquire background cache lifecycle work merely because identity was checked before replay.
+        ModelGraphResolver.Value value = graphValue(identity.modelId(), source.type(), identity.boundary(),
+                                                    cacheTracker, historical);
+        ModelHeadState head = source.head();
+        if (!(value.entity() instanceof ModelRoot<?> root) || !identity.modelId().equals(root.id().toString())
+            || root.sequenceNumber() != head.getSequenceNumber() || root.stateIndex() != head.getStateIndex()) {
+            throw new EventSourcingException("Resolved Graph revision is no longer available for '%s' at state %d"
+                    .formatted(identity.modelId(), head.getStateIndex()));
+        }
+        return value;
+    }
+
+    ModelGraphResolver.Value graphValue(String id, Class<?> type, ModelReadBoundary boundary,
+                                        ModelCacheTracker cacheTracker, boolean historical, HeadProbe probe) {
         Entity<?> cached = cachedGraphValue(id, type, boundary, historical, cacheTracker);
         if (cached != null) {
             return new ModelGraphResolver.Value(cached, boundary, false);
@@ -1235,9 +1398,9 @@ final class ModelReplayCursor {
         MutationPlan.Resolution resolution = new MutationPlan.Resolution(List.of(target), List.of());
         // Value-first Graph access must observe the same kind of fresh boundary as relationship-first
         // access. A validated cached suffix remains usable, but its old global cursor is not the view.
-        CommitAttempt loaded = boundary.historical()
-                ? context(resolution, boundary, Map.of(), null, cacheTracker, true)
-                : contextAtStorage(resolution, Map.of(), null, cacheTracker);
+        CommitAttempt loaded = contextAtBoundary(resolution,
+                boundary.historical() ? boundary : ModelReadBoundary.current(), Map.of(), null,
+                cacheTracker, true, false, !boundary.historical(), probe);
         Entity<?> entity = loaded.entity(loaded.targets().getFirst().modelId());
         if (boundary.before()) {
             entity = beforeBoundary(entity, loaded.readStateIndex());
@@ -1587,7 +1750,7 @@ final class ModelReplayCursor {
         return document.entity();
     }
 
-    private static final class GraphBoundaryMovedException extends EventSourcingException {
+    static final class GraphBoundaryMovedException extends EventSourcingException {
         private GraphBoundaryMovedException(String message) {
             super(message);
         }
@@ -1933,6 +2096,11 @@ final class ModelReplayCursor {
                 List<MutationPlan.ResolvedModel> targets,
                 ReplayWindow window,
                 boolean cacheAtBoundary) {
+            return reconstruct(targets, window, cacheAtBoundary, null);
+        }
+
+        private ReconstructionBatch reconstruct(List<MutationPlan.ResolvedModel> targets, ReplayWindow window,
+                                                 boolean cacheAtBoundary, HeadProbe probe) {
             if (targets.isEmpty()) {
                 long stateBoundary = ModelReplayCursor.this.load(
                         Map.of(), window.boundary(),
@@ -1978,7 +2146,7 @@ final class ModelReplayCursor {
             ModelReplayCursor.LoadResult loaded =
                     ModelReplayCursor.this.load(
                             cursors, window.boundary(),
-                            page -> applyPage(page, states, window));
+                            page -> applyPage(page, states, window), false, true, probe);
             LinkedHashMap<String, Entity<?>> cacheCandidates =
                     new LinkedHashMap<>(Math.min(16, targets.size()));
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>(targets.size());

@@ -37,12 +37,21 @@ Consumed Graph alias lookups also protect alias assignment/removal and canonical
 exact-ID reads remain independent of aliases.
 Model conflict handling defaults to `RETRY` for updates and creations, independently of `fluxzero.defaults.version`;
 choose `FAIL` or `ACCEPT` explicitly with `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`).
+ASYNC automatic Model handlers coordinate overlapping readsets within each tracking batch, including commits that start
+after the handler; independent scopes remain parallel once earlier readsets are known. External writers still require
+conflict validation and bounded retries. Model commands reevaluate after a provisional predecessor settles, including
+when that predecessor is rejected; each command retains its own result.
 Retry preserves create-only checks. A targeted `graph.assertAndApply(command)` limits writes, not the command's
 cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/conflicts.md).
 
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
+Fresh current Graph reads retry head/document races before pinning. `loadCurrentGraph` retains a DOCUMENT-only
+root during construction; existing Graphs and mutation boundaries never silently advance.
+Simple single-target DOCUMENT writes defer namespace verification until an additional transactional read needs it;
+complex preparation verifies eagerly. Neither route replaces document authority with event replay.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
 derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.
+Missing companions remain empty even with `@Alias`: alias fallback does not reinterpret their parent as the companion.
 For eventless current state, non-searchable documents and erasure, read the
 [Model state boundaries](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx):
 storage and query visibility are not authorization or secret-storage guarantees.

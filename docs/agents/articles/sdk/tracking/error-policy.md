@@ -39,6 +39,10 @@ because the built-in retry handler can: a deterministic business rejection norma
 
 ## Protect ordering and effects
 
+Nested message handling shares its enclosing batch boundary. If the caller catches a nested failure, batch callbacks
+and deferred writes remain pending until the enclosing scope completes. If the failure escapes that scope, completion
+receives the failure. This is a lifecycle boundary, not a transaction or a rollback of earlier effects.
+
 Retrying a complete handler can repeat every effect that happened before the failure. Make outbound requests,
 schedules, document writes, and message dispatch idempotent, or split the effect behind a durable post-commit intent.
 For an ordered consumer, continuing after a failed message means later messages can observe a missing transition;

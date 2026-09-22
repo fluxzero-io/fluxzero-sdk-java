@@ -34,6 +34,13 @@ change state without storing the corresponding event. With DOCUMENT, `NEVER` mus
 more specific apply/message configuration can override broader defaults. It suppresses the applied update's Model
 event; it is not a general-purpose “do not log this request” switch.
 
+DOCUMENT-only mutations retain document authority without replaying published history. Simple single-target writes
+with built-in RETRY defer the extra namespace head read until an additional transactional dependency is requested.
+That read verifies the original target revision before pinning; a mismatch restarts the whole evaluation within
+the normal retry budget. More complex contexts verify eagerly, retrying head/document preparation races at most
+eight times before user code runs. Once pinned, later Graph reads share the same boundary; an unavailable historical
+document value fails explicitly rather than moving the snapshot. Keep EVENT_SOURCED for historical reconstruction.
+
 ## Non-searchable is not private
 
 The internal current Model source and the optional public DOCUMENT projection are independent stored roles.

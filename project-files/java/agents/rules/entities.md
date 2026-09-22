@@ -398,6 +398,10 @@ When their read/write sets overlap, the later command waits for the predecessor'
 reevaluated against canonical state before committing. Predecessor failure fails the dependent chain. Unrelated model
 chains remain parallel.
 
+A command rejected during validation does not fail independent commands in that batch, including deferred commits.
+Each command retains its own commit/result outcome. A real outer batch abort still stops pending batch work;
+this cannot roll back a commit already accepted by storage.
+
 Do not treat this as one transaction across commands: each command retains its own atomic commit, result and conflict
 policy. Different consumers or routing segments have no implied ordering; configure a shared consumer and routing key
 when that order is a domain requirement.
@@ -573,6 +577,15 @@ manual Graph discovered during apply keeps the attempt's boundary; it does not f
 cache-only command. Relationships remain lazy. Pending state belongs to the owning repository family and namespace,
 never another application's cache or batch. See the invariant example at `/docs/sdk/entities/assert-legal`.
 
+DOCUMENT-only mutations read authoritative documents without replaying published history. A simple single-target
+write using built-in RETRY needs no extra namespace head read unless it requests an additional transactional
+dependency. The first such read verifies the original document revision and pins one shared namespace boundary.
+If that revision changed, the whole evaluation restarts eagerly, consuming the normal retry budget; assertions
+and applies must therefore be repeatable. Once pinned, the boundary never moves.
+Complex targets, known Graph dependencies, aliases, parent bindings, batches and custom conflict handling retain
+eager preparation: one batched head read, with head/document preparation races retried at most eight times before
+user code runs. An unavailable pinned document version fails explicitly; use EVENT_SOURCED for historical reads.
+
 Open `graph.current()` for the same Model without replacing the original Graph. Outside mutations it pins a new
 current boundary during the call and captures pending batch changes; inside a mutation it shares that attempt's
 boundary, staged values and read dependencies. It retains exact identity and owning repository/namespace, including
@@ -630,10 +643,15 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
-Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root
-is cached; an older root observation cannot prove unchanged relationships. Within a mutation it instead reuses the
-attempt boundary and joins its readset. Values remain lazy and use their authoritative persistence source, including
-current document authority for DOCUMENT-only Models.
+Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary even when the root is cached;
+an older root observation cannot prove unchanged relationships. Event-sourced root values remain lazy.
+For a DOCUMENT-only root, the factory resolves its head and document coherently before returning and retains
+that value: subsequent replacement or deletion cannot change the returned root. Relationships and descendants
+remain lazy; this does not create historical document versions.
+Within a mutation it instead reuses the attempt boundary and joins its readset.
+An unpinned current value read retries the complete lookup a bounded number of times if its head and document
+change during resolution. Historical, already pinned and mutation-shared reads never silently advance.
+Persistent instability fails with an explicit platform error.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 
@@ -736,6 +754,17 @@ a concurrent creation. Explicit ACCEPT still fails a first-creation conflict ins
 ACCEPT validates apply dependencies and writes, excluding
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
+
+With ASYNC consumer handling, automatic Model commits that start after the handler also coordinate overlapping
+readsets within the tracking batch. Evaluation stays parallel; a ready commit first waits for earlier evaluations to
+discover their readsets, then waits only for overlapping predecessors in the same namespace and reevaluates before
+committing. Disjoint scopes can commit concurrently. A Model command that read pending state waits for its producer
+to finish, then reevaluates even if that producer failed. Its own assertions determine its result; it does not inherit
+another command's rejection. A validation failure against pending state is provisional too: partial changes are never
+staged, and evaluation resumes after the discovered predecessors settle. This dependency coordination does not consume
+or increase the configured conflict retry budget. External writers and newly discovered readsets still require atomic
+conflict validation. Ordinary handlers that return results based on pending state retain their producer-success barrier;
+they cannot publish a successful result from state that was rejected.
 
 Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.

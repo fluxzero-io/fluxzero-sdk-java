@@ -75,6 +75,7 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.CommitAttempt;
+import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.MutationPlan;
@@ -740,6 +741,47 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     @Override
+    public <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
+        return loadWithFallback(modelId, modelType, false);
+    }
+
+    @Override
+    public <T> Entity<T> loadCurrent(@NonNull Object modelId, @NonNull Class<T> modelType) {
+        return loadWithFallback(modelId, modelType, true);
+    }
+
+    private <T> Entity<T> loadWithFallback(Object modelId, Class<T> modelType, boolean current) {
+        EntityMetadata metadata = EntityMetadata.of(modelType);
+        String requested = modelId.toString();
+        String primary = metadata.entityId().isEmpty() ? requested : metadata.repositoryId(modelId);
+        if (primary.equals(requested) || !metadata.hasAliases()) {
+            return current ? loadCurrent(primary, modelType) : load(primary, modelType);
+        }
+        PinnedBoundary handler = current ? null : handlerBoundary();
+        ModelReadBoundary boundary = boundary(handler);
+        var probe = new ModelReplayCursor.HeadProbe(requested);
+        CommitAttempt context = loadDurableContext(primary, modelType, boundary, handler, probe);
+        Entity<T> result = ModelBatchScope.overlayCurrent(messageBatchNamespace(), primary, modelType,
+                cast(context.entity(context.targets().getFirst().modelId())), modelDefinitionCompiler);
+        if (result.isPresent()) {
+            return result;
+        }
+        ModelGraphResolver.Identity fallback = replayCursor.graphFallbackIdentity(
+                requested, modelType, boundary.resolved(context.readStateIndex()), boundary.historical(), modelCacheTracker, probe);
+        if (fallback == null) {
+            return result;
+        }
+        pin(handler, fallback.boundary().stateIndex());
+        // Ordinary current Model reads retain document authority. A pinned Graph boundary would instead
+        // turn this into historical replay and reject document-only state without a Model head.
+        Entity<T> durable = metadata.rootConfiguration().orElseThrow().eventSourced()
+                ? cast(fallback.entity().get()) : loadDurable(requested, modelType, boundary, handler);
+        Entity<T> alias = ModelBatchScope.overlayCurrent(messageBatchNamespace(), requested, modelType,
+                durable, modelDefinitionCompiler);
+        return alias.isPresent() ? alias : result;
+    }
+
+    @Override
     public <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType) {
         return ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), modelId, modelType,
@@ -778,6 +820,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     modelId, resolvedType,
                     boundary, handlerBoundary));
         }
+        CommitAttempt context = loadDurableContext(modelId, modelType, boundary, handlerBoundary);
+        return cast(context.entity(context.targets().getFirst().modelId()));
+    }
+
+    private CommitAttempt loadDurableContext(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                             PinnedBoundary handlerBoundary) {
+        return loadDurableContext(modelId, modelType, boundary, handlerBoundary, null);
+    }
+
+    private CommitAttempt loadDurableContext(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                             PinnedBoundary handlerBoundary, ModelReplayCursor.HeadProbe probe) {
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         metadata.rootConfiguration()
@@ -787,12 +840,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 modelId, modelType, MutationPlan.Access.READ_ONLY,
                 List.of(metadata.entityId().orElseThrow().name()));
-        CommitAttempt context = replayCursor.context(
+        CommitAttempt context = replayCursor.contextWithHeadProbe(
                 new MutationPlan.Resolution(List.of(target), List.of()),
-                boundary, Map.of(), null,
-                modelCacheTracker, handlerBoundary != null);
+                boundary, modelCacheTracker, handlerBoundary != null, probe);
         pin(handlerBoundary, context.readStateIndex());
-        return cast(context.entity(context.targets().getFirst().modelId()));
+        return context;
     }
 
     @Override
@@ -847,6 +899,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
                 handlerBoundary, true);
+    }
+
+    @Override
+    public boolean allowsAliasFallback(String requestedId, Class<?> modelType, ModelReadBoundary boundary) {
+        return replayCursor.graphFallbackIdentity(requestedId, modelType, boundary, boundary.historical(),
+                                                  modelCacheTracker) != null;
     }
 
     @Override
@@ -906,14 +964,42 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, boolean exact, Class<?> modelType) {
+        return graphIdentity(modelId, exact, modelType, ModelReadBoundary.current().forRequest());
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveCurrentGraphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelBatchScope.Snapshot snapshot) {
         // A cached root may be valid only through an older tracker cursor. Relationships can have changed since
         // that cursor without changing the root. Pin an explicitly current Graph at storage, not at the cache.
-        if (exact) {
-            modelName(modelType);
-            return replayCursor.graphIdentity(modelId.toString(), modelType, ModelReadBoundary.current().forRequest(),
-                                               false, modelCacheTracker, true);
+        for (int attempt = 1; ; attempt++) {
+            try {
+                ModelGraphResolver.Identity identity = exact ? resolveCurrentGraphIdentity(modelId, true, modelType)
+                        : resolveCurrentGraphIdentity(modelId, modelType);
+                if (identity != null && identity.entity() instanceof ModelGraphResolver.HeadValue source
+                    && source.type() != Object.class
+                    && !EntityMetadata.validate(source.type()).rootConfiguration().orElseThrow().eventSourced()
+                    && (snapshot.values().isEmpty()
+                        || Graphs.currentRootOverlay(modelId, exact, modelType, this, snapshot, identity) == null)) {
+                    // DOCUMENT-only roots cannot reconstruct this revision after replacement. Resolve the
+                    // head and value together before exposing the pinned identity, never retry its supplier.
+                    Entity<?> value = source.get();
+                    return new ModelGraphResolver.Identity(identity.modelId(), identity.present(), identity.boundary(),
+                            identity.historical(), new ModelGraphResolver.HeadValue() {
+                        @Override public Class<?> type() { return source.type(); }
+                        @Override public ModelHeadState head() { return source.head(); }
+                        @Override public Entity<?> get() { return value; }
+                    });
+                }
+                return identity;
+            } catch (ModelReplayCursor.GraphBoundaryMovedException failure) {
+                if (attempt >= ModelReplayCursor.MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
+                    throw new EventSourcingException(
+                            "Could not establish a coherent current Graph for '%s' after %d attempts"
+                                    .formatted(modelId, attempt), failure);
+                }
+            }
         }
-        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest());
     }
 
     @Override
@@ -939,9 +1025,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
                                                                         historical, modelCacheTracker, exact);
         if (!exact && !result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
-            ModelGraphResolver.Identity alias = replayCursor.graphIdentity(
+            ModelGraphResolver.Identity alias = replayCursor.graphFallbackIdentity(
                     modelId.toString(), modelType, result.boundary(), historical, modelCacheTracker);
-            if (alias.present()) {
+            if (alias != null && alias.present()) {
                 result = alias;
             }
         }
@@ -956,16 +1042,36 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public ModelGraphResolver.Value loadGraphValue(
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
+        boolean retryCurrent = !historical && !boundary.historical() && !boundary.before()
+                               && CommitAttempt.currentReadContext(this) == null;
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return loadGraphValueOnce(modelId, exact, modelType, boundary, historical);
+            } catch (ModelReplayCursor.GraphBoundaryMovedException failure) {
+                if (!retryCurrent) { throw failure; }
+                if (attempt >= ModelReplayCursor.MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
+                    throw new EventSourcingException(
+                            "Could not establish a coherent current Graph for '%s' after %d attempts"
+                                    .formatted(modelId, attempt), failure);
+                }
+            }
+        }
+    }
+
+    private ModelGraphResolver.Value loadGraphValueOnce(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         String primary = exact ? modelId.toString() : metadata.repositoryId(modelId);
+        var probe = !exact && !primary.equals(modelId.toString()) && metadata.hasAliases()
+                ? new ModelReplayCursor.HeadProbe(modelId.toString()) : null;
         ModelGraphResolver.Value result = replayCursor.graphValue(primary, modelType, boundary, modelCacheTracker,
-                                                                  historical);
+                                                                  historical, probe);
         if (!exact && result.entity().isEmpty() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
-            ModelGraphResolver.Value alias = replayCursor.graphValue(
-                    modelId.toString(), modelType, result.boundary(), modelCacheTracker, historical);
-            if (alias.entity().isPresent()) {
-                result = alias;
+            ModelGraphResolver.Identity alias = replayCursor.graphFallbackIdentity(
+                    modelId.toString(), modelType, result.boundary(), historical, modelCacheTracker, probe);
+            if (alias != null && alias.present()) {
+                result = replayCursor.graphFallbackValue(alias, modelCacheTracker, historical);
             }
         }
         return result;
@@ -1137,6 +1243,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (mutation == null) {
             result = replayCursor.graph(rootId, rootType, options, boundary, messageBatchNamespace(), staged);
         } else {
+            mutation.ensureReadBoundary();
             Map<String, Entity<?>> overlay = new LinkedHashMap<>(staged);
             overlay.putAll(mutation.graphEntities());
             result = mutation.trackGraph(replayCursor.graphAtBoundary(
@@ -1294,16 +1401,28 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * Loads one transaction's initial context at a freshly observed storage boundary. A cached root's validation
      * cursor is not evidence of current Graph membership. Values still reuse exact matching cached revisions;
      * incomplete document history follows the existing bounded boundary-advance protocol before evaluation begins.
+     * Direct DOCUMENT-only contexts retain document authority, verifying all heads at one namespace boundary and
+     * retrying the complete preparation before user code runs instead of replaying published history.
      */
     public CommitAttempt loadCurrentContext(MutationPlan.Resolution resolution, Map<String, Object> stagedValues,
                                             boolean includeMessageBatch) {
-        if (!resolution.hasAncestorDependencies() && resolution.models().stream().allMatch(target ->
-                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced())) {
+        if (!resolution.hasAncestorDependencies() && (resolution.models().stream().allMatch(target ->
+                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced())
+                || resolution.models().stream().noneMatch(target ->
+                EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()))) {
             return loadContext(resolution, ModelReadBoundary.current(), stagedValues, includeMessageBatch,
                                false, false, true);
         }
         long current = replayCursor.loadHeads(List.of(), ModelReadBoundary.current()).stateIndex();
         return loadRebaseContext(resolution, current, stagedValues, includeMessageBatch, false);
+    }
+
+    /** Internal fast preparation for a direct DOCUMENT target; pending mutations retain eager preparation. */
+    public CommitAttempt loadDeferredDocumentContext(MutationPlan.Resolution resolution) {
+        if (!ModelBatchScope.currentValues(messageBatchNamespace(), modelDefinitionCompiler).isEmpty()) {
+            return loadCurrentContext(resolution, Map.of(), true);
+        }
+        return replayCursor.deferredDocumentContext(resolution);
     }
 
     private String messageBatchNamespace() {

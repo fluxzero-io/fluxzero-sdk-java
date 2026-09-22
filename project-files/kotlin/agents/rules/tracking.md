@@ -79,6 +79,10 @@ reconfiguration nor a rewind for previously consumed messages.
 
 Wraps around the processing of a **full message batch** by a consumer.
 
+Nested message handling shares its enclosing batch boundary. If the caller catches a nested failure, batch callbacks
+and deferred writes remain pending until the enclosing scope completes. If the failure escapes that scope, completion
+receives the failure. This is a lifecycle boundary, not a transaction or a rollback of earlier effects.
+
 - **Typical Use Cases**: Performance monitoring, bulk resource allocation, or structured logging for a whole batch.
 - **Registration**: `FluxzeroBuilder.addBatchInterceptor(interceptor)`.
 

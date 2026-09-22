@@ -735,8 +735,9 @@ public interface Graph<T> {
 
     /**
      * Opens a new, deliberately current view of this Model using its exact repository identity and owning repository.
-     * The new namespace boundary is pinned during this call, ignoring an active event-handler boundary; values and
-     * relationships remain lazy. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current
+     * The new namespace boundary is pinned during this call, ignoring an active event-handler boundary.
+     * Event-sourced values and relationships remain lazy; a DOCUMENT-only root is coherently read and retained
+     * during this call. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current
      * message-batch overlay. It is not a continuously updating view and does not modify this graph or commit its edits.
      * <p>The result is rooted at this Model, even when this node was reached through a parent. Reparenting is reflected
      * in its new navigation; a deleted Model has an empty value. View-only path selections, filters, mapped values and

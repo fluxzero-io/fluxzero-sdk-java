@@ -80,6 +80,10 @@ For `ProjectId("example")`, the Project repository ID is `project-example`; the 
 `status-project-example`. Both retain the same typed `projectId` property. Pass the **parent ID and companion class**
 for a direct companion load. Passing only the typed ID selects Project.
 
+A missing companion returns an empty Model/Graph even when its type declares `@Alias`.
+The undecorated alias fallback never reinterprets an unrelated primary Model (such as the parent) as the companion.
+Real aliases and compatible canonical IDs still resolve; an explicit wrong-type lookup or wrong-type alias still fails.
+
 The `status` path is still a child collection, not a special singleton JSON shape. The deterministic companion
 identity enforces at most one per Project; it does not require one to exist. Removing the companion leaves its parent
 intact; removing the parent cascades to the companion. Set a non-owning deletion policy only when that is the intended

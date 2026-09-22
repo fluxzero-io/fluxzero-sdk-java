@@ -1152,9 +1152,11 @@ public interface Fluxzero extends AutoCloseable {
      * notification handler's historical read boundary.
      * Within a Model mutation this shares the active attempt's boundary, staged state and inspected readset instead
      * of opening a newer snapshot. Outside mutations the default repository pins a fresh storage boundary with a
-     * head-only read during this call, even when the
-     * root is cached: its relationships may have changed after the cache's observation boundary. Authoritative
-     * values remain lazy and may reuse an exact matching cached revision. This is not the document-only
+     * head read during this call, even when the root is cached: its relationships may have changed after the cache's
+     * observation boundary. Event-sourced values remain lazy and may reuse an exact matching cached revision.
+     * A DOCUMENT-only root is read coherently with its head during this call and retained, since later replacement
+     * cannot be replayed. Concurrent changes during this fresh resolution cause bounded retries of the complete
+     * lookup; an already returned Graph never advances. Descendants remain lazy. This is not the document-only
      * {@link #loadCurrentModelState(String, Class)} read contract.
      * <p>
      * Use this when deliberately inspecting current intent, such as after a synchronous nested command or when

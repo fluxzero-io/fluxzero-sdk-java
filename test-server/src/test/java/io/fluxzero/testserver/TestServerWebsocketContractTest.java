@@ -130,6 +130,42 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void absentAliasedCompanionDoesNotReplayItsParentOverWebsocket() {
+        var client = client("companion-alias");
+        var id = new AliasParentId("one");
+        io.fluxzero.sdk.test.TestFixture.createAsync(io.fluxzero.sdk.configuration.DefaultFluxzero.builder(), client)
+                .givenCommands(new CreateAliasParent(id))
+                .whenExecuting(fc -> {
+                    assertNull(io.fluxzero.sdk.Fluxzero.loadModel(id, AliasCompanion.class).get());
+                    assertNull(fc.modelRepository().loadCurrent((Object) id, AliasCompanion.class).get());
+                    assertNull(io.fluxzero.sdk.Fluxzero.loadGraph(id, AliasCompanion.class).get());
+                    assertNull(io.fluxzero.sdk.Fluxzero.loadCurrentGraph(id, AliasCompanion.class).get());
+                }).expectSuccessfulResult().expectNoErrors()
+                .andThen().whenCommand(new CreateAliasCompanion(id, "alias-code"))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(fc -> assertEquals(new AliasCompanion(id, "alias-code"),
+                        io.fluxzero.sdk.Fluxzero.loadGraph("alias-code", AliasCompanion.class).get()));
+    }
+
+    static final class AliasParentId extends io.fluxzero.sdk.modeling.Id<AliasParent> {
+        AliasParentId(String value) { super(value, "alias-parent-"); }
+    }
+    @io.fluxzero.sdk.modeling.Model
+    record AliasParent(@io.fluxzero.sdk.modeling.EntityId AliasParentId parentId) {}
+    @io.fluxzero.sdk.modeling.Model
+    record AliasCompanion(@io.fluxzero.sdk.modeling.EntityId(prefix = "companion-")
+                          @io.fluxzero.sdk.modeling.Parent(pathInParent = "companion") AliasParentId parentId,
+                          @io.fluxzero.sdk.modeling.Alias String code) {}
+    record CreateAliasParent(AliasParentId parentId) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply AliasParent create() { return new AliasParent(parentId); }
+    }
+    record CreateAliasCompanion(AliasParentId parentId, String code) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply AliasCompanion create() {
+            return new AliasCompanion(parentId, code);
+        }
+    }
+
+    @Test
     void supportedCompressionAlgorithmsRoundTripOverFullServer() throws Exception {
         for (CompressionAlgorithm algorithm : CompressionAlgorithm.values()) {
             WebSocketClient client = client("compression-" + algorithm, List.of(algorithm));
