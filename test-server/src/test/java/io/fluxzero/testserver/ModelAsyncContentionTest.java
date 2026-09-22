@@ -55,7 +55,7 @@ class ModelAsyncContentionTest {
 
     @BeforeAll
     static void start() {
-        server = TestServer.startServer(0, ignored -> {});
+        server = TestServer.startServer(new java.net.InetSocketAddress("127.0.0.1", 0));
         port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
@@ -69,7 +69,7 @@ class ModelAsyncContentionTest {
     @CsvSource({"SYNC,8,128", "ASYNC,8,128", "ASYNC,64,512", "ASYNC,256,2048"})
     void overlappingReservationsPreserveCapacityAndResults(ConsumerHandlingMode mode, int callers, int requests) {
         var client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
-                .name("contention-test").runtimeBaseUrl("ws://localhost:" + port).namespace("contention-" + UUID.randomUUID()).build());
+                .name("contention-test").runtimeBaseUrl("ws://127.0.0.1:" + port).namespace("contention-" + UUID.randomUUID()).build());
         TestFixture.createAsync(DefaultFluxzero.builder().replaceIdentityProvider(ignored -> new UuidFactory())
                         .configureDefaultConsumer(COMMAND, c -> c.toBuilder().handlingMode(mode).build()), client, SetStock.class, Reserve.class)
                 .resultTimeout(Duration.ofSeconds(30))

@@ -42,7 +42,7 @@ class CurrentDocumentGraphRaceTest {
 
     @BeforeAll
     static void start() {
-        server = TestServer.startServer(0, ignored -> {});
+        server = TestServer.startServer(new java.net.InetSocketAddress("127.0.0.1", 0));
         port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
@@ -70,7 +70,7 @@ class CurrentDocumentGraphRaceTest {
 
     private static WebSocketClient.ClientConfig config(String namespace, String name) {
         return WebSocketClient.ClientConfig.builder().name(name).namespace(namespace)
-                .runtimeBaseUrl("ws://localhost:" + port).build();
+                .runtimeBaseUrl("ws://127.0.0.1:" + port).build();
     }
 
     private static void write(Fluxzero app, Integer version) {

@@ -23,7 +23,7 @@ class DocumentGraphContractTest extends DocumentGraphContract {
 
     @BeforeAll
     static void start() {
-        server = TestServer.startServer(0, ignored -> {});
+        server = TestServer.startServer(new java.net.InetSocketAddress("127.0.0.1", 0));
         port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
@@ -37,7 +37,7 @@ class DocumentGraphContractTest extends DocumentGraphContract {
 
     private static Client client(String namespace) {
         return new WebSocketClient(WebSocketClient.ClientConfig.builder().name("document-contract")
-                .namespace(namespace).runtimeBaseUrl("ws://localhost:" + port).disableMetrics(true).build(), null) {
+                .namespace(namespace).runtimeBaseUrl("ws://127.0.0.1:" + port).disableMetrics(true).build(), null) {
             @Override
             protected Client createForNamespace(String requested) {
                 // The shared suite's manually dispatched messages use this test's default namespace.
