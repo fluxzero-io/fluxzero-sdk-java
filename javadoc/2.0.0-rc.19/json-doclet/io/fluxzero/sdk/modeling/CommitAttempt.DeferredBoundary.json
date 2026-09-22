@@ -1,0 +1,73 @@
+{
+  "name" : "DeferredBoundary",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$DeferredBoundary",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "failure",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$DeferredBoundary.failure",
+    "type" : "java.lang.RuntimeException",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$DeferredBoundary.stateIndex",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "verification",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$DeferredBoundary.verification",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeferredBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$DeferredBoundary#DeferredBoundary",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "verification",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "verify",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$DeferredBoundary#verify",
+    "returnType" : "void",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

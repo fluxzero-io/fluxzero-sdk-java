@@ -1,0 +1,60 @@
+{
+  "name" : "GetDocumentStats",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStats",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Request to compute statistics on documents that match a given {@link SearchQuery}.\n <p>\n This operation supports flexible aggregations on arbitrary document fields, including numeric ranges, value\n frequencies, and groupings. It can be used, for example, to calculate total counts, averages, or distributions\n grouped by specified field(s).\n <p>\n <strong>Performance note:</strong> This request is typically resolved <em>in-memory</em> by the Fluxzero Runtime.\n As a result, it may be expensive to execute for large result sets or unindexed fields.\n <p>\n If you only need count statistics for fields explicitly marked with {@link io.fluxzero.common.search.Facet},\n consider using {@link GetFacetStats} instead. That variant leverages the backing document store and is significantly\n more efficient.\n <p>\n Example use cases:\n <ul>\n     <li>Calculate how many documents exist per status code or country.</li>\n     <li>Group average document sizes by collection name.</li>\n     <li>Compute time-based activity levels based on a {@code createdAt} timestamp.</li>\n </ul>\n\n @see GetFacetStats\n @see SearchQuery\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "fields",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStats.fields",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " List of fields to include in the statistics output (e.g., {@code status}, {@code region}, {@code amount}).\n",
+    "constantValue" : null
+  }, {
+    "name" : "groupBy",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStats.groupBy",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional list of field names to group results by (e.g., {@code type}, {@code customerId}).\n",
+    "constantValue" : null
+  }, {
+    "name" : "query",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStats.query",
+    "type" : "io.fluxzero.common.api.search.SearchQuery",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Query that filters which documents are included in the statistics.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetDocumentStats",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentStats#GetDocumentStats",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

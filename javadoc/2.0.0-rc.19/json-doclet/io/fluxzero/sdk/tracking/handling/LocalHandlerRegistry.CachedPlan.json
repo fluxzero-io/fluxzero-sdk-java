@@ -1,0 +1,124 @@
+{
+  "name" : "CachedPlan",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan.key",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "plan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan.plan",
+    "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CachedPlan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan#CachedPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan#key",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "plan",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan#plan",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry$CachedPlan#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "key",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "plan",
+    "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry.PreparedLocalPlan",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,145 @@
+{
+  "name" : "Commit",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "One fully assigned commit. Event indices are read when its accepted result is requested. ",
+  "typeParameters" : [ "H" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "assignedTargets",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit.assignedTargets",
+    "type" : "java.util.List<java.util.List<io.fluxzero.common.api.modeling.ModelCommitTargetResult>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "firstStateIndex",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit.firstStateIndex",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "materialization",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit.materialization",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit.result",
+    "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "singleHead",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit.singleHead",
+    "type" : "H",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit.source",
+    "type" : "io.fluxzero.common.api.modeling.CommitModels",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Commit",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#Commit",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "singleHead",
+      "type" : "H",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assignedTargets",
+      "type" : "java.util.List<java.util.List<io.fluxzero.common.api.modeling.ModelCommitTargetResult>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "first",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "materialization",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "createResult",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#createResult",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "firstStateIndex",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#firstStateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasMaterialization",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#hasMaterialization",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#result",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

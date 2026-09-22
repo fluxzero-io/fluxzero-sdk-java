@@ -1,0 +1,55 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndexResult$Metric",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Metric representation of a {@code ReadFromIndexResult}, used for internal monitoring and analytics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndexResult$Metric.bytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The total number of bytes in the message payloads.\n",
+    "constantValue" : null
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndexResult$Metric.size",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The number of messages included in the result.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndexResult$Metric.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The timestamp at which the result was generated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadFromIndexResult$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

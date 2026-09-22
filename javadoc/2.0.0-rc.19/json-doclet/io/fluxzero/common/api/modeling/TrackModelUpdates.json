@@ -1,0 +1,118 @@
+{
+  "name" : "TrackModelUpdates",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Long-polls committed independent-model updates after a client-controlled state cursor.\n <p>\n The runtime may retain the request for {@link #maxWaitMillis} while no newer commit substep is visible. Empty\n responses are heartbeats and leave the supplied cursor unchanged.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "lastStateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates.lastStateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Last completely processed model state index, or {@code -1} for the beginning.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates.maxBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum estimated metadata bytes returned by one response. The oldest single update is always returned to\n guarantee cursor progress. Zero disables the byte limit.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxSize",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates.maxSize",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum number of commit-substep updates returned in one response.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxWaitMillis",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates.maxWaitMillis",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum time for which the runtime may retain an empty long-poll request.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TrackModelUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates#TrackModelUpdates",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lastStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWaitMillis",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a bounded model-update long poll.\n"
+  }, {
+    "name" : "TrackModelUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates#TrackModelUpdates",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"lastStateIndex\",\"maxSize\",\"maxWaitMillis\",\"maxBytes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lastStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWaitMillis",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a bounded model-update long poll with an explicit response metadata-byte limit.\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

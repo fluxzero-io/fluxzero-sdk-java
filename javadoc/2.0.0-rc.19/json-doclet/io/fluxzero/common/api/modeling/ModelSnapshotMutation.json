@@ -1,0 +1,153 @@
+{
+  "name" : "ModelSnapshotMutation",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Optional serialized snapshot consequence of one model target transition.\n <p>\n The SDK sends this only when the locally predicted target sequence is due\n for a snapshot. The runtime verifies that prediction against the assigned\n target sequence and adds the authoritative sequence and state index.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "COLLECTION",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.COLLECTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$modelSnapshots"
+  }, {
+    "name" : "MODEL_ID_FACET",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.MODEL_ID_FACET",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "modelId"
+  }, {
+    "name" : "SEQUENCE_NUMBER",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.SEQUENCE_NUMBER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "sequenceNumber"
+  }, {
+    "name" : "STATE_INDEX",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.STATE_INDEX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "stateIndex"
+  }, {
+    "name" : "maxSnapshotCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.maxSnapshotCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Configured maximum number of snapshots retained for this model.\n",
+    "constantValue" : null
+  }, {
+    "name" : "snapshotPeriod",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.snapshotPeriod",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Configured number of stored events between snapshots.\n <p>\n The runtime uses this to verify that the assigned target sequence is\n actually a snapshot boundary.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Timestamp of the applied model revision in epoch milliseconds.\n",
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.value",
+    "type" : "io.fluxzero.common.api.Data<byte[]>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Serialized model value produced by the configured snapshot serializer.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelSnapshotMutation",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation#ModelSnapshotMutation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation#getBytes",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the serialized value size without protocol framing.\n"
+  }, {
+    "name" : "snapshotKey",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation#snapshotKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stable immutable snapshot document key.\n"
+  }, {
+    "name" : "toDocument",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation#toDocument",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the immutable search document after the runtime assigned its\n durable positions.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,162 @@
+{
+  "name" : "ExecutableParameters",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters.executable",
+    "type" : "java.lang.reflect.Executable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters.parameters",
+    "type" : "java.util.Map<java.lang.reflect.Parameter,io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ExecutableParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#ExecutableParameters",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameters",
+      "type" : "java.util.Map<java.lang.reflect.Parameter,io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#executable",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasModels",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#hasModels",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inspect",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#inspect",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#parameters",
+    "returnType" : "java.util.Map<java.lang.reflect.Parameter,io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ExecutableParameters#values",
+    "returnType" : "java.util.Collection<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "executable",
+    "type" : "java.lang.reflect.Executable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "type" : "java.util.Map<java.lang.reflect.Parameter,io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

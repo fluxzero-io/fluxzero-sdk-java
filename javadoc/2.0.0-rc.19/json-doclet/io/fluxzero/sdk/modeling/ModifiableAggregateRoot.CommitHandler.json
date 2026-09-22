@@ -1,0 +1,47 @@
+{
+  "name" : "CommitHandler",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot$CommitHandler",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot$CommitHandler#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "unpublished",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "beforeUpdate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Commits the aggregate state and any unpublished events.\n\n @param model        aggregate state after the change\n @param unpublished  events that must be committed\n @param beforeUpdate aggregate state before the change\n @return future that completes when all commit work has finished\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

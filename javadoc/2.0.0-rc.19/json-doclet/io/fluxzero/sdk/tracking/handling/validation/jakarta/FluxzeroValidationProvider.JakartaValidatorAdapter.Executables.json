@@ -1,0 +1,154 @@
+{
+  "name" : "Executables",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta",
+  "kind" : "class",
+  "modifiers" : [ "final", "private" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "jakarta.validation.executable.ExecutableValidator" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Executables",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables#Executables",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "validateConstructorParameters",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables#validateConstructorParameters",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "constructor",
+      "type" : "java.lang.reflect.Constructor<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterValues",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "validateConstructorReturnValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables#validateConstructorReturnValue",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "constructor",
+      "type" : "java.lang.reflect.Constructor<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "createdObject",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "validateParameters",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables#validateParameters",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterValues",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "validateReturnValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables#validateReturnValue",
+    "returnType" : "java.util.Set<jakarta.validation.ConstraintViolation<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "returnValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groups",
+      "type" : "java.lang.Class<?>[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "{@inheritDoc} "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

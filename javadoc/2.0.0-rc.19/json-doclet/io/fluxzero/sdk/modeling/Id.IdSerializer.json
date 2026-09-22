@@ -1,0 +1,141 @@
+{
+  "name" : "IdSerializer",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Writes concrete ID properties as scalars and polymorphic properties with a recoverable type discriminator. ",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.JsonSerializer<io.fluxzero.sdk.modeling.Id<?>>",
+  "interfaces" : [ "com.fasterxml.jackson.databind.ser.ContextualSerializer" ],
+  "fields" : [ {
+    "name" : "binding",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer.binding",
+    "type" : "io.fluxzero.sdk.modeling.IdTypeContext",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer.delegate",
+    "type" : "com.fasterxml.jackson.databind.JsonSerializer<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "IdSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer#IdSerializer",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "com.fasterxml.jackson.databind.JsonSerializer<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "binding",
+      "type" : "io.fluxzero.sdk.modeling.IdTypeContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "createContextual",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer#createContextual",
+    "returnType" : "com.fasterxml.jackson.databind.JsonSerializer<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "com.fasterxml.jackson.databind.BeanProperty",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "com.fasterxml.jackson.databind.JsonMappingException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer#serialize",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.modeling.Id<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializeWithType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Id$IdSerializer#serializeWithType",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.modeling.Id<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeSerializer",
+      "type" : "com.fasterxml.jackson.databind.jsontype.TypeSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

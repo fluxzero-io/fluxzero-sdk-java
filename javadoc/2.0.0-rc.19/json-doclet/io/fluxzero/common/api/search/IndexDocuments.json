@@ -1,0 +1,167 @@
+{
+  "name" : "IndexDocuments",
+  "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command used to index a collection of {@link SerializedDocument} instances in the search store.\n <p>\n This command is typically sent to the Fluxzero Runtime, requesting that the specified documents be stored and made\n searchable.\n <p>\n Documents can belong to different collections and contain arbitrary facets, indexes, and metadata, allowing them to\n be used for filtering, searching, and analytics.\n\n <p><strong>Conditional indexing:</strong> If {@code ifNotExists} is {@code true}, the Runtime will only index a\n document if no document with the same ID and collection already exists.\n\n <p><strong>Delivery guarantees:</strong> The {@link Guarantee} determines the durability of the indexing operation\n (e.g. {@code STORED} waits for acknowledgment).\n\n @see io.fluxzero.common.Guarantee\n @see SerializedDocument\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "documents",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments.documents",
+    "type" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ifNotExists",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments.ifNotExists",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "IndexDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#IndexDocuments",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBytes",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#getBytes",
+    "returnType" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getCollections",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#getCollections",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getIds",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#getIds",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSize",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#getSize",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#toMetric",
+    "returnType" : "io.fluxzero.common.api.search.IndexDocuments.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}
