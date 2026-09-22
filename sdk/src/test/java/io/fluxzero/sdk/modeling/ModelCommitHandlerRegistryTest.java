@@ -98,6 +98,53 @@ class ModelCommitHandlerRegistryTest {
             new LinkedBlockingQueue<>();
 
     @Test
+    void rejectedCommandMustNotFailAnEarlierInFlightCommit() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        AtomicReference<CommitModels> submitted = new AtomicReference<>();
+        CompletableFuture<CommitModelsResult> response = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            submitted.set(invocation.getArgument(0));
+            return response;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        DeserializingMessage accepted = message(new TimingCreateCommand("accepted"), 42);
+        DeserializingMessage rejected = message(new RejectTimingCommand("rejected"), 42);
+        try {
+            try {
+                DeserializingMessage.forEachInBatch(List.of(accepted, rejected), current -> {
+                    subject.handle(current).orElseThrow().join();
+                    if (current == accepted) {
+                        assertFalse(Invocation.resultPublicationBarrier(accepted).isDone());
+                    } else {
+                        // The transport accepts the already submitted first commit after the second validation fails.
+                        response.complete(acceptedResult(submitted.get()));
+                    }
+                });
+            } catch (CompletionException batchFailure) {
+                // The batch may report the rejected command; each request still owns its result.
+                assertSame(REJECTION, batchFailure.getCause());
+            }
+            verify(eventStoreClient, times(1)).commitModels(any());
+            assertSame(REJECTION, assertThrows(CompletionException.class,
+                    () -> Invocation.resultPublicationBarrier(rejected).join()).getCause());
+            Invocation.resultPublicationBarrier(accepted).join();
+        } finally {
+            response.complete(acceptedResult(submitted.get()));
+            subject.close();
+        }
+    }
+
+    private static final RuntimeException REJECTION =
+            new io.fluxzero.sdk.tracking.handling.IllegalCommandException("Limit reached");
+
+    private record RejectTimingCommand(String id) {
+        @AssertLegal void validate() { throw REJECTION; }
+        @Apply TimingModel apply() { return new TimingModel(id); }
+    }
+
+    @Test
     void indexedModelsContributeStructuralGraphMetadataWithoutBecomingHandlers() {
         ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
