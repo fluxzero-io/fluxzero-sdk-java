@@ -458,6 +458,9 @@ Graph relation and cascade ownership. Being displayed below or deleted with the 
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
 - For one polymorphic typed relation, use `@Parent(types = {Project.class, Folder.class}, ...) Id<?> parentId`; the
   concrete typed ID selects one statically declared parent type. Use separate properties for distinct relation roles.
+  The standard serializer preserves the ID as `{"name":"project","id":"owner-a"}` (using the actual logical Model name).
+  Each allowed Model declares its concrete ID class as `@EntityId`; `types` is also the read allowlist.
+  No additional `@JsonTypeInfo` is needed. Unknown, ambiguous or conflicting names fail rather than guessing.
 - `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set

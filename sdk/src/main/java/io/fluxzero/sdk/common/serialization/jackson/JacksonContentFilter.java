@@ -287,6 +287,17 @@ public class JacksonContentFilter implements ContentFilter {
         private final JsonSerializer<Object> defaultSerializer;
 
         @Override
+        public JsonSerializer<?> getDelegatee() {
+            return defaultSerializer;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public JsonSerializer<Object> replaceDelegatee(JsonSerializer<?> delegatee) {
+            return new FilteringSerializer((JsonSerializer<Object>) delegatee);
+        }
+
+        @Override
         @SneakyThrows
         public void serialize(Object input, JsonGenerator jsonGenerator, SerializerProvider provider) {
             serializeAndThen(input, jsonGenerator, value -> defaultSerializer.serialize(

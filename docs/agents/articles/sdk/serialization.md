@@ -1,5 +1,15 @@
 Use serialization guidance before changing a payload, document, aggregate state, or stateful handler type that may already be stored. Historical messages are immutable; compatibility is handled during deserialization.
 
+Polymorphic ID properties (`Id<?>` / Kotlin `Id<*>`, or abstract ID classes) retain a discriminator automatically:
+Model IDs use `{"name":"project","id":"owner-a"}` with their logical Model name; non-Model IDs use
+`{"@class":"example.ExternalId","id":"owner-a"}`. Concrete ID properties and standalone IDs remain scalar.
+Each named Model must declare its concrete ID class as `@EntityId`. `@Parent(types=...)` restricts which Models may
+be decoded; outside parents a Model type argument or the generated Model index provides the mapping.
+Explicit Jackson type contracts/custom serializers keep precedence. Unknown or ambiguous discriminators fail closed.
+Upgrade readers before writers; upcast ambiguous old polymorphic scalars and renamed non-Model `@class` values at
+their enclosing payload revision. See [Java Graph relations](models/graphs-java.md) and
+[Kotlin Graph relations](models/graphs-kotlin.md).
+
 Default path:
 
 - Add fields in a backward-compatible way when possible.

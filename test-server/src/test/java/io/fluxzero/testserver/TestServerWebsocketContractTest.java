@@ -161,6 +161,60 @@ class TestServerWebsocketContractTest {
         }
     }
 
+    @Test
+    void polymorphicParentLifecycleSurvivesWebsocketSerialization() {
+        var fixture = io.fluxzero.sdk.test.TestFixture.createAsync(
+                io.fluxzero.sdk.configuration.DefaultFluxzero.builder()
+                        .configureGraphProjectionCompletion(io.fluxzero.sdk.modeling.GraphProjectionCompletion.AWAIT),
+                client("polymorphic-parents"));
+        try {
+            var parent = new WireParentId("one");
+            fixture.givenCommands(new CreateWireParent(parent), new CreateWireChild("wire-child", parent))
+                    .whenExecuting(fc -> {
+                        assertEquals(new WireChild("wire-child", parent),
+                                     fc.modelRepository().load("wire-child", WireChild.class).get());
+                        assertEquals(List.of(new WireChild("wire-child", parent)),
+                                     io.fluxzero.sdk.Fluxzero.loadCurrentGraph(parent)
+                                             .childModels("children", WireChild.class));
+                    }).expectSuccessfulResult().expectNoErrors()
+                    .andThen().whenCommand(new DeleteWireParent(parent)).expectSuccessfulResult().expectNoErrors()
+                    .andThen().whenExecuting(fc -> {
+                        assertTrue(fc.modelRepository().load("wire-child", WireChild.class).isEmpty());
+                        var plan = fc.modelRepository().planDeletion(parent,
+                                io.fluxzero.common.api.modeling.ModelDeletionCascade.DESCENDANTS);
+                        assertEquals(Set.of(parent.toString(), "wire-child"), Set.copyOf(plan.getSampleModelIds()));
+                        assertEquals(2, fc.modelRepository().deleteModel(plan).join().getDeletedModelCount());
+                    }).expectSuccessfulResult().expectNoErrors();
+        } finally {
+            fixture.getFluxzero().close();
+        }
+    }
+
+    @io.fluxzero.sdk.modeling.Model(name = "wire-parent", cached = false)
+    record WireParent(@io.fluxzero.sdk.modeling.EntityId WireParentId id) { }
+
+    @io.fluxzero.sdk.modeling.Model(name = "wire-child", cached = false)
+    record WireChild(@io.fluxzero.sdk.modeling.EntityId String childId,
+                     @io.fluxzero.sdk.modeling.Parent(types = WireParent.class, pathInParent = "children")
+                     io.fluxzero.sdk.modeling.Id<?> parentId) { }
+
+    static final class WireParentId extends io.fluxzero.sdk.modeling.Id<WireParent> {
+        WireParentId(String value) { super(value, "wire-parent-"); }
+    }
+
+    record CreateWireParent(WireParentId id) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply WireParent create() { return new WireParent(id); }
+    }
+
+    record CreateWireChild(String childId,
+                           @io.fluxzero.sdk.modeling.Parent(types = WireParent.class) io.fluxzero.sdk.modeling.Id<?> parentId) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply WireChild create() { return new WireChild(childId, parentId); }
+    }
+
+    record DeleteWireParent(WireParentId id) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply WireParent delete(WireParent parent) { return null; }
+    }
+
     @io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired
     static class StreamedResponseHandler {
         static final byte[] BODY = "{\"value\":\"streamed\"}".getBytes(UTF_8);
