@@ -1177,6 +1177,7 @@ public final class ModelReducer {
         CommitAttempt originalContext = initialMessage == null ? null
                 : initialMessage.getContext(CommitAttempt.class).orElse(null);
         CommitAttempt commitBeginContext = null;
+        Collection<String> resolvedReadIds = null;
         ResolvedSubstep prepared = null;
 
         try {
@@ -1213,6 +1214,7 @@ public final class ModelReducer {
             Map<String, Object> stagedValues = new LinkedHashMap<>();
             if (parent != null) { parent.graphEntities().forEach((id, entity) -> stagedValues.put(id, entity.get())); }
             LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+            resolvedReadIds = readModelIds;
             LinkedHashSet<String> applyReadModelIds = new LinkedHashSet<>();
             Map<String, Class<?>> readModelTypes =
                     new LinkedHashMap<>();
@@ -1337,6 +1339,10 @@ public final class ModelReducer {
                     readStateIndex, readModelIds, applyReadModelIds, readModelTypes,
                     steps);
             return attempt;
+        } catch (Throwable failure) {
+            attempt.retainFailedPreparationReads(resolvedReadIds != null ? resolvedReadIds
+                    : commitBeginContext == null ? List.of() : commitBeginContext.modelIds());
+            throw failure;
         } finally {
             CommitAttempt restore =
                     originalContext == null ? commitBeginContext : originalContext;

@@ -66,6 +66,18 @@ public final class CommitAttempt {
     private long graphReadGeneration;
     private DeferredBoundary deferredBoundary;
     private int preparationRetries;
+    private Collection<String> failedPreparationReads;
+
+    /** Retains only ordering evidence when evaluation rejects provisional state before producing an outcome. */
+    void retainFailedPreparationReads(Collection<String> resolvedReads) {
+        Set<String> reads = new LinkedHashSet<>(resolvedReads);
+        if (graphReadTypes != null) { reads.addAll(graphReadTypes.keySet()); }
+        failedPreparationReads = List.copyOf(reads);
+    }
+
+    Collection<String> orderingModelIds() {
+        return failedPreparationReads == null ? readModelIds : failedPreparationReads;
+    }
 
     /** Internal single-document loading provenance; copies share the same one-time verification. */
     public CommitAttempt withDeferredBoundary(LongSupplier verification) {
@@ -138,6 +150,7 @@ public final class CommitAttempt {
 
     void resetGraphReads() {
         deferredBoundary = null;
+        failedPreparationReads = null;
         graphReadGeneration++;
         graphReadTypes = null;
         graphReadEntities = null;

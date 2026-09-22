@@ -49,6 +49,70 @@ import static org.junit.jupiter.api.Assertions.*;
 class ProvisionalModelFailureTest {
     @AfterEach void cleanup() { TestFixture.shutDownActiveFixtures(); }
 
+    @org.junit.jupiter.api.Test
+    void provisionalRejectionKeepsItsOrderingPositionForAFollowingMutation() {
+        var client = new PausingClient();
+        var producerEvaluated = new CountDownLatch(1);
+        var followerEvaluated = new CountDownLatch(1);
+        var thirdEvaluated = new CountDownLatch(1);
+        var producer = new Add("stock", 4);
+        var follower = new Add("stock", 1);
+        var third = new Remove("stock", 2);
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().handlingMode(ConsumerHandlingMode.ASYNC).build())
+                        .addDispatchInterceptor(new DispatchInterceptor() {
+                            @Override public Message interceptDispatch(Message m, MessageType t, String topic) { return m; }
+                            @Override public SerializedMessage modifySerializedMessage(SerializedMessage s, Message m,
+                                                                                       MessageType t, String topic) {
+                                s.setSegment(0);
+                                return s;
+                            }
+                        }, COMMAND)
+                        .addHandlerInterceptor((next, invoker) -> message -> {
+                            if (message.getPayload().equals(follower)) await(producerEvaluated);
+                            if (message.getPayload().equals(third)) await(followerEvaluated);
+                            Object result = next.apply(message);
+                            if (message.getPayload().equals(producer)) producerEvaluated.countDown();
+                            if (message.getPayload().equals(follower)) followerEvaluated.countDown();
+                            if (message.getPayload().equals(third)) thirdEvaluated.countDown();
+                            return result;
+                        }, COMMAND), client, SetStock.class, Add.class, Remove.class)
+                .givenCommands(new SetStock("stock", 2))
+                .whenExecuting(f -> {
+                    var competitor = DefaultFluxzero.builder().disableAutomaticTracking().build(client);
+                    try {
+                        client.armed.set(true);
+                        var results = Fluxzero.sendCommands(producer, follower, third);
+                        try {
+                            await(thirdEvaluated);
+                            competitor.apply(fc -> {
+                                Fluxzero.assertAndApply(new Add("stock", 3));
+                                return null;
+                            });
+                            client.pauseFollower.set(true);
+                            client.release.complete(null);
+                            assertThrows(java.util.concurrent.ExecutionException.class,
+                                    () -> results.getFirst().get(10, TimeUnit.SECONDS));
+                            await(client.followerPrepared);
+                            assertFalse(results.get(1).isDone(), "The recovered second command is paused before commit");
+                            assertThrows(java.util.concurrent.TimeoutException.class,
+                                    () -> results.get(2).get(2, TimeUnit.SECONDS),
+                                    "The third command must await the recovered second command's durability");
+                        } finally {
+                            client.release.complete(null);
+                            client.releaseFollower.complete(null);
+                        }
+                        results.get(1).get(10, TimeUnit.SECONDS);
+                        results.get(2).get(10, TimeUnit.SECONDS);
+                        assertEquals(4, Fluxzero.loadModel("stock", Stock.class).get().used());
+                    } finally {
+                        client.release.complete(null);
+                        client.releaseFollower.complete(null);
+                        competitor.close();
+                    }
+                }).expectSuccessfulResult();
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void failedProducerDoesNotRejectAnIndependentMutation(boolean initiallyRejected) {

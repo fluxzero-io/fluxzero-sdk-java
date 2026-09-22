@@ -310,7 +310,7 @@ final class ModelPipeline {
                 warnEmptyExplicitApply(request, attempt);
                 ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
             }
-            entry.initialize(attempt.readModelIds());
+            entry.initialize(attempt.orderingModelIds());
             entry.submit(dependent -> {
                 CompletableFuture<CommitAttempt> ready = dependent
                         ? entry.afterDependencies(
