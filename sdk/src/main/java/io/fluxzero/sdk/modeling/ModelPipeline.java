@@ -1379,7 +1379,7 @@ final class ModelPipeline {
 
                 @Override
                 public Registration prepareAsyncInvocation() {
-                    return preparedEntry = ModelBatchScope.register(
+                    return preparedEntry = ModelBatchScope.registerAsync(
                             ModelPipeline.this, message, commitPolicy, batchLifecycle);
                 }
 

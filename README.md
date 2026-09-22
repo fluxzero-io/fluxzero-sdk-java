@@ -37,6 +37,9 @@ Consumed Graph alias lookups also protect alias assignment/removal and canonical
 exact-ID reads remain independent of aliases.
 Model conflict handling defaults to `RETRY` for updates and creations, independently of `fluxzero.defaults.version`;
 choose `FAIL` or `ACCEPT` explicitly with `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`).
+ASYNC automatic Model handlers coordinate overlapping readsets within each tracking batch, including commits that start
+after the handler; independent scopes remain parallel once earlier readsets are known. External writers still require
+conflict validation and bounded retries.
 Retry preserves create-only checks. A targeted `graph.assertAndApply(command)` limits writes, not the command's
 cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/conflicts.md).
 

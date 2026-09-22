@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -143,6 +144,18 @@ public final class ModelBatchScope {
     static CommitCoordination register(
             Object key, DeserializingMessage message,
             ModelCommitPolicy policy, BatchLifecycle lifecycle) {
+        return register(key, message, policy, lifecycle, false);
+    }
+
+    static CommitCoordination registerAsync(
+            Object key, DeserializingMessage message,
+            ModelCommitPolicy policy, BatchLifecycle lifecycle) {
+        return register(key, message, policy, lifecycle, true);
+    }
+
+    private static CommitCoordination register(
+            Object key, DeserializingMessage message,
+            ModelCommitPolicy policy, BatchLifecycle lifecycle, boolean asynchronous) {
         if (policy == null || DeserializingMessage.getCurrent() == null
             || !policy.commitAfterBatch() && !policy.awaitAfterBatch()) {
             return CommitCoordination.direct();
@@ -157,7 +170,7 @@ public final class ModelBatchScope {
             DeserializingMessage.whenBatchCompletes(created::close);
             return created;
         });
-        return batch.register(policy);
+        return batch.register(policy, namespace(message), asynchronous);
     }
 
     static String namespace(DeserializingMessage message) {
@@ -628,13 +641,15 @@ public final class ModelBatchScope {
         final ModelCommitPolicy policy;
         private final Runnable flushBatch;
         private final Batch batch;
+        private CompletableFuture<Void> ordered = COMPLETED;
+        private String namespace;
         // Set by the owning pipeline before publishing staged values; independent of the ambient application.
         Object repositoryOwner;
         private volatile boolean claimed;
         private volatile boolean cancelled;
         private volatile boolean progressRequested;
-        /** Values record whether a progress walker has taken responsibility for the producer. */
-        private volatile ConcurrentHashMap<CommitCoordination, Boolean> dependencies;
+        private volatile ConcurrentHashMap<CommitCoordination, Dependency> dependencies;
+        private volatile AtomicInteger dependencyVersion;
         volatile Set<String> modelIds;
         volatile ModelCommitBatchingClient.ModelCommitBatch transport;
         volatile int slot = -1;
@@ -687,18 +702,38 @@ public final class ModelBatchScope {
         void initialize(Collection<String> ids) {
             modelIds = batched() ? Set.copyOf(ids) : null;
             initialized.complete(null);
+            if (batch != null) {
+                batch.orderInitialized();
+            }
         }
 
         void dependsOn(CommitCoordination producer) {
-            ConcurrentHashMap<CommitCoordination, Boolean> current = dependencies;
+            dependencies().compute(producer, (key, previous) -> {
+                if (previous == null || previous.orderOnly) {
+                    dependencyVersion.incrementAndGet();
+                }
+                return previous != null && previous.claimed ? Dependency.CLAIMED : Dependency.PENDING;
+            });
+        }
+
+        private void ordersAfter(CommitCoordination producer) {
+            dependencies().computeIfAbsent(producer, ignored -> {
+                dependencyVersion.incrementAndGet();
+                return Dependency.ORDER_PENDING;
+            });
+        }
+
+        private ConcurrentHashMap<CommitCoordination, Dependency> dependencies() {
+            ConcurrentHashMap<CommitCoordination, Dependency> current = dependencies;
             if (current == null) {
                 synchronized (this) {
                     if ((current = dependencies) == null) {
+                        dependencyVersion = new AtomicInteger();
                         dependencies = current = new ConcurrentHashMap<>();
                     }
                 }
             }
-            current.putIfAbsent(producer, false);
+            return current;
         }
 
         boolean hasDependencies() {
@@ -730,24 +765,33 @@ public final class ModelBatchScope {
                 }
             }
             return CompletableFuture.allOf(awaited.stream()
-                    .map(CommitCoordination::attempt).map(CommitAttempt::completion)
+                    .map(producer -> dependencies.get(producer).orderOnly
+                            ? producer.attempt.completion().handle((value, failure) -> null)
+                            : producer.attempt.completion())
                     .toArray(CompletableFuture[]::new));
         }
 
         private List<CommitCoordination> newDependenciesForProgress() {
-            ConcurrentHashMap<CommitCoordination, Boolean> current = dependencies;
+            ConcurrentHashMap<CommitCoordination, Dependency> current = dependencies;
             return current == null ? null : claimDependenciesForProgress(current.keySet());
         }
 
         private List<CommitCoordination> claimDependenciesForProgress(Iterable<CommitCoordination> candidates) {
             List<CommitCoordination> pending = null;
             for (CommitCoordination producer : candidates) {
-                if (Boolean.FALSE.equals(dependencies.get(producer))
-                    && dependencies.replace(producer, false, true)) {
-                    if (pending == null) {
-                        pending = new ArrayList<>();
+                while (true) {
+                    Dependency dependency = dependencies.get(producer);
+                    if (dependency == null || dependency.claimed) {
+                        break;
                     }
-                    pending.add(producer);
+                    if (dependencies.replace(producer, dependency,
+                                             dependency.orderOnly ? Dependency.ORDER_CLAIMED : Dependency.CLAIMED)) {
+                        if (pending == null) {
+                            pending = new ArrayList<>();
+                        }
+                        pending.add(producer);
+                        break;
+                    }
                 }
             }
             return pending;
@@ -808,18 +852,30 @@ public final class ModelBatchScope {
         }
 
         @Override
-        public synchronized void cancel() {
-            if (!claimed) {
+        public void cancel() {
+            synchronized (this) {
+                if (claimed) {
+                    return;
+                }
                 claimed = true;
                 cancelled = true;
-                initialized.complete(null);
-                release.complete(null);
-                settleTransport();
-                attempt.completion().complete(null);
+            }
+            initialized.complete(null);
+            release.complete(null);
+            settleTransport();
+            attempt.completion().complete(null);
+            ordered.complete(null);
+            if (batch != null) {
+                batch.orderInitialized();
             }
         }
 
         private CompletableFuture<Object> execute(Function<Boolean, CompletableFuture<Object>> action) {
+            return ordered == COMPLETED ? executeOrdered(action)
+                    : ordered.thenCompose(ignored -> executeOrdered(action));
+        }
+
+        private CompletableFuture<Object> executeOrdered(Function<Boolean, CompletableFuture<Object>> action) {
             if (hasDependencies()) {
                 if (batched() && !policy.commitAfterBatch() && transport != null) {
                     flushTransport();
@@ -832,19 +888,33 @@ public final class ModelBatchScope {
                     detachTransport();
                 }
                 return dependenciesComplete().thenCompose(unused ->
-                        Objects.requireNonNull(action.apply(dependent), "Model commit attempt returned null"));
+                        unlessAborted(() -> Objects.requireNonNull(
+                                action.apply(dependent), "Model commit attempt returned null")));
             }).whenComplete((value, failure) -> settleTransport());
         }
 
         <T> CompletableFuture<T> afterDependencies(Supplier<T> action, boolean asynchronous) {
-            int count = dependencyCount();
+            int version = dependencyVersion();
             CompletableFuture<T> result = asynchronous
                     ? dependenciesComplete().thenCompose(ignored ->
-                            CompletableFuture.supplyAsync(action, ModelPipeline.ASYNC_EXECUTOR))
-                    : dependenciesComplete().thenApply(ignored -> action.get());
-            return result.thenCompose(value -> dependencyCount() == count
+                            CompletableFuture.supplyAsync(() -> unlessAborted(action), ModelPipeline.ASYNC_EXECUTOR))
+                    : dependenciesComplete().thenApply(ignored -> unlessAborted(action));
+            return result.thenCompose(value -> dependencyVersion() == version
                     ? CompletableFuture.completedFuture(value)
                     : afterDependencies(action, asynchronous));
+        }
+
+        private int dependencyVersion() {
+            AtomicInteger current = dependencyVersion;
+            return current == null ? 0 : current.get();
+        }
+
+        private <T> T unlessAborted(Supplier<T> action) {
+            Throwable failure = batch == null ? null : batch.abortFailure;
+            if (failure != null) {
+                throw new java.util.concurrent.CompletionException(failure);
+            }
+            return action.get();
         }
 
         void fail(Throwable failure) {
@@ -854,6 +924,10 @@ public final class ModelBatchScope {
                 settleTransport();
             } finally {
                 attempt.fail(failure);
+                ordered.completeExceptionally(failure);
+                if (batch != null) {
+                    batch.orderInitialized();
+                }
             }
         }
 
@@ -883,20 +957,36 @@ public final class ModelBatchScope {
                 transport.skip(slot);
             }
         }
+
+        private enum Dependency {
+            PENDING(false, false), CLAIMED(false, true), ORDER_PENDING(true, false), ORDER_CLAIMED(true, true);
+
+            final boolean orderOnly;
+            final boolean claimed;
+
+            Dependency(boolean orderOnly, boolean claimed) {
+                this.orderOnly = orderOnly;
+                this.claimed = claimed;
+            }
+        }
     }
 
     private static final class Batch {
         private final BatchLifecycle lifecycle;
         private final List<CommitCoordination> entries = new ArrayList<>();
+        private Map<ReadKey, CommitCoordination> initializedTails;
+        private int nextInitialized;
+        private volatile boolean orderingEnabled;
         private ModelCommitBatchingClient.ModelCommitBatch readyTransport;
         private boolean transportSettled;
         private boolean closed;
+        private volatile Throwable abortFailure;
 
         private Batch(BatchLifecycle lifecycle) {
             this.lifecycle = lifecycle;
         }
 
-        private synchronized CommitCoordination register(ModelCommitPolicy policy) {
+        private synchronized CommitCoordination register(ModelCommitPolicy policy, String namespace, boolean asynchronous) {
             if (closed) {
                 return CommitCoordination.batched(
                         policy, true, () -> settleTransport(null), this);
@@ -904,7 +994,15 @@ public final class ModelBatchScope {
             CommitCoordination entry = CommitCoordination.batched(
                     policy, !policy.commitAfterBatch(),
                     () -> settleTransport(null), this);
+            entry.namespace = normalize(namespace);
             if (!policy.commitAfterBatch()) {
+                if (asynchronous) {
+                    if (!orderingEnabled) {
+                        initializedTails = new HashMap<>();
+                    }
+                    orderingEnabled = true;
+                    entry.ordered = new CompletableFuture<>();
+                }
                 if (readyTransport == null) {
                     readyTransport = lifecycle.readyBatch().get();
                 }
@@ -913,6 +1011,37 @@ public final class ModelBatchScope {
             entries.add(entry);
             return entry;
         }
+
+        private void orderInitialized() {
+            if (!orderingEnabled) {
+                return;
+            }
+            List<CommitCoordination> ready = new ArrayList<>();
+            synchronized (this) {
+                // Workers discover readsets concurrently. Publish their dependencies in message order before any
+                // ready commit can start; observing pending values alone misses not-yet-staged predecessors.
+                while (nextInitialized < entries.size()) {
+                    CommitCoordination entry = entries.get(nextInitialized);
+                    if (!entry.initialized.isDone()) {
+                        break;
+                    }
+                    nextInitialized++;
+                    if (!entry.cancelled && !entry.initialized.isCompletedExceptionally() && entry.modelIds != null) {
+                        entry.modelIds.forEach(id -> {
+                            CommitCoordination predecessor = initializedTails.put(new ReadKey(entry.namespace, id), entry);
+                            if (predecessor != null && entry.ordered != CommitCoordination.COMPLETED) {
+                                entry.ordersAfter(predecessor);
+                            }
+                        });
+                    }
+                    ready.add(entry);
+                }
+            }
+            // Completing a gate may immediately run application code. Never do so under the batch monitor.
+            ready.forEach(entry -> entry.ordered.complete(null));
+        }
+
+        private record ReadKey(String namespace, String modelId) {}
 
         private synchronized boolean prepareProgress(CommitCoordination entry, Map<Batch, Ordering> plans) {
             entry.progressRequested = true;
@@ -1020,6 +1149,8 @@ public final class ModelBatchScope {
             List<CommitCoordination> snapshot;
             synchronized (this) {
                 closed = true;
+                // Publish the owning abort before a producer failure can wake order-only followers.
+                abortFailure = failure;
                 snapshot = List.copyOf(entries);
             }
             if (failure != null) {
@@ -1078,14 +1209,17 @@ public final class ModelBatchScope {
             Map<String, CommitCoordination> tails = new HashMap<>();
             CommitCoordination previous = null;
             for (CommitCoordination entry : all) {
-                if (sequential && previous != null) {
+                // Async ready entries already have namespace-aware order-only edges. Retrospective deferred
+                // ordering must not turn those into dependencies on speculative values they never consumed.
+                boolean addDependencies = entry.ordered == CommitCoordination.COMPLETED;
+                if (addDependencies && sequential && previous != null) {
                     entry.dependsOn(previous);
                 }
                 previous = entry;
                 if (entry.modelIds != null) {
                     entry.modelIds.forEach(modelId -> {
                         CommitCoordination predecessor = tails.put(modelId, entry);
-                        if (predecessor != null) {
+                        if (addDependencies && predecessor != null) {
                             entry.dependsOn(predecessor);
                         }
                     });

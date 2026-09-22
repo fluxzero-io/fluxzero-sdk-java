@@ -755,6 +755,14 @@ ACCEPT validates apply dependencies and writes, excluding
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
+With ASYNC consumer handling, automatic Model commits that start after the handler also coordinate overlapping
+readsets within the tracking batch. Evaluation stays parallel; a ready commit first waits for earlier evaluations to
+discover their readsets, then waits only for overlapping predecessors in the same namespace and reevaluates before
+committing. Disjoint scopes can commit concurrently. An ordering-only predecessor failure permits fresh evaluation;
+actually consumed pending values retain their producer-failure dependency. This is local batch coordination, not a
+global lock: other consumers/processes and newly discovered dependencies still use authoritative conflict validation
+and the configured retry bound.
+
 Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
 Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8

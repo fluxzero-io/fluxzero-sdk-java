@@ -298,6 +298,14 @@ A command rejected during validation does not fail independent commands in that 
 Each command retains its own commit/result outcome. A real outer batch abort still stops pending batch work;
 this cannot roll back a commit already accepted by storage.
 
+With ASYNC consumer handling, automatic Model commits that start after the handler also coordinate overlapping
+readsets within the tracking batch. Evaluation stays parallel; a ready commit first waits for earlier evaluations to
+discover their readsets, then waits only for overlapping predecessors in the same namespace and reevaluates before
+committing. Disjoint scopes can commit concurrently. An ordering-only predecessor failure permits fresh evaluation;
+actually consumed pending values retain their producer-failure dependency. This is local batch coordination, not a
+global lock: other consumers/processes and newly discovered dependencies still use authoritative conflict validation
+and the configured retry bound.
+
 An ordinary handler that explicitly reads pending state also delays its result until the producing commit completes.
 This prevents a success response from escaping for state that is subsequently rejected.
 

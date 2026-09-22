@@ -168,6 +168,174 @@ class ModelBatchScopeTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Timeout(10)
+    void readyCommitsOrderOverlappingScopesDiscoveredOutOfOrder() {
+        List<ModelBatchScope.CommitCoordination> entries = new ArrayList<>();
+        List<String> started = new ArrayList<>();
+        CompletableFuture<Object> firstDurable = new CompletableFuture<>();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        DeserializingMessage.forEachInBatch(List.of(message("first"), message("second"), message("independent")),
+                current -> {
+                    entries.add(ModelBatchScope.registerAsync(
+                            this, current, ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle));
+                    if (entries.size() != 3) {
+                        return;
+                    }
+                    // Async workers may finish discovering their readsets in the reverse of message order.
+                    var second = entries.get(1);
+                    second.initialize(List.of("shared"));
+                    second.submit(dependent -> {
+                        assertTrue(dependent, "the stale evaluation must be repeated after its predecessor");
+                        started.add("second");
+                        return CompletableFuture.completedFuture(null);
+                    });
+                    var independent = entries.get(2);
+                    independent.initialize(List.of("other"));
+                    independent.submit(dependent -> {
+                        assertFalse(dependent);
+                        started.add("independent");
+                        return CompletableFuture.completedFuture(null);
+                    });
+                    var first = entries.getFirst();
+                    first.initialize(List.of("shared"));
+                    first.submit(dependent -> {
+                        started.add("first");
+                        return firstDurable;
+                    });
+                    assertFalse(second.attempt().completion().isDone());
+                    assertTrue(independent.attempt().completion().isDone(), "unrelated Models must remain parallel");
+                    firstDurable.complete(null);
+                    second.attempt().completion().join();
+                    assertTrue(started.indexOf("first") < started.indexOf("second"));
+                });
+    }
+
+    @Test
+    void orderingFailureStillLetsTheNextRequestReevaluate() {
+        List<ModelBatchScope.CommitCoordination> entries = new ArrayList<>();
+        AtomicInteger reevaluated = new AtomicInteger();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        RuntimeException rejected = new IllegalArgumentException("request no longer fits");
+        assertThrows(java.util.concurrent.CompletionException.class, () ->
+                DeserializingMessage.forEachInBatch(List.of(message("large"), message("small")), current -> {
+                    var entry = ModelBatchScope.registerAsync(
+                            this, current, ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
+                    entries.add(entry);
+                    if (entries.size() == 2) {
+                        entry.initialize(List.of("shared"));
+                        entry.submit(dependent -> {
+                            assertTrue(dependent);
+                            reevaluated.incrementAndGet();
+                            return CompletableFuture.completedFuture(null);
+                        });
+                        var first = entries.getFirst();
+                        first.initialize(List.of("shared"));
+                        first.submit(ignored -> CompletableFuture.failedFuture(rejected));
+                        entry.attempt().completion().join();
+                    }
+                }));
+        assertEquals(1, reevaluated.get());
+    }
+
+    @Test
+    void deferredReleasePreservesReadyOrderingOnlyDependencies() {
+        AtomicInteger reevaluated = new AtomicInteger();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        RuntimeException rejected = new IllegalArgumentException("deferred request rejected");
+        assertThrows(java.util.concurrent.CompletionException.class, () ->
+                DeserializingMessage.forEachInBatch(List.of(message("deferred"), message("ready")), current -> {
+                    boolean deferred = current.getPayload().equals("deferred");
+                    var entry = ModelBatchScope.registerAsync(this, current,
+                            deferred ? ModelCommitPolicy.ASYNC_AFTER_BATCH
+                                    : ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
+                    entry.initialize(List.of("shared"));
+                    entry.submit(dependent -> {
+                        if (deferred) {
+                            return CompletableFuture.failedFuture(rejected);
+                        }
+                        assertTrue(dependent);
+                        return entry.afterDependencies(() -> {
+                            reevaluated.incrementAndGet();
+                            return null;
+                        }, false);
+                    });
+                }));
+        assertEquals(1, reevaluated.get());
+    }
+
+    @Test
+    void owningBatchAbortDoesNotReleaseReadyFollowers() {
+        AtomicInteger started = new AtomicInteger();
+        CompletableFuture<Object> firstDurable = new CompletableFuture<>();
+        List<ModelBatchScope.CommitCoordination> entries = new ArrayList<>();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        RuntimeException abort = new IllegalStateException("owning batch aborted");
+        assertSame(abort, assertThrows(IllegalStateException.class, () ->
+                DeserializingMessage.forEachInBatch(List.of(message("first"), message("second")), current -> {
+                    var entry = ModelBatchScope.registerAsync(
+                            this, current, ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
+                    entries.add(entry);
+                    entry.initialize(List.of("shared"));
+                    entry.submit(dependent -> {
+                        if (!dependent) {
+                            return firstDurable;
+                        }
+                        return entry.afterDependencies(() -> {
+                            started.incrementAndGet();
+                            return null;
+                        }, false);
+                    });
+                    if (entries.size() == 2) {
+                        throw abort;
+                    }
+                })));
+        assertEquals(0, started.get());
+        assertTrue(entries.get(1).attempt().completion().isCompletedExceptionally());
+    }
+
+    @Test
+    void cancelledInitializerDoesNotBlockTheReadyPrefix() {
+        List<ModelBatchScope.CommitCoordination> entries = new ArrayList<>();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        DeserializingMessage.forEachInBatch(List.of(message("cancelled"), message("ready")), current -> {
+            var entry = ModelBatchScope.registerAsync(
+                    this, current, ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
+            entries.add(entry);
+            if (entries.size() == 2) {
+                entry.initialize(List.of("shared"));
+                entry.submit(dependent -> {
+                    assertFalse(dependent);
+                    return CompletableFuture.completedFuture(null);
+                });
+                assertFalse(entry.attempt().completion().isDone());
+                entries.getFirst().cancel();
+                assertTrue(entry.attempt().completion().isDone());
+            }
+        });
+    }
+
+    @Test
+    void readyOrderingSeparatesNamespacesAndKeepsDependencyGrowthLinear() {
+        List<ModelBatchScope.CommitCoordination> entries = new ArrayList<>();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        List<DeserializingMessage> messages = java.util.stream.IntStream.range(0, 512)
+                .mapToObj(i -> message("message-" + i).putContext(io.fluxzero.sdk.tracking.ConsumerConfiguration.class,
+                        io.fluxzero.sdk.tracking.ConsumerConfiguration.builder().name("test")
+                                .namespace(i % 2 == 0 ? "one" : "two").build())).toList();
+        DeserializingMessage.forEachInBatch(messages, current -> {
+            var entry = ModelBatchScope.registerAsync(
+                    this, current, ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, lifecycle);
+            entries.add(entry);
+            entry.initialize(List.of("shared"));
+            entry.submit(dependent -> {
+                assertEquals(entries.size() > 2, dependent);
+                return CompletableFuture.completedFuture(null);
+            });
+        });
+        assertEquals(510, entries.stream().mapToInt(ModelBatchScope.CommitCoordination::dependencyCount).sum());
+    }
+
+    @Test
     void synchronousConsumerFlushesItsPendingReadyPredecessor() {
         AtomicInteger flushed = new AtomicInteger();
         ModelCommitBatchingClient.ModelCommitBatch ready = batch(new AtomicInteger(), flushed);
