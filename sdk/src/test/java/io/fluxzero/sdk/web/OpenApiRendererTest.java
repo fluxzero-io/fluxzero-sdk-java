@@ -55,6 +55,8 @@ class OpenApiRendererTest {
                 assertEquals(2, optional.path("oneOf").size());
             }
             assertEquals(2, fields.path("untyped").path("oneOf").size());
+            assertEquals(2, fields.path("array").path("items").path("oneOf").size());
+            assertEquals(2, fields.path("bounded").path("items").path("oneOf").size());
         }
     }
 
@@ -65,7 +67,7 @@ class OpenApiRendererTest {
 
     record IdWireRequest(java.util.Optional<Id<?>> optional,
                          @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NONE)
-                         Id<?> untyped) { }
+                         Id<?> untyped, Id<?>[] array, List<? extends Id<?>> bounded) { }
 
     @Test
     void rendersOpenApiDocumentForJsonEndpoint() {

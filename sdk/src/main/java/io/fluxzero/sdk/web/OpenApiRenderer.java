@@ -1085,6 +1085,13 @@ public final class OpenApiRenderer {
             || annotation(member, "com.fasterxml.jackson.databind.annotation.JsonSerialize") != null) {
             return original;
         }
+        if (type instanceof GenericArrayType array && original.get("items") instanceof ObjectNode child) {
+            original.set("items", idPropertySchema(array.getGenericComponentType(), member, child));
+            return original;
+        }
+        if (type instanceof WildcardType wildcard && wildcard.getUpperBounds().length > 0) {
+            return idPropertySchema(wildcard.getUpperBounds()[0], member, original);
+        }
         if (type instanceof ParameterizedType parameterized) {
             Class<?> raw = rawClass(parameterized.getRawType());
             Type[] arguments = parameterized.getActualTypeArguments();

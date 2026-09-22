@@ -1449,6 +1449,9 @@ public class OpenApiProcessor extends AbstractProcessor {
             || findAnnotation(member, "com.fasterxml.jackson.databind.annotation.JsonSerialize") != null) {
             return original;
         }
+        if (type instanceof WildcardType wildcard && wildcard.getExtendsBound() != null) {
+            return idPropertySchema(wildcard.getExtendsBound(), member, original);
+        }
         if (type instanceof ArrayType array && original.get("items") instanceof ObjectNode child) {
             original.set("items", idPropertySchema(array.getComponentType(), member, child));
         } else if (type instanceof DeclaredType declared) {
