@@ -43,6 +43,7 @@ cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/
 For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
 derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.
+Missing companions remain empty even with `@Alias`: alias fallback does not reinterpret their parent as the companion.
 For eventless current state, non-searchable documents and erasure, read the
 [Model state boundaries](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx):
 storage and query visibility are not authorization or secret-storage guarantees.

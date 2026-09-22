@@ -40,6 +40,16 @@ import java.util.function.Supplier;
  */
 public interface ModelGraphResolver {
     /**
+     * Checks whether a pending undecorated alias may supply a missing prefixed root at this boundary.
+     * An unrelated durable primary identity must retain precedence over the pending alias. Custom resolvers
+     * keep their existing overlay behavior by default; metadata-aware implementations can reject such collisions.
+     * Called only when a pending alias candidate exists, not on ordinary reads.
+     */
+    default boolean allowsAliasFallback(String requestedId, Class<?> modelType, ModelReadBoundary boundary) {
+        return true;
+    }
+
+    /**
      * Captures this repository's message-batch overlay once for a new navigation view. Another application's pending
      * writes must never enter this snapshot, even when its batch is active on the calling thread.
      */

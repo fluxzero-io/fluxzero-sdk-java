@@ -485,6 +485,29 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void compatibleFallbackKeepsCustomHeadlessDocumentReads() {
+        LocalClient local = LocalClient.newInstance(null);
+        try {
+            when(eventStoreClient.getModelEvents(any())).thenAnswer(invocation ->
+                    local.getEventStoreClient().getModelEvents(invocation.getArgument(0)));
+            var value = new HeadlessAliasedDocument("one", "code");
+            doAnswer(invocation -> {
+                GetDocument request = invocation.getArgument(0);
+                return new GetDocumentResult(request.getRequestId(),
+                        request.getId().equals("headless-one") ? serializer.toDocument(value, request.getId(),
+                                request.getCollection(), null, null, Metadata.empty()) : null, null);
+            }).when(searchClient).fetchModelDocument(any());
+            assertEquals(value, repository.load((Object) "headless-one", HeadlessAliasedDocument.class).get());
+            assertEquals(value, repository.loadCurrent((Object) "headless-one", HeadlessAliasedDocument.class).get());
+        } finally {
+            local.shutDown();
+        }
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT)
+    private record HeadlessAliasedDocument(@EntityId(prefix = "headless-") String id, @Alias String alias) {}
+
+    @Test
     void loadsDocumentBasedModelFromItsInternalSourceCollection() {
         ProductId id = new ProductId("1");
         Product product = new Product(id, "first");

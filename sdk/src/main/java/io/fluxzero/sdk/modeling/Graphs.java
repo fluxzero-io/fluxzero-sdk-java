@@ -101,7 +101,7 @@ public final class Graphs {
             Entity<?> overlaid = snapshot.overlay(primary, modelType, loaded.entity());
             if (overlaid.isEmpty() && !primary.equals(modelId.toString())) {
                 Entity<?> alias = snapshot.overlay(modelId.toString(), modelType, loaded.entity());
-                if (alias.isPresent()) {
+                if (alias.isPresent() && allowsAliasFallback(repository, modelId.toString(), modelType, loaded.boundary())) {
                     overlaid = alias;
                 }
             }
@@ -137,7 +137,10 @@ public final class Graphs {
             if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(modelId.toString())) {
                 Entity<?> alias = snapshot.overlayIdentity(modelId.toString(), requestedType,
                                                            identity.modelId(), identity.hasIdentity());
-                if (alias != null && alias.isPresent()) { overlay = alias; }
+                if (alias != null && alias.isPresent()
+                    && allowsAliasFallback(repository, modelId.toString(), requestedType, identity.boundary())) {
+                    overlay = alias;
+                }
             }
             Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue head ? head.type() : requestedType;
             GraphState state = overlay == null
@@ -176,7 +179,8 @@ public final class Graphs {
                 : snapshot.overlayIdentity(primary, expected, identity.modelId(), identity.hasIdentity());
         if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(requested.toString())) {
             Entity<?> alias = snapshot.overlayIdentity(requested.toString(), expected, identity.modelId(), identity.hasIdentity());
-            if (alias != null && alias.isPresent()) {
+            if (alias != null && alias.isPresent()
+                && allowsAliasFallback(repository, requested.toString(), expected, identity.boundary())) {
                 overlay = alias;
             }
         }
@@ -188,6 +192,12 @@ public final class Graphs {
         Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue value ? value.type() : expected;
         return GraphState.identity(identity.modelId(), identity.modelId(), true, type, repository)
                 .retainIdentity(identity).valueHistory(identity.historical()).batchSnapshot(snapshot).root();
+    }
+
+    static boolean allowsAliasFallback(ModelRepository repository, String requested, Class<?> type,
+                                       ModelReadBoundary boundary) {
+        return !(repository instanceof ModelGraphResolver resolver)
+               || resolver.allowsAliasFallback(requested, type, boundary);
     }
 
     /** Creates a detached graph for an exact persisted identity. */
@@ -1241,7 +1251,8 @@ final class GraphState {
         if (!identity.exact() && !present && !node.id.equals(identity.requestedId().toString())) {
             Entity<?> alias = snapshot.overlayIdentity(identity.requestedId().toString(), node.type(),
                                                        loaded.modelId(), loaded.hasIdentity());
-            if (alias != null && alias.isPresent()) {
+            if (alias != null && alias.isPresent()
+                && Graphs.allowsAliasFallback(repository, identity.requestedId().toString(), node.type(), loaded.boundary())) {
                 overlay = alias;
             }
         }
@@ -1274,20 +1285,21 @@ final class GraphState {
                                           node.type(), boundary, false)
                 : resolver.loadGraphValue(identity.exact() ? node.id : identity.requestedId(), identity.exact(),
                                           node.type(), boundary);
-        Entity<?> entity = overlaySource(initialSnapshot, node, identity, loaded.entity());
+        Entity<?> entity = overlaySource(initialSnapshot, node, identity, loaded.entity(), loaded.boundary());
         sourceRead = loaded;
         historicalValues = loaded.historical();
         return entity;
     }
 
     private Entity<?> overlaySource(ModelBatchScope.Snapshot snapshot, NodeData node,
-                                    NodeData.LazyIdentity identity, Entity<?> durable) {
+                                    NodeData.LazyIdentity identity, Entity<?> durable, ModelReadBoundary readBoundary) {
         Entity<?> overlay = identity.exact() ? snapshot.overlayExactIdentity(node.id, node.type()) : null;
         Entity<?> entity = identity.exact() ? (overlay == null ? durable : overlay)
                 : snapshot.overlay(node.id, node.type(), durable);
         if (!identity.exact() && entity.isEmpty() && !node.id.equals(identity.requestedId().toString())) {
             Entity<?> alias = snapshot.overlay(identity.requestedId().toString(), node.type(), durable);
-            if (alias.isPresent()) {
+            if (alias.isPresent() && Graphs.allowsAliasFallback(
+                    repository, identity.requestedId().toString(), node.type(), readBoundary)) {
                 entity = alias;
             }
         }
@@ -1464,7 +1476,7 @@ final class GraphState {
             }
             boundary = loaded.boundary();
             historicalValues = loaded.historical();
-            return overlaySource(stagedSnapshot, node, identity, loaded.entity());
+            return overlaySource(stagedSnapshot, node, identity, loaded.entity(), loaded.boundary());
         }
 
         void loadValues(List<NodeData> nodes) {

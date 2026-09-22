@@ -44,6 +44,7 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.EntityHelper;
+import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
@@ -94,6 +95,96 @@ import static org.mockito.Mockito.when;
 class ModelReplayCursorTest {
 
     private static final ThreadLocal<String> replayContextMarker = ThreadLocalContext.create();
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void valueFirstAliasKeepsTheVerifiedRevisionWithoutPublishingAnotherCacheEntry(boolean changed) {
+        EventStoreClient client = mock(EventStoreClient.class);
+        ModelCacheTracker tracker = mock(ModelCacheTracker.class);
+        var root = ImmutableModelRoot.<CachedReplayModel>builder().id("canonical").type(CachedReplayModel.class)
+                .value(new CachedReplayModel("canonical")).sequenceNumber(changed ? 1L : 0L)
+                .stateIndex(changed ? 11L : 10L).build();
+        when(tracker.peekCurrentVersion("canonical", CachedReplayModel.class))
+                .thenReturn(new ModelCacheTracker.CurrentModel(root, 20L, root.stateIndex()));
+        var source = new ModelGraphResolver.HeadValue() {
+            @Override public Class<?> type() { return CachedReplayModel.class; }
+            @Override public ModelHeadState head() {
+                return new ModelHeadState("canonical", CachedReplayModel.class.getSimpleName(), 0L, 10L, true, false);
+            }
+            @Override public Entity<?> get() { throw new AssertionError("Must retain value-first materialization"); }
+        };
+        var identity = new ModelGraphResolver.Identity("canonical", true, ModelReadBoundary.at(20L), false, source);
+        var cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class), mock(EntityHelper.class),
+                new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null);
+        if (changed) {
+            assertThrows(EventSourcingException.class, () -> cursor.graphFallbackValue(identity, tracker, false));
+        } else {
+            assertSame(root, cursor.graphFallbackValue(identity, tracker, false).entity());
+        }
+        verifyNoInteractions(client);
+        verify(tracker).peekCurrentVersion("canonical", CachedReplayModel.class);
+        org.mockito.Mockito.verifyNoMoreInteractions(tracker);
+    }
+
+    @Test
+    void blankFunctionalIdDoesNotAddAnInvalidProbeToAValidDecoratedRead() {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            assertEquals(1, request.getRequests().size());
+            assertEquals("prefix-", request.getRequests().getFirst().getModelId());
+            return new GetModelEventsResult(request.getRequestId(), 42L, List.of(),
+                    List.of(new ModelEventStream("prefix-", null, List.of())));
+        });
+        ModelReplayCursor cursor = new ModelReplayCursor(client, mock(JacksonSerializer.class), mock(EntityHelper.class),
+                new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null);
+        var target = new MutationPlan.ResolvedModel("prefix-", CachedReplayModel.class,
+                MutationPlan.Access.READ_ONLY, List.of("id"));
+        var loaded = cursor.contextWithHeadProbe(new MutationPlan.Resolution(List.of(target), List.of()),
+                ModelReadBoundary.current(), null, false, new ModelReplayCursor.HeadProbe(""));
+        assertEquals(42L, loaded.readStateIndex());
+        verify(client, times(1)).getModelEvents(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"valid", "wrong-id", "unexpected-membership", "missing-stream", "future-head"})
+    void fallbackHeadProbeValidatesMetadataWithoutReplayingForeignHistory(String mode) {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        JacksonSerializer serializer = mock(JacksonSerializer.class);
+        ModelTypeResolver types = mock(ModelTypeResolver.class);
+        when(types.knownModelType("foreign", "raw")).thenReturn(java.util.Optional.empty());
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            assertEquals(2, request.getRequests().size());
+            assertEquals(0, request.getRequests().getLast().getMaxSize());
+            var streams = new ArrayList<ModelEventStream>();
+            streams.add(new ModelEventStream("prefixed-raw", null, List.of()));
+            if (!mode.equals("missing-stream")) {
+                streams.add(new ModelEventStream(mode.equals("wrong-id") ? "wrong" : "raw",
+                        new ModelHeadState("raw", "foreign", -1L,
+                                mode.equals("future-head") ? 43L : 40L, false, false),
+                        mode.equals("unexpected-membership") ? java.util.Collections.singletonList(null) : List.of()));
+            }
+            return new GetModelEventsResult(request.getRequestId(), 42L, List.of(), streams);
+        });
+        ModelReplayCursor cursor = new ModelReplayCursor(client, serializer, mock(EntityHelper.class),
+                new MutationPlan.Compiler(List.of()), NoOpCache.INSTANCE, null, null, null,
+                ModelReplayCursor.EventBoundaryBarrier.NONE, types);
+        var target = new MutationPlan.ResolvedModel("prefixed-raw", CachedReplayModel.class,
+                MutationPlan.Access.READ_ONLY, List.of("id"));
+        var probe = new ModelReplayCursor.HeadProbe("raw");
+        Runnable load = () -> cursor.contextWithHeadProbe(new MutationPlan.Resolution(List.of(target), List.of()),
+                ModelReadBoundary.current(), null, false, probe);
+        if (mode.equals("valid")) {
+            load.run();
+            assertNull(cursor.graphFallbackIdentity("raw", CachedReplayModel.class, ModelReadBoundary.at(42L),
+                                                    false, null, probe));
+        } else {
+            assertThrows(EventSourcingException.class, load::run);
+        }
+        verify(client, times(1)).getModelEvents(any());
+        verifyNoInteractions(serializer);
+    }
 
     @ParameterizedTest
     @ValueSource(longs = {10L, 20L, 30L})

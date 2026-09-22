@@ -812,6 +812,33 @@ class GraphMetadataNavigationTest {
     }
 
     @Test
+    void pendingCompanionAliasCannotShadowAnUnrelatedPrimary() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            commit(app, new CreateRoot("root", 1));
+            inPendingBatch(app, client, new CreatePrefixedAlias("other", "root"), () -> {
+                assertNull(Fluxzero.loadModel((Object) "root", PrefixedAlias.class).get());
+                assertNull(Fluxzero.loadGraph("root", PrefixedAlias.class).get());
+                var identityFirst = Fluxzero.loadGraph("root", PrefixedAlias.class);
+                assertEquals("details-root", identityFirst.id());
+                assertNull(identityFirst.get());
+                assertNull(Fluxzero.loadCurrentGraph("root", PrefixedAlias.class).get());
+            });
+            inPendingBatch(app, client, new CreatePrefixedAlias("available", "free"), () -> {
+                var expected = new PrefixedAlias("available", "free");
+                assertEquals(expected, Fluxzero.loadModel((Object) "free", PrefixedAlias.class).get());
+                assertEquals(expected, Fluxzero.loadGraph("free", PrefixedAlias.class).get());
+                assertEquals(expected, Fluxzero.loadCurrentGraph("free", PrefixedAlias.class).get());
+            });
+        }
+    }
+
+    @Model record PrefixedAlias(@EntityId(prefix = "details-") String id, @Alias String alias) {}
+    record CreatePrefixedAlias(String id, String alias) {
+        @Apply PrefixedAlias apply() { return new PrefixedAlias(id, alias); }
+    }
+
+    @Test
     void currentKeepsMissingCanonicalIdentityDespiteNewDurableOrPendingAliases() {
         var client = new ObservedClient();
         try (Fluxzero app = app(client, new JacksonSerializer())) {

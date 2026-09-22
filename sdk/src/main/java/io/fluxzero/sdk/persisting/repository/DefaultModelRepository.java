@@ -740,6 +740,47 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     @Override
+    public <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
+        return loadWithFallback(modelId, modelType, false);
+    }
+
+    @Override
+    public <T> Entity<T> loadCurrent(@NonNull Object modelId, @NonNull Class<T> modelType) {
+        return loadWithFallback(modelId, modelType, true);
+    }
+
+    private <T> Entity<T> loadWithFallback(Object modelId, Class<T> modelType, boolean current) {
+        EntityMetadata metadata = EntityMetadata.of(modelType);
+        String requested = modelId.toString();
+        String primary = metadata.entityId().isEmpty() ? requested : metadata.repositoryId(modelId);
+        if (primary.equals(requested) || !metadata.hasAliases()) {
+            return current ? loadCurrent(primary, modelType) : load(primary, modelType);
+        }
+        PinnedBoundary handler = current ? null : handlerBoundary();
+        ModelReadBoundary boundary = boundary(handler);
+        var probe = new ModelReplayCursor.HeadProbe(requested);
+        CommitAttempt context = loadDurableContext(primary, modelType, boundary, handler, probe);
+        Entity<T> result = ModelBatchScope.overlayCurrent(messageBatchNamespace(), primary, modelType,
+                cast(context.entity(context.targets().getFirst().modelId())), modelDefinitionCompiler);
+        if (result.isPresent()) {
+            return result;
+        }
+        ModelGraphResolver.Identity fallback = replayCursor.graphFallbackIdentity(
+                requested, modelType, boundary.resolved(context.readStateIndex()), boundary.historical(), modelCacheTracker, probe);
+        if (fallback == null) {
+            return result;
+        }
+        pin(handler, fallback.boundary().stateIndex());
+        // Ordinary current Model reads retain document authority. A pinned Graph boundary would instead
+        // turn this into historical replay and reject document-only state without a Model head.
+        Entity<T> durable = metadata.rootConfiguration().orElseThrow().eventSourced()
+                ? cast(fallback.entity().get()) : loadDurable(requested, modelType, boundary, handler);
+        Entity<T> alias = ModelBatchScope.overlayCurrent(messageBatchNamespace(), requested, modelType,
+                durable, modelDefinitionCompiler);
+        return alias.isPresent() ? alias : result;
+    }
+
+    @Override
     public <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType) {
         return ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), modelId, modelType,
@@ -778,6 +819,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     modelId, resolvedType,
                     boundary, handlerBoundary));
         }
+        CommitAttempt context = loadDurableContext(modelId, modelType, boundary, handlerBoundary);
+        return cast(context.entity(context.targets().getFirst().modelId()));
+    }
+
+    private CommitAttempt loadDurableContext(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                             PinnedBoundary handlerBoundary) {
+        return loadDurableContext(modelId, modelType, boundary, handlerBoundary, null);
+    }
+
+    private CommitAttempt loadDurableContext(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                             PinnedBoundary handlerBoundary, ModelReplayCursor.HeadProbe probe) {
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         metadata.rootConfiguration()
@@ -787,12 +839,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 modelId, modelType, MutationPlan.Access.READ_ONLY,
                 List.of(metadata.entityId().orElseThrow().name()));
-        CommitAttempt context = replayCursor.context(
+        CommitAttempt context = replayCursor.contextWithHeadProbe(
                 new MutationPlan.Resolution(List.of(target), List.of()),
-                boundary, Map.of(), null,
-                modelCacheTracker, handlerBoundary != null);
+                boundary, modelCacheTracker, handlerBoundary != null, probe);
         pin(handlerBoundary, context.readStateIndex());
-        return cast(context.entity(context.targets().getFirst().modelId()));
+        return context;
     }
 
     @Override
@@ -847,6 +898,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
                 handlerBoundary, true);
+    }
+
+    @Override
+    public boolean allowsAliasFallback(String requestedId, Class<?> modelType, ModelReadBoundary boundary) {
+        return replayCursor.graphFallbackIdentity(requestedId, modelType, boundary, boundary.historical(),
+                                                  modelCacheTracker) != null;
     }
 
     @Override
@@ -939,9 +996,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
                                                                         historical, modelCacheTracker, exact);
         if (!exact && !result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
-            ModelGraphResolver.Identity alias = replayCursor.graphIdentity(
+            ModelGraphResolver.Identity alias = replayCursor.graphFallbackIdentity(
                     modelId.toString(), modelType, result.boundary(), historical, modelCacheTracker);
-            if (alias.present()) {
+            if (alias != null && alias.present()) {
                 result = alias;
             }
         }
@@ -959,13 +1016,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         String primary = exact ? modelId.toString() : metadata.repositoryId(modelId);
+        var probe = !exact && !primary.equals(modelId.toString()) && metadata.hasAliases()
+                ? new ModelReplayCursor.HeadProbe(modelId.toString()) : null;
         ModelGraphResolver.Value result = replayCursor.graphValue(primary, modelType, boundary, modelCacheTracker,
-                                                                  historical);
+                                                                  historical, probe);
         if (!exact && result.entity().isEmpty() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
-            ModelGraphResolver.Value alias = replayCursor.graphValue(
-                    modelId.toString(), modelType, result.boundary(), modelCacheTracker, historical);
-            if (alias.entity().isPresent()) {
-                result = alias;
+            ModelGraphResolver.Identity alias = replayCursor.graphFallbackIdentity(
+                    modelId.toString(), modelType, result.boundary(), historical, modelCacheTracker, probe);
+            if (alias != null && alias.present()) {
+                result = replayCursor.graphFallbackValue(alias, modelCacheTracker, historical);
             }
         }
         return result;
