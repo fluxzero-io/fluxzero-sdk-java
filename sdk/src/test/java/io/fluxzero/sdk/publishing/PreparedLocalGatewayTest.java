@@ -456,6 +456,7 @@ class PreparedLocalGatewayTest {
             DeserializingMessage outer = DeserializingMessage.getCurrent();
             nestedMessage = new DeserializingMessage(new Message("replayed"), EVENT, null);
 
+            DeserializingMessage.whenBatchCompletes(batchCompletions::add);
             IllegalStateException failure = new IllegalStateException("nested failure");
             assertSame(failure, assertThrows(IllegalStateException.class,
                                              () -> nestedMessage.run(current -> {
@@ -469,7 +470,19 @@ class PreparedLocalGatewayTest {
                                                      })));
             assertPreparedContext(outer);
 
-            DeserializingMessage.whenBatchCompletes(batchCompletions::add);
+            assertSame(failure, assertThrows(IllegalStateException.class,
+                                             () -> DeserializingMessage.forEachInBatch(
+                                                     Set.of(nestedMessage), current -> {
+                                                         throw failure;
+                                                     })));
+            assertPreparedContext(outer);
+            assertSame(failure, assertThrows(IllegalStateException.class,
+                                             () -> DeserializingMessage.handleBatch(Stream.of(nestedMessage))
+                                                     .forEach(current -> {
+                                                         throw failure;
+                                                     })));
+            assertPreparedContext(outer);
+
             nestedMessage.run(current -> assertSame(nestedMessage, current));
             assertPreparedContext(outer);
 
@@ -490,7 +503,8 @@ class PreparedLocalGatewayTest {
             return "handled";
         }
 
-        private static void assertPreparedContext(DeserializingMessage outer) {
+        private void assertPreparedContext(DeserializingMessage outer) {
+            assertTrue(batchCompletions.isEmpty());
             assertSame(outer, DeserializingMessage.getCurrent());
             assertFalse(DeserializingMessage.hasThreadLocalContext());
         }

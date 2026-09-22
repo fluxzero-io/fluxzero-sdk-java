@@ -105,6 +105,12 @@ class OpenApiProcessorTest {
         assertEquals("Whether this processor item is active", accessor.path("active").path("description").asText());
         assertTrue(accessor.path("active").path("default").asBoolean());
         assertEquals("string", accessor.path("jsonValueId").path("type").asText());
+        assertEquals(2, accessor.path("polymorphicId").path("oneOf").size());
+        assertEquals("string", accessor.path("polymorphicId").path("oneOf").get(0)
+                .path("properties").path("name").path("type").asText());
+        assertEquals(2, accessor.path("polymorphicIds").path("items").path("oneOf").size());
+        assertEquals(2, accessor.path("polymorphicIdArray").path("items").path("oneOf").size());
+        assertEquals(2, accessor.path("boundedPolymorphicIds").path("items").path("oneOf").size());
         assertEquals("Json value id", accessor.path("jsonValueId").path("description").asText());
         assertEquals("string", accessor.path("opensAt").path("type").asText());
         assertEquals("partial-time", accessor.path("opensAt").path("format").asText());
@@ -475,6 +481,10 @@ class OpenApiProcessorTest {
         String apiDocDescription;
         @ApiDoc(description = "Json value id")
         JsonValueId jsonValueId;
+        io.fluxzero.sdk.modeling.Id<?> polymorphicId;
+        java.util.List<io.fluxzero.sdk.modeling.Id<?>> polymorphicIds;
+        io.fluxzero.sdk.modeling.Id<?>[] polymorphicIdArray;
+        java.util.List<? extends io.fluxzero.sdk.modeling.Id<?>> boundedPolymorphicIds;
         java.time.LocalTime opensAt;
         java.time.ZoneId timeZone;
         @ApiDoc(description = "Attempt count", type = "integer", minimum = "0", maximum = "10", example = "5",

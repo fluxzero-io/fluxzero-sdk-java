@@ -130,6 +130,27 @@ Id<?> containerId
 
 Use separate properties when the relations have different domain roles, paths or deletion ownership.
 
+### Polymorphic ID serialization
+
+Concrete properties such as `ProjectId` remain scalar strings. A property declared as `Id<?>` (Kotlin `Id<*>`),
+`Id<Project>` or an abstract ID class needs a discriminator. For a Model ID the standard serializer uses
+`{"name":"project","id":"owner-a"}`, where `name` is its logical Model name, including the configured Model-name prefix.
+The Model must declare that concrete ID class as its `@EntityId`; the string is the functional ID, so the ID constructor
+still applies its normal prefix/case rules. `@Parent(types=...)` supplies both the candidates and the read allowlist.
+Without that annotation, a declared Model type argument or the generated Model index supplies the mapping.
+
+For non-Model IDs the shape is `{"@class":"example.ExternalId","id":"owner-a"}`. Only compatible concrete `Id`
+subclasses can be reconstructed, subject to the mapper's polymorphic type validator. Renaming such a class requires
+an upcaster for persisted payloads. Explicit Jackson type annotations/custom serializers retain their own contract.
+Discriminated values use the concrete ID's custom deserializer when configured, retaining the enclosing property context.
+This is not a general authorization mechanism for untrusted input.
+
+Unknown names/classes, conflicting discriminators and ambiguous old scalar values are rejected rather than guessed.
+Previously stored concrete scalars remain readable. Upgrade readers before writing the new polymorphic form;
+older readers do not understand it. Use an upcaster with domain knowledge for ambiguous old polymorphic scalars.
+Standalone IDs retain their scalar form (Fluxzero's serialized message envelope already identifies their concrete
+class); a raw standalone JSON string cannot itself carry an erased `Id<?>` type.
+
 Model identity is still only `id.toString()`. The model type is reconstruction and graph metadata; it is never
 concatenated into the persisted key.
 

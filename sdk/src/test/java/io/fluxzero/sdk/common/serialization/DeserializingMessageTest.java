@@ -18,13 +18,23 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -206,6 +216,154 @@ class DeserializingMessageTest {
                 assertSame(message, DeserializingMessage.getCurrent()));
 
         assertNull(DeserializingMessage.getCurrent());
+    }
+
+    @ParameterizedTest
+    @MethodSource("scopesAndFailures")
+    void caughtNestedFailureKeepsOuterBatchOpen(BatchScope scope, Throwable failure) {
+        List<Throwable> completions = new ArrayList<>();
+        Object key = new Object();
+        Object resource = new Object();
+        DeserializingMessage outer = message("outer");
+
+        DeserializingMessage.forEachInBatch(List.of(outer, message("next")), current -> {
+            if (current == outer) {
+                DeserializingMessage.computeForBatchIfAbsent(key, ignored -> resource);
+                DeserializingMessage.whenBatchCompletes(completions::add);
+                assertSame(failure, assertThrows(failure.getClass(), () -> scope.run(message("inner"), inner -> {
+                    DeserializingMessage.whenBatchCompletes(completions::add);
+                    throwFailure(failure);
+                })));
+            }
+            assertSame(current, DeserializingMessage.getCurrent());
+            assertSame(resource, DeserializingMessage.getBatchResource(key));
+            assertTrue(completions.isEmpty());
+        });
+
+        assertEquals(2, completions.size());
+        assertTrue(completions.stream().allMatch(java.util.Objects::isNull));
+        assertNull(DeserializingMessage.getCurrent());
+        assertResourceCleared(key);
+    }
+
+    @ParameterizedTest
+    @MethodSource("scopesAndFailures")
+    void escapingNestedFailureCompletesOnlyAfterOuterScopeUnwinds(BatchScope scope, Throwable failure) {
+        List<Throwable> completions = new ArrayList<>();
+        List<String> order = new ArrayList<>();
+        Object key = new Object();
+        DeserializingMessage outer = message("outer");
+
+        assertSame(failure, assertThrows(failure.getClass(), () -> outer.run(current -> {
+            DeserializingMessage.computeForBatchIfAbsent(key, ignored -> new Object());
+            DeserializingMessage.whenBatchCompletes(error -> {
+                order.add("completed");
+                completions.add(error);
+            });
+            try {
+                scope.run(message("inner"), inner -> throwFailure(failure));
+            } finally {
+                assertSame(outer, DeserializingMessage.getCurrent());
+                order.add("unwound");
+            }
+        })));
+
+        assertEquals(List.of("unwound", "completed"), order);
+        assertEquals(List.of(failure), completions);
+        assertNull(DeserializingMessage.getCurrent());
+        assertResourceCleared(key);
+    }
+
+    @ParameterizedTest
+    @MethodSource("scopesAndFailures")
+    void outermostFailureCompletesAndClearsBatch(BatchScope scope, Throwable failure) {
+        List<Throwable> completions = new ArrayList<>();
+        Object key = new Object();
+        assertSame(failure, assertThrows(failure.getClass(), () -> scope.run(message("outer"), current -> {
+            DeserializingMessage.computeForBatchIfAbsent(key, ignored -> new Object());
+            DeserializingMessage.whenBatchCompletes(completions::add);
+            throwFailure(failure);
+        })));
+        assertEquals(List.of(failure), completions);
+        assertNull(DeserializingMessage.getCurrent());
+        assertResourceCleared(key);
+    }
+
+    @ParameterizedTest
+    @EnumSource(BatchScope.class)
+    void completionFailurePropagatesAndClearsBatch(BatchScope scope) {
+        RuntimeException failure = new IllegalStateException("completion failed");
+        AtomicInteger calls = new AtomicInteger();
+        Object key = new Object();
+        assertSame(failure, assertThrows(IllegalStateException.class, () -> scope.run(message("outer"), current -> {
+            DeserializingMessage.computeForBatchIfAbsent(key, ignored -> new Object());
+            DeserializingMessage.whenBatchCompletes(error -> {
+                assertNull(error);
+                calls.incrementAndGet();
+                throw failure;
+            });
+        })));
+        assertEquals(1, calls.get());
+        assertNull(DeserializingMessage.getCurrent());
+        assertResourceCleared(key);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void fixtureKeepsCaughtNestedFailureInsideHandler(boolean asynchronous) {
+        AtomicInteger completions = new AtomicInteger();
+        TestFixture fixture = TestFixture.create(new Object() {
+            @HandleCommand
+            String handle(String command) {
+                DeserializingMessage.whenBatchCompletes(error -> {
+                    assertNull(error);
+                    completions.incrementAndGet();
+                    Fluxzero.publishEvent("batch completed");
+                });
+                RuntimeException rejection = new IllegalStateException("rejected");
+                assertSame(rejection, assertThrows(IllegalStateException.class,
+                        () -> message("nested").run(inner -> {
+                            throw rejection;
+                        })));
+                assertEquals(0, completions.get());
+                return "handled";
+            }
+        });
+        if (asynchronous) {
+            fixture = fixture.async();
+        }
+        fixture.whenCommand("outer").expectResult("handled").expectEvents("batch completed").expectNoErrors();
+        assertEquals(1, completions.get());
+    }
+
+    private static Stream<Arguments> scopesAndFailures() {
+        return Stream.of(BatchScope.values()).flatMap(scope -> Stream.of(
+                Arguments.of(scope, new IllegalStateException("nested failure")),
+                Arguments.of(scope, new AssertionError("nested error"))));
+    }
+
+    private static void throwFailure(Throwable failure) {
+        if (failure instanceof RuntimeException exception) {
+            throw exception;
+        }
+        throw (Error) failure;
+    }
+
+    private static void assertResourceCleared(Object key) {
+        message("fresh").run(current -> assertNull(DeserializingMessage.getBatchResource(key)));
+    }
+
+    private enum BatchScope {
+        APPLY, LIST, ITERABLE, STREAM;
+
+        void run(DeserializingMessage message, Consumer<DeserializingMessage> action) {
+            switch (this) {
+                case APPLY -> message.run(action);
+                case LIST -> DeserializingMessage.forEachInBatch(List.of(message), action);
+                case ITERABLE -> DeserializingMessage.forEachInBatch(() -> List.of(message).iterator(), action);
+                case STREAM -> DeserializingMessage.handleBatch(Stream.of(message)).forEach(action);
+            }
+        }
     }
 
     @Test

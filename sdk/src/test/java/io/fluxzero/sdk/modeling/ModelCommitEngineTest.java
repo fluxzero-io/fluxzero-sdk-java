@@ -1008,6 +1008,34 @@ class ModelCommitEngineTest {
                 result.getFirst().after());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void failedPreparationRetainsOnlyOrderingReadsAndResetsThemOnReevaluation(boolean direct) {
+        FastOrderId id = new FastOrderId("rejected");
+        RenameFastOrder command = new RenameFastOrder(id, "reject");
+        EntityMetadata.HandlerMethod handler = EntityMetadata.of(FastOrder.class).applyMethods().getFirst();
+        CommitAttempt begin = context(command, List.of(handler), entity(id, new FastOrder(id, "initial")));
+        ModelReducer reducer = new ModelReducer(compiler.compileHandlers(List.of(handler)), direct
+                ? MutationPlan.directSingleTargetApply(handler, RenameFastOrder.class) : null);
+        assertEquals(direct, reducer.direct());
+        CommitAttempt attempt = new CommitAttempt();
+
+        assertThrows(MockFailure.class, () -> ModelReducer.apply(attempt, List.of(message(command)),
+                (substep, boundary, staged) -> new ModelReducer.ResolvedSubstep(begin, reducer)));
+
+        assertEquals(List.of(id.toString()), List.copyOf(attempt.orderingModelIds()));
+        assertTrue(attempt.readModelIds().isEmpty(), "Ordering evidence is not a completed commit readset");
+        assertTrue(attempt.transitions().isEmpty(), "A failed preparation cannot expose staged changes");
+
+        FastOrderId nextId = new FastOrderId("reevaluated");
+        RenameFastOrder next = new RenameFastOrder(nextId, "accepted");
+        CommitAttempt reloaded = context(next, List.of(handler), entity(nextId, new FastOrder(nextId, "initial")));
+        ModelReducer.apply(attempt, List.of(message(next)),
+                (substep, boundary, staged) -> new ModelReducer.ResolvedSubstep(reloaded, reducer));
+        assertEquals(List.of(nextId.toString()), List.copyOf(attempt.orderingModelIds()));
+        assertEquals(attempt.readModelIds(), List.copyOf(attempt.orderingModelIds()));
+    }
+
     @Test
     void directInvocationRejectsModelInjectionParameters() {
         EntityMetadata.HandlerMethod handler = EntityMetadata.of(Transfer.class)
@@ -1761,6 +1789,7 @@ class ModelCommitEngineTest {
             String name) {
         @Apply
         FastOrder rename(RenameFastOrder command) {
+            if ("reject".equals(command.name())) { throw new MockFailure(); }
             return new FastOrder(fastOrderId, command.name());
         }
     }

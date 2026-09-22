@@ -172,7 +172,8 @@ public @interface Model {
      * Whether the latest model state should be stored in the shared application cache.
      * <p>
      * Models participating in a commit may additionally be retained in a commit-local cache until the commit
-     * completes.
+     * completes. A document revision alone is not a namespace snapshot: simple DOCUMENT writes verify that revision
+     * when an additional transactional read first needs a shared boundary; complex contexts verify before evaluation.
      */
     boolean cached() default true;
 
