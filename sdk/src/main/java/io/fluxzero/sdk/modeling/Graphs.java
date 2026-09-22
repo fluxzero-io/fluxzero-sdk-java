@@ -92,7 +92,7 @@ public final class Graphs {
         if (mutation != null) { return mutation; }
         if (repository instanceof ModelGraphResolver resolver) {
             ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
-            ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(modelId, modelType);
+            ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(modelId, false, modelType, snapshot);
             if (identity != null) {
                 return resolvedRoot(modelId, modelType, repository, snapshot, identity);
             }
@@ -173,6 +173,21 @@ public final class Graphs {
     private static <T> Graph<T> resolvedRoot(Object requested, Class<T> expected, ModelRepository repository,
                                             ModelBatchScope.Snapshot snapshot, ModelGraphResolver.Identity identity,
                                             boolean exact) {
+        Entity<?> overlay = currentRootOverlay(requested, exact, expected, repository, snapshot, identity);
+        if (overlay != null) {
+            return GraphState.entity(overlay, identity.boundary().stateIndex(), repository,
+                    Map.of(overlay.id().toString(), overlay), false, true, identity.boundary(), Map.of())
+                    .valueHistory(identity.historical()).batchSnapshot(snapshot).root();
+        }
+        Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue value ? value.type() : expected;
+        return GraphState.identity(identity.modelId(), identity.modelId(), true, type, repository)
+                .retainIdentity(identity).valueHistory(identity.historical()).batchSnapshot(snapshot).root();
+    }
+
+    /** Selects the captured batch value that supersedes a root identity, without reading its durable body. */
+    public static Entity<?> currentRootOverlay(Object requested, boolean exact, Class<?> expected,
+                                               ModelRepository repository, ModelBatchScope.Snapshot snapshot,
+                                               ModelGraphResolver.Identity identity) {
         String primary = exact || expected == Object.class ? requested.toString()
                 : EntityMetadata.validate(expected).repositoryId(requested);
         Entity<?> overlay = exact ? snapshot.overlayExactIdentity(primary, expected)
@@ -184,14 +199,7 @@ public final class Graphs {
                 overlay = alias;
             }
         }
-        if (overlay != null) {
-            return GraphState.entity(overlay, identity.boundary().stateIndex(), repository,
-                    Map.of(overlay.id().toString(), overlay), false, true, identity.boundary(), Map.of())
-                    .valueHistory(identity.historical()).batchSnapshot(snapshot).root();
-        }
-        Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue value ? value.type() : expected;
-        return GraphState.identity(identity.modelId(), identity.modelId(), true, type, repository)
-                .retainIdentity(identity).valueHistory(identity.historical()).batchSnapshot(snapshot).root();
+        return overlay;
     }
 
     static boolean allowsAliasFallback(ModelRepository repository, String requested, Class<?> type,
@@ -213,7 +221,7 @@ public final class Graphs {
         if (mutation != null) { return mutation; }
         if (repository instanceof ModelGraphResolver resolver && EntityMetadata.of(modelType).isModel()) {
             ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
-            ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(repositoryId, true, modelType);
+            ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(repositoryId, true, modelType, snapshot);
             if (identity != null) {
                 return resolvedRoot(repositoryId, modelType, repository, snapshot, identity, true);
             }

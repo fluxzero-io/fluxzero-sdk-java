@@ -276,10 +276,25 @@ class GraphReadTrackingTest {
     }
 
     @Test
+    void currentFactoryPreservesTheCustomTypedIdentityEntryPoint() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        when(source.graphStagedValues(ModelReadBoundary.current())).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        when(source.resolveCurrentGraphIdentity("parent", false, Node.class, ModelBatchScope.Snapshot.EMPTY))
+                .thenCallRealMethod();
+        when(source.resolveCurrentGraphIdentity("parent", false, Node.class))
+                .thenThrow(new AssertionError("The typed factory must retain its original resolver entry point"));
+        when(source.resolveCurrentGraphIdentity("parent", Node.class)).thenReturn(new ModelGraphResolver.Identity(
+                "parent", true, ModelReadBoundary.state(42L, false), false, () -> parent));
+        assertEquals(parent.get(), Graphs.lazyCurrent("parent", Node.class, source).get());
+    }
+
+    @Test
     void currentViewDoesNotInheritTheOriginalAttemptReadProvenance() {
         NavigableRepository source = mock(NavigableRepository.class);
         ModelReadBoundary currentBoundary = ModelReadBoundary.state(42L, false);
         when(source.graphStagedValues(ModelReadBoundary.current())).thenReturn(ModelBatchScope.Snapshot.EMPTY);
+        when(source.resolveCurrentGraphIdentity("parent", true, Node.class, ModelBatchScope.Snapshot.EMPTY))
+                .thenCallRealMethod();
         when(source.resolveCurrentGraphIdentity("parent", true, Node.class))
                 .thenReturn(new ModelGraphResolver.Identity("parent", true, currentBoundary, false, () -> parent));
         when(source.loadGraphRelations(eq(List.of("parent")), eq(CHILDREN), eq(currentBoundary), any(), eq(false)))

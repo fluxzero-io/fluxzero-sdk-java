@@ -239,10 +239,15 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
-Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root
-is cached; an older root observation cannot prove unchanged relationships. Within a mutation it instead reuses the
-attempt boundary and joins its readset. Values remain lazy and use their authoritative persistence source, including
-current document authority for DOCUMENT-only Models.
+Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary even when the root is cached;
+an older root observation cannot prove unchanged relationships. Event-sourced root values remain lazy.
+For a DOCUMENT-only root, the factory resolves its head and document coherently before returning and retains
+that value: subsequent replacement or deletion cannot change the returned root. Relationships and descendants
+remain lazy; this does not create historical document versions.
+Within a mutation it instead reuses the attempt boundary and joins its readset.
+An unpinned current value read retries the complete lookup a bounded number of times if its head and document
+change during resolution. Historical, already pinned and mutation-shared reads never silently advance.
+Persistent instability fails with an explicit platform error.
 
 ## Complete graph-change handlers
 

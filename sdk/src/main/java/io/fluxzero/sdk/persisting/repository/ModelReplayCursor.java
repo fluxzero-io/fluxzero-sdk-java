@@ -98,7 +98,7 @@ final class ModelReplayCursor {
 
     private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
     private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
-    private static final int MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS = 8;
+    static final int MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS = 8;
     private static final int MAX_DOCUMENT_REBASE_ATTEMPTS = 8;
     private static final long DOCUMENT_MATERIALIZATION_TIMEOUT_NANOS =
             5_000_000_000L;
@@ -1698,7 +1698,7 @@ final class ModelReplayCursor {
         return document.entity();
     }
 
-    private static final class GraphBoundaryMovedException extends EventSourcingException {
+    static final class GraphBoundaryMovedException extends EventSourcingException {
         private GraphBoundaryMovedException(String message) {
             super(message);
         }

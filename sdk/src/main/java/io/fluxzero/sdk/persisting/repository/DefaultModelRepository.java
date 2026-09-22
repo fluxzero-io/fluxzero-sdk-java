@@ -75,6 +75,7 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.CommitAttempt;
+import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.MutationPlan;
@@ -963,14 +964,42 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, boolean exact, Class<?> modelType) {
+        return graphIdentity(modelId, exact, modelType, ModelReadBoundary.current().forRequest());
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveCurrentGraphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelBatchScope.Snapshot snapshot) {
         // A cached root may be valid only through an older tracker cursor. Relationships can have changed since
         // that cursor without changing the root. Pin an explicitly current Graph at storage, not at the cache.
-        if (exact) {
-            modelName(modelType);
-            return replayCursor.graphIdentity(modelId.toString(), modelType, ModelReadBoundary.current().forRequest(),
-                                               false, modelCacheTracker, true);
+        for (int attempt = 1; ; attempt++) {
+            try {
+                ModelGraphResolver.Identity identity = exact ? resolveCurrentGraphIdentity(modelId, true, modelType)
+                        : resolveCurrentGraphIdentity(modelId, modelType);
+                if (identity != null && identity.entity() instanceof ModelGraphResolver.HeadValue source
+                    && source.type() != Object.class
+                    && !EntityMetadata.validate(source.type()).rootConfiguration().orElseThrow().eventSourced()
+                    && (snapshot.values().isEmpty()
+                        || Graphs.currentRootOverlay(modelId, exact, modelType, this, snapshot, identity) == null)) {
+                    // DOCUMENT-only roots cannot reconstruct this revision after replacement. Resolve the
+                    // head and value together before exposing the pinned identity, never retry its supplier.
+                    Entity<?> value = source.get();
+                    return new ModelGraphResolver.Identity(identity.modelId(), identity.present(), identity.boundary(),
+                            identity.historical(), new ModelGraphResolver.HeadValue() {
+                        @Override public Class<?> type() { return source.type(); }
+                        @Override public ModelHeadState head() { return source.head(); }
+                        @Override public Entity<?> get() { return value; }
+                    });
+                }
+                return identity;
+            } catch (ModelReplayCursor.GraphBoundaryMovedException failure) {
+                if (attempt >= ModelReplayCursor.MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
+                    throw new EventSourcingException(
+                            "Could not establish a coherent current Graph for '%s' after %d attempts"
+                                    .formatted(modelId, attempt), failure);
+                }
+            }
         }
-        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest());
     }
 
     @Override
@@ -1012,6 +1041,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public ModelGraphResolver.Value loadGraphValue(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
+        boolean retryCurrent = !historical && !boundary.historical() && !boundary.before()
+                               && CommitAttempt.currentReadContext(this) == null;
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return loadGraphValueOnce(modelId, exact, modelType, boundary, historical);
+            } catch (ModelReplayCursor.GraphBoundaryMovedException failure) {
+                if (!retryCurrent) { throw failure; }
+                if (attempt >= ModelReplayCursor.MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
+                    throw new EventSourcingException(
+                            "Could not establish a coherent current Graph for '%s' after %d attempts"
+                                    .formatted(modelId, attempt), failure);
+                }
+            }
+        }
+    }
+
+    private ModelGraphResolver.Value loadGraphValueOnce(
             Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary, boolean historical) {
         modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
