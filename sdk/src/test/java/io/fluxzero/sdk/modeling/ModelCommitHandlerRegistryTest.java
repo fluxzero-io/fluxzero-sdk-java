@@ -51,6 +51,8 @@ import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
@@ -99,6 +101,15 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void rejectedCommandMustNotFailAnEarlierInFlightCommit() {
+        verifyInFlightResultIsolation(null);
+    }
+
+    @Test
+    void rejectedCommandDoesNotReplaceAnEarlierTransportFailure() {
+        verifyInFlightResultIsolation(new IllegalStateException("commit transport failed"));
+    }
+
+    private void verifyInFlightResultIsolation(RuntimeException transportFailure) {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
@@ -119,17 +130,26 @@ class ModelCommitHandlerRegistryTest {
                         assertFalse(Invocation.resultPublicationBarrier(accepted).isDone());
                     } else {
                         // The transport accepts the already submitted first commit after the second validation fails.
-                        response.complete(acceptedResult(submitted.get()));
+                        if (transportFailure == null) {
+                            response.complete(acceptedResult(submitted.get()));
+                        } else {
+                            response.completeExceptionally(transportFailure);
+                        }
                     }
                 });
             } catch (CompletionException batchFailure) {
                 // The batch may report the rejected command; each request still owns its result.
-                assertSame(REJECTION, batchFailure.getCause());
+                assertSame(transportFailure == null ? REJECTION : transportFailure, batchFailure.getCause());
             }
             verify(eventStoreClient, times(1)).commitModels(any());
             assertSame(REJECTION, assertThrows(CompletionException.class,
                     () -> Invocation.resultPublicationBarrier(rejected).join()).getCause());
-            Invocation.resultPublicationBarrier(accepted).join();
+            if (transportFailure == null) {
+                Invocation.resultPublicationBarrier(accepted).join();
+            } else {
+                assertSame(transportFailure, assertThrows(CompletionException.class,
+                        () -> Invocation.resultPublicationBarrier(accepted).join()).getCause());
+            }
         } finally {
             response.complete(acceptedResult(submitted.get()));
             subject.close();
@@ -138,6 +158,48 @@ class ModelCommitHandlerRegistryTest {
 
     private static final RuntimeException REJECTION =
             new io.fluxzero.sdk.tracking.handling.IllegalCommandException("Limit reached");
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void deferredCommitsKeepTheirResultsWhenAPeerIsRejected(boolean synchronous) {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture(acceptedResult(invocation.getArgument(0))));
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        DeserializingMessage first = message(synchronous
+                ? new SyncBatchTimingCreateCommand("first") : new BatchTimingCreateCommand("first"), 42);
+        DeserializingMessage rejected = message(synchronous
+                ? new RejectSyncBatchTimingCommand("rejected") : new RejectBatchTimingCommand("rejected"), 42);
+        DeserializingMessage last = message(synchronous
+                ? new SyncBatchTimingCreateCommand("last") : new BatchTimingCreateCommand("last"), 42);
+        try {
+            CompletionException batchFailure = assertThrows(CompletionException.class, () ->
+                    DeserializingMessage.forEachInBatch(List.of(first, rejected, last), current -> {
+                        subject.handle(current).orElseThrow().join();
+                        verify(eventStoreClient, never()).commitModels(any());
+                    }));
+            assertSame(REJECTION, batchFailure.getCause());
+            verify(eventStoreClient, times(2)).commitModels(any());
+            Invocation.resultPublicationBarrier(first).join();
+            Invocation.resultPublicationBarrier(last).join();
+            assertSame(REJECTION, assertThrows(CompletionException.class,
+                    () -> Invocation.resultPublicationBarrier(rejected).join()).getCause());
+        } finally {
+            subject.close();
+        }
+    }
+
+    private record RejectBatchTimingCommand(String id) {
+        @AssertLegal void validate() { throw REJECTION; }
+        @Apply BatchTimingModel apply() { return new BatchTimingModel(id); }
+    }
+
+    private record RejectSyncBatchTimingCommand(String id) {
+        @AssertLegal void validate() { throw REJECTION; }
+        @Apply SyncBatchTimingModel apply() { return new SyncBatchTimingModel(id); }
+    }
 
     private record RejectTimingCommand(String id) {
         @AssertLegal void validate() { throw REJECTION; }

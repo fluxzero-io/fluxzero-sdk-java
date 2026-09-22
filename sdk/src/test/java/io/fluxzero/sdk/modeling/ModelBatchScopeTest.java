@@ -24,6 +24,8 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +45,127 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 class ModelBatchScopeTest {
+
+    @ParameterizedTest
+    @EnumSource(value = ModelCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
+    void latePreparationFailureReleasesIndependentWorkWithoutLosingExplicitDependencies(ModelCommitPolicy policy) {
+        RuntimeException rejection = new IllegalStateException("late preparation rejected");
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        AtomicInteger submissions = new AtomicInteger();
+        java.util.concurrent.CompletionException batchFailure = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> DeserializingMessage.forEachInBatch(List.of(message("prepared")), current -> {
+                    ModelBatchScope.CommitCoordination producer = ModelBatchScope.register(this, current, policy, lifecycle);
+                    ModelBatchScope.CommitCoordination independent = ModelBatchScope.register(this, current, policy, lifecycle);
+                    independent.initialize(List.of("independent"));
+                    independent.submit(ignored -> {
+                        submissions.incrementAndGet();
+                        return CompletableFuture.completedFuture(null);
+                    });
+                    ModelBatchScope.CommitCoordination dependent = ModelBatchScope.register(this, current, policy, lifecycle);
+                    dependent.initialize(List.of("dependent"));
+                    dependent.dependsOn(producer);
+                    dependent.submit(ignored -> {
+                        throw new AssertionError("Rejected producer must block its actual dependent");
+                    });
+                    DeserializingMessage.whenBatchCompletes(ignored -> {
+                        // Batch.close has registered its wait, but the last initializer is still pending.
+                        assertFalse(independent.attempt().completion().isDone());
+                        assertFalse(dependent.attempt().completion().isDone());
+                        producer.fail(rejection);
+                        independent.attempt().completion().join();
+                        assertSame(rejection, assertThrows(java.util.concurrent.CompletionException.class,
+                                () -> dependent.attempt().completion().join()).getCause());
+                    });
+                }));
+        assertSame(rejection, batchFailure.getCause());
+        assertEquals(1, submissions.get());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ModelCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
+    void failedPreparationDoesNotBlockExplicitProgressOfAnIndependentCommit(ModelCommitPolicy policy) {
+        RuntimeException rejection = new IllegalStateException("rejected preparation");
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        AtomicReference<ModelBatchScope.CommitCoordination> accepted = new AtomicReference<>();
+        AtomicInteger submissions = new AtomicInteger();
+        java.util.concurrent.CompletionException batchFailure = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> DeserializingMessage.forEachInBatch(List.of(message("rejected"), message("accepted")), current -> {
+                    ModelBatchScope.CommitCoordination entry = ModelBatchScope.register(this, current, policy, lifecycle);
+                    if (current.getPayload().equals("rejected")) {
+                        entry.fail(rejection);
+                    } else {
+                        accepted.set(entry);
+                        entry.initialize(List.of("independent"));
+                        entry.submit(ignored -> {
+                            submissions.incrementAndGet();
+                            return CompletableFuture.completedFuture(null);
+                        });
+                        entry.commitCurrent().join();
+                        assertEquals(1, submissions.get());
+                    }
+                }));
+        assertSame(rejection, batchFailure.getCause());
+        accepted.get().attempt().completion().join();
+        assertEquals(1, submissions.get());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ModelCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
+    void failedPreparationStillFailsAnExplicitDependent(ModelCommitPolicy policy) {
+        RuntimeException rejection = new IllegalStateException("rejected producer");
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        AtomicReference<ModelBatchScope.CommitCoordination> dependent = new AtomicReference<>();
+        java.util.concurrent.CompletionException batchFailure = assertThrows(java.util.concurrent.CompletionException.class,
+                () -> DeserializingMessage.forEachInBatch(List.of(message("producer")), current -> {
+                    ModelBatchScope.CommitCoordination producer = ModelBatchScope.register(this, current, policy, lifecycle);
+                    ModelBatchScope.CommitCoordination consumer = ModelBatchScope.register(this, current, policy, lifecycle);
+                    dependent.set(consumer);
+                    consumer.initialize(List.of("consumer"));
+                    consumer.dependsOn(producer);
+                    consumer.submit(ignored -> {
+                        throw new AssertionError("Failed preparation must retain an explicit dependency");
+                    });
+                    producer.fail(rejection);
+                }));
+        assertSame(rejection, batchFailure.getCause());
+        assertSame(rejection, assertThrows(java.util.concurrent.CompletionException.class,
+                () -> dependent.get().attempt().completion().join()).getCause());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ModelCommitPolicy.class, names = {
+            "ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH", "SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
+    void genuineOuterAbortStillFailsPendingCommitsAndClearsBatchResources(ModelCommitPolicy policy) {
+        RuntimeException failure = new IllegalStateException("batch aborted");
+        AtomicReference<ModelBatchScope.CommitCoordination> pending = new AtomicReference<>();
+        CompletableFuture<Object> response = new CompletableFuture<>();
+        AtomicInteger submissions = new AtomicInteger();
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(() -> null, ignored -> null);
+        try {
+            assertSame(failure, assertThrows(IllegalStateException.class, () ->
+                    DeserializingMessage.forEachInBatch(List.of(message("pending")), current -> {
+                        DeserializingMessage.computeForBatchIfAbsent("abort-resource", ignored -> "present");
+                        ModelBatchScope.CommitCoordination entry = ModelBatchScope.register(this, current, policy, lifecycle);
+                        pending.set(entry);
+                        entry.initialize(List.of("pending"));
+                        entry.submit(ignored -> {
+                            submissions.incrementAndGet();
+                            return response;
+                        });
+                        throw failure;
+                    })));
+            assertEquals(policy.commitAfterBatch() ? 0 : 1, submissions.get());
+            assertSame(failure, assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> pending.get().attempt().completion().join()).getCause());
+            response.complete(null);
+            assertTrue(pending.get().attempt().completion().isCompletedExceptionally());
+            assertNull(DeserializingMessage.getCurrent());
+            assertEquals(-1, DeserializingMessage.getMessageBatchIndex());
+            message("next").run(ignored -> assertNull(DeserializingMessage.getBatchResource("abort-resource")));
+        } finally {
+            response.complete(null);
+        }
+    }
 
     @Test
     void synchronousConsumerFlushesItsPendingReadyPredecessor() {

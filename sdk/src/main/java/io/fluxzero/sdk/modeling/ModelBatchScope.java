@@ -954,7 +954,7 @@ public final class ModelBatchScope {
             private final Set<CommitCoordination> unclaimed = new HashSet<>();
 
             private void add(CommitCoordination entry) {
-                if (entry.cancelled) {
+                if (entry.cancelled || entry.initialized.isCompletedExceptionally()) {
                     dependencies.put(entry, Set.of());
                     return;
                 }
@@ -1037,13 +1037,10 @@ public final class ModelBatchScope {
                 CompletableFuture.allOf(deferred.stream()
                                 .map(entry -> entry.initialized)
                                 .toArray(CompletableFuture[]::new))
-                        .whenComplete((ignored, initializationFailure) -> {
-                            if (initializationFailure == null) {
-                                release(snapshot, deferred);
-                            } else {
-                                deferred.forEach(entry -> entry.fail(initializationFailure));
-                            }
-                        });
+                        // Failed preparation belongs to that command, not its independent peers.
+                        // Release waits for every initializer to settle; real dependencies still await
+                        // the producer's own completion and therefore retain its failure.
+                        .whenComplete((ignored, initializationFailure) -> release(snapshot, deferred));
             }
             AsyncCompletionScope.register(CompletableFuture.allOf(
                     snapshot.stream().map(CommitCoordination::attempt).map(CommitAttempt::completion)
@@ -1058,9 +1055,13 @@ public final class ModelBatchScope {
                 List<CommitCoordination> all,
                 List<CommitCoordination> deferred) {
             for (CommitCoordination entry : all) {
-                if (entry.cancelled) {
-                    all = all.stream().filter(candidate -> !candidate.cancelled).toList();
-                    deferred = deferred.stream().filter(candidate -> !candidate.cancelled).toList();
+                if (entry.cancelled || entry.initialized.isCompletedExceptionally()) {
+                    // A command rejected before preparation completed creates no ordering tail or
+                    // transport slot. Explicit dependencies on it are intentionally not removed.
+                    all = all.stream().filter(candidate -> !candidate.cancelled
+                            && !candidate.initialized.isCompletedExceptionally()).toList();
+                    deferred = deferred.stream().filter(candidate -> !candidate.cancelled
+                            && !candidate.initialized.isCompletedExceptionally()).toList();
                     break;
                 }
             }
