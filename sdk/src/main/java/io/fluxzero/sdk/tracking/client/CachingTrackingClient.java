@@ -178,7 +178,11 @@ public class CachingTrackingClient implements TrackingClient {
                 return messageBatch;
             }
             synchronized (cacheMonitor) {
+                boolean wasEmpty = messageBatch.isEmpty();
                 messageBatch = getMessageBatch(config, minIndex, claim);
+                if (wasEmpty && !messageBatch.isEmpty()) {
+                    waitUntil = waitUntil(deadline, messageBatch);
+                }
                 if (isReady(config, messageBatch)) {
                     return messageBatch;
                 }

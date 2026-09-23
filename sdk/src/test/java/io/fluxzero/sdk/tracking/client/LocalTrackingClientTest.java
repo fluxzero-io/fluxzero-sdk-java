@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking.client;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.Guarantee.STORED;
@@ -223,6 +225,47 @@ class LocalTrackingClientTest {
                 client.cache(next);
 
                 MessageBatch batch = waitingBatch.get(2, TimeUnit.SECONDS);
+                assertEquals(List.of(next), batch.getMessages());
+                assertEquals(0, delegate.cachedTrackerReadCalls.get());
+            }
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void cachedTrackerCoalescesAnUpdateArrivingBeforeItAcquiresTheWaitMonitor() throws Exception {
+        try (CacheFillerBlockingLocalTrackingClient delegate = new CacheFillerBlockingLocalTrackingClient(
+                CUSTOM, "cached-before-wait", Duration.ofMinutes(5))) {
+            SerializedMessage anchor = message("anchor");
+            SerializedMessage next = message("next");
+            delegate.append(STORED, anchor, next).join();
+            AtomicBoolean insideWait = new AtomicBoolean();
+            AtomicBoolean injected = new AtomicBoolean();
+            try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate) {
+                @Override
+                protected MessageBatch doWaitForCachedBatch(ConsumerConfiguration config, long minIndex,
+                                                            ClaimSegmentResult claim, Instant deadline)
+                        throws InterruptedException {
+                    insideWait.set(true);
+                    return super.doWaitForCachedBatch(config, minIndex, claim, deadline);
+                }
+
+                @Override
+                protected MessageBatch getMessageBatch(ConsumerConfiguration config, long minIndex,
+                                                       ClaimSegmentResult claim) {
+                    MessageBatch batch = super.getMessageBatch(config, minIndex, claim);
+                    if (insideWait.get() && batch.isEmpty() && injected.compareAndSet(false, true)) {
+                        cacheNewMessages(List.of(next));
+                    }
+                    return batch;
+                }
+            }) {
+                client.cache(anchor);
+                MessageBatch batch = client.read(
+                        "cached-tracker", anchor.getIndex(), config("cached-before-wait-consumer").toBuilder()
+                                .maxWaitDuration(Duration.ofSeconds(5)).build()).get(2, TimeUnit.SECONDS);
+
+                assertTrue(injected.get());
                 assertEquals(List.of(next), batch.getMessages());
                 assertEquals(0, delegate.cachedTrackerReadCalls.get());
             }
