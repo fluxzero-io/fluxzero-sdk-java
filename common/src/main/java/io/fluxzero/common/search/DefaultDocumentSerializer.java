@@ -25,7 +25,6 @@ import org.msgpack.core.MessagePack;
 import org.msgpack.core.MessagePacker;
 import org.msgpack.core.MessageUnpacker;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -51,7 +50,8 @@ import java.util.Map;
  *
  * <p>
  * Compression is applied to the final byte output using {@link CompressionAlgorithm#ZSTD} and marked with the format
- * {@code document} via {@link Data#DOCUMENT_FORMAT}. SDK 2.0 does not read legacy LZ4-compressed documents.
+ * {@code document} via {@link Data#DOCUMENT_FORMAT}. Readers accept ZSTD and historical LZ4 envelopes; LZ4 decoding
+ * uses the bounds-checked Java implementation.
  *
  * @see Document
  * @see Data
@@ -107,33 +107,8 @@ public enum DefaultDocumentSerializer {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
-        try {
-            return readDocumentEntries(CompressionAlgorithm.ZSTD.decompress(document.getValue()));
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Could not deserialize document", e);
-        }
-    }
-
-    /**
-     * Reads the versioned MessagePack document content after its compression envelope has been removed.
-     * This allows a storage owner to decode a different envelope without recompressing the content or adding
-     * that compression algorithm to the SDK. The same version, string and trailing-data rules apply as in
-     * {@link #deserialize(Data)}.
-     *
-     * @param uncompressed complete uncompressed document bytes, including the document format version
-     * @return the reconstructed document entries
-     * @throws IllegalArgumentException if the document content is invalid or its version is unsupported
-     */
-    public Map<Entry, List<Path>> deserializeUncompressed(byte[] uncompressed) {
-        try {
-            return readDocumentEntries(uncompressed);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Could not deserialize document", e);
-        }
-    }
-
-    private Map<Entry, List<Path>> readDocumentEntries(byte[] bytes) throws IOException {
-        try (MessageUnpacker unpacker = newDocumentUnpacker(bytes)) {
+        try (MessageUnpacker unpacker = newDocumentUnpacker(
+                decompress(document.getValue()))) {
             int version = unpacker.unpackInt();
             if (version != 0) {
                 throw new IllegalArgumentException("Unsupported document revision: " + version);
@@ -154,7 +129,16 @@ public enum DefaultDocumentSerializer {
                 }
             }
             return map;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not deserialize document", e);
         }
+    }
+
+    private static byte[] decompress(byte[] bytes) {
+        // Fluxzero-framed inputs self-identify through the LZ4 compatibility decoder. Raw ZSTD frames have no prefix.
+        return bytes.length >= 4 && bytes[0] == 0x28 && bytes[1] == (byte) 0xb5
+               && bytes[2] == 0x2f && bytes[3] == (byte) 0xfd
+                ? CompressionAlgorithm.ZSTD.decompress(bytes) : CompressionAlgorithm.LZ4.decompress(bytes);
     }
 
     private static MessageUnpacker newDocumentUnpacker(byte[] bytes) {

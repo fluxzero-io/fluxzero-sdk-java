@@ -54,18 +54,23 @@ class DefaultDocumentSerializerTest {
         assertArrayEquals(
                 versionZeroDocument(value), CompressionAlgorithm.ZSTD.decompress(data.getValue()));
         assertEquals(document.getEntries(), subject.deserialize(data));
-        assertEquals(document.getEntries(), subject.deserializeUncompressed(
-                CompressionAlgorithm.ZSTD.decompress(data.getValue())));
     }
 
     @Test
-    void rejectsLegacyLz4Documents() {
-        // Original-size prefix followed by the LZ4 empty-block token.
-        byte[] legacy = {0, 0, 0, 0, 0};
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> subject.deserialize(new Data<>(legacy, "type", 0, Data.DOCUMENT_FORMAT)));
-        assertEquals("Could not deserialize document", error.getMessage());
-        assertNotNull(error.getCause());
+    void readsLegacyAndFramedDocuments() throws Exception {
+        byte[] value = "historical value".getBytes(StandardCharsets.UTF_8);
+        byte[] raw = versionZeroDocument(value);
+        byte[] legacy = CompressionAlgorithm.LZ4.compress(raw);
+        byte[] framedLz4 = new byte[legacy.length + 3];
+        framedLz4[0] = (byte) 0xff;
+        framedLz4[2] = 1;
+        System.arraycopy(legacy, 0, framedLz4, 3, legacy.length);
+        byte[] none = java.nio.ByteBuffer.allocate(raw.length + 7)
+                .put((byte) 0xff).put((byte) 0).put((byte) 0).putInt(raw.length).put(raw).array();
+        for (byte[] bytes : List.of(legacy, framedLz4, none, CompressionAlgorithm.ZSTD.compress(raw),
+                                   com.github.luben.zstd.Zstd.compress(raw))) {
+            assertEquals(expected(value), subject.deserialize(new Data<>(bytes, "type", 0, Data.DOCUMENT_FORMAT)));
+        }
     }
 
     @ParameterizedTest
@@ -107,8 +112,6 @@ class DefaultDocumentSerializerTest {
                     () -> subject.deserialize(truncated));
             assertEquals("Could not deserialize document", error.getMessage());
             assertNotNull(error.getCause());
-            assertThrows(IllegalArgumentException.class,
-                    () -> subject.deserializeUncompressed(CompressionAlgorithm.ZSTD.decompress(truncated.getValue())));
         }
         for (byte[] invalid : Arrays.asList(null, new byte[0], new byte[]{-1})) {
             IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
@@ -131,8 +134,6 @@ class DefaultDocumentSerializerTest {
                 () -> subject.deserialize(data(bytes)));
         assertEquals("Could not deserialize document", error.getMessage());
         assertEquals("Unsupported document revision: 1", error.getCause().getMessage());
-        assertEquals("Unsupported document revision: 1", assertThrows(IllegalArgumentException.class,
-                () -> subject.deserializeUncompressed(bytes)).getCause().getMessage());
     }
 
     @Test

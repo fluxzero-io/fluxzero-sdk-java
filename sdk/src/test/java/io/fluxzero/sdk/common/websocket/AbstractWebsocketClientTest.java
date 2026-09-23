@@ -480,7 +480,7 @@ class AbstractWebsocketClientTest {
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
         Map<String, List<String>> headers = connectionSetup.options().headers();
 
-        assertEquals(List.of("ZSTD"), headers.get(WebSocketCapabilities.DOCUMENT_COMPRESSION_HEADER));
+        assertEquals(List.of("ZSTD,LZ4,NONE"), headers.get(WebSocketCapabilities.SUPPORTED_DOCUMENT_COMPRESSION_HEADER));
         assertEquals(clientConfig.getSupportedCompressionAlgorithms(),
                      WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
         assertEquals(clientConfig.getSupportedTransportFormats(),

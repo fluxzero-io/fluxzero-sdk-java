@@ -25,21 +25,21 @@ that capability remain compatible and can upgrade the two components independent
 ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
 SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
-LZ4 support and its dependency have been removed from the SDK. Upgrade the Runtime first: a Runtime supporting
-`Fluxzero-Document-Compression: ZSTD` converts existing LZ4 documents on delivery to SDK 2.0, without a bulk
-storage migration. SDK 2.0 sends this header independently of WebSocket compression. Explicit GZIP and NONE WebSocket
-configurations remain available; `fluxzero.defaults.version` does not restore LZ4 in the SDK.
+It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
+outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
+supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
+GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+`fluxzero.defaults.version`.
 
-`CompressionAlgorithm.LZ4` is no longer part of the Java/Kotlin API. Replace explicit uses with `ZSTD`.
-ZSTD retains Fluxzero compression wire ID 2; ID 1 is retired. The document MessagePack content and format identifier
-remain unchanged. The Runtime retains legacy document decoding and returns size-prefixed LZ4 to clients that do not
-request ZSTD documents. Applications reading old blobs directly, outside the Runtime, must still convert them before
-passing them to SDK 2.0. This is an intentional SDK API break; it does not require rewriting existing Runtime storage.
+`CompressionAlgorithm.LZ4` remains available in Java and Kotlin, with the same historical size-prefixed wire format.
+Fluxzero compression IDs remain NONE=0, LZ4=1 and ZSTD=2. The document MessagePack content and format identifier are
+unchanged. Direct reads of historical LZ4 blobs therefore remain supported. The LZ4 dependency remains included.
 
-Storage integrations can retain an original payload while supplying an internal lazy decoder with
-`SerializedDocument.withDocumentDecoder(...)`. `DefaultDocumentSerializer.deserializeUncompressed(...)` parses the
-versioned document content after a storage owner has decoded its envelope. Neither API adds an LZ4 codec to the SDK.
-The Runtime uses these boundaries to forward LZ4 to LZ4 clients and ZSTD to ZSTD clients without recompression.
+Clients without a recognized document capability header receive size-prefixed LZ4. Explicitly advertised codecs
+include support for their Fluxzero-framed envelopes; NONE documents use that envelope to identify uncompressed content.
+For unsupported stored codecs, Runtime selects ZSTD, then LZ4, then NONE from the client's supported set. Transport
+compression preferences do not force document conversion. Custom document formats stay opaque.
 
 ## Java Version
 

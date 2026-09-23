@@ -50,7 +50,7 @@ class WebSocketCapabilitiesTest {
         Map<String, List<String>> headers = Map.of(
                 WebSocketCapabilities.SUPPORTED_COMPRESSION_ALGORITHMS_HEADER, List.of("BROTLITE, LZ4, ZSTD, GZIP"));
 
-        assertEquals(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.GZIP),
+        assertEquals(List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD, CompressionAlgorithm.GZIP),
                      WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
     }
 

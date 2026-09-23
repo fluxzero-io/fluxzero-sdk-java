@@ -25,6 +25,7 @@ import java.util.concurrent.Executors;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE;
+import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +33,40 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CompressionAlgorithmTest {
+
+    @Test
+    void safeLz4ReadsHistoricalAndFramedEnvelopes() {
+        for (byte[] raw : List.of(new byte[0], "legacy ".repeat(1024).getBytes(StandardCharsets.UTF_8))) {
+            byte[] legacy = LZ4.compress(raw);
+            byte[] framed = new byte[legacy.length + 3];
+            framed[0] = (byte) 0xff;
+            framed[2] = 1;
+            System.arraycopy(legacy, 0, framed, 3, legacy.length);
+            assertArrayEquals(raw, LZ4.decompress(legacy));
+            assertArrayEquals(raw, LZ4.decompress(framed));
+            assertArrayEquals(raw, ZSTD.decompress(framed));
+            byte[] container = new byte[framed.length + 10];
+            System.arraycopy(framed, 0, container, 5, framed.length);
+            assertArrayEquals(raw, LZ4.decompress(container, 5, framed.length));
+        }
+    }
+
+    @Test
+    void safeLz4RejectsTruncatedPayloadsAndIncorrectSizes() {
+        byte[] raw = "legacy ".repeat(100).getBytes(StandardCharsets.UTF_8);
+        byte[] legacy = LZ4.compress(raw);
+        for (int length = 0; length < legacy.length; length++) {
+            byte[] truncated = java.util.Arrays.copyOf(legacy, length);
+            assertThrows(RuntimeException.class, () -> LZ4.decompress(truncated));
+        }
+        for (int size : new int[]{-1, 0, raw.length - 1, raw.length + 1}) {
+            byte[] incorrect = legacy.clone();
+            java.nio.ByteBuffer.wrap(incorrect).putInt(size);
+            assertThrows(RuntimeException.class, () -> LZ4.decompress(incorrect));
+        }
+        assertThrows(IllegalArgumentException.class, () -> LZ4.decompress(legacy, -1, 1));
+        assertThrows(IllegalArgumentException.class, () -> LZ4.decompress(legacy, 1, legacy.length));
+    }
 
     @Test
     void gzipRoundTripsBytes() {
@@ -98,9 +133,9 @@ class CompressionAlgorithmTest {
     }
 
     @Test
-    void rejectsRetiredCompressionId() {
-        byte[] retiredFrame = {(byte) 0xff, 0, 1, 0, 0, 0, 0};
-        assertEquals("Unknown Fluxzero compression algorithm id: 1",
+    void rejectsUnknownCompressionId() {
+        byte[] retiredFrame = {(byte) 0xff, 0, 99, 0, 0, 0, 0};
+        assertEquals("Unknown Fluxzero compression algorithm id: 99",
                      assertThrows(IllegalArgumentException.class, () -> ZSTD.decompress(retiredFrame)).getMessage());
     }
 

@@ -19,6 +19,7 @@ import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
 import lombok.NonNull;
+import net.jpountz.lz4.LZ4Factory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -39,6 +40,7 @@ import java.util.zip.ZipException;
  * <p>The available algorithms include:
  * <ul>
  *   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>
+ *   <li>{@link #LZ4} – Bounds-checked Java LZ4 for historical envelopes and explicit compatibility.</li>
  *   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>
  *   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>
  * </ul>
@@ -72,9 +74,53 @@ public enum CompressionAlgorithm {
     },
 
     /**
+     * Bounds-checked Java LZ4. Includes the historical original-size prefix in output.
+     */
+    LZ4(1) {
+        @Override
+        public byte[] compress(byte[] uncompressed) {
+            byte[] compressedPayload = compressPayload(uncompressed);
+            byte[] compressed = new byte[compressedPayload.length + Integer.BYTES];
+            writeInt(compressed, 0, uncompressed.length);
+            System.arraycopy(compressedPayload, 0, compressed, Integer.BYTES, compressedPayload.length);
+            return compressed;
+        }
+
+        @Override
+        public byte[] decompress(byte[] compressed) {
+            if (hasFluxzeroCompressionHeader(compressed)) {
+                return decompressFluxzeroCompressionHeader(compressed);
+            }
+            if (compressed.length < Integer.BYTES) {
+                throw new IllegalArgumentException("Truncated LZ4 size header");
+            }
+            int uncompressedLength = readInt(compressed, 0);
+            return decompressPayload(compressed, Integer.BYTES, compressed.length - Integer.BYTES,
+                                     uncompressedLength);
+        }
+
+        @Override
+        byte[] compressPayload(byte[] uncompressed) {
+            return Lz4.FACTORY.fastCompressor().compress(uncompressed);
+        }
+
+        @Override
+        byte[] decompressPayload(byte[] compressed, int offset, int length, int originalSize) {
+            if (originalSize < 0) {
+                throw new IllegalArgumentException("Negative LZ4 uncompressed size");
+            }
+            byte[] result = Lz4.FACTORY.safeDecompressor().decompress(compressed, offset, length, originalSize);
+            if (result.length != originalSize) {
+                throw new IllegalArgumentException("LZ4 uncompressed size does not match its header");
+            }
+            return result;
+        }
+    },
+
+    /**
      * Zstandard compression using the Fluxzero compression header format.
      */
-    ZSTD(2) { // Wire ID 1 is retired and must not be reused.
+    ZSTD(2) {
         private static final int COMPRESSION_LEVEL = 1;
         private static final int POOL_SIZE = 16;
         private static final ResourcePool<ZstdCompressCtx> COMPRESSORS =
@@ -278,6 +324,11 @@ public enum CompressionAlgorithm {
                 | ((bytes[offset + 1] & 0xff) << 16)
                 | ((bytes[offset + 2] & 0xff) << 8)
                 | (bytes[offset + 3] & 0xff);
+    }
+
+    private static final class Lz4 {
+        // Deliberately exclude JNI and Unsafe implementations, including for compression.
+        private static final LZ4Factory FACTORY = LZ4Factory.safeInstance();
     }
 
     private static final class ResourcePool<T extends AutoCloseable> implements AutoCloseable {

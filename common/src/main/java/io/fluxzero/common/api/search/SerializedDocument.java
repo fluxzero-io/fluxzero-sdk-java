@@ -31,10 +31,7 @@ import lombok.With;
 import java.beans.ConstructorProperties;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
@@ -154,32 +151,20 @@ public class SerializedDocument {
         this.end = end;
         this.collection = collection;
         this.data = data == null ? memoize(() -> DefaultDocumentSerializer.INSTANCE.serialize(document.get())) : data;
-        this.document = document == null ? memoize(() -> decodeDocument(d ->
-                DefaultDocumentSerializer.INSTANCE.canDeserialize(d)
-                        ? DefaultDocumentSerializer.INSTANCE.deserialize(d) : Collections.emptyMap())) : document;
+        this.document = document == null
+                ? memoize(() -> {
+            Data<byte[]> d = data.get();
+            return new Document(id, d.getType(), d.getRevision(), collection,
+                                ofNullable(timestamp).map(Instant::ofEpochMilli).orElse(null),
+                                ofNullable(end).map(Instant::ofEpochMilli).orElse(null),
+                                DefaultDocumentSerializer.INSTANCE.canDeserialize(d)
+                                        ? DefaultDocumentSerializer.INSTANCE.deserialize(d)
+                                        : Collections.emptyMap(),
+                                () -> summary, facets, indexes);
+        }) : document;
         this.summary = summary;
         this.facets = facets;
         this.indexes = indexes;
-    }
-
-    /**
-     * Returns a view with a lazy, memoized decoder for the document entries while preserving the original serialized
-     * data and all document fields. Storage owners can use this to read historical compression envelopes internally
-     * without converting the bytes that are persisted or forwarded to another client.
-     *
-     * @param decoder decoder for the entries and paths contained in this document's data
-     * @return a document view that invokes the decoder only when its decoded content is requested
-     */
-    public SerializedDocument withDocumentDecoder(Function<Data<byte[]>, Map<Document.Entry, List<Document.Path>>> decoder) {
-        return toBuilder().document(memoize(() -> decodeDocument(decoder))).build();
-    }
-
-    private Document decodeDocument(Function<Data<byte[]>, Map<Document.Entry, List<Document.Path>>> decoder) {
-        Data<byte[]> d = data.get();
-        return new Document(id, d.getType(), d.getRevision(), collection,
-                            ofNullable(timestamp).map(Instant::ofEpochMilli).orElse(null),
-                            ofNullable(end).map(Instant::ofEpochMilli).orElse(null),
-                            decoder.apply(d), () -> summary, facets, indexes);
     }
 
     /**
