@@ -106,9 +106,9 @@ class WebsocketEndpointTest {
         ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
                 WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
-                WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.LZ4)))));
+                WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.ZSTD)))));
         when(session.getRequestParameterMap()).thenReturn(
-                Map.of("compression", List.of("LZ4"), "clientId", List.of("client"), "clientName", List.of("test-client")));
+                Map.of("compression", List.of("ZSTD"), "clientId", List.of("client"), "clientName", List.of("test-client")));
 
         assertEquals(CompressionAlgorithm.GZIP, new TestEndpoint().getCompressionAlgorithmForTest(session));
     }
@@ -118,23 +118,32 @@ class WebsocketEndpointTest {
         ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>(Map.of(
                 WebsocketDeploymentUtils.HANDSHAKE_HEADERS_USER_PROPERTY,
-                WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.LZ4)),
+                WebSocketCapabilities.asHeaders(List.of(CompressionAlgorithm.GZIP, CompressionAlgorithm.ZSTD)),
                 WebsocketDeploymentUtils.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
-                CompressionAlgorithm.LZ4)));
+                CompressionAlgorithm.ZSTD)));
         when(session.getRequestParameterMap()).thenReturn(
                 Map.of("compression", List.of("GZIP"), "clientId", List.of("client"), "clientName", List.of("test-client")));
 
-        assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithmForTest(session));
+        assertEquals(CompressionAlgorithm.ZSTD, new TestEndpoint().getCompressionAlgorithmForTest(session));
     }
 
     @Test
-    void legacyCompressionParameterRemainsFallbackWhenNoCapabilitiesAreSent() {
+    void compressionParameterRemainsFallbackWhenNoCapabilitiesAreSent() {
         ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
         when(session.getRequestParameterMap()).thenReturn(
-                Map.of("compression", List.of("LZ4"), "clientId", List.of("client"), "clientName", List.of("test-client")));
+                Map.of("compression", List.of("ZSTD"), "clientId", List.of("client"), "clientName", List.of("test-client")));
 
-        assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithmForTest(session));
+        assertEquals(CompressionAlgorithm.ZSTD, new TestEndpoint().getCompressionAlgorithmForTest(session));
+    }
+
+    @Test
+    void compressionDefaultsToZstdWithoutCapabilitiesOrParameter() {
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
+        when(session.getRequestParameterMap()).thenReturn(Map.of());
+
+        assertEquals(CompressionAlgorithm.ZSTD, new TestEndpoint().getCompressionAlgorithmForTest(session));
     }
 
     @Test

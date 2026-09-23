@@ -48,6 +48,10 @@ runtime base URL, which must point to the desired deployment.
 
 ---
 
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+LZ4 support and its dependency have been removed. Existing LZ4 document blobs must be converted before this SDK reads
+them; `fluxzero.defaults.version` does not restore LZ4. Explicit GZIP and NONE WebSocket configurations remain available.
+
 ## Client configuration (ClientConfig)
 
 The `ClientConfig` class defines all connection, routing, compression, and tracking parameters. It is fully immutable
@@ -61,7 +65,7 @@ Key options include:
 | `name`                                       | Name of the application                                                          | `FLUXZERO_APPLICATION_NAME` or legacy alias |
 | `applicationId`                              | Optional app ID                                                                  | `FLUXZERO_APPLICATION_ID` or legacy alias |
 | `id`                                         | Unique client/process instance ID                                                | `FLUXZERO_CLIENT_ID`, legacy alias; otherwise task-ID-prefixed UUID or UUID |
-| `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD, then LZ4                           |
+| `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD only                               |
 | `pingDelay` / `pingTimeout`                  | Heartbeat intervals for WebSocket health                                         | 10s / 15s                                |
 | `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
 | `maxRetainedRuntimeWebSocketMessages`        | Total assembling, compressed-pending, decode/admission, and active messages     | `128`                                    |

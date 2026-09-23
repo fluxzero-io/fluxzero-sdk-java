@@ -24,6 +24,15 @@ Upgrade the Runtime first before enabling a newly introduced Model protocol capa
 that capability remain compatible and can upgrade the two components independently within their supported release
 ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+LZ4 support and its dependency have been removed. Existing LZ4 document blobs must be converted before this SDK reads
+them; `fluxzero.defaults.version` does not restore LZ4. Explicit GZIP and NONE WebSocket configurations remain available.
+
+`CompressionAlgorithm.LZ4` is no longer part of the Java/Kotlin API. Replace explicit uses with `ZSTD`.
+ZSTD retains Fluxzero compression wire ID 2; ID 1 is retired. The document MessagePack content and format identifier
+remain unchanged. This is an intentional SDK 2.0 compatibility break. Coordinate document conversion and Runtime
+upgrades before cutover; readers without a ZSTD decoder cannot read the new document representation.
+
 ## Java Version
 
 Fluxzero SDK **2.x requires JDK 25 or higher** to compile and run, including its common, test-server and proxy artifacts.
@@ -43,7 +52,7 @@ This requirement does not change the Java baseline of the SDK 1.x release line.
 | `com.fasterxml.jackson.datatype:jackson-datatype-jsr310` | runtime |
 | `com.fasterxml.jackson.datatype:jackson-datatype-jdk8`   | runtime |
 | `org.msgpack:msgpack-core`                               | runtime |
-| `org.lz4:lz4-java`                                       | runtime |
+| `com.github.luben:zstd-jni`                                       | runtime |
 
 ### Payload Validation
 

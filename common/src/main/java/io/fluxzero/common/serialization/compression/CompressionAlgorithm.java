@@ -19,10 +19,6 @@ import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
 import lombok.NonNull;
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
-import net.jpountz.util.Native;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,16 +33,12 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
 
-import static net.jpountz.lz4.LZ4Factory.fastestJavaInstance;
-import static net.jpountz.lz4.LZ4Factory.nativeInsecureInstance;
-
 /**
  * Enumeration of supported compression algorithms used for serializing and deserializing byte data.
  *
  * <p>The available algorithms include:
  * <ul>
  *   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>
- *   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>
  *   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>
  *   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>
  * </ul>
@@ -80,45 +72,9 @@ public enum CompressionAlgorithm {
     },
 
     /**
-     * Fast compression using the LZ4 codec. Includes original size prefix in output.
-     */
-    LZ4(1) {
-        @Override
-        public byte[] compress(byte[] uncompressed) {
-            byte[] compressedPayload = compressPayload(uncompressed);
-            byte[] compressed = new byte[compressedPayload.length + Integer.BYTES];
-            writeInt(compressed, 0, uncompressed.length);
-            System.arraycopy(compressedPayload, 0, compressed, Integer.BYTES, compressedPayload.length);
-            return compressed;
-        }
-
-        @Override
-        public byte[] decompress(byte[] compressed) {
-            if (hasFluxzeroCompressionHeader(compressed)) {
-                return decompressFluxzeroCompressionHeader(compressed);
-            }
-            int uncompressedLength = readInt(compressed, 0);
-            return decompressPayload(compressed, Integer.BYTES, compressed.length - Integer.BYTES,
-                                     uncompressedLength);
-        }
-
-        @Override
-        byte[] compressPayload(byte[] uncompressed) {
-            return Lz4.COMPRESSOR.compress(uncompressed);
-        }
-
-        @Override
-        byte[] decompressPayload(byte[] compressed, int offset, int length, int originalSize) {
-            byte[] result = new byte[originalSize];
-            Lz4.DECOMPRESSOR.decompress(compressed, offset, result, 0, originalSize);
-            return result;
-        }
-    },
-
-    /**
      * Zstandard compression using the Fluxzero compression header format.
      */
-    ZSTD(2) {
+    ZSTD(2) { // Wire ID 1 is retired and must not be reused.
         private static final int COMPRESSION_LEVEL = 1;
         private static final int POOL_SIZE = 16;
         private static final ResourcePool<ZstdCompressCtx> COMPRESSORS =
@@ -205,7 +161,7 @@ public enum CompressionAlgorithm {
     /**
      * Compresses bytes using this algorithm's public SDK wire format.
      *
-     * <p>LZ4 preserves the legacy 4-byte size prefix format. ZSTD uses the Fluxzero compression header so the decoder
+     * <p>ZSTD uses the Fluxzero compression header so the decoder
      * can identify the payload algorithm. GZIP keeps the standard gzip stream format.</p>
      *
      * @param uncompressed bytes to compress
@@ -322,32 +278,6 @@ public enum CompressionAlgorithm {
                 | ((bytes[offset + 1] & 0xff) << 16)
                 | ((bytes[offset + 2] & 0xff) << 8)
                 | (bytes[offset + 3] & 0xff);
-    }
-
-    /**
-     * Returns the fastest available LZ4 factory.
-     *
-     * <p>Fluxzero deliberately uses the native insecure factory when possible. The non-deprecated
-     * {@link LZ4Factory#fastestInstance()} selects the secure native factory, which keeps the fast decompressor on the
-     * Java implementation in this LZ4 release.</p>
-     */
-    @SuppressWarnings("deprecation")
-    private static LZ4Factory fastestInstance() {
-        if (Native.isLoaded() || Native.class.getClassLoader() == ClassLoader.getSystemClassLoader()) {
-            try {
-                return nativeInsecureInstance();
-            } catch (Throwable t) {
-                return fastestJavaInstance();
-            }
-        } else {
-            return fastestJavaInstance();
-        }
-    }
-
-    private static final class Lz4 {
-        private static final LZ4Factory FACTORY = fastestInstance();
-        private static final LZ4Compressor COMPRESSOR = FACTORY.fastCompressor();
-        private static final LZ4FastDecompressor DECOMPRESSOR = FACTORY.fastDecompressor();
     }
 
     private static final class ResourcePool<T extends AutoCloseable> implements AutoCloseable {

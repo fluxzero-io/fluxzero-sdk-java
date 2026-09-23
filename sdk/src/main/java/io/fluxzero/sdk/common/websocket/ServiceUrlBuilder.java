@@ -17,12 +17,10 @@ package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ServicePathBuilder;
-import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 
 import java.net.URLEncoder;
 
-import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
@@ -132,15 +130,8 @@ public class ServiceUrlBuilder {
         if (clientConfig.getNamespace() != null) {
             result = String.format("%s&projectId=%s", result, URLEncoder.encode(clientConfig.getNamespace(), UTF_8));
         }
-        result = String.format("%s&compression=%s", result, legacyCompressionHint(clientConfig));
+        result = String.format("%s&compression=%s", result, clientConfig.getPreferredCompressionAlgorithm());
         return result;
-    }
-
-    static CompressionAlgorithm legacyCompressionHint(WebSocketClient.ClientConfig clientConfig) {
-        // Older runtimes read only the query parameter. New runtimes select the actual algorithm from headers.
-        return clientConfig.getSupportedCompressionAlgorithms().contains(LZ4)
-                ? LZ4
-                : clientConfig.getPreferredCompressionAlgorithm();
     }
 
 }

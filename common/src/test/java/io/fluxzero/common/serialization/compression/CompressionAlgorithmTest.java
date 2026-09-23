@@ -24,21 +24,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
-import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class CompressionAlgorithmTest {
-
-    @Test
-    void lz4RoundTripsBytes() {
-        byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
-
-        assertArrayEquals(bytes, LZ4.decompress(LZ4.compress(bytes)));
-    }
 
     @Test
     void gzipRoundTripsBytes() {
@@ -105,17 +98,18 @@ class CompressionAlgorithmTest {
     }
 
     @Test
-    void lz4CanReadFluxzeroRuntimeCompressionHeader() {
-        byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
-        byte[] legacyLz4 = LZ4.compress(bytes);
-        byte[] runtimeLz4 = new byte[legacyLz4.length + 3];
-        runtimeLz4[0] = (byte) 0xFF;
-        runtimeLz4[1] = 0x00;
-        runtimeLz4[2] = 1;
-        System.arraycopy(legacyLz4, 0, runtimeLz4, 3, 4);
-        System.arraycopy(legacyLz4, 4, runtimeLz4, 7, legacyLz4.length - 4);
+    void rejectsRetiredCompressionId() {
+        byte[] retiredFrame = {(byte) 0xff, 0, 1, 0, 0, 0, 0};
+        assertEquals("Unknown Fluxzero compression algorithm id: 1",
+                     assertThrows(IllegalArgumentException.class, () -> ZSTD.decompress(retiredFrame)).getMessage());
+    }
 
-        assertArrayEquals(bytes, LZ4.decompress(runtimeLz4));
+    @Test
+    void zstdReadsRawFramesAndEmptyPayloads() {
+        for (byte[] bytes : List.of(new byte[0], "raw frame".getBytes(StandardCharsets.UTF_8))) {
+            assertArrayEquals(bytes, ZSTD.decompress(com.github.luben.zstd.Zstd.compress(bytes)));
+            assertArrayEquals(bytes, ZSTD.decompress(ZSTD.compress(bytes)));
+        }
     }
 
     @Test

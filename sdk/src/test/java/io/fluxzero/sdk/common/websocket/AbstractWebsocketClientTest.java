@@ -39,6 +39,8 @@ import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -148,13 +150,13 @@ class AbstractWebsocketClientTest {
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
         WebsocketSession session = mockSession("client123_runtime456");
         session.getUserProperties().put(
-                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.LZ4);
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.ZSTD);
         session.getUserProperties().put(
                 AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
 
         try {
             CompletableFuture<Void> completion = client.dispatchRuntimeMessage(
-                    () -> client.handleMessage(CompressionAlgorithm.LZ4.compress(new byte[]{'x'}), session, null))
+                    () -> client.handleMessage(CompressionAlgorithm.ZSTD.compress(new byte[]{'x'}), session, null))
                     .toCompletableFuture();
 
             assertTrue(completion.isCompletedExceptionally(),
@@ -432,13 +434,13 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void supportedCompressionAlgorithmsDefaultToZstdWithLz4Fallback() {
+    void supportedCompressionAlgorithmsDefaultToZstdOnly() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
 
-        assertEquals(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.LZ4),
+        assertEquals(List.of(CompressionAlgorithm.ZSTD),
                      clientConfig.getSupportedCompressionAlgorithms());
     }
 
@@ -456,13 +458,13 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void serviceUrlKeepsLz4AsLegacyCompressionHintForDefaultConfig() {
+    void serviceUrlUsesZstdForDefaultConfig() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
 
-        assertTrue(ServiceUrlBuilder.gatewayUrl(MessageType.EVENT, null, clientConfig).contains("compression=LZ4"));
+        assertTrue(ServiceUrlBuilder.gatewayUrl(MessageType.EVENT, null, clientConfig).contains("compression=ZSTD"));
     }
 
     @Test
@@ -547,14 +549,14 @@ class AbstractWebsocketClientTest {
         Map<String, List<String>> responseHeaders = Map.of(
                 WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER, List.of("srv123456789"),
                 WebSocketCapabilities.RUNTIME_VERSION_HEADER, List.of("1.2.3"),
-                WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("LZ4"),
+                WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("ZSTD"),
                 WebSocketCapabilities.SELECTED_TRANSPORT_FORMAT_HEADER, List.of("CBOR"));
 
         connectionSetup.configurator().afterResponse(responseHeaders);
 
         assertEquals("srv123456789", connectionSetup.configurator().getRuntimeSessionId());
         assertEquals("1.2.3", connectionSetup.configurator().getRuntimeVersion());
-        assertEquals(CompressionAlgorithm.LZ4, connectionSetup.configurator().getSelectedCompressionAlgorithm());
+        assertEquals(CompressionAlgorithm.ZSTD, connectionSetup.configurator().getSelectedCompressionAlgorithm());
         assertEquals(WebSocketTransportFormat.CBOR,
                      connectionSetup.configurator().getSelectedTransportFormat());
     }
@@ -578,11 +580,13 @@ class AbstractWebsocketClientTest {
         assertNull(connectionSetup.configurator().getSelectedTransportFormat());
     }
 
-    @Test
-    void onOpenUsesLegacyUrlCompressionWhenRuntimeDoesNotSelectCompression() {
+    @ParameterizedTest
+    @EnumSource(CompressionAlgorithm.class)
+    void onOpenUsesConfiguredCompressionWhenRuntimeDoesNotSelectCompression(CompressionAlgorithm compression) {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
+                .supportedCompressionAlgorithms(List.of(compression))
                 .build();
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
         WebsocketSession session = mock(WebsocketSession.class);
@@ -591,12 +595,14 @@ class AbstractWebsocketClientTest {
                            AbstractWebsocketClient.createConnectionSetup(clientConfig).configurator());
         when(session.getUserProperties()).thenReturn(userProperties);
         when(session.getHandshakeResponseHeaders()).thenReturn(Map.of());
-        when(session.getRequestURI()).thenReturn(URI.create("ws://localhost/tracking/readevent?compression=LZ4"));
+        String url = ServiceUrlBuilder.trackingUrl(MessageType.EVENT, null, clientConfig);
+        assertTrue(url.contains("compression=" + compression));
+        when(session.getRequestURI()).thenReturn(URI.create(url));
 
         try {
             client.onOpen(session);
 
-            assertEquals(CompressionAlgorithm.LZ4,
+            assertEquals(compression,
                          userProperties.get(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY));
             assertEquals(WebSocketTransportFormat.JSON,
                          userProperties.get(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY));

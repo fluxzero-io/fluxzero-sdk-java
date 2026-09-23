@@ -49,8 +49,8 @@ import java.util.Map;
  * </ul>
  *
  * <p>
- * Compression is applied to the final byte output using {@link CompressionAlgorithm#LZ4} and marked with the format
- * {@code document} via {@link Data#DOCUMENT_FORMAT}.
+ * Compression is applied to the final byte output using {@link CompressionAlgorithm#ZSTD} and marked with the format
+ * {@code document} via {@link Data#DOCUMENT_FORMAT}. SDK 2.0 does not read legacy LZ4-compressed documents.
  *
  * @see Document
  * @see Data
@@ -87,7 +87,7 @@ public enum DefaultDocumentSerializer {
                 }
             }
             return new Data<>(
-                    CompressionAlgorithm.LZ4.compress(packer.toByteArray()),
+                    CompressionAlgorithm.ZSTD.compress(packer.toByteArray()),
                     document.getType(), document.getRevision(), Data.DOCUMENT_FORMAT);
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not serialize document", e);
@@ -107,7 +107,7 @@ public enum DefaultDocumentSerializer {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
         try (MessageUnpacker unpacker = newDocumentUnpacker(
-                CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
+                CompressionAlgorithm.ZSTD.decompress(document.getValue()))) {
             int version = unpacker.unpackInt();
             if (version != 0) {
                 throw new IllegalArgumentException("Unsupported document revision: " + version);

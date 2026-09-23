@@ -898,9 +898,9 @@ class ProxyServerTest {
         void websocketCompressionAlgorithmsCanBeConfigured() {
             String previousValue = System.getProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY);
             try {
-                System.setProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, "LZ4,NONE");
+                System.setProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, "ZSTD,NONE");
 
-                assertEquals(List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.NONE),
+                assertEquals(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.NONE),
                              ProxyServer.getConfiguredCompressionAlgorithms().orElseThrow());
             } finally {
                 restoreProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY, previousValue);

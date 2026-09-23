@@ -88,7 +88,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
     private static final int FIXED_WORKERS = Integer.getInteger(
             "fixedWorkers", Math.min(8, SESSION_COUNT * 3));
     private static final CompressionAlgorithm COMPRESSION = CompressionAlgorithm.valueOf(
-            System.getProperty("compression", "LZ4"));
+            System.getProperty("compression", "ZSTD"));
     private static final WebSocketClient.ClientConfig CLIENT_CONFIG = clientConfig(TRANSPORT_METRICS);
     private static final String COMPLETION_LIMIT = completionLimit(CLIENT_CONFIG, Runtime.version().feature());
     private static volatile long blackhole;

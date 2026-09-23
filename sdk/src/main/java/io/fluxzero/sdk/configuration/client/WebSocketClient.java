@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
@@ -294,10 +293,10 @@ public class WebSocketClient extends AbstractClient {
 
         /**
          * Ordered list of compression algorithms the client supports for websocket communication, with the preferred
-         * algorithm first. Should not be empty.
+         * algorithm first. Defaults to ZSTD and requires a ZSTD-capable Runtime. Should not be empty.
          */
         @Default
-        List<CompressionAlgorithm> supportedCompressionAlgorithms = List.of(ZSTD, LZ4);
+        List<CompressionAlgorithm> supportedCompressionAlgorithms = List.of(ZSTD);
 
         /**
          * Ordered list of websocket transport formats the client supports, with the preferred format first.

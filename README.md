@@ -87,6 +87,10 @@ SDK packages are published through [Fluxzero Packages](https://packages.fluxzero
 
 See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+LZ4 support and its dependency have been removed. Existing LZ4 document blobs must be converted before this SDK reads
+them; `fluxzero.defaults.version` does not restore LZ4. Explicit GZIP and NONE WebSocket configurations remain available.
+
 ## Work on the SDK
 
 The SDK is a Maven multi-module project.

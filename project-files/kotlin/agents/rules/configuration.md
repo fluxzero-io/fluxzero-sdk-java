@@ -126,6 +126,10 @@ val fluxzero = DefaultFluxzero.builder()
 
 Used for production and shared environments. It connects to a remote Fluxzero Runtime via WebSockets.
 
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+LZ4 support and its dependency have been removed. Existing LZ4 document blobs must be converted before this SDK reads
+them; `fluxzero.defaults.version` does not restore LZ4. Explicit GZIP and NONE WebSocket configurations remain available.
+
 ```kotlin
 val config = WebSocketClient.ClientConfig.builder()
     .runtimeBaseUrl("wss://flux.your-domain.com")

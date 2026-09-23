@@ -863,7 +863,7 @@ public abstract class WebsocketEndpoint {
                 .or(() -> ofNullable(session.getRequestParameterMap().get("compression"))
                         .map(List::getFirst)
                         .map(CompressionAlgorithm::valueOf))
-                .orElse(CompressionAlgorithm.LZ4);
+                .orElse(CompressionAlgorithm.ZSTD);
     }
 
     protected WebSocketTransportFormat getTransportFormat(ServerWebsocketSession session) {

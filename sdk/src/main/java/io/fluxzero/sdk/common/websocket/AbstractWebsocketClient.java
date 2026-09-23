@@ -426,7 +426,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     session.getUserProperties().put(
                             SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
                             ofNullable(configurator.getSelectedCompressionAlgorithm())
-                                    .orElseGet(() -> ServiceUrlBuilder.legacyCompressionHint(clientConfig)));
+                                    .orElseGet(clientConfig::getPreferredCompressionAlgorithm));
                     session.getUserProperties().put(
                             SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
                             ofNullable(configurator.getSelectedTransportFormat())

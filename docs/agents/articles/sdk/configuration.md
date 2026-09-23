@@ -57,3 +57,7 @@ The runtime exposes WebSocket endpoints for commands, queries, events, event sou
 Runtime namespace defaults to `public` when no namespace is supplied and normalizes namespace values to lowercase. Use explicit namespaces only when the deployment model needs isolation.
 
 Runtime health and readiness are different: `/health` means the process is up, while `/ready` includes availability/database readiness and should be used for deployment readiness checks.
+
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+LZ4 support and its dependency have been removed. Existing LZ4 document blobs must be converted before this SDK reads
+them; `fluxzero.defaults.version` does not restore LZ4. Explicit GZIP and NONE WebSocket configurations remain available.

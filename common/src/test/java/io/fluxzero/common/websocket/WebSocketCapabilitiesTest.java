@@ -48,9 +48,9 @@ class WebSocketCapabilitiesTest {
     @Test
     void compressionAlgorithmParsingIgnoresUnknownValues() {
         Map<String, List<String>> headers = Map.of(
-                WebSocketCapabilities.SUPPORTED_COMPRESSION_ALGORITHMS_HEADER, List.of("BROTLITE, LZ4, GZIP"));
+                WebSocketCapabilities.SUPPORTED_COMPRESSION_ALGORITHMS_HEADER, List.of("BROTLITE, LZ4, ZSTD, GZIP"));
 
-        assertEquals(List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.GZIP),
+        assertEquals(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.GZIP),
                      WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
     }
 
