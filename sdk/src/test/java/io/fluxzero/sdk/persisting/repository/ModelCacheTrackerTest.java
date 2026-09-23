@@ -444,18 +444,29 @@ class ModelCacheTrackerTest {
         invalidationDuringCachePublication(true, false, false);
     }
 
+    @Test
+    void bulkCleanupCanRemoveTheLateWriteBeforePublicationRetires() throws Exception {
+        invalidationDuringCachePublication(false, false, true, true);
+    }
+
     private void invalidationDuringCachePublication(boolean detach, boolean reentrant) throws Exception {
         invalidationDuringCachePublication(detach, reentrant, true);
     }
 
     private void invalidationDuringCachePublication(boolean detach, boolean reentrant, boolean clearAfter)
             throws Exception {
+        invalidationDuringCachePublication(detach, reentrant, clearAfter, false);
+    }
+
+    private void invalidationDuringCachePublication(
+            boolean detach, boolean reentrant, boolean clearAfter, boolean bulkCleanupFirst) throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
         CountDownLatch candidateSelected = new CountDownLatch(1);
         CountDownLatch continuePublication = new CountDownLatch(1);
         CountDownLatch nextRefresh = new CountDownLatch(1);
         CountDownLatch physicalCleanup = new CountDownLatch(1);
+        CountDownLatch bulkCleanup = new CountDownLatch(1);
         AtomicBoolean publicationReleased = new AtomicBoolean();
         AtomicReference<ModelCacheTracker> trackerReference = new AtomicReference<>();
         AtomicReference<ModelCache> cacheReference = new AtomicReference<>();
@@ -478,15 +489,27 @@ class ModelCacheTrackerTest {
                     awaitLatch(continuePublication);
                     return selected;
                 });
+                if (bulkCleanupFirst) {
+                    // Let modifyEach remove the late write before ModelCache.finish checks its presence.
+                    awaitLatch(bulkCleanup);
+                }
             }
 
             @Override
-            public <T> T remove(Object id) {
-                T removed = super.remove(id);
-                if ("sample-1".equals(id) && publicationReleased.get()) {
+            public <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
+                super.modifyEach(modifierFunction);
+                bulkCleanup.countDown();
+            }
+
+            @Override
+            public <T> T compute(Object id, BiFunction<? super Object, ? super T, ? extends T> mappingFunction) {
+                T result = super.compute(id, mappingFunction);
+                // Both remove() and modifyEach() remove through compute. Observe completed physical absence,
+                // not one particular cleanup API; bulk cleanup can win before retirement schedules remove().
+                if ("sample-1".equals(id) && publicationReleased.get() && result == null) {
                     physicalCleanup.countDown();
                 }
-                return removed;
+                return result;
             }
         };
         ModelCache cache = new ModelCache(delegate);
