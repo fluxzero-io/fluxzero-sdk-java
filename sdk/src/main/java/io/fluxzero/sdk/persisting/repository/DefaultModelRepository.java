@@ -1712,6 +1712,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
+    /** Internal atomic-operation result built from its acknowledged revisions, never a post-commit load. */
+    @SuppressWarnings("unchecked")
+    public <T> Graph<T> committedGraph(Commit.Outcome prepared, CommitModelsResult result, String modelId,
+                                      Entity<T> previous) {
+        List<CommittedRevision> revisions = prepared.accepted(result).revisions().stream()
+                .filter(revision -> modelId.equals(revision.target().getModelId())).toList();
+        if (revisions.isEmpty()) { throw new IllegalStateException("Atomic commit omitted target " + modelId); }
+        Entity<T> entity = (Entity<T>) committedEntity(
+                modelId, revisions.getLast().change(), revisions, previous);
+        return Graphs.pinnedRevision(entity, result.getUpdates().getLast().getStateIndex(), this);
+    }
+
     private record CommittedRevision(
             Change change,
             ModelCommitStep request,

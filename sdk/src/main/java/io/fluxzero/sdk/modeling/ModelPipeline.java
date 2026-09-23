@@ -141,12 +141,63 @@ final class ModelPipeline {
     }
 
     public CompletableFuture<Void> assertAndApply(Message update) {
+        requireNoAtomicCallback();
+        if (update.getPayload() instanceof AtomicGraphUpdate<?> operation) {
+            return atomicGraphUpdate(operation, update);
+        }
         return assertAndApply(update, null, -1);
+    }
+
+    private <T> CompletableFuture<Void> atomicGraphUpdate(AtomicGraphUpdate<T> operation, Message update) {
+        DeserializingMessage message = new DeserializingMessage(update, MessageType.COMMAND, serializer);
+        try {
+            if (!repository.sharesReadContext(operation.repository)) {
+                throw new UnsupportedOperationException(
+                        "Atomic Graph updates require the application's configured Model namespace; "
+                        + "a consumer namespace override is not supported");
+            }
+            CommitLoader loader = new CommitLoader(null);
+            loader.durableOnly = true;
+            loader.requiresStorageBoundary = true;
+            CommitAttempt context = loader.resolveGraph(operation.modelId, operation.modelType, null, Map.of()).context();
+            CommitAttempt evaluation;
+            try {
+                evaluation = expandCascadeDeletes(operation.evaluate(context, loader, message), message);
+            } catch (Exception failure) {
+                Exception translated = repository.preparationFailure(
+                        message.getMessageId(), context.readStateIndex(), failure);
+                if (translated != failure && translated instanceof ModelCommitConflictException conflict) {
+                    operation.preparationConflict = conflict;
+                }
+                throw translated;
+            }
+            Commit.Outcome prepared = repositoryCommit.prepare(
+                    message.getMessageId(), evaluation, ModelConflictPolicy.FAIL);
+            return repositoryCommit.trackLocalCommit(evaluation, message, false,
+                    () -> repositoryCommit.commitPrepared(prepared, null, -1)).thenAccept(result -> {
+                CommitModelsResult committed = result.orElseThrow(() ->
+                        new IllegalStateException("An atomic Graph update must submit a checked revision"));
+                if (!committed.isAccepted()) {
+                    repository.invalidateModels(evaluation.readModelIds());
+                    operation.rejected = new ModelCommitConflictException(committed);
+                    throw operation.rejected;
+                }
+                operation.after = repository.committedGraph(
+                        prepared, committed, operation.modelId, operation.previous);
+            });
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    private void requireNoAtomicCallback() {
+        CommitAttempt.requireNoAtomicCallback(repository);
     }
 
     /** Executes an update against one explicitly selected persisted model. */
     public CompletableFuture<Void> assertAndApply(
             Message update, String modelId, Class<?> modelType) {
+        requireNoAtomicCallback();
         Objects.requireNonNull(modelId, "modelId");
         Objects.requireNonNull(modelType, "modelType");
         DeserializingMessage message = new DeserializingMessage(
@@ -161,6 +212,7 @@ final class ModelPipeline {
      * Each update keeps its own commit, conflict handling, and durability completion.
      */
     public CompletableFuture<Void> assertAndApplyAll(List<Message> updates) {
+        requireNoAtomicCallback();
         Objects.requireNonNull(updates, "updates");
         List<Message> messages = updates.stream()
                 .map(update -> Objects.requireNonNull(update, "update"))
@@ -243,6 +295,7 @@ final class ModelPipeline {
      */
     public CompletableFuture<Void> applyStoredEvent(Message event) {
         try {
+            requireNoAtomicCallback();
             Objects.requireNonNull(event, "event");
             DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
             return execute(new ExecutionRequest(message, null, -1, Mode.REPLAY), null)
@@ -256,6 +309,7 @@ final class ModelPipeline {
     public CompletableFuture<Void> migratePublishedEvent(
             Message event, long eventIndex) {
         try {
+            requireNoAtomicCallback();
             Objects.requireNonNull(event, "event");
             if (eventIndex < 0L) {
                 throw new IllegalArgumentException(
@@ -886,9 +940,10 @@ final class ModelPipeline {
             if (rootType == null) {
                 continue;
             }
-            Graph<?> graph = repository.loadGraphAtIncludingMessageBatch(
+            Graph<?> graph = repository.loadGraph(
                     rootId, rootType,
-                    evaluation.readStateIndex(),
+                    io.fluxzero.common.api.modeling.ModelReadBoundary.state(
+                            evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
                     Graph.Options.DEFAULT);
             addCascadeGraph(nodes, edges, graph);
         }
@@ -898,9 +953,11 @@ final class ModelPipeline {
                 && !nodes.containsKey(transition.modelId())) {
                 addCascadeGraph(
                         nodes, edges,
-                        repository.loadGraphAtIncludingMessageBatch(
+                        repository.loadGraph(
                                 transition.modelId(), transition.modelType(),
-                                evaluation.readStateIndex(), Graph.Options.DEFAULT));
+                                io.fluxzero.common.api.modeling.ModelReadBoundary.state(
+                                        evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
+                                Graph.Options.DEFAULT));
             }
         }
         overlayFinalValues(latestTransitions, nodes, edges);
@@ -1064,6 +1121,7 @@ final class ModelPipeline {
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private boolean requiresStorageBoundary;
+        private boolean durableOnly;
         private boolean permitsDeferredBoundary;
         private CommitAttempt deferredContext;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
@@ -1306,6 +1364,12 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
+            if (durableOnly) {
+                // Callbacks can discover typed assertion dependencies that were not in their initial target plan.
+                // Register those explicit types before a document head needs the local logical-name catalog.
+                resolution.models().forEach(target -> repository.modelName(target.modelType()));
+                resolution.ancestorDependencies().forEach(target -> repository.modelName(target.modelType()));
+            }
             // A simple document write needs only its own revision. Acquire namespace proof lazily when it
             // discovers another dependency; complex preparation retains the eager coherent snapshot.
             boolean documentOnly = boundary == null && !requiresStorageBoundary && !migration
@@ -1325,7 +1389,7 @@ final class ModelPipeline {
                     });
             CommitAttempt loaded = deferred ? repository.loadDeferredDocumentContext(resolution)
                     : boundary == null && (requiresStorageBoundary || documentOnly) && !migration
-                    ? repository.loadCurrentContext(resolution, stagedValues, true)
+                    ? repository.loadCurrentContext(resolution, stagedValues, !durableOnly)
                     : advanceIncompleteDocumentBoundary
                     ? repository.loadRebaseContext(
                             resolution, boundary, stagedValues, true, migration)
@@ -1333,7 +1397,8 @@ final class ModelPipeline {
                             ? repository.loadContext(
                                     resolution, boundary, stagedValues, true, true)
                             : repository.loadContext(
-                                    resolution, boundary, stagedValues, true);
+                                    resolution, boundary, stagedValues, !durableOnly);
+            if (durableOnly) { loaded.durableReadsOnly(); }
             if (deferred) { deferredContext = loaded; }
             if (boundary != null && loaded.readStateIndex() != boundary) {
                 if (!advanceIncompleteDocumentBoundary

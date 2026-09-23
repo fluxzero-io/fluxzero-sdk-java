@@ -62,6 +62,228 @@ public abstract class DocumentGraphContract {
     /** Supplies separate application clients sharing one isolated namespace. */
     protected abstract Client[] clients(String namespace);
 
+    @Test
+    void atomicDocumentReplacementAndConsumeOnce() {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.reader.apply(fc -> {
+                var original = graph(true, "one");
+                assertTrue(original.compareAndSet(new Document("one", null, "alias", 2)));
+                assertFalse(original.compareAndSet(new Document("one", null, "alias", 3)));
+                var after = original.updateAndGet(g -> g.update(d -> new Document(d.id(), d.rootId(), d.alias(), 3)));
+                assertEquals(3, after.get().version());
+                assertTrue(after.revisionStateIndex() > original.revisionStateIndex());
+                var before = after.getAndUpdate(Graph::delete);
+                assertEquals(3, before.get().version());
+                assertNull(graph(true, "one").get());
+                assertFalse(after.compareAndSet(new Document("one", null, "alias", 4)));
+                assertThrows(java.util.NoSuchElementException.class, () -> after.getAndUpdate(Graph::delete, 2));
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void atomicUpdateTracksEmptyMembershipAndRetriesFresh() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 0));
+            AtomicInteger calls = new AtomicInteger();
+            h.beforeCommit.set(() -> write(h.writer, new SetDocument("one", "parent", "alias", 1)));
+            Graph<Root> updated = h.reader.apply(fc -> Fluxzero.loadCurrentGraph("parent", Root.class)
+                    .updateAndGet(g -> {
+                        calls.incrementAndGet();
+                        int count = g.children("children", Document.class).size();
+                        return g.update(r -> new Root(r.rootId(), count));
+                    }, 1));
+            assertEquals(2, calls.get());
+            assertEquals(1, updated.get().version());
+        }
+    }
+
+    @Test
+    void atomicUpdateTracksManualDependencyAndHonorsDefaultZeroRetries() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 1));
+            h.set(1);
+            h.reader.apply(fc -> graph(true, "one").get()); // Register this application's known type for untyped reads.
+            AtomicInteger calls = new AtomicInteger();
+            h.beforeCommit.set(() -> h.set(2));
+            var failure = assertThrows(Exception.class, () -> h.reader.apply(fc ->
+                    Fluxzero.loadCurrentGraph("parent", Root.class).updateAndGet(g -> {
+                        calls.incrementAndGet();
+                        int value = ((Document) Fluxzero.loadGraph("doc-one").get()).version();
+                        return g.update(r -> new Root(r.rootId(), value));
+                    })));
+            assertInstanceOf(ModelCommitConflictException.class, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(1, calls.get());
+        }
+    }
+
+    @Test
+    void atomicPinnedDocumentDependencyFailureIsPublicAndTerminal() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 1));
+            h.set(1);
+            AtomicInteger calls = new AtomicInteger();
+            var failure = assertThrows(Exception.class, () -> h.reader.apply(fc ->
+                    Fluxzero.loadCurrentGraph("parent", Root.class).updateAndGet(g -> {
+                        calls.incrementAndGet();
+                        h.beforeDocument.set(() -> h.set(null));
+                        graph(false, "one").get();
+                        return g.update(r -> new Root(r.rootId(), 2));
+                    }, 3)));
+            var conflict = assertInstanceOf(ModelCommitConflictException.class,
+                    io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertNotNull(conflict.getReadConflict());
+            assertEquals(1, calls.get());
+            assertEquals(0, h.commits.get());
+        }
+    }
+
+    @Test
+    void atomicUpdateIncludesInjectedHelperAssertionDependencies() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 1));
+            h.set(1);
+            h.beforeCommit.set(() -> h.set(2));
+            var failure = assertThrows(Exception.class, () -> h.reader.apply(fc ->
+                    Fluxzero.loadCurrentGraph("parent", Root.class).updateAndGet(g -> {
+                        Fluxzero.assertLegal(new VerifyDocumentVersion("one", 1));
+                        return g.update(r -> new Root(r.rootId(), 2));
+                    })));
+            assertInstanceOf(ModelCommitConflictException.class, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(1, h.writer.<Integer>apply(fc -> Fluxzero.loadCurrentGraph("parent", Root.class)
+                    .get().version()).intValue());
+        }
+    }
+
+    public record VerifyDocumentVersion(String id, int expected) {
+        @AssertLegal void check(Document document) { assertEquals(expected, document.version()); }
+    }
+
+    @Test
+    void atomicUpdateIncludesColdAncestorHelperDependencies() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 1));
+            write(h.writer, new SetDocument("one", "parent", "alias", 1));
+            h.beforeCommit.set(() -> write(h.writer, new SetRoot("parent", 2)));
+            var failure = assertThrows(Exception.class, () -> h.reader.apply(fc -> graph(true, "one").updateAndGet(g -> {
+                Fluxzero.assertLegal(new VerifyParentVersion("one", 1));
+                return g.update(d -> new Document(d.id(), d.rootId(), d.alias(), 2));
+            })));
+            assertInstanceOf(ModelCommitConflictException.class, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(1, h.writer.<Integer>apply(fc -> graph(true, "one").get().version()).intValue());
+        }
+    }
+
+    public record VerifyParentVersion(String id, int expected) {
+        @AssertLegal void check(Document document, Graph<Root> root) { assertEquals(expected, root.get().version()); }
+    }
+
+    @Test
+    void atomicEqualReplacementStillConflictsAndOldLifetimeCannotBeRestored() {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.reader.apply(fc -> {
+                var old = graph(true, "one");
+                h.beforeCommit.set(() -> h.set(2));
+                assertFalse(old.compareAndSet(old.get()));
+                write(h.writer, new SetDocument("one", null, "alias", null));
+                h.set(1);
+                assertFalse(old.compareAndSet(old.get()));
+                assertEquals(1, graph(true, "one").get().version());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void atomicDeleteCascadesToDocumentChildren() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 1));
+            write(h.writer, new SetDocument("one", "parent", "alias", 1));
+            h.reader.apply(fc -> graph(true, "one").get());
+            Graph<Root> previous = h.reader.apply(fc ->
+                    Fluxzero.loadCurrentGraph("parent", Root.class).getAndUpdate(Graph::delete));
+            assertEquals(1, previous.get().version());
+            assertNull(h.writer.apply(fc -> graph(true, "one").get()));
+        }
+    }
+
+    @Test
+    void atomicResultDoesNotLoadANewerPostCommitValue() {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.afterCommit.set(() -> h.set(99));
+            Graph<Document> result = h.reader.apply(fc -> graph(true, "one")
+                    .updateAndGet(g -> g.update(d -> new Document(d.id(), d.rootId(), d.alias(), 2))));
+            assertEquals(2, result.get().version());
+            assertEquals(99, h.writer.<Integer>apply(fc -> graph(true, "one").get().version()).intValue());
+            assertTrue(result.revisionStateIndex() < h.writer.apply(fc -> graph(true, "one").revisionStateIndex()));
+        }
+    }
+
+    @Test
+    void atomicCallbackIgnoresUncommittedBatchChildrenAndDoesNotReevaluate() {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("parent", 1));
+            h.reader.apply(fc -> graph(true, "one").get());
+            var gate = new CompletableFuture<Void>();
+            var producer = new AtomicReference<CompletableFuture<Void>>();
+            AtomicInteger calls = new AtomicInteger();
+            h.commitGate = gate;
+            try {
+                h.reader.apply(fc -> {
+                    var messages = List.of("producer", "atomic").stream().map(payload ->
+                            new DeserializingMessage(new Message(payload), MessageType.COMMAND, fc.serializer())).toList();
+                    DeserializingMessage.forEachInBatch(messages, message -> {
+                        if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                            producer.set(fc.executeModelCommit(new Message(new SetDocument("one", "parent", "alias", 1))));
+                            assertFalse(producer.get().isDone());
+                        } else {
+                            h.commitGate = null;
+                            Graph<Root> before = Fluxzero.loadCurrentGraph("parent", Root.class).getAndUpdate(g -> {
+                                calls.incrementAndGet();
+                                assertTrue(g.children("children", Document.class).isEmpty());
+                                assertNull(Fluxzero.loadGraph("doc-one").get());
+                                return g.delete();
+                            });
+                            assertEquals(1, before.get().version());
+                            assertFalse(producer.get().isDone());
+                        }
+                    });
+                    return null;
+                });
+            } finally {
+                h.commitGate = null;
+                gate.completeExceptionally(new IllegalStateException("Abort the deliberately uncommitted producer"));
+            }
+            assertThrows(Exception.class, () -> producer.get().join());
+            assertEquals(1, calls.get());
+            assertNull(h.writer.apply(fc -> Fluxzero.loadCurrentGraph("parent", Root.class).get()));
+        }
+    }
+
+    @Test
+    void consumeOnceDoesNotReleaseValueBeforeDurability() throws Exception {
+        try (var h = new Harness()) {
+            h.set(1);
+            var gate = new CompletableFuture<Void>();
+            h.commitGate = gate;
+            CompletableFuture<Graph<Document>> consumed = CompletableFuture.supplyAsync(
+                    () -> h.reader.apply(fc -> graph(true, "one").getAndUpdate(Graph::delete)),
+                    task -> Thread.ofVirtual().start(task));
+            try {
+                h.commitEntered.get(5, TimeUnit.SECONDS);
+                assertFalse(consumed.isDone());
+                assertEquals(1, h.writer.<Integer>apply(fc -> graph(true, "one").get().version()).intValue());
+                gate.complete(null);
+                assertEquals(1, consumed.get(5, TimeUnit.SECONDS).get().version());
+                assertNull(h.writer.apply(fc -> graph(true, "one").get()));
+            } finally { gate.complete(null); }
+        }
+    }
+
     @ParameterizedTest
     @CsvSource({"FAIL,false,delete", "RETRY,true,delete", "ACCEPT,true,delete", "DEFAULT,true,delete",
                 "FAIL,false,replace", "RETRY,true,replace", "ACCEPT,true,replace", "DEFAULT,true,replace",
@@ -498,10 +720,12 @@ public abstract class DocumentGraphContract {
         final AtomicReference<Runnable> afterHead = new AtomicReference<>();
         final AtomicReference<Runnable> beforeDocument = new AtomicReference<>();
         final AtomicReference<Runnable> beforeCommit = new AtomicReference<>();
+        final AtomicReference<Runnable> afterCommit = new AtomicReference<>();
         final AtomicReference<Runnable> beforeSecondDocument = new AtomicReference<>();
         final AtomicInteger gates = new AtomicInteger(), commits = new AtomicInteger(), documentReads = new AtomicInteger();
         final AtomicInteger receiptHeads = new AtomicInteger();
         volatile CompletableFuture<Void> commitGate;
+        final CompletableFuture<Void> commitEntered = new CompletableFuture<>();
         boolean forbidReplay;
         final Fluxzero writer, reader;
 
@@ -532,6 +756,7 @@ public abstract class DocumentGraphContract {
                             }
                             if (operation.equals("commitModels")) {
                                 commits.incrementAndGet(); run(beforeCommit);
+                                commitEntered.complete(null);
                                 CompletableFuture<Void> gate = commitGate;
                                 if (gate != null) {
                                     var request = (CommitModels) parameters[0];
@@ -540,6 +765,9 @@ public abstract class DocumentGraphContract {
                                 }
                             }
                             Object response = call.get();
+                            if (operation.equals("commitModels")) {
+                                return ((CompletableFuture<?>) response).thenApply(value -> { run(afterCommit); return value; });
+                            }
                             if (operation.equals("getModelEvents") && ((GetModelEvents) parameters[0]).getRequests()
                                     .stream().anyMatch(request -> request.getModelId().equals("doc-one"))) { run(afterHead); }
                             return response;

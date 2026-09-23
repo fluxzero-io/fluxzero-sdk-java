@@ -119,6 +119,13 @@ public record Change(
         return directReplay != null;
     }
 
+    /** A checked replacement always writes a revision, even if its value compares equal. */
+    Change checkedReplacement() {
+        return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after,
+                          handler, directReplay, false, metadata, ModelConflictPolicy.FAIL, graphProjectionCompletion,
+                          true, configuration().eventSourced(), false, true);
+    }
+
     public void validate() {
         if (active && configuration().eventSourced() && updateState && !storeEvent) {
             throw new IllegalStateException(

@@ -66,6 +66,7 @@ public final class CommitAttempt {
     private long graphReadGeneration;
     private DeferredBoundary deferredBoundary;
     private int preparationRetries;
+    private boolean durableReadsOnly;
     private Collection<String> failedPreparationReads;
 
     /** Retains only ordering evidence when evaluation rejects provisional state before producing an outcome. */
@@ -164,6 +165,14 @@ public final class CommitAttempt {
         readResolver = resolver;
     }
 
+    /** Internal guard before a public asynchronous mutation leaves its originating thread. */
+    public static void requireNoAtomicCallback(ModelRepository repository) {
+        CommitAttempt context = currentReadContext(repository);
+        if (context != null && context.readsDurableStateOnly()) {
+            throw new IllegalStateException("Atomic Graph callbacks must stage changes, not start nested commits");
+        }
+    }
+
     /** Returns this repository's active mutation read context, never an event-replay or escaped async context. */
     public static CommitAttempt currentReadContext(ModelRepository repository) {
         CommitAttempt context = graphInvocation.get();
@@ -172,6 +181,13 @@ public final class CommitAttempt {
         ModelRepository owner = context.graphReadOwner.readResolver.repository();
         return owner == repository || owner instanceof DefaultModelRepository standard
                                      && standard.sharesReadContext(repository) ? context : null;
+    }
+
+    void durableReadsOnly() { durableReadsOnly = true; }
+
+    /** Whether this independent operation excludes uncommitted message-batch overlays. */
+    public boolean readsDurableStateOnly() {
+        return durableReadsOnly || graphReadOwner != null && graphReadOwner.durableReadsOnly;
     }
 
     boolean mutationContext() { return graphReadOwner != null && !Entity.isLoading(); }
