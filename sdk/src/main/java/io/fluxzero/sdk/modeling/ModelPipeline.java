@@ -473,7 +473,7 @@ final class ModelPipeline {
                 ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(entry, current, result.getRebaseStateIndex(), migration));
+                                rebase(entry, message, current, result.getRebaseStateIndex(), migration));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
@@ -769,7 +769,7 @@ final class ModelPipeline {
                         staleEvaluation,
                         conflict);
         return reevaluate(entry, message, () -> expandCascadeDeletes(
-                ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict)));
+                ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict), message));
     }
 
     private static long retryStateIndex(
@@ -809,11 +809,12 @@ final class ModelPipeline {
                         attempt, List.of(initialMessage),
                         new CommitLoader(
                                 null, false, false, false,
-                                initialMessage, prefetched)));
+                                initialMessage, prefetched)), initialMessage);
     }
 
     private CommitAttempt rebase(
             ModelBatchScope.CommitCoordination entry,
+            DeserializingMessage message,
             CommitAttempt evaluation,
             long stateIndex,
             boolean migration) {
@@ -829,7 +830,7 @@ final class ModelPipeline {
                                 .toList(),
                         new CommitLoader(
                                 stateIndex, true, migration,
-                                readsDocumentModel(evaluation)))));
+                                readsDocumentModel(evaluation))), message));
     }
 
     private CompletableFuture<CommitAttempt> reevaluate(
@@ -848,6 +849,16 @@ final class ModelPipeline {
      * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
      * actual logical deletions.
      */
+    @lombok.SneakyThrows
+    private CommitAttempt expandCascadeDeletes(
+            CommitAttempt evaluation, DeserializingMessage message) {
+        try {
+            return expandCascadeDeletes(evaluation);
+        } catch (Exception failure) {
+            throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
+        }
+    }
+
     private CommitAttempt expandCascadeDeletes(
             CommitAttempt evaluation) {
         LinkedHashMap<String, Change> latestTransitions =

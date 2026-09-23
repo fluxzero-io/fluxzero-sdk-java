@@ -137,7 +137,8 @@ public final class ModelBatchScope {
     static boolean canReevaluate(Throwable failure) {
         Throwable cause = io.fluxzero.common.ObjectUtils.unwrapException(failure);
         return !(cause instanceof Error || cause instanceof java.util.concurrent.CancellationException
-                 || cause instanceof InterruptedException);
+                 || cause instanceof InterruptedException
+                 || cause instanceof ModelCommitConflictException conflict && conflict.getReadConflict() != null);
     }
 
     static CommitCoordination register(

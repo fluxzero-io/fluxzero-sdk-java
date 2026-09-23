@@ -14,8 +14,11 @@
 
 package io.fluxzero.common.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -59,4 +62,41 @@ public class ErrorResult extends AbstractRequestResult {
      * The error message returned from the Fluxzero Runtime or client logic.
      */
     String message;
+
+    /**
+     * Optional evidence that a requested historical Model head cannot be reconstructed. Older peers ignore this
+     * additive field and retain the ordinary error message; absence must not be inferred from that message.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    ModelHistoryUnavailable modelHistoryUnavailable;
+
+    /** Creates an ordinary unstructured request failure. */
+    public ErrorResult(long requestId, String message) {
+        this(requestId, message, null);
+    }
+
+    /** Creates a failure with optional, typed historical-read evidence. */
+    @ConstructorProperties({"requestId", "message", "modelHistoryUnavailable"})
+    public ErrorResult(long requestId, String message, ModelHistoryUnavailable modelHistoryUnavailable) {
+        this.requestId = requestId;
+        this.message = message;
+        this.modelHistoryUnavailable = modelHistoryUnavailable;
+    }
+
+    /**
+     * A Model has changed after the requested boundary and lacks the history required to recover its earlier head.
+     * Neither field claims a current head or relationship position.
+     *
+     * @param modelId canonical Model ID
+     * @param readStateIndex requested historical state boundary
+     */
+    public record ModelHistoryUnavailable(String modelId, Long readStateIndex) {
+        public ModelHistoryUnavailable {
+            Objects.requireNonNull(modelId, "modelId");
+            Objects.requireNonNull(readStateIndex, "readStateIndex");
+            if (modelId.isBlank() || readStateIndex < 0) {
+                throw new IllegalArgumentException("Historical Model failure requires an ID and nonnegative boundary");
+            }
+        }
+    }
 }

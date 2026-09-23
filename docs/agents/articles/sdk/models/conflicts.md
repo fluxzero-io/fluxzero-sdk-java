@@ -35,6 +35,14 @@ or increase the configured conflict retry budget. External writers and newly dis
 conflict validation. Ordinary handlers that return results based on pending state retain their producer-success barrier;
 they cannot publish a successful result from state that was rejected.
 
+One terminal preparation failure is not a retryable storage rejection: deletion/cascade planning may lose a pinned
+DOCUMENT version to a concurrent replacement or deletion. It raises `ModelCommitConflictException` without submitting
+or reevaluating the mutation, even with RETRY or provisional predecessors. Inspect `getReadConflict()` for the commit
+ID, unavailable canonical Model ID and pinned read index. `getResult()` is null for this local failure; for ordinary
+storage conflicts it remains populated and `getReadConflict()` is null. Do not automatically resubmit a stale deletion.
+JDBC needs an updated Runtime returning typed historical-read evidence. With an older Runtime, this early rejection
+remains a service error; the SDK never guesses from error text. Older SDKs ignore the additive error detail.
+
 Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
 Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8

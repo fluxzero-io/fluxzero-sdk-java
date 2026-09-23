@@ -67,7 +67,9 @@ class ModelBatchScopeTest {
 
     private static java.util.stream.Stream<Throwable> terminalFailures() {
         return java.util.stream.Stream.of(new AssertionError("fatal"),
-                new java.util.concurrent.CancellationException("cancelled"), new InterruptedException("interrupted"));
+                new java.util.concurrent.CancellationException("cancelled"), new InterruptedException("interrupted"),
+                new ModelCommitConflictException(
+                        new ModelCommitConflictException.ReadConflict("command", "document", 1L), null));
     }
 
     @ParameterizedTest

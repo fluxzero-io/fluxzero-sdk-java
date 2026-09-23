@@ -137,6 +137,9 @@ and applies must therefore be repeatable. Once pinned, the boundary never moves.
 Complex targets, known Graph dependencies, aliases, parent bindings, batches and custom conflict handling retain
 eager preparation: one batched head read, with head/document preparation races retried at most eight times before
 user code runs. An unavailable pinned document version fails explicitly; use EVENT_SOURCED for historical reads.
+Deletion/cascade planning that loses such a version raises a terminal `ModelCommitConflictException`: no commit
+submission or reevaluation, including under RETRY. `getReadConflict()` identifies the unavailable Model and pinned
+boundary; `getResult()` is null because no storage rejection occurred. See `/docs/sdk/models/conflicts`.
 
 Open `graph.current()` for the same Model without replacing the original Graph. Outside mutations it pins a new
 current boundary during the call and captures pending batch changes; inside a mutation it shares that attempt's

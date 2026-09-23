@@ -41,6 +41,11 @@ the normal retry budget. More complex contexts verify eagerly, retrying head/doc
 eight times before user code runs. Once pinned, later Graph reads share the same boundary; an unavailable historical
 document value fails explicitly rather than moving the snapshot. Keep EVENT_SOURCED for historical reconstruction.
 
+Deletion/cascade preparation that loses a pinned DOCUMENT version fails with `ModelCommitConflictException` before
+submission, without reevaluation even under RETRY or provisional batch dependencies. Its `readConflict` contains the
+original commit ID, unavailable canonical Model ID and pinned read index; `result` is null because no storage response
+exists. Ordinary storage conflicts instead have `result` and no `readConflict`, retaining normal conflict handling.
+
 ## Non-searchable is not private
 
 The internal current Model source and the optional public DOCUMENT projection are independent stored roles.

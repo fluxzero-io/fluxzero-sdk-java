@@ -1745,14 +1745,21 @@ final class ModelReplayCursor {
         if (!Objects.equals(expected, document.head())) {
             throw new GraphBoundaryMovedException(
                     "Document model '%s' moved while reconstructing graph boundary"
-                            .formatted(target.modelId()));
+                            .formatted(target.modelId()), target.modelId());
         }
         return document.entity();
     }
 
     static final class GraphBoundaryMovedException extends EventSourcingException {
+        final String documentModelId;
+
         private GraphBoundaryMovedException(String message) {
+            this(message, null);
+        }
+
+        private GraphBoundaryMovedException(String message, String documentModelId) {
             super(message);
+            this.documentModelId = documentModelId;
         }
     }
 

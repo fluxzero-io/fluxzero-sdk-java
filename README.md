@@ -49,6 +49,9 @@ Fresh current Graph reads retry head/document races before pinning. `loadCurrent
 root during construction; existing Graphs and mutation boundaries never silently advance.
 Simple single-target DOCUMENT writes defer namespace verification until an additional transactional read needs it;
 complex preparation verifies eagerly. Neither route replaces document authority with event replay.
+If deletion planning loses a required pinned DOCUMENT version, it fails with `ModelCommitConflictException`
+without submitting or reevaluating the mutation. Its `readConflict` identifies the unavailable Model and boundary;
+`result` is absent because storage has not rejected a submitted commit.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
 derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.
 Missing companions remain empty even with `@Alias`: alias fallback does not reinterpret their parent as the companion.

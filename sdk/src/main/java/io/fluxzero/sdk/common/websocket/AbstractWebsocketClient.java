@@ -1129,7 +1129,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     }
                 } finally {
                     if (result instanceof ErrorResult e) {
-                        webSocketRequest.result.completeExceptionally(new ServiceException(e.getMessage()));
+                        webSocketRequest.result.completeExceptionally(
+                                new ServiceException(e.getMessage(), e.getModelHistoryUnavailable()));
                     } else {
                         webSocketRequest.result.complete(result);
                     }

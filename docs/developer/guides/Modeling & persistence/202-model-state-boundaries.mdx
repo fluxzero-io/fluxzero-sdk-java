@@ -121,6 +121,18 @@ batches and custom conflict handling retain eager preparation: one batched head 
 retried at most eight times before user code runs. Once pinned, an unavailable document version fails explicitly
 rather than moving the snapshot; use EVENT_SOURCED for historical reconstruction.
 
+If deletion/cascade preparation loses a required pinned DOCUMENT version after concurrent replacement or deletion,
+it raises `ModelCommitConflictException` before submitting the mutation. This preparation conflict is terminal under
+all conflict policies, including RETRY: neither conflict handling nor provisional batch dependencies rerun it against
+newer state. `getReadConflict()` supplies the original commit ID, unavailable canonical Model ID and pinned read index.
+`getResult()` is null in this case, because there was no storage rejection or observed current relationship position.
+For ordinary storage conflicts the opposite holds: `getResult()` is present and `getReadConflict()` is null; existing
+RETRY/FAIL/ACCEPT handling is unchanged. This does not change bounded retries for fresh, not-yet-pinned current reads.
+For JDBC, this classification requires a Runtime that returns typed historical-read evidence. An older Runtime
+still fails closed with its ordinary service error; the SDK does not infer conflict semantics by parsing error text.
+Older SDKs can read the updated Runtime's ordinary error envelope and ignore the optional evidence. No stored-data
+migration is involved.
+
 Consumed Graph alias lookups also protect the selected mapping (including absence), canonical-ID precedence and
 the selected owner's head. This includes `id()` and relation-only access. Exact-ID reads do not depend on aliases;
 merely creating an unused Graph does not add a lookup dependency. `ACCEPT` retains only apply-time dependencies.

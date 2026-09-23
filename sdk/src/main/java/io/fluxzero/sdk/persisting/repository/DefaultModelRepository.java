@@ -70,6 +70,7 @@ import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ModelState;
+import io.fluxzero.sdk.modeling.ModelCommitConflictException;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
@@ -1222,6 +1223,32 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return loadGraph(
                 rootId, rootType,
                 ModelReadBoundary.state(stateIndex, true), options);
+    }
+
+    /**
+     * Translates loss of a pinned document during mutation preparation. Unrelated application, replay and
+     * serialization failures retain their original contract; fresh current reads use their own bounded retry path.
+     */
+    public Exception preparationFailure(String commitId, long readStateIndex, Exception failure) {
+        Throwable cause = io.fluxzero.common.ObjectUtils.unwrapException(failure);
+        while (cause instanceof java.lang.reflect.UndeclaredThrowableException wrapper) {
+            cause = io.fluxzero.common.ObjectUtils.unwrapException(wrapper.getUndeclaredThrowable());
+        }
+        String unavailableModelId = null;
+        if (cause instanceof ModelReplayCursor.GraphBoundaryMovedException moved
+            && moved.documentModelId != null) {
+            unavailableModelId = moved.documentModelId;
+        } else if (cause instanceof io.fluxzero.sdk.common.exception.ServiceException service
+                   && service.getModelHistoryUnavailable() != null
+                   && service.getModelHistoryUnavailable().readStateIndex() == readStateIndex) {
+            unavailableModelId = service.getModelHistoryUnavailable().modelId();
+        }
+        if (unavailableModelId != null) {
+            return new ModelCommitConflictException(
+                    new ModelCommitConflictException.ReadConflict(
+                            commitId, unavailableModelId, readStateIndex), cause);
+        }
+        return failure;
     }
 
     private <T> Graph<T> reconstructGraph(

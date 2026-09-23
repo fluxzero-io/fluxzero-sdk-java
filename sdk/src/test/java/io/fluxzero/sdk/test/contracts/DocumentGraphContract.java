@@ -63,8 +63,11 @@ public abstract class DocumentGraphContract {
     protected abstract Client[] clients(String namespace);
 
     @ParameterizedTest
-    @CsvSource({"FAIL,false", "RETRY,true", "ACCEPT,true", "DEFAULT,true"})
-    void staleDocumentDeleteIsAPublicNonRetryingConflict(ModelConflictPolicy policy, boolean pinGraph) {
+    @CsvSource({"FAIL,false,delete", "RETRY,true,delete", "ACCEPT,true,delete", "DEFAULT,true,delete",
+                "FAIL,false,replace", "RETRY,true,replace", "ACCEPT,true,replace", "DEFAULT,true,replace",
+                "FAIL,false,recreate", "RETRY,true,recreate", "ACCEPT,true,recreate", "DEFAULT,true,recreate"})
+    void staleDocumentDeleteIsAPublicNonRetryingConflict(
+            ModelConflictPolicy policy, boolean pinGraph, String concurrentChange) {
         try (var h = new Harness(builder -> {
             if (policy != ModelConflictPolicy.DEFAULT) {
                 builder.configureModelConflictHandling(policy, ModelConflictResolver.retryIfAllowed(), 3);
@@ -73,16 +76,126 @@ public abstract class DocumentGraphContract {
             write(h.writer, new SeedDocumentReceipt("receipt"));
             h.set(1);
             AtomicInteger invocations = new AtomicInteger();
-            AtomicReference<Runnable> deletion = new AtomicReference<>(
-                    () -> write(h.writer, new DeleteDocumentReceipt("receipt")));
-            var failure = assertThrows(Exception.class, () -> write(h.reader,
-                    new PausedDocumentDelete("receipt", pinGraph, () -> h.run(deletion), invocations)));
+            AtomicReference<Runnable> deletion = new AtomicReference<>(() -> {
+                if (!concurrentChange.equals("replace")) {
+                    write(h.writer, new DeleteDocumentReceipt("receipt"));
+                }
+                if (concurrentChange.equals("recreate")) {
+                    write(h.writer, new SeedDocumentReceipt("receipt"));
+                } else if (concurrentChange.equals("replace")) {
+                    write(h.writer, new SetDocumentReceipt("receipt", 2));
+                }
+            });
+            Message message = new Message(new PausedDocumentDelete(
+                    "receipt", pinGraph, () -> h.run(deletion), invocations));
+            var failure = assertThrows(Exception.class,
+                    () -> h.reader.apply(fc -> fc.executeModelCommit(message).join()));
+            var conflict = assertInstanceOf(ModelCommitConflictException.class,
+                    io.fluxzero.common.ObjectUtils.unwrapException(failure), failure.toString());
             assertAll(
-                    () -> assertTrue(hasCause(failure, ModelCommitConflictException.class), failure.toString()),
+                    () -> assertNull(conflict.getResult(), "Preparation must not invent a storage response"),
+                    () -> assertEquals(message.getMessageId(), conflict.getReadConflict().commitId()),
+                    () -> assertEquals("receipt", conflict.getReadConflict().modelId()),
+                    () -> assertTrue(conflict.getReadConflict().readStateIndex() >= 0),
                     () -> assertEquals(1, invocations.get(), "A pinned stale mutation must not be reevaluated"),
                     () -> assertEquals(1, h.gates.get()),
                     () -> assertEquals(0, h.commits.get(), "The incomplete cascade must not reach storage"),
-                    () -> assertNull(h.writer.apply(fc -> Fluxzero.loadModel("receipt", DocumentReceipt.class).get())));
+                    () -> assertEquals(concurrentChange.equals("delete") ? null
+                                               : new DocumentReceipt("receipt", concurrentChange.equals("replace") ? 2 : 0),
+                                       h.writer.apply(fc -> Fluxzero.loadModel("receipt", DocumentReceipt.class).get())));
+        }
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"delete", "replace", "recreate"})
+    void cascadeConflictIdentifiesTheUnavailableDescendant(String change) {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("root", 1));
+            write(h.writer, new SetDocument("one", "root", "alias", 1));
+            // Register the shared child contract in the reader before untyped cascade traversal.
+            h.reader.apply(fc -> Fluxzero.loadModel("one", Document.class).get());
+            var invocations = new AtomicInteger();
+            var gate = new AtomicReference<Runnable>(() -> {
+                write(h.writer, new SetDocument("one", "root", "alias", change.equals("replace") ? 2 : null));
+                if (change.equals("recreate")) {
+                    write(h.writer, new SetDocument("one", "root", "alias", 2));
+                }
+            });
+            var message = new Message(new PausedRootDelete("root", () -> h.run(gate), invocations));
+            var failure = assertThrows(Exception.class,
+                    () -> h.reader.apply(fc -> fc.executeModelCommit(message).join()));
+            var conflict = assertInstanceOf(ModelCommitConflictException.class,
+                    io.fluxzero.common.ObjectUtils.unwrapException(failure), failure.toString());
+            assertEquals("doc-one", conflict.getReadConflict().modelId());
+            assertEquals(message.getMessageId(), conflict.getReadConflict().commitId());
+            assertEquals(1, invocations.get());
+            assertEquals(0, h.commits.get());
+            assertEquals(new Root("root", 1), h.writer.apply(fc -> Fluxzero.loadModel("root", Root.class).get()));
+            assertEquals(change.equals("delete") ? null : new Document("one", "root", "alias", 2),
+                         h.writer.apply(fc -> Fluxzero.loadCurrentGraph("one", Document.class).get()));
+        }
+    }
+
+    @Test
+    void staleDocumentDeleteOnUninstrumentedClientIsPublic() {
+        try (var h = new Harness()) {
+            write(h.reader, new SeedDocumentReceipt("receipt"));
+            h.set(1);
+            var invocations = new AtomicInteger();
+            var gate = new AtomicReference<Runnable>(() -> write(h.reader, new DeleteDocumentReceipt("receipt")));
+            var failure = assertThrows(Exception.class, () -> write(h.writer,
+                    new PausedDocumentDelete("receipt", true, () -> h.run(gate), invocations)));
+            assertInstanceOf(ModelCommitConflictException.class, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(1, invocations.get());
+            assertEquals(1, h.gates.get());
+            assertNull(h.writer.apply(fc -> Fluxzero.loadCurrentGraph("receipt", DocumentReceipt.class).get()));
+        }
+    }
+
+    @Test
+    void staleDocumentConflictDoesNotWaitForOrReevaluateAfterProvisionalProducer() {
+        try (var h = new Harness()) {
+            write(h.writer, new SeedDocumentReceipt("receipt"));
+            h.set(1);
+            var invocations = new AtomicInteger();
+            var deletion = new AtomicReference<Runnable>(() -> write(h.writer, new DeleteDocumentReceipt("receipt")));
+            var gate = new CompletableFuture<Void>();
+            var producer = new AtomicReference<CompletableFuture<Void>>();
+            var consumer = new AtomicReference<CompletableFuture<Void>>();
+            h.commitGate = gate;
+            try {
+                h.reader.apply(fc -> {
+                    var messages = List.of("producer", "consumer").stream().map(payload ->
+                            new DeserializingMessage(new Message(payload), MessageType.COMMAND, fc.serializer())).toList();
+                    DeserializingMessage.forEachInBatch(messages, message -> {
+                        if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                            producer.set(fc.executeModelCommit(new Message(new SetDocument("one", null, "pending-alias", 1))));
+                            assertFalse(producer.get().isDone());
+                        } else {
+                            consumer.set(fc.executeModelCommit(new Message(new PausedDocumentDelete(
+                                    "receipt", true, () -> {
+                                        assertEquals("pending-alias", graph(false, "one").get().alias(),
+                                                     "The consumer must actually read its provisional producer");
+                                        h.run(deletion);
+                                    }, invocations))));
+                            assertTrue(consumer.get().isCompletedExceptionally(),
+                                       "Pinned document loss must fail before the pending producer settles");
+                            h.commitGate = null;
+                            gate.complete(null);
+                        }
+                    });
+                    return null;
+                });
+            } finally {
+                h.commitGate = null;
+                gate.complete(null);
+            }
+            producer.get().orTimeout(5, TimeUnit.SECONDS).join();
+            var failure = assertThrows(Exception.class, () -> consumer.get().join());
+            assertInstanceOf(ModelCommitConflictException.class, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(1, invocations.get());
+            assertEquals(1, h.commits.get(), "Only the producer submits a commit");
+            assertNull(h.writer.apply(fc -> Fluxzero.loadModel("receipt", DocumentReceipt.class).get()));
         }
     }
 
@@ -566,6 +679,16 @@ public abstract class DocumentGraphContract {
             invocations.incrementAndGet();
             assertNotNull(previous);
             if (pinGraph) { checkDocument(); }
+            gate.run();
+            return null;
+        }
+    }
+
+    public record PausedRootDelete(String rootId, @JsonIgnore Runnable gate,
+                                   @JsonIgnore AtomicInteger invocations) {
+        @Apply Root apply(Root previous) {
+            invocations.incrementAndGet();
+            assertEquals(previous, Fluxzero.loadGraph(rootId, Root.class).get());
             gate.run();
             return null;
         }
