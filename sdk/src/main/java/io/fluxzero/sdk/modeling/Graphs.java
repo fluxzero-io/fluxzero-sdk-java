@@ -77,6 +77,13 @@ public final class Graphs {
                                  false, false, ModelReadBoundary.current(), Map.of()).root();
     }
 
+    /** Internal result view retaining a known revision without consulting a subsequent current cache entry. */
+    public static <T> Graph<T> pinnedRevision(Entity<T> entity, long stateIndex, ModelRepository repository) {
+        return GraphState.entity(entity, stateIndex, repository, Map.of(entity.id().toString(), entity),
+                                 false, true, ModelReadBoundary.state(stateIndex, false), Map.of())
+                .valueHistory(false).root();
+    }
+
     /** Creates a detached graph whose model and relationship state remain lazy. */
     public static <T> Graph<T> lazy(Object modelId, Class<T> modelType, ModelRepository repository) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
@@ -124,7 +131,7 @@ public final class Graphs {
             if (!(repository instanceof ModelGraphResolver resolver)) {
                 throw new UnsupportedOperationException("Transactional Graph reads require a ModelGraphResolver");
             }
-            ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), true);
+            ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), !context.readsDurableStateOnly());
             ModelGraphResolver.Identity identity = resolver.resolveGraphIdentity(
                     modelId, false, requestedType, boundary, false);
             if (identity == null) {
@@ -249,7 +256,7 @@ public final class Graphs {
         }
         Map<String, Entity<?>> models = context.graphEntities();
         Entity<?> loaded = models.get(repositoryId);
-        ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), true);
+        ModelReadBoundary boundary = ModelReadBoundary.state(context.readStateIndex(), !context.readsDurableStateOnly());
         GraphState state = loaded != null && type.isAssignableFrom(loaded.type())
                 ? GraphState.entity(loaded, context.readStateIndex(), repository, models, false, true, boundary, Map.of())
                 : GraphState.identity(requestedId, repositoryId, exact, type, repository, boundary, models);
@@ -263,7 +270,7 @@ public final class Graphs {
         context.ensureReadBoundary();
         GraphState state = GraphState.entity(
                 entity, context.readStateIndex(), repository, context.graphEntities(), false, true,
-                context.mutationContext() ? ModelReadBoundary.state(context.readStateIndex(), true)
+                context.mutationContext() ? ModelReadBoundary.state(context.readStateIndex(), !context.readsDurableStateOnly())
                         : handlerBoundary(context.readStateIndex()), Map.of());
         if (context.mutationContext()) { state.valueHistory(false); }
         return withReadProof(context.trackGraph(state.root(), repository),
@@ -2645,6 +2652,9 @@ final class GraphView<T> implements Graph<T> {
     private Graph<T> operate(
             Function<Entity<T>, Entity<T>> entityOperation, Function<Graph<T>, Graph<T>> graphOperation,
             boolean staged) {
+        if (!staged && context.readContext() != null && context.readContext().owner().readsDurableStateOnly()) {
+            throw new IllegalStateException("Atomic Graph callbacks support update() and delete(), not apply()");
+        }
         Entity<?> raw = node.data().entity();
         CommitAttempt.graphAliasRead(this);
         CommitAttempt.GraphReadProof aliasProof = CommitAttempt.aliasReadProof(this);

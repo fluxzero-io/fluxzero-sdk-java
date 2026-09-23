@@ -54,6 +54,9 @@ without submitting or reevaluating the mutation. Its `readConflict` identifies t
 `result` is absent because storage has not rejected a submitted commit.
 The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
 derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.
+For existing Models, `Graph.compareAndSet` checks a captured revision, while `updateAndGet` and `getAndUpdate`
+accept a Graph transformation with bounded `maxRetries` (default 0). These independent direct-state operations
+return only after commit; the recipes distinguish consume-once from external-effect recovery.
 Missing companions remain empty even with `@Alias`: alias fallback does not reinterpret their parent as the companion.
 For eventless current state, non-searchable documents and erasure, read the
 [Model state boundaries](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx):

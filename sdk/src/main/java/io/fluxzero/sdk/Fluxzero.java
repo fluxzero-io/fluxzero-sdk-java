@@ -691,6 +691,7 @@ public interface Fluxzero extends AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         Fluxzero fluxzero = get();
+        io.fluxzero.sdk.modeling.CommitAttempt.requireNoAtomicCallback(fluxzero.modelRepository());
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         CompletableFuture<Void> result = new CompletableFuture<>();
         Thread.ofVirtual().name("Fluxzero-model-commit-batch").start(context.wrap(() -> {
@@ -710,6 +711,7 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     private static CompletableFuture<Void> startModelCommit(Fluxzero fluxzero, Message message) {
+        io.fluxzero.sdk.modeling.CommitAttempt.requireNoAtomicCallback(fluxzero.modelRepository());
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         CompletableFuture<Void> result = new CompletableFuture<>();
         Thread.ofVirtual().name("Fluxzero-model-commit").start(context.wrap(() -> {

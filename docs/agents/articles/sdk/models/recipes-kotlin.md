@@ -1,9 +1,86 @@
 # Model recipes: companions, preferences and execution (Kotlin)
 
-These recipes connect existing Model features; only `current()` is a convenience for an explicit current read.
+These recipes connect Model features, including explicit current reads and independently durable atomic updates.
 All Models below use the default event-sourced persistence. They need neither `DOCUMENT` nor a stored Graph projection.
 For brevity, declarations are shown as members of an example class and standard SDK imports are omitted.
 Descriptive data belongs in cohesive details value objects; these examples only contain IDs, relations and simple status.
+
+## Checked replacement and retryable updates
+
+Use ordinary commands and `@Apply` for domain operations. These optional Graph methods directly replace **one
+existing Model's state**; they do not invoke a domain payload's apply handlers or assertions.
+
+| Method | Comparison and retry | Result after durable success |
+| --- | --- | --- |
+| `graph.compareAndSet(replacement)` | Receiver's `revisionStateIndex()`; one attempt | `true`; `false` for absence/revision conflict |
+| `graph.updateAndGet(function, maxRetries)` | Fresh transactional Graph each attempt | Root after the successful commit |
+| `graph.getAndUpdate(function, maxRetries)` | Same, with bounded reevaluation | Root before the successful attempt |
+
+Function overloads without `maxRetries` use **0**. A budget of 2 permits at most three attempts. This budget
+does not inherit the Model's `RETRY`/`ACCEPT` policy. Only a definitively rejected storage commit is retried;
+application errors, unavailable pinned DOCUMENT state and uncertain transport outcomes propagate. Technical
+failures must not be interpreted as a definite lost CAS.
+
+The function returns its input, `current.update(...)` or `current.delete()`, never a different target, a null
+Graph or an independently loaded Graph. Validate required invariants inside the callback. Consumed Model values,
+aliases and relationship memberships are commit dependencies, including empty child collections. Search results
+do not acquire transaction guarantees. Do not perform external effects or start nested mutations in the callback.
+Perform invariant reads synchronously in that callback; do not move them to independently started worker threads.
+Return new immutable values; do not modify `current.get()` in place. A failed commit cannot undo mutations to
+a shared cached object. Protection on an earlier command's `@ProtectData` fields is not protection of Model state:
+direct-update history serializes that state. The Model state-boundaries guide explains the storage/privacy contract.
+
+These are independently durable operations: no invocation inside another Model mutation, no staged receiver,
+and no provisional state from pending commands in the current batch. The application's configured namespace
+is supported; consumer namespace overrides fail explicitly. Custom Graph/repository implementations are not
+supported by these helpers. Updates never create an absent Model: function variants throw
+`NoSuchElementException`; CAS returns false. A fresh attempt can see an independently recreated Model, so use
+revision-based CAS or a domain generation check when lifecycle identity matters.
+
+Even an unchanged value writes a new checked revision. Event-sourced Models retain the resulting replacement
+through the SDK's direct-update replay mechanism; the function itself is not persisted and no domain event is
+published for it. DOCUMENT-only Models remain eventless. Normal projection and deletion rules still apply.
+The result retains its exact root value and revision, not a later writer's state. Lazy navigation keeps existing
+historical-availability limits: a retained root is not retained history for deleted DOCUMENT-only children.
+
+```kotlin
+@Model data class Counter(@EntityId val id: String, val value: Int)
+data class CreateCounter(val id: String) {
+    @Apply fun apply() = Counter(id, 0)
+}
+
+// The Model already exists. Compare against this exact revision:
+val observed = Fluxzero.loadCurrentGraph("counter", Counter::class.java)
+val initial = requireNotNull(observed.get())
+val replaced = observed.compareAndSet(initial.copy(value = initial.value + 1))
+
+// Or calculate again after a rejected commit:
+val after = observed.updateAndGet(
+    { current -> current.update { value -> value.copy(value = value.value + 1) } }, 2)
+```
+
+### Consume-once versus an external effect
+
+For a value that may be released only once, delete atomically and use the **returned** pre-delete root only
+after success. Keep the default zero retries. A concurrent loser receives a public
+`ModelCommitConflictException` (or `NoSuchElementException` if already absent); it must not release the value.
+
+```kotlin
+val consumed = Fluxzero.loadCurrentGraph("counter", Counter::class.java)
+    .getAndUpdate { it.delete() }
+val released = consumed.get() // deletion has committed before this line
+```
+
+A lost response after commit is still an uncertain delivery outcome; deletion does not guarantee the caller
+receives the value exactly once. Do not read or expose it from inside the transformation.
+
+For an OAuth/payment/worker call, deletion is not enough. Persist a claim with an operation/generation ID,
+then call the provider **after the claim commits**, then persist completion using the acknowledged claim revision.
+Reject an already claimed/completed state in the claim callback. On failure retain the claim for reconciliation.
+Use the provider's idempotency/status API when available; never repeat an uncertain token rotation merely because
+a lease expires. Completion/recovery and provider effects are separate operations, not one atomic transaction.
+This pattern needs domain-specific recovery; these helpers do not add leases, TTL, erasure guarantees or
+exactly-once external effects.
 
 ## One-to-one companion
 

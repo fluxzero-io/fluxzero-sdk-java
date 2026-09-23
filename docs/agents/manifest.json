@@ -6,10 +6,15 @@
     {
       "path": "/docs/sdk/models/recipes-java",
       "title": "Model recipes (Java)",
-      "summary": "One-to-one companion IDs, nullable upserts, derived Graph preferences, fresh current views, and atomic actions versus command orchestration.",
+      "summary": "One-to-one companions, Graph preferences, atomic CAS and retryable updates, consume-once, and external-effect orchestration.",
       "source": "articles/sdk/models/recipes-java.md",
       "symbols": [
         "Graph.current()",
+        "Graph.compareAndSet",
+        "Graph.updateAndGet",
+        "Graph.getAndUpdate",
+        "maxRetries",
+        "consume-once",
         "current()",
         "@EntityId",
         "@Parent",
@@ -48,10 +53,15 @@
     {
       "path": "/docs/sdk/models/recipes-kotlin",
       "title": "Model recipes (Kotlin)",
-      "summary": "One-to-one companion IDs, nullable upserts, derived Graph preferences, fresh current views, and atomic actions versus command orchestration.",
+      "summary": "One-to-one companions, Graph preferences, atomic CAS and retryable updates, consume-once, and external-effect orchestration.",
       "source": "articles/sdk/models/recipes-kotlin.md",
       "symbols": [
         "Graph.current()",
+        "Graph.compareAndSet",
+        "Graph.updateAndGet",
+        "Graph.getAndUpdate",
+        "maxRetries",
+        "consume-once",
         "current()",
         "@EntityId",
         "@Parent",
