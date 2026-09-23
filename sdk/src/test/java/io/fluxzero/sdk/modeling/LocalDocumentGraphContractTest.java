@@ -20,11 +20,14 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.contracts.DocumentGraphContract;
 import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+@Execution(ExecutionMode.CONCURRENT)
 class LocalDocumentGraphContractTest extends DocumentGraphContract {
     @Test
     void retainedBeginContextDoesNotVerifyAgainAfterItsOwnCommit() {

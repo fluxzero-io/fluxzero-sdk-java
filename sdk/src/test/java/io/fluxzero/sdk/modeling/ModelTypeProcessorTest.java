@@ -17,6 +17,8 @@ package io.fluxzero.sdk.modeling;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Execution(ExecutionMode.CONCURRENT)
 class ModelTypeProcessorTest {
     @TempDir
     Path temporary;
@@ -324,9 +327,16 @@ class ModelTypeProcessorTest {
         return jar;
     }
 
-    private String classpath(Path... roots) {
+    private String classpath(Path... roots) throws Exception {
+        // Model discovery in the cold reader must see the synthetic application contracts, not every Model fixture
+        // compiled for the SDK's own test suite. Keep real SDK/dependency artifacts on the downstream classpath.
+        Path testClasses = Path.of(ModelTypeProcessorTest.class.getProtectionDomain().getCodeSource()
+                                          .getLocation().toURI()).toAbsolutePath().normalize();
         return java.util.stream.Stream.concat(java.util.Arrays.stream(roots).map(Path::toString),
-                                             java.util.stream.Stream.of(System.getProperty("java.class.path")))
+                                             java.util.Arrays.stream(System.getProperty("java.class.path")
+                                                     .split(java.util.regex.Pattern.quote(File.pathSeparator)))
+                                                     .filter(entry -> !Path.of(entry).toAbsolutePath().normalize()
+                                                             .equals(testClasses)))
                 .collect(java.util.stream.Collectors.joining(File.pathSeparator));
     }
 }

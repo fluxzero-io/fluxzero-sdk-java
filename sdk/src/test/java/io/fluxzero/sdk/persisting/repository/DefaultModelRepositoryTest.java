@@ -91,6 +91,8 @@ import io.fluxzero.sdk.tracking.client.TrackingClient;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -133,6 +135,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.reflection.ReflectionUtils.getFieldValue;
 
+@Execution(ExecutionMode.CONCURRENT)
 class DefaultModelRepositoryTest {
 
     private final Client client = mock(Client.class);

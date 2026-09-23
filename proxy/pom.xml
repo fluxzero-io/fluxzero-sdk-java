@@ -28,6 +28,10 @@
     <description>Runnable server that forwards web requests to Fluxzero.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
+    <properties>
+        <test.forks>2</test.forks>
+    </properties>
+
     <dependencyManagement>
         <dependencies>
             <dependency>

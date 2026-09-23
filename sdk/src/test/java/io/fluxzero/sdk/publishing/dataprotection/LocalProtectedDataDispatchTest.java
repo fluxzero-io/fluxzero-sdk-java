@@ -81,14 +81,16 @@ class LocalProtectedDataDispatchTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void parallelExternalCommandsKeepEveryProtectedReferenceDurable() {
+    void parallelExternalCommandsKeepEveryProtectedReferenceDurable() throws Exception {
         for (boolean requests : List.of(false, true)) {
             CountingLocalClient client = new CountingLocalClient();
             Object[] commands = IntStream.range(0, 512)
                     .mapToObj(i -> new ExternallyHandledCommand("secret-" + i)).toArray();
             try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+                List<CompletableFuture<Integer>> results = List.of();
                 if (requests) {
-                    assertEquals(512, fluxzero.commandGateway().send(commands).size());
+                    results = fluxzero.commandGateway().send(commands);
+                    assertEquals(512, results.size());
                 } else {
                     fluxzero.commandGateway().sendAndForget(Guarantee.STORED, commands).join();
                 }
@@ -101,6 +103,14 @@ class LocalProtectedDataDispatchTest {
                     assertNull(payload.value());
                     Map<String, String> references = message.getMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class);
                     assertEquals("secret-" + i, fluxzero.keyValueStore().get(references.get("value")));
+                    if (requests) {
+                        // This test checks durable dispatch, not abandoned-request shutdown. Settle every request
+                        // over the real result path instead of leaving two shutdown grace periods to expire.
+                        fluxzero.resultGateway().respond(i, message.getSource(), message.getRequestId()).join();
+                    }
+                }
+                for (int i = 0; i < results.size(); i++) {
+                    assertEquals(i, results.get(i).get(5, TimeUnit.SECONDS));
                 }
             }
         }

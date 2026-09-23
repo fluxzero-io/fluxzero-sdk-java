@@ -97,14 +97,29 @@ class ModelAsyncContentionTest {
                             }));
                         }
                         for (Future<?> task : tasks) { task.get(30, TimeUnit.SECONDS); }
+                        assertEquals(requests / 2, accepted.size());
+                        assertEquals(0, Fluxzero.loadModel("stock", Stock.class).get().remaining());
+                        // Every command has settled. Verify every independent receipt over the real transport,
+                        // without serializing thousands of unrelated read round trips on the test thread.
+                        tasks.clear();
+                        int readers = Math.min(callers, 8);
+                        for (int reader = 0; reader < readers; reader++) {
+                            int offset = reader;
+                            tasks.add(workers.submit(() -> {
+                                for (int i = offset; i < requests; i += readers) {
+                                    int id = i;
+                                    f.apply(fc -> {
+                                        assertEquals(accepted.contains(id),
+                                                Fluxzero.loadModel("receipt-" + id, Receipt.class).isPresent());
+                                        return null;
+                                    });
+                                }
+                            }));
+                        }
+                        for (Future<?> task : tasks) { task.get(30, TimeUnit.SECONDS); }
                     } finally {
                         workers.shutdownNow();
                         assertTrue(workers.awaitTermination(5, TimeUnit.SECONDS));
-                    }
-                    assertEquals(requests / 2, accepted.size());
-                    assertEquals(0, Fluxzero.loadModel("stock", Stock.class).get().remaining());
-                    for (int i = 0; i < requests; i++) {
-                        assertEquals(accepted.contains(i), Fluxzero.loadModel("receipt-" + i, Receipt.class).isPresent());
                     }
                     Fluxzero.sendCommandAndWait(new SetStock("stock", 1));
                     Fluxzero.sendCommandAndWait(new Reserve("stock", "replacement"));

@@ -30,6 +30,10 @@
     <description>Default Java client library for interfacing with Fluxzero.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
+    <properties>
+        <test.forks>4</test.forks>
+    </properties>
+
     <dependencies>
         <!--fluxzero common-->
         <dependency>

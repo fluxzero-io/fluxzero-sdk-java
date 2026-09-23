@@ -57,6 +57,8 @@
         <kotlin.version>2.4.20</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <junit.parallelism>2</junit.parallelism>
+        <test.forks>1</test.forks>
+        <test.jvmArgs>-Xmx768m</test.jvmArgs>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.19</slf4j.version>
         <fluxzero.maven.plugin.version>1.18.9</fluxzero.maven.plugin.version>
@@ -191,7 +193,8 @@
                     <version>3.6.0</version>
                     <configuration>
                         <excludes>
-                            <exclude/>
+                            <!-- JUnit discovers nested tests through their enclosing class, not as separate fork roots. -->
+                            <exclude>**/*$*</exclude>
                         </excludes>
                         <includes>
                             <include>**</include>
@@ -199,7 +202,9 @@
                         <systemPropertyVariables>
                             <fluxzero.maven.enabled>true</fluxzero.maven.enabled>
                         </systemPropertyVariables>
-                        <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                        <forkCount>${test.forks}</forkCount>
+                        <redirectTestOutputToFile>true</redirectTestOutputToFile>
+                        <argLine>@{argLine} ${test.jvmArgs} -javaagent:${org.mockito:mockito-core:jar}</argLine>
                         <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
                         <properties>
                             <configurationParameters>

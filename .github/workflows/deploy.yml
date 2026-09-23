@@ -147,6 +147,15 @@ jobs:
         id: maven-build
         run: ./mvnw -B install
 
+      - name: Preserve test reports and output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: '**/target/surefire-reports/**'
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Check executor isolation
         run: |
           python3 .github/scripts/check-executor-isolation.test.py

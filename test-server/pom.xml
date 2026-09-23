@@ -30,6 +30,10 @@
     <description>In-memory Fluxzero server for local and integration testing.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
+    <properties>
+        <test.forks>2</test.forks>
+    </properties>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
