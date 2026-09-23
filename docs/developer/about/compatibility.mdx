@@ -36,15 +36,18 @@ GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults 
 Fluxzero compression IDs remain NONE=0, LZ4=1 and ZSTD=2. The document MessagePack content and format identifier are
 unchanged. Direct reads of historical LZ4 blobs therefore remain supported. The LZ4 dependency remains included.
 
-Clients without a recognized document capability header receive size-prefixed LZ4. Explicitly advertised codecs
+Clients without document capabilities or historical ZSTD support receive size-prefixed LZ4. Explicitly advertised codecs
 include support for their Fluxzero-framed envelopes; NONE documents use that envelope to identify uncompressed content.
 For unsupported stored codecs, Runtime selects ZSTD, then LZ4, then NONE from the client's supported set. Transport
 compression preferences do not force document conversion. Custom document formats stay opaque.
 
 For a mixed fleet, upgrade Runtime before introducing ZSTD document writes if any connected SDK cannot read ZSTD.
 Such an SDK needs the new Runtime conversion when reading documents written by SDK 2.0. An older Runtime cannot
-supply this new negotiation behavior merely because a newer producer is connected. With no capability header,
-Runtime conservatively assumes LZ4-only support, even if that older SDK also happens to understand ZSTD.
+supply this new negotiation behavior merely because a newer producer is connected. Explicit document capabilities take precedence. Without them, Runtime honors a document-specific ZSTD request;
+otherwise, advertised or selected ZSTD transport identifies older Java SDKs that already read Fluxzero-framed
+LZ4, ZSTD and NONE documents. Those SDKs retain supported stored envelopes. A raw ZSTD frame receives only the
+Fluxzero framing header needed by that older document reader; it is not recompressed. Only without this support
+information does Runtime fall back to size-prefixed LZ4.
 
 ## Java Version
 
