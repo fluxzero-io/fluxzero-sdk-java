@@ -41,6 +41,8 @@ ASYNC automatic Model handlers coordinate overlapping readsets within each track
 after the handler; independent scopes remain parallel once earlier readsets are known. External writers still require
 conflict validation and bounded retries. Model commands reevaluate after a provisional predecessor settles, including
 when that predecessor is rejected; each command retains its own result.
+With commit-before-result handling, Model command failures go through the command's error policy once; waiting for
+the batch does not log or retry an already handled rejection again. Real batch failures still propagate.
 Retry preserves create-only checks. A targeted `graph.assertAndApply(command)` limits writes, not the command's
 cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/conflicts.md).
 

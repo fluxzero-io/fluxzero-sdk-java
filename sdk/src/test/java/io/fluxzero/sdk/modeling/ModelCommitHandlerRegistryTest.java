@@ -21,6 +21,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -1202,6 +1203,55 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void disablingResultCommitWaitingRetainsRawBatchFailure() throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            commitStarted.complete(invocation.getArgument(0));
+            return commitResponse;
+        });
+        Fluxzero fluxzero = mock(Fluxzero.class, CALLS_REAL_METHODS);
+        when(fluxzero.propertySource()).thenReturn(new SimplePropertySource(Map.of(
+                ModelCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, "false")));
+        ModelCommitHandlerRegistry subject = fluxzero.apply(ignored -> subject(repository, eventStoreClient));
+        Handler<DeserializingMessage> handler = subject.createHandler(
+                TimingCreateCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        DeserializingMessage command = message(new TimingCreateCommand("immediate-result"));
+        Invocation.ResultObservation observation = new Invocation.ResultObservation(command);
+        CompletableFuture<Object> immediateResult = new CompletableFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        IllegalStateException transportFailure = new IllegalStateException("commit transport failed");
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(List.of(command), current -> {
+                        HandlerInvoker invoker = handler.getInvokerOrNull(current);
+                        Object result = Invocation.performInvocation(invoker, () -> observation.invoke(invoker::invoke));
+                        assertFalse(observation.observesDeferredResult());
+                        immediateResult.complete(observation.complete(result));
+                    }), executor);
+
+            commitStarted.get(5, TimeUnit.SECONDS);
+            assertNull(immediateResult.get(5, TimeUnit.SECONDS));
+            assertTrue(Invocation.resultPublicationBarrier(command).isDone());
+            assertFalse(batch.isDone());
+
+            commitResponse.completeExceptionally(transportFailure);
+            Throwable failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> batch.get(5, TimeUnit.SECONDS));
+            assertSame(transportFailure, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            Invocation.resultPublicationBarrier(command).join();
+        } finally {
+            commitResponse.completeExceptionally(transportFailure);
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
     void preparedAsyncModelInvocationMayStartAfterBatchClose() throws Exception {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
         stubModelLoads(repository);
@@ -1251,6 +1301,66 @@ class ModelCommitHandlerRegistryTest {
             batch.get(5, TimeUnit.SECONDS);
             publicationBarrier.get(5, TimeUnit.SECONDS);
         } finally {
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void preparedInvocationCanTransferFailureOwnershipAfterBatchClose() throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            commitStarted.complete(invocation.getArgument(0));
+            return commitResponse;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Handler<DeserializingMessage> handler = subject.createHandler(
+                TimingCreateCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        DeserializingMessage command = message(new TimingCreateCommand("late-owner"));
+        CompletableFuture<HandlerInvoker> prepared = new CompletableFuture<>();
+        CompletableFuture<Void> closeCallbackRan = new CompletableFuture<>();
+        AtomicReference<Throwable> handledError = new AtomicReference<>();
+        AtomicInteger handledCount = new AtomicInteger();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        IllegalStateException transportFailure = new IllegalStateException("late commit transport failed");
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(List.of(command), current -> {
+                        HandlerInvoker invoker = handler.getInvokerOrNull(current);
+                        invoker.prepareAsyncInvocation();
+                        prepared.complete(invoker);
+                        DeserializingMessage.whenBatchCompletes(error -> closeCallbackRan.complete(null));
+                    }), executor);
+
+            HandlerInvoker invoker = prepared.get(5, TimeUnit.SECONDS);
+            closeCallbackRan.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+            Invocation.ResultObservation observation = new Invocation.ResultObservation(command);
+            CompletableFuture<?> deferred = command.captureContext().supply(() ->
+                    (CompletableFuture<?>) Invocation.performInvocation(invoker,
+                            () -> observation.invoke(invoker::invoke)));
+            assertTrue(observation.observesDeferredResult());
+            observation.complete(deferred.exceptionally(failure -> {
+                handledError.set(io.fluxzero.common.ObjectUtils.unwrapException(failure));
+                handledCount.incrementAndGet();
+                return null;
+            }));
+            commitStarted.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+
+            commitResponse.completeExceptionally(transportFailure);
+            batch.get(5, TimeUnit.SECONDS);
+            assertSame(transportFailure, handledError.get());
+            assertEquals(1, handledCount.get());
+            assertSame(transportFailure, assertThrows(CompletionException.class, deferred::join).getCause());
+            assertTrue(Invocation.resultPublicationBarrier(command).isDone());
+        } finally {
+            commitResponse.completeExceptionally(transportFailure);
             executor.shutdownNow();
             subject.close();
         }

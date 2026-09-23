@@ -650,6 +650,7 @@ public final class ModelBatchScope {
         private volatile boolean claimed;
         private volatile boolean cancelled;
         private volatile boolean progressRequested;
+        volatile CompletableFuture<Void> handledCompletion;
         private volatile ConcurrentHashMap<CommitCoordination, Dependency> dependencies;
         private volatile AtomicInteger dependencyVersion;
         volatile Set<String> modelIds;
@@ -699,6 +700,13 @@ public final class ModelBatchScope {
         CompletableFuture<Void> commitCurrent() {
             requestProgress(List.of(this));
             return attempt.completionResult();
+        }
+
+        private CompletableFuture<?> batchCompletion() {
+            // Async invocation can start after batch close. Ownership is installed before execution, so inspect it
+            // only after the raw attempt settles. Always await durability, even if handling failed independently.
+            return attempt.completion().handle((value, failure) -> handledCompletion == null
+                    ? attempt.completionResult() : handledCompletion).thenCompose(Function.identity());
         }
 
         void initialize(Collection<String> ids) {
@@ -1167,7 +1175,7 @@ public final class ModelBatchScope {
                         .whenComplete((ignored, initializationFailure) -> release(snapshot, deferred));
             }
             AsyncCompletionScope.register(CompletableFuture.allOf(
-                    snapshot.stream().map(CommitCoordination::attempt).map(CommitAttempt::completion)
+                    snapshot.stream().map(CommitCoordination::batchCompletion)
                             .toArray(CompletableFuture[]::new)));
         }
 
