@@ -30,6 +30,8 @@ import java.util.stream.Collectors;
  * Utility methods for exchanging Fluxzero websocket client capabilities through handshake headers.
  */
 public final class WebSocketCapabilities {
+    /** Requested encoding of document payloads, independent of WebSocket message compression. */
+    public static final String DOCUMENT_COMPRESSION_HEADER = "Fluxzero-Document-Compression";
     public static final String SUPPORTED_COMPRESSION_ALGORITHMS_HEADER =
             "Fluxzero-Supported-Compression-Algorithms";
     public static final String SELECTED_COMPRESSION_ALGORITHM_HEADER =

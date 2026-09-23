@@ -25,13 +25,21 @@ that capability remain compatible and can upgrade the two components independent
 ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
 SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
-LZ4 support and its dependency have been removed. Existing LZ4 document blobs must be converted before this SDK reads
-them; `fluxzero.defaults.version` does not restore LZ4. Explicit GZIP and NONE WebSocket configurations remain available.
+LZ4 support and its dependency have been removed from the SDK. Upgrade the Runtime first: a Runtime supporting
+`Fluxzero-Document-Compression: ZSTD` converts existing LZ4 documents on delivery to SDK 2.0, without a bulk
+storage migration. SDK 2.0 sends this header independently of WebSocket compression. Explicit GZIP and NONE WebSocket
+configurations remain available; `fluxzero.defaults.version` does not restore LZ4 in the SDK.
 
 `CompressionAlgorithm.LZ4` is no longer part of the Java/Kotlin API. Replace explicit uses with `ZSTD`.
 ZSTD retains Fluxzero compression wire ID 2; ID 1 is retired. The document MessagePack content and format identifier
-remain unchanged. This is an intentional SDK 2.0 compatibility break. Coordinate document conversion and Runtime
-upgrades before cutover; readers without a ZSTD decoder cannot read the new document representation.
+remain unchanged. The Runtime retains legacy document decoding and returns size-prefixed LZ4 to clients that do not
+request ZSTD documents. Applications reading old blobs directly, outside the Runtime, must still convert them before
+passing them to SDK 2.0. This is an intentional SDK API break; it does not require rewriting existing Runtime storage.
+
+Storage integrations can retain an original payload while supplying an internal lazy decoder with
+`SerializedDocument.withDocumentDecoder(...)`. `DefaultDocumentSerializer.deserializeUncompressed(...)` parses the
+versioned document content after a storage owner has decoded its envelope. Neither API adds an LZ4 codec to the SDK.
+The Runtime uses these boundaries to forward LZ4 to LZ4 clients and ZSTD to ZSTD clients without recompression.
 
 ## Java Version
 

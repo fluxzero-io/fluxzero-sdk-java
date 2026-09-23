@@ -54,6 +54,8 @@ class DefaultDocumentSerializerTest {
         assertArrayEquals(
                 versionZeroDocument(value), CompressionAlgorithm.ZSTD.decompress(data.getValue()));
         assertEquals(document.getEntries(), subject.deserialize(data));
+        assertEquals(document.getEntries(), subject.deserializeUncompressed(
+                CompressionAlgorithm.ZSTD.decompress(data.getValue())));
     }
 
     @Test
@@ -105,6 +107,8 @@ class DefaultDocumentSerializerTest {
                     () -> subject.deserialize(truncated));
             assertEquals("Could not deserialize document", error.getMessage());
             assertNotNull(error.getCause());
+            assertThrows(IllegalArgumentException.class,
+                    () -> subject.deserializeUncompressed(CompressionAlgorithm.ZSTD.decompress(truncated.getValue())));
         }
         for (byte[] invalid : Arrays.asList(null, new byte[0], new byte[]{-1})) {
             IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
@@ -127,6 +131,8 @@ class DefaultDocumentSerializerTest {
                 () -> subject.deserialize(data(bytes)));
         assertEquals("Could not deserialize document", error.getMessage());
         assertEquals("Unsupported document revision: 1", error.getCause().getMessage());
+        assertEquals("Unsupported document revision: 1", assertThrows(IllegalArgumentException.class,
+                () -> subject.deserializeUncompressed(bytes)).getCause().getMessage());
     }
 
     @Test
