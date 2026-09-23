@@ -1,0 +1,128 @@
+{
+  "name" : "HandlerInputResolver",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Optional extension of {@link ParameterResolver} for resolving handler parameters from a {@link HandlerInput}.\n\n <p>Implementing this interface allows Fluxzero to select a handler method once and reuse its argument-resolution\n functions for later inputs. This is primarily useful for parameter resolvers on frequently invoked local handlers.\n Regular parameter resolvers do not need to implement it; Fluxzero will use the normal message-based handling path\n when a method cannot be prepared safely.</p>\n\n <p>The cache key is part of the correctness contract. Two inputs with equal keys must always produce the same match\n decision, and every function returned by {@link #prepareInput(Parameter, Annotation, HandlerInput)} must remain\n valid for both inputs.</p>\n\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<M>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getInputCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver#getInputCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a key containing every input property that can affect whether this resolver matches the parameter and\n how the parameter value is resolved.\n\n <p>Return {@code null} when no safe reusable key can be provided. Fluxzero will then fall back to normal\n per-message resolution. Keys are compared using {@link Object#equals(Object)} and must be stable after they are\n returned.</p>\n\n @param parameter the handler parameter to resolve\n @param methodAnnotation the annotation that marks the handler method, if present\n @param representative an input representative of the group to be cached\n @return a stable, complete cache key, or {@code null} to disable prepared resolution for this input\n"
+  }, {
+    "name" : "isNoMatchPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver#isNoMatchPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether an unmatched result is guaranteed to remain unmatched for every payload with the same runtime\n class.\n\n <p>This is separate from {@link #isPayloadClassKey(Parameter, Annotation, HandlerInput)} because matching and\n non-matching inputs may require different cache guarantees.</p>\n\n @return {@code true} if the non-match can safely be reused for the entire payload class\n"
+  }, {
+    "name" : "isPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver#isPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the payload's runtime class alone determines this resolver's successful result for the supplied\n parameter.\n\n <p>Return {@code true} only if every payload of that class produces the same match decision and may use the same\n prepared resolver. This enables a faster class-based lookup.</p>\n\n @return {@code true} if the result can safely be reused for every payload of the same runtime class\n"
+  }, {
+    "name" : "prepareInput",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver#prepareInput",
+    "returnType" : "io.fluxzero.common.handling.HandlerInputResolver.Resolution<M>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "representative",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether this resolver handles the parameter and, when it does, creates the function that supplies the\n parameter value during invocation.\n\n <p>The result must agree with normal {@link ParameterResolver} selection, including any contribution the resolver\n makes to handler specificity.</p>\n\n @param parameter the handler parameter to resolve\n @param methodAnnotation the annotation that marks the handler method, if present\n @param representative an input representative of the cache key returned for this parameter\n @return an unmatched, rejected, or successfully resolved result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Resolution",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInputResolver$Resolution",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,0 +1,161 @@
+{
+  "name" : "InMemoryKeyValueStore",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore",
+  "packageName" : "io.fluxzero.sdk.persisting.keyvalue.client",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " An in-memory implementation of the {@link KeyValueClient} interface.\n This class provides methods for storing, retrieving, and deleting key-value pairs in a local memory store.\n <p>\n It is thread-safe by utilizing a {@link ConcurrentHashMap} as an underlying data structure.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient" ],
+  "fields" : [ {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore.values",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.Data<byte[]>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InMemoryKeyValueStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#InMemoryKeyValueStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryKeyValueStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#InMemoryKeyValueStore",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "map",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.Data<byte[]>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#deleteValue",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#getValue",
+    "returnType" : "io.fluxzero.common.api.Data<byte[]>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#putValue",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putValueIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore#putValueIfAbsent",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,51 @@
+{
+  "name" : "ByteArrayView",
+  "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Read-only view of a byte-array range for serializers that can consume a slice directly.\n\n <p>The backing array must not be modified. Calling {@link #get()} retains the ordinary {@code byte[]} contract\n and may materialize an independent array.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.util.function.Supplier<byte[]>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "array",
+    "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView#array",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "length",
+    "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView#length",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "offset",
+    "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView#offset",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

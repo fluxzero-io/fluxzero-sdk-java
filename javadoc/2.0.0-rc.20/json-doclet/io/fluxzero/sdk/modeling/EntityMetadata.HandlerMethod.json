@@ -1,0 +1,338 @@
+{
+  "name" : "HandlerMethod",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Model-aware handler descriptor.\n\n @param executable        annotated handler method or constructor\n @param kind              model-aware handler annotation kind\n @param modelHandler      whether the handler is declared by a {@link Model}\n @param receiverModelType model type of a non-static handler receiver, or {@code null}\n @param targetModelTypes  model types targeted by an apply return value\n @param collectionApplyResult whether the apply returns an ordered collection of models\n @param dynamicApplyResult whether returned model types require runtime validation\n @param modelParameters   injected model value or {@link Entity} dependencies\n @param emittedPayloadTypes statically known payload types emitted by an interceptor\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collectionApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.collectionApplyResult",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dynamicApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.dynamicApplyResult",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "emittedPayloadTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.emittedPayloadTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.executable",
+    "type" : "java.lang.reflect.Executable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "kind",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.kind",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.modelHandler",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.modelParameters",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "receiverModelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.receiverModelType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod.targetModelTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandlerMethod",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#HandlerMethod",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "kind",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelHandler",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "receiverModelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetModelTypes",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collectionApplyResult",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dynamicApplyResult",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelParameters",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "emittedPayloadTypes",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collectionApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#collectionApplyResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "dynamicApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#dynamicApplyResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "emittedPayloadTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#emittedPayloadTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#executable",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#hasApplyResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this handler has a statically or dynamically typed model return value. "
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "kind",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#kind",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#modelHandler",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelParameters",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#modelParameters",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "receiverModelType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#receiverModelType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "targetModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#targetModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$HandlerMethod#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "collectionApplyResult",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "dynamicApplyResult",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "emittedPayloadTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "type" : "java.lang.reflect.Executable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "kind",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelHandler",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelParameters",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "receiverModelType",
+    "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "targetModelTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,58 @@
+{
+  "name" : "SimplePropertySource",
+  "qualifiedName" : "io.fluxzero.common.application.SimplePropertySource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " A simple in-memory implementation of the {@link PropertySource} interface backed by a {@link Map}.\n\n <p>This class is typically used for programmatic configuration, testing, or cases where property values\n are supplied dynamically at runtime from an explicit key-value source.\n\n <p>Example usage:\n <pre>{@code\n Map<String, String> props = Map.of(\"api.key\", \"12345\", \"timeout\", \"1000\");\n PropertySource propertySource = new SimplePropertySource(props);\n String apiKey = propertySource.get(\"api.key\");\n }</pre>\n\n @see PropertySource\n @see DefaultPropertySource\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
+  "fields" : [ {
+    "name" : "properties",
+    "qualifiedName" : "io.fluxzero.common.application.SimplePropertySource.properties",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SimplePropertySource",
+    "qualifiedName" : "io.fluxzero.common.application.SimplePropertySource#SimplePropertySource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.application.SimplePropertySource#get",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the value associated with the given property name from the internal map.\n\n @param name the name of the property to retrieve\n @return the corresponding property value, or {@code null} if not present\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,127 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Payload-free model commit metrics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "conflictPolicy",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.conflictPolicy",
+    "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "directDocumentBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.directDocumentBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "directDocumentCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.directDocumentCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "eventBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.eventBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "publishedEventCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.publishedEventCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "readModelCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.readModelCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.relationCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.snapshotBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.snapshotCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "storedTargetCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.storedTargetCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "substepCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.substepCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric.targetCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

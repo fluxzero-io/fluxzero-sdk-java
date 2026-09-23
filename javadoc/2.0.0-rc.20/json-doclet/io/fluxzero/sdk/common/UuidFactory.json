@@ -1,0 +1,197 @@
+{
+  "name" : "UuidFactory",
+  "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Default implementation of {@link IdentityProvider} that generates random UUIDs.\n <p>\n Optionally removes dashes from the UUID to produce a more compact identifier.\n </p>\n\n <h2>Example Output</h2>\n <ul>\n   <li>{@code 61f3c6d26c9c42d3b56b4c0a7e34c939} (if {@code removeDashes = true})</li>\n   <li>{@code 61f3c6d2-6c9c-42d3-b56b-4c0a7e34c939} (if {@code removeDashes = false})</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.IdentityProvider" ],
+  "fields" : [ {
+    "name" : "HEX_DIGITS",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.HEX_DIGITS",
+    "type" : "char[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "UUID_SEQUENCE_MASK",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.UUID_SEQUENCE_MASK",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 4611686018427387903
+  }, {
+    "name" : "UUID_VARIANT_2",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.UUID_VARIANT_2",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : -9223372036854775808
+  }, {
+    "name" : "UUID_VERSION_4",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.UUID_VERSION_4",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16384
+  }, {
+    "name" : "UUID_VERSION_MASK",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.UUID_VERSION_MASK",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : -61441
+  }, {
+    "name" : "removeDashes",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.removeDashes",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Whether to remove dashes from generated UUIDs.\n",
+    "constantValue" : null
+  }, {
+    "name" : "technicalPrefix",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.technicalPrefix",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "technicalSeed",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.technicalSeed",
+    "type" : "java.util.UUID",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "technicalSequence",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory.technicalSequence",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "UuidFactory",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#UuidFactory",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@code UuidFactory} that removes dashes (default behavior).\n"
+  } ],
+  "methods" : [ {
+    "name" : "compact",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#compact",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mostSignificantBits",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "leastSignificantBits",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "idForName",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#idForName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextFunctionalId",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#nextFunctionalId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new UUID string, optionally stripped of dashes.\n\n @return a unique identifier string\n"
+  }, {
+    "name" : "nextTechnicalId",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#nextTechnicalId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a process-unique UUID without consulting the secure random source for every technical message.\n\n <p>A securely generated process prefix is combined with a 62-bit atomic sequence. The resulting value retains\n the UUID version-4 and IETF variant bits and cannot repeat within one process before the sequence space is\n exhausted. Functional IDs remain independently random through {@link #nextFunctionalId()}.</p>\n"
+  }, {
+    "name" : "writeHex",
+    "qualifiedName" : "io.fluxzero.sdk.common.UuidFactory#writeHex",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "char[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

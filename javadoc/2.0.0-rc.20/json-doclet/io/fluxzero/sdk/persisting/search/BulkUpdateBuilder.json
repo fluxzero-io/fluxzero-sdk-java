@@ -1,0 +1,349 @@
+{
+  "name" : "BulkUpdateBuilder",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Fluent builder for applying multiple updates to a single document collection.\n <p>\n The builder stores update operations in order and applies them through the document store's\n {@link DocumentStore#bulkUpdate(java.util.Collection, Guarantee) bulk update API} when {@link #execute()} is called.\n Document IDs, timestamps, and collection metadata are inferred in the same way as\n {@link DocumentStore#prepareIndex(Object)}, while the collection is fixed by the builder.\n\n <pre>{@code\n Fluxzero.bulkUpdate(\"my_collection\")\n         .index(doc1)\n         .delete(doc2Id)\n         .execute();\n }</pre>\n\n @see DocumentStore#bulkUpdate(Object)\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#delete",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a delete operation for the given document ID.\n"
+  }, {
+    "name" : "execute",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#execute",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the configured update operations using {@link Guarantee#STORED}.\n"
+  }, {
+    "name" : "execute",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#execute",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the configured update operations using the given guarantee.\n"
+  }, {
+    "name" : "executeAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#executeAndForget",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the configured update operations using {@link Guarantee#NONE}.\n"
+  }, {
+    "name" : "executeAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#executeAndWait",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the configured update operations using {@link Guarantee#STORED} and waits for completion.\n"
+  }, {
+    "name" : "executeAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#executeAndWait",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies the configured update operations using the given guarantee and waits for completion.\n"
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#index",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds one or more index operations. If {@code object} is a collection or object array, each element is indexed\n separately.\n"
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#index",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds an index operation using the supplied document ID.\n"
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#index",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds an index operation using the supplied document ID and timestamp.\n"
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#index",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "begin",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds an index operation using the supplied document ID and time range.\n"
+  }, {
+    "name" : "indexIfNotExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#indexIfNotExists",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds one or more conditional index operations. Existing documents with the same ID will not be overwritten.\n"
+  }, {
+    "name" : "indexIfNotExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#indexIfNotExists",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a conditional index operation using the supplied document ID.\n"
+  }, {
+    "name" : "indexIfNotExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#indexIfNotExists",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a conditional index operation using the supplied document ID and timestamp.\n"
+  }, {
+    "name" : "indexIfNotExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#indexIfNotExists",
+    "returnType" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "object",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "begin",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a conditional index operation using the supplied document ID and time range.\n"
+  }, {
+    "name" : "toBulkUpdates",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#toBulkUpdates",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.BulkUpdate>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the currently configured update operations.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

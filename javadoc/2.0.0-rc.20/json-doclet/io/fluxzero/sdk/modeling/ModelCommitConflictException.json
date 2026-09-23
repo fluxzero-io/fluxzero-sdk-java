@@ -1,0 +1,94 @@
+{
+  "name" : "ModelCommitConflictException",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  } ],
+  "documentation" : " A Model mutation cannot commit because its state conflicted with another mutation.\n A rejected storage commit exposes {@code getResult()}; loss of a pinned document during preparation instead\n exposes {@code getReadConflict()}. The latter is terminal: preparation cannot replay missing document history\n and must not silently rerun the mutation against a newer state.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "readConflict",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException.readConflict",
+    "type" : "io.fluxzero.sdk.modeling.ModelCommitConflictException.ReadConflict",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "Pinned-read failure, or {@code null} for a rejected storage commit. ",
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException.result",
+    "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "Storage rejection, or {@code null} when preparation failed before submitting a commit. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelCommitConflictException",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException#ModelCommitConflictException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an exception containing the runtime's current model and relationship positions.\n"
+  }, {
+    "name" : "ModelCommitConflictException",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException#ModelCommitConflictException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "readConflict",
+      "type" : "io.fluxzero.sdk.modeling.ModelCommitConflictException.ReadConflict",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a terminal preparation conflict without inventing current storage positions or a storage response. "
+  } ],
+  "methods" : [ {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ReadConflict",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException$ReadConflict",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}
