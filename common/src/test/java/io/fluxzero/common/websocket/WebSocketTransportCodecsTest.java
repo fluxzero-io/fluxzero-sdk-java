@@ -402,7 +402,8 @@ class WebSocketTransportCodecsTest {
         VoidResult voidResult = new VoidResult(append.getRequestId());
         voidResult.setRequestReceivedTimestamp(111L);
         BooleanResult booleanResult = new BooleanResult(read.getRequestId(), true);
-        ErrorResult errorResult = new ErrorResult(77L, "boom");
+        ErrorResult errorResult = new ErrorResult(77L, "boom",
+                new ErrorResult.ModelHistoryUnavailable("document", 42L));
         StringResult stringResult = new StringResult(78L, "ok");
         ResultBatch resultBatch = new ResultBatch(List.of(voidResult, booleanResult, errorResult, stringResult));
 
@@ -412,6 +413,8 @@ class WebSocketTransportCodecsTest {
         assertEquals(111L, decodedResults.getResults().getFirst().getRequestReceivedTimestamp());
         assertEquals(true, assertInstanceOf(BooleanResult.class, decodedResults.getResults().get(1)).isSuccess());
         assertEquals("boom", assertInstanceOf(ErrorResult.class, decodedResults.getResults().get(2)).getMessage());
+        assertEquals(errorResult.getModelHistoryUnavailable(),
+                     assertInstanceOf(ErrorResult.class, decodedResults.getResults().get(2)).getModelHistoryUnavailable());
         assertEquals("ok", assertInstanceOf(StringResult.class, decodedResults.getResults().get(3)).getResult());
     }
 

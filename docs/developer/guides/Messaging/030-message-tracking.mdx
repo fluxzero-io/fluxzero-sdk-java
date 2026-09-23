@@ -44,6 +44,10 @@ graph TD
 
 Trackers aren’t only useful for consuming commands or events — they also enable request–response communication between services, without direct endpoints.
 
+Nested message handling shares its enclosing batch boundary. If the caller catches a nested failure, batch callbacks
+and deferred writes remain pending until the enclosing scope completes. If the failure escapes that scope, completion
+receives the failure. This is a lifecycle boundary, not a transaction or a rollback of earlier effects.
+
 ## Request–Response via tracking
 
 Fluxzero enables services to communicate without making any direct contact and without exposing endpoints. Instead of direct calls, services interact by publishing messages to the Fluxzero Runtime and continuously tracking the relevant logs.

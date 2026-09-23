@@ -102,7 +102,7 @@ class ModelRepositoryTest {
         Entity<AffixedModel> result = repository.load((Object) "legacy-code", AffixedModel.class);
 
         assertSame(expected, result);
-        assertEquals(java.util.List.of("move-model-legacy-code-state", "legacy-code"), actualIds);
+        assertEquals(java.util.List.of("move-model-legacy-code-state", "legacy-code", "legacy-code"), actualIds);
     }
 
     @Test
@@ -126,6 +126,31 @@ class ModelRepositoryTest {
 
         assertSame(primary, result);
         assertEquals(java.util.List.of("move-model-unknown-code-state", "unknown-code"), actualIds);
+    }
+
+    @Test
+    void defaultFallbackDoesNotReinterpretAnUnrelatedPrimary() {
+        Entity<AffixedModel> missing = entity();
+        Entity<TestModel> parent = entity();
+        when(parent.isPresent()).thenReturn(true);
+        when(parent.id()).thenReturn("parent");
+        org.mockito.Mockito.doReturn(TestModel.class).when(parent).type();
+        java.util.ArrayList<Class<?>> requestedTypes = new java.util.ArrayList<>();
+        ModelRepository repository = new ModelRepository() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> Entity<T> load(String id, Class<T> type) {
+                requestedTypes.add(type);
+                if (id.equals("parent")) {
+                    assertSame(Object.class, type, "The parent must not be loaded as the companion");
+                    return (Entity<T>) parent;
+                }
+                return (Entity<T>) missing;
+            }
+        };
+        assertSame(missing, repository.load((Object) "parent", AffixedModel.class));
+        assertSame(missing, repository.loadCurrent((Object) "parent", AffixedModel.class));
+        assertEquals(java.util.List.of(AffixedModel.class, Object.class, AffixedModel.class, Object.class), requestedTypes);
     }
 
     @Test

@@ -24,11 +24,17 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Default SDK error when a rolled-back model commit conflict is not retried.
+ * A Model mutation cannot commit because its state conflicted with another mutation.
+ * A rejected storage commit exposes {@code getResult()}; loss of a pinned document during preparation instead
+ * exposes {@code getReadConflict()}. The latter is terminal: preparation cannot replay missing document history
+ * and must not silently rerun the mutation against a newer state.
  */
 @Getter
 public class ModelCommitConflictException extends RuntimeException {
+    /** Storage rejection, or {@code null} when preparation failed before submitting a commit. */
     private final CommitModelsResult result;
+    /** Pinned-read failure, or {@code null} for a rejected storage commit. */
+    private final ReadConflict readConflict;
 
     /**
      * Creates an exception containing the runtime's current model and relationship positions.
@@ -36,6 +42,26 @@ public class ModelCommitConflictException extends RuntimeException {
     public ModelCommitConflictException(CommitModelsResult result) {
         super(message(result));
         this.result = result;
+        this.readConflict = null;
+    }
+
+    /** Creates a terminal preparation conflict without inventing current storage positions or a storage response. */
+    public ModelCommitConflictException(ReadConflict readConflict, Throwable cause) {
+        super("Model commit %s lost the pinned document for %s at state %s".formatted(
+                readConflict.commitId(), readConflict.modelId(), readConflict.readStateIndex()), cause);
+        this.result = null;
+        this.readConflict = readConflict;
+    }
+
+    /**
+     * Identifies a document that could no longer be reconstructed at the mutation's pinned read boundary.
+     * These are read-side positions, not claims about the current storage head or relationship revision.
+     *
+     * @param commitId original mutation message ID
+     * @param modelId canonical ID of the unavailable document
+     * @param readStateIndex pinned mutation boundary
+     */
+    public record ReadConflict(String commitId, String modelId, long readStateIndex) {
     }
 
     private static String message(CommitModelsResult result) {

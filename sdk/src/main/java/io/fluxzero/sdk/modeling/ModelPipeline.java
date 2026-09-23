@@ -141,12 +141,63 @@ final class ModelPipeline {
     }
 
     public CompletableFuture<Void> assertAndApply(Message update) {
+        requireNoAtomicCallback();
+        if (update.getPayload() instanceof AtomicGraphUpdate<?> operation) {
+            return atomicGraphUpdate(operation, update);
+        }
         return assertAndApply(update, null, -1);
+    }
+
+    private <T> CompletableFuture<Void> atomicGraphUpdate(AtomicGraphUpdate<T> operation, Message update) {
+        DeserializingMessage message = new DeserializingMessage(update, MessageType.COMMAND, serializer);
+        try {
+            if (!repository.sharesReadContext(operation.repository)) {
+                throw new UnsupportedOperationException(
+                        "Atomic Graph updates require the application's configured Model namespace; "
+                        + "a consumer namespace override is not supported");
+            }
+            CommitLoader loader = new CommitLoader(null);
+            loader.durableOnly = true;
+            loader.requiresStorageBoundary = true;
+            CommitAttempt context = loader.resolveGraph(operation.modelId, operation.modelType, null, Map.of()).context();
+            CommitAttempt evaluation;
+            try {
+                evaluation = expandCascadeDeletes(operation.evaluate(context, loader, message), message);
+            } catch (Exception failure) {
+                Exception translated = repository.preparationFailure(
+                        message.getMessageId(), context.readStateIndex(), failure);
+                if (translated != failure && translated instanceof ModelCommitConflictException conflict) {
+                    operation.preparationConflict = conflict;
+                }
+                throw translated;
+            }
+            Commit.Outcome prepared = repositoryCommit.prepare(
+                    message.getMessageId(), evaluation, ModelConflictPolicy.FAIL);
+            return repositoryCommit.trackLocalCommit(evaluation, message, false,
+                    () -> repositoryCommit.commitPrepared(prepared, null, -1)).thenAccept(result -> {
+                CommitModelsResult committed = result.orElseThrow(() ->
+                        new IllegalStateException("An atomic Graph update must submit a checked revision"));
+                if (!committed.isAccepted()) {
+                    repository.invalidateModels(evaluation.readModelIds());
+                    operation.rejected = new ModelCommitConflictException(committed);
+                    throw operation.rejected;
+                }
+                operation.after = repository.committedGraph(
+                        prepared, committed, operation.modelId, operation.previous);
+            });
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    private void requireNoAtomicCallback() {
+        CommitAttempt.requireNoAtomicCallback(repository);
     }
 
     /** Executes an update against one explicitly selected persisted model. */
     public CompletableFuture<Void> assertAndApply(
             Message update, String modelId, Class<?> modelType) {
+        requireNoAtomicCallback();
         Objects.requireNonNull(modelId, "modelId");
         Objects.requireNonNull(modelType, "modelType");
         DeserializingMessage message = new DeserializingMessage(
@@ -161,6 +212,7 @@ final class ModelPipeline {
      * Each update keeps its own commit, conflict handling, and durability completion.
      */
     public CompletableFuture<Void> assertAndApplyAll(List<Message> updates) {
+        requireNoAtomicCallback();
         Objects.requireNonNull(updates, "updates");
         List<Message> messages = updates.stream()
                 .map(update -> Objects.requireNonNull(update, "update"))
@@ -243,6 +295,7 @@ final class ModelPipeline {
      */
     public CompletableFuture<Void> applyStoredEvent(Message event) {
         try {
+            requireNoAtomicCallback();
             Objects.requireNonNull(event, "event");
             DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
             return execute(new ExecutionRequest(message, null, -1, Mode.REPLAY), null)
@@ -256,6 +309,7 @@ final class ModelPipeline {
     public CompletableFuture<Void> migratePublishedEvent(
             Message event, long eventIndex) {
         try {
+            requireNoAtomicCallback();
             Objects.requireNonNull(event, "event");
             if (eventIndex < 0L) {
                 throw new IllegalArgumentException(
@@ -288,22 +342,29 @@ final class ModelPipeline {
         CommitAttempt attempt = entry.attempt();
         ThreadLocalContext.Snapshot context = request.message().captureContext();
         boolean asynchronousReevaluation = !localHandlingEnabled.getAsBoolean();
-        CommitAttempt initial;
+        boolean evaluated = false;
         try {
-            initial = context.supply(() -> ModelBatchScope.withDependency(
-                    entry, () -> evaluate(request, attempt, false, entry.batched())));
+            CommitAttempt initial = context.supply(() -> ModelBatchScope.withDependency(
+                    entry, () -> evaluateInitial(request, attempt, entry.batched())));
             if (initial != attempt) {
                 throw new IllegalStateException("Model evaluation replaced its commit attempt");
             }
-            warnEmptyExplicitApply(request, initial);
-            entry.repositoryOwner = repository.modelDefinitionCompiler();
-            ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
-            entry.initialize(initial.readModelIds());
+            evaluated = true;
         } catch (Throwable failure) {
-            entry.fail(failure);
-            return attempt.completion();
+            if (!entry.hasDependencies() || !ModelBatchScope.canReevaluate(failure)) {
+                entry.fail(failure);
+                return attempt.completion();
+            }
+            // Validation against a pending predecessor is provisional too. Never stage partial
+            // changes; the dependent path below reevaluates once those predecessors settle.
         }
         try {
+            entry.repositoryOwner = repository.modelDefinitionCompiler();
+            if (evaluated) {
+                warnEmptyExplicitApply(request, attempt);
+                ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
+            }
+            entry.initialize(attempt.orderingModelIds());
             entry.submit(dependent -> {
                 CompletableFuture<CommitAttempt> ready = dependent
                         ? entry.afterDependencies(
@@ -311,7 +372,7 @@ final class ModelPipeline {
                                         entry, () -> evaluate(
                                                 request, attempt, true, entry.batched()))),
                                 entry.batched() && asynchronousReevaluation)
-                        : CompletableFuture.completedFuture(initial);
+                        : CompletableFuture.completedFuture(attempt);
                 return ready.thenCompose(context.wrap(evaluation -> {
                     if (request.mode().skipEmpty && evaluation.transitions().isEmpty()) {
                         return CompletableFuture.completedFuture(null);
@@ -319,7 +380,7 @@ final class ModelPipeline {
                     ModelCommitBatchingClient.ModelCommitBatch batch =
                             entry.transport;
                     return executeEvaluation(
-                            request.message(), evaluation,
+                            entry, request.message(), evaluation,
                             batch == null ? request.transport() : batch,
                             batch == null ? request.transportSlot() : entry.slot,
                             request.mode() == Mode.MIGRATE,
@@ -331,6 +392,35 @@ final class ModelPipeline {
         }
         return attempt.completion();
     }
+
+    private CommitAttempt evaluateInitial(ExecutionRequest request, CommitAttempt attempt, boolean batched) {
+        CommitAttempt original = request.message().getContext(CommitAttempt.class).orElse(null);
+        try {
+            CommitAttempt result = evaluate(request, attempt, false, batched);
+            // No more mutation reads can join after evaluation/cascade expansion. A begin-state context retained
+            // by an extension must not initiate a new verification after this attempt's own write has committed.
+            result.finishReadBoundary();
+            return result;
+        } catch (Throwable failure) {
+            CommitAttempt.ReadBoundaryConflict conflict = attempt.readBoundaryConflict();
+            if (conflict == null) { throw failure; }
+            // Only the built-in RETRY path may speculate. The failed attempt has not been staged or submitted.
+            if (conflictResolver != DefaultModelConflictResolver.INSTANCE || maxConflictRetries == 0) { throw conflict; }
+            repository.invalidateModels(List.of(conflict.conflict().getModelId()));
+            if (original == null) { request.message().withoutContext(CommitAttempt.class); }
+            else { original.attachTo(request.message()); }
+            request.message().putContext(EagerDocumentBoundary.class, EagerDocumentBoundary.INSTANCE);
+            try {
+                CommitAttempt result = evaluate(request, attempt, true, batched);
+                result.preparationRetries(1);
+                return result;
+            } finally {
+                request.message().withoutContext(EagerDocumentBoundary.class);
+            }
+        }
+    }
+
+    private enum EagerDocumentBoundary { INSTANCE }
 
     private CommitAttempt evaluate(
             ExecutionRequest request,
@@ -424,6 +514,7 @@ final class ModelPipeline {
     }
 
     private CompletableFuture<Object> executeEvaluation(
+            ModelBatchScope.CommitCoordination entry,
             DeserializingMessage message,
             CommitAttempt evaluation,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
@@ -436,14 +527,14 @@ final class ModelPipeline {
                 ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(current, result.getRebaseStateIndex(), migration));
+                                rebase(entry, message, current, result.getRebaseStateIndex(), migration));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
                 })
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
-                        (conflict, current) -> reload(message, current, conflict));
+                        (conflict, current) -> reload(entry, message, current, conflict));
         ModelCommitAdmission.Session admissionSession =
                 effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                         ? commitAdmission.open() : null;
@@ -505,7 +596,7 @@ final class ModelPipeline {
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
-                ThreadLocalContext.capture(), 0, batch, batchSlot,
+                ThreadLocalContext.capture(), evaluation.preparationRetries(), batch, batchSlot,
                 asynchronousReevaluation, admissionSession, namespace);
     }
 
@@ -721,6 +812,7 @@ final class ModelPipeline {
     }
 
     private CompletableFuture<CommitAttempt> reload(
+            ModelBatchScope.CommitCoordination entry,
             DeserializingMessage message,
             CommitAttempt staleEvaluation,
             CommitModelsResult conflict) {
@@ -730,15 +822,8 @@ final class ModelPipeline {
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
-        try {
-            return CompletableFuture.completedFuture(
-                    ModelBatchScope.withMessageDependency(
-                            message,
-                            () -> expandCascadeDeletes(
-                                    ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict))));
-        } catch (Throwable failure) {
-            return CompletableFuture.failedFuture(failure);
-        }
+        return reevaluate(entry, message, () -> expandCascadeDeletes(
+                ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict), message));
     }
 
     private static long retryStateIndex(
@@ -778,16 +863,19 @@ final class ModelPipeline {
                         attempt, List.of(initialMessage),
                         new CommitLoader(
                                 null, false, false, false,
-                                initialMessage, prefetched)));
+                                initialMessage, prefetched)), initialMessage);
     }
 
     private CommitAttempt rebase(
+            ModelBatchScope.CommitCoordination entry,
+            DeserializingMessage message,
             CommitAttempt evaluation,
             long stateIndex,
             boolean migration) {
         List<CommitAttempt.Step> steps = evaluation.steps();
-        return ModelBatchScope.withMessageDependency(
-                steps.getFirst().message(),
+        // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
+        // Keep this existing apply-only path free of waits on speculative producers.
+        return ModelBatchScope.withDependency(entry,
                 () -> expandCascadeDeletes(ModelReducer.reapplySteps(
                         new CommitAttempt(),
                         steps.stream()
@@ -796,7 +884,18 @@ final class ModelPipeline {
                                 .toList(),
                         new CommitLoader(
                                 stateIndex, true, migration,
-                                readsDocumentModel(evaluation)))));
+                                readsDocumentModel(evaluation))), message));
+    }
+
+    private CompletableFuture<CommitAttempt> reevaluate(
+            ModelBatchScope.CommitCoordination entry, DeserializingMessage message, Supplier<CommitAttempt> action) {
+        ThreadLocalContext.Snapshot context = message.captureContext();
+        Supplier<CommitAttempt> evaluation = () -> context.supply(() -> ModelBatchScope.withDependency(entry, action));
+        try {
+            return entry.afterDependencies(evaluation, false);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
     }
 
     /**
@@ -804,6 +903,16 @@ final class ModelPipeline {
      * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
      * actual logical deletions.
      */
+    @lombok.SneakyThrows
+    private CommitAttempt expandCascadeDeletes(
+            CommitAttempt evaluation, DeserializingMessage message) {
+        try {
+            return expandCascadeDeletes(evaluation);
+        } catch (Exception failure) {
+            throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
+        }
+    }
+
     private CommitAttempt expandCascadeDeletes(
             CommitAttempt evaluation) {
         LinkedHashMap<String, Change> latestTransitions =
@@ -821,6 +930,7 @@ final class ModelPipeline {
         if (explicitlyDeleted.isEmpty()) {
             return evaluation;
         }
+        evaluation.ensureReadBoundary();
         LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
         LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>();
 
@@ -830,9 +940,10 @@ final class ModelPipeline {
             if (rootType == null) {
                 continue;
             }
-            Graph<?> graph = repository.loadGraphAtIncludingMessageBatch(
+            Graph<?> graph = repository.loadGraph(
                     rootId, rootType,
-                    evaluation.readStateIndex(),
+                    io.fluxzero.common.api.modeling.ModelReadBoundary.state(
+                            evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
                     Graph.Options.DEFAULT);
             addCascadeGraph(nodes, edges, graph);
         }
@@ -842,9 +953,11 @@ final class ModelPipeline {
                 && !nodes.containsKey(transition.modelId())) {
                 addCascadeGraph(
                         nodes, edges,
-                        repository.loadGraphAtIncludingMessageBatch(
+                        repository.loadGraph(
                                 transition.modelId(), transition.modelType(),
-                                evaluation.readStateIndex(), Graph.Options.DEFAULT));
+                                io.fluxzero.common.api.modeling.ModelReadBoundary.state(
+                                        evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
+                                Graph.Options.DEFAULT));
             }
         }
         overlayFinalValues(latestTransitions, nodes, edges);
@@ -1008,6 +1121,9 @@ final class ModelPipeline {
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private boolean requiresStorageBoundary;
+        private boolean durableOnly;
+        private boolean permitsDeferredBoundary;
+        private CommitAttempt deferredContext;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
         private Map<String, String> aliasResolutions = Map.of();
         private final Map<AncestorPlanKey, AncestorPlan> ancestorPlans =
@@ -1071,6 +1187,8 @@ final class ModelPipeline {
             }
             MutationPlan definition = definitionFor(substep);
             requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
+            permitsDeferredBoundary = substep == directMessage && definition.reducer().permitsDeferredBoundary()
+                    && substep.getContext(EagerDocumentBoundary.class).isEmpty();
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
@@ -1102,6 +1220,7 @@ final class ModelPipeline {
         public ModelReducer.ResolvedSubstep resolveAssertion(
                 DeserializingMessage message, CommitAttempt context, Map<String, Object> values) {
             MutationPlan definition = definitionFor(message);
+            if (definition.reducer().requiresStorageBoundary()) { context.ensureReadBoundary(); }
             MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
             return new ModelReducer.ResolvedSubstep(
                     resolve(resolution, context.readStateIndex(), values), definition.reducer());
@@ -1120,6 +1239,13 @@ final class ModelPipeline {
 
         private CommitAttempt resolve(
                 MutationPlan.Resolution resolution, Long boundary, Map<String, Object> stagedValues) {
+            if (deferredContext != null) {
+                if (resolution.hasAncestorDependencies() || resolution.models().stream()
+                        .anyMatch(target -> !commitEntities.containsKey(target.modelId()))) {
+                    deferredContext.ensureReadBoundary();
+                }
+                boundary = deferredContext.readStateIndex();
+            }
             AncestorPlanKey planKey = resolution.hasAncestorDependencies()
                     ? ancestorPlanKey(resolution, stagedValues) : null;
             AncestorPlan ancestorPlan = ancestorPlans.get(planKey);
@@ -1154,6 +1280,7 @@ final class ModelPipeline {
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
             return CommitAttempt.create(stateIndex, effectiveResolution, selected)
+                    .shareBoundary(deferredContext)
                     .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads())
                     .withAliasResolutions(aliasResolutionsFor(resolution.models()));
         }
@@ -1237,8 +1364,32 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            CommitAttempt loaded = boundary == null && requiresStorageBoundary && !migration
-                    ? repository.loadCurrentContext(resolution, stagedValues, true)
+            if (durableOnly) {
+                // Callbacks can discover typed assertion dependencies that were not in their initial target plan.
+                // Register those explicit types before a document head needs the local logical-name catalog.
+                resolution.models().forEach(target -> repository.modelName(target.modelType()));
+                resolution.ancestorDependencies().forEach(target -> repository.modelName(target.modelType()));
+            }
+            // A simple document write needs only its own revision. Acquire namespace proof lazily when it
+            // discovers another dependency; complex preparation retains the eager coherent snapshot.
+            boolean documentOnly = boundary == null && !requiresStorageBoundary && !migration
+                    && !resolution.hasAncestorDependencies() && !resolution.models().isEmpty()
+                    && resolution.models().stream().noneMatch(
+                    target -> EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced());
+            boolean deferred = documentOnly && permitsDeferredBoundary && !applyOnly && stagedValues.isEmpty()
+                    && DeserializingMessage.getMessageBatchIndex() < 0 && resolution.models().size() == 1
+                    && conflictPolicy == ModelConflictPolicy.RETRY && maxConflictRetries > 0
+                    && conflictResolver == DefaultModelConflictResolver.INSTANCE
+                    && resolution.models().stream().allMatch(target -> {
+                        EntityMetadata metadata = EntityMetadata.validate(target.modelType());
+                        ModelConflictPolicy policy = metadata.rootConfiguration().orElseThrow().conflictPolicy();
+                        return target.access().writes() && java.lang.reflect.Modifier.isFinal(target.modelType().getModifiers())
+                               && !metadata.hasAliases() && metadata.parentReferences().isEmpty()
+                               && (policy == ModelConflictPolicy.DEFAULT || policy == ModelConflictPolicy.RETRY);
+                    });
+            CommitAttempt loaded = deferred ? repository.loadDeferredDocumentContext(resolution)
+                    : boundary == null && (requiresStorageBoundary || documentOnly) && !migration
+                    ? repository.loadCurrentContext(resolution, stagedValues, !durableOnly)
                     : advanceIncompleteDocumentBoundary
                     ? repository.loadRebaseContext(
                             resolution, boundary, stagedValues, true, migration)
@@ -1246,7 +1397,9 @@ final class ModelPipeline {
                             ? repository.loadContext(
                                     resolution, boundary, stagedValues, true, true)
                             : repository.loadContext(
-                                    resolution, boundary, stagedValues, true);
+                                    resolution, boundary, stagedValues, !durableOnly);
+            if (durableOnly) { loaded.durableReadsOnly(); }
+            if (deferred) { deferredContext = loaded; }
             if (boundary != null && loaded.readStateIndex() != boundary) {
                 if (!advanceIncompleteDocumentBoundary
                     || loaded.readStateIndex() < boundary) {
@@ -1317,7 +1470,7 @@ final class ModelPipeline {
 
                 @Override
                 public Registration prepareAsyncInvocation() {
-                    return preparedEntry = ModelBatchScope.register(
+                    return preparedEntry = ModelBatchScope.registerAsync(
                             ModelPipeline.this, message, commitPolicy, batchLifecycle);
                 }
 
@@ -1339,9 +1492,14 @@ final class ModelPipeline {
         message.putContext(AutomaticExecution.class, AutomaticExecution.INSTANCE);
         ExecutionRequest request = new ExecutionRequest(
                 message, null, -1, Mode.AUTOMATIC);
-        CompletableFuture<Object> completion = execute(request, commitPolicy, preparedEntry);
+        ModelBatchScope.CommitCoordination entry = preparedEntry == null
+                ? ModelBatchScope.register(this, message, commitPolicy, batchLifecycle) : preparedEntry;
+        if (commitPolicy.awaitAfterBatch() && awaitAfterHandlerCommitsBeforeResults) {
+            entry.handledCompletion = Invocation.observeDeferredResult(entry.attempt().completion(), entry::commitCurrent);
+        }
+        CompletableFuture<Object> completion = execute(request, commitPolicy, entry);
         if (commitPolicy.awaitAfterBatch()) {
-            if (awaitAfterHandlerCommitsBeforeResults) {
+            if (awaitAfterHandlerCommitsBeforeResults && entry.handledCompletion == null) {
                 Invocation.awaitBeforeResultPublication(message, completion);
             }
             return null;
@@ -1360,7 +1518,10 @@ final class ModelPipeline {
         if (!targets.isDirectSingleTarget() || definition.reducer().requiresStorageBoundary()) {
             return null;
         }
-        return new PrefetchSlot(targets.resolveSingle(message));
+        MutationPlan.ResolvedModel target = targets.resolveSingle(message);
+        // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
+        return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
+                ? new PrefetchSlot(target) : null;
     }
 
     private static final class PrefetchSlot

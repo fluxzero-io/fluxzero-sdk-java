@@ -39,6 +39,20 @@ because the built-in retry handler can: a deterministic business rejection norma
 
 ## Protect ordering and effects
 
+With normal commit-before-result handling, an automatic Model command's validation or commit failure is handled
+once by that command's consumer error policy. Batch completion still awaits every commit, but does not report an
+already handled failure again as a whole-batch error or retry unrelated commands. Unhandled failures and real batch
+aborts remain failures. Disabling `fluxzero.model.awaitAfterHandlerCommitsBeforeResults` keeps deferred commit errors
+at the batch boundary; an early successful response does not promise a successful commit.
+
+An explicit error-handler retry targets only the failed command and awaits its deferred commit. This does not make
+retrying an uncertain storage/transport outcome safe: use the same idempotency and recovery discipline as for other
+handler retries. Model conflict-policy reevaluation is a separate mechanism.
+
+Nested message handling shares its enclosing batch boundary. If the caller catches a nested failure, batch callbacks
+and deferred writes remain pending until the enclosing scope completes. If the failure escapes that scope, completion
+receives the failure. This is a lifecycle boundary, not a transaction or a rollback of earlier effects.
+
 Retrying a complete handler can repeat every effect that happened before the failure. Make outbound requests,
 schedules, document writes, and message dispatch idempotent, or split the effect behind a durable post-commit intent.
 For an ordered consumer, continuing after a failed message means later messages can observe a missing transition;

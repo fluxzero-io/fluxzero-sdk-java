@@ -71,6 +71,7 @@ public final class ModelReducer {
     private final List<MutationPlan.Assertion> afterPayloadAssertions, afterModelAssertions;
     private final boolean recursiveAssertions;
     private final boolean requiresStorageBoundary;
+    private final boolean permitsDeferredBoundary;
     private final List<EmbeddedModelPlan> embedded;
     private final boolean dynamicMembers;
     private final boolean memberDependencies;
@@ -127,6 +128,13 @@ public final class ModelReducer {
                 || recursiveAssertions || handlers.all().stream().anyMatch(handler ->
                 handler.method().kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
                 || handler.method().modelParameters().stream().anyMatch(EntityMetadata.ModelParameter::graphWrapped));
+        this.permitsDeferredBoundary = embedded.isEmpty() && !requiresStorageBoundary
+                && handlers.all().stream().allMatch(handler -> {
+                    var policy = handler.effect().conflict();
+                    return !handler.method().collectionApplyResult() && !handler.method().dynamicApplyResult()
+                           && (policy == io.fluxzero.common.api.modeling.ModelConflictPolicy.DEFAULT
+                               || policy == io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY);
+                });
     }
 
     boolean empty() {
@@ -142,6 +150,10 @@ public final class ModelReducer {
 
     boolean requiresStorageBoundary() {
         return requiresStorageBoundary;
+    }
+
+    boolean permitsDeferredBoundary() {
+        return permitsDeferredBoundary;
     }
 
     List<EntityMetadata.HandlerMethod> methods() {
@@ -1165,6 +1177,7 @@ public final class ModelReducer {
         CommitAttempt originalContext = initialMessage == null ? null
                 : initialMessage.getContext(CommitAttempt.class).orElse(null);
         CommitAttempt commitBeginContext = null;
+        Collection<String> resolvedReadIds = null;
         ResolvedSubstep prepared = null;
 
         try {
@@ -1201,6 +1214,7 @@ public final class ModelReducer {
             Map<String, Object> stagedValues = new LinkedHashMap<>();
             if (parent != null) { parent.graphEntities().forEach((id, entity) -> stagedValues.put(id, entity.get())); }
             LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+            resolvedReadIds = readModelIds;
             LinkedHashSet<String> applyReadModelIds = new LinkedHashSet<>();
             Map<String, Class<?>> readModelTypes =
                     new LinkedHashMap<>();
@@ -1306,6 +1320,7 @@ public final class ModelReducer {
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
                         applyReadModelIds, assertionLoader);
+                readStateIndex = context.readStateIndex();
                 if (!pending.isEmpty()) { context.retainWriteOrigins(transitions); }
                 for (Change transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
@@ -1319,10 +1334,15 @@ public final class ModelReducer {
                 }
                 steps.add(new CommitAttempt.Step(current.message(), transitions));
             }
+            attempt.checkReadBoundary();
             attempt.evaluated(
                     readStateIndex, readModelIds, applyReadModelIds, readModelTypes,
                     steps);
             return attempt;
+        } catch (Throwable failure) {
+            attempt.retainFailedPreparationReads(resolvedReadIds != null ? resolvedReadIds
+                    : commitBeginContext == null ? List.of() : commitBeginContext.modelIds());
+            throw failure;
         } finally {
             CommitAttempt restore =
                     originalContext == null ? commitBeginContext : originalContext;

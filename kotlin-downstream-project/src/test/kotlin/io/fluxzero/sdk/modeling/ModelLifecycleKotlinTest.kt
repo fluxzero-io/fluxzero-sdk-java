@@ -24,11 +24,27 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import java.time.Instant
 
 class ModelLifecycleKotlinTest {
     private val taskId = TaskId("kotlin-task")
     private fun fixture(async: Boolean) = if (async) TestFixture.createAsync() else TestFixture.create()
+
+    @ParameterizedTest @ValueSource(booleans = [false, true])
+    fun atomicUpdatesAndConsumeOnce(async: Boolean) {
+        fixture(async).givenCommands(CreateTask(taskId, null)).whenExecuting {
+            val graph = Fluxzero.loadCurrentGraph(taskId)
+            assertTrue(graph.compareAndSet(graph.get()!!.copy(completed = true)))
+            assertFalse(graph.compareAndSet(graph.get()))
+            val after = graph.updateAndGet({ current -> current.update { it.copy(completed = false) } }, 2)
+            assertFalse(after.get()!!.completed)
+            val consumed = after.getAndUpdate { it.delete() }
+            assertFalse(consumed.get()!!.completed)
+            assertNull(Fluxzero.loadCurrentGraph(taskId).get())
+        }.expectSuccessfulResult().expectNoErrors()
+    }
 
     @ParameterizedTest @ValueSource(booleans = [false, true])
     fun duplicateFactoryRejects(async: Boolean) {

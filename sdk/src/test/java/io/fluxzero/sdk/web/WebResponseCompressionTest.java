@@ -14,11 +14,41 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.jupiter.api.Assertions.*;
+
 class WebResponseCompressionTest {
+    @Test
+    void gzipStreamAccessPreservesOwnershipAndDoesNotConsumeBeforeConversion() throws Exception {
+        byte[] encoded = CompressionAlgorithm.GZIP.compress("hello".getBytes(UTF_8));
+        var closed = new AtomicBoolean();
+        try (var source = new ByteArrayInputStream(encoded) {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        }) {
+            var response = WebResponse.builder().payload(source).header("Content-Encoding", "gzip").build();
+            assertSame(source, response.getPayload());
+            assertSame(source, response.getPayloadAs(Object.class));
+            assertSame(source, response.getPayloadAs(InputStream.class));
+            assertEquals(encoded.length, source.available());
+            assertEquals("hello", response.getPayloadAs(String.class));
+            assertFalse(closed.get());
+        }
+        assertTrue(closed.get());
+    }
+
     @ParameterizedTest
     @CsvSource({"false,gzip", "true,gzip", "false,identity", "true,identity"})
     void readsTypedResponse(boolean async, String encoding) {

@@ -41,6 +41,35 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OpenApiRendererTest {
 
     @Test
+    void polymorphicIdsRetainOptionalNullabilityInBothOpenApiVersions() {
+        for (String version : List.of("3.0.4", "3.1.1")) {
+            var document = OpenApiRenderer.render(ApiDocExtractor.extract(IdWireHandler.class),
+                    new OpenApiOptions("IDs", "1", "", List.of(), version));
+            var fields = document.path("components").path("schemas").path("IdWireRequest").path("properties");
+            var optional = fields.path("optional");
+            if (version.startsWith("3.1")) {
+                assertEquals("null", optional.path("anyOf").get(1).path("type").asText());
+                assertEquals(2, optional.path("anyOf").get(0).path("oneOf").size());
+            } else {
+                assertTrue(optional.path("nullable").asBoolean());
+                assertEquals(2, optional.path("oneOf").size());
+            }
+            assertEquals(2, fields.path("untyped").path("oneOf").size());
+            assertEquals(2, fields.path("array").path("items").path("oneOf").size());
+            assertEquals(2, fields.path("bounded").path("items").path("oneOf").size());
+        }
+    }
+
+    static class IdWireHandler {
+        @HandlePost("/id-wire") @ApiDoc
+        void receive(IdWireRequest request) { }
+    }
+
+    record IdWireRequest(java.util.Optional<Id<?>> optional,
+                         @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NONE)
+                         Id<?> untyped, Id<?>[] array, List<? extends Id<?>> bounded) { }
+
+    @Test
     void rendersOpenApiDocumentForJsonEndpoint() {
         ApiDocCatalog catalog = ApiDocExtractor.extract(MeterHandler.class);
 
@@ -204,6 +233,10 @@ class OpenApiRendererTest {
         assertEquals("Whether this item is active", properties.path("active").path("description").asText());
         assertTrue(properties.path("active").path("default").asBoolean());
         assertEquals("string", properties.path("jsonValueId").path("type").asText());
+        assertEquals(2, properties.path("polymorphicId").path("oneOf").size());
+        assertEquals("string", properties.path("polymorphicId").path("oneOf").get(0)
+                .path("properties").path("name").path("type").asText());
+        assertEquals(2, properties.path("polymorphicIds").path("items").path("oneOf").size());
         assertEquals("Json value id", properties.path("jsonValueId").path("description").asText());
         assertEquals("string", properties.path("opensAt").path("type").asText());
         assertEquals("partial-time", properties.path("opensAt").path("format").asText());
@@ -809,6 +842,8 @@ class OpenApiRendererTest {
         String lombokField;
         @ApiDoc(description = "Json value id")
         JsonValueId jsonValueId;
+        Id<?> polymorphicId;
+        List<Id<?>> polymorphicIds;
         java.time.LocalTime opensAt;
         java.time.ZoneId timeZone;
         @ApiDoc(description = "Attempt count", type = "integer", minimum = "0", maximum = "10", example = "5",

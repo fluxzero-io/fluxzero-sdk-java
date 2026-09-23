@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
@@ -36,6 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -62,8 +64,94 @@ public final class CommitAttempt {
     private Set<String> graphAliasHeads;
     private Set<String> graphApplyAliasHeads;
     private long graphReadGeneration;
+    private DeferredBoundary deferredBoundary;
+    private int preparationRetries;
+    private boolean durableReadsOnly;
+    private Collection<String> failedPreparationReads;
+
+    /** Retains only ordering evidence when evaluation rejects provisional state before producing an outcome. */
+    void retainFailedPreparationReads(Collection<String> resolvedReads) {
+        Set<String> reads = new LinkedHashSet<>(resolvedReads);
+        if (graphReadTypes != null) { reads.addAll(graphReadTypes.keySet()); }
+        failedPreparationReads = List.copyOf(reads);
+    }
+
+    Collection<String> orderingModelIds() {
+        return failedPreparationReads == null ? readModelIds : failedPreparationReads;
+    }
+
+    /** Internal single-document loading provenance; copies share the same one-time verification. */
+    public CommitAttempt withDeferredBoundary(LongSupplier verification) {
+        deferredBoundary = new DeferredBoundary(readStateIndex, verification);
+        return this;
+    }
+
+    CommitAttempt shareBoundary(CommitAttempt source) {
+        deferredBoundary = source == null ? null : source.deferredBoundary;
+        return this;
+    }
+
+    /** Establishes the namespace snapshot before exposing any additional transactional dependency. */
+    public void ensureReadBoundary() {
+        if (deferredBoundary != null) { deferredBoundary.verify(); }
+    }
+
+    void checkReadBoundary() {
+        if (deferredBoundary != null && deferredBoundary.failure != null) { throw deferredBoundary.failure; }
+    }
+
+    ReadBoundaryConflict readBoundaryConflict() {
+        return deferredBoundary != null && deferredBoundary.failure instanceof ReadBoundaryConflict conflict
+                ? conflict : null;
+    }
+
+    void finishReadBoundary() {
+        checkReadBoundary();
+        if (deferredBoundary != null) { deferredBoundary.verification = null; }
+    }
+
+    int preparationRetries() { return preparationRetries; }
+    void preparationRetries(int count) { preparationRetries = count; }
+
+    /** Internal signal: no commit was submitted, but a document used during evaluation has changed. */
+    public static final class ReadBoundaryConflict extends RuntimeException {
+        private final ModelCommitConflict conflict;
+
+        public ReadBoundaryConflict(String modelId, long stateIndex) {
+            super("Document model '%s' changed before its transaction snapshot was established".formatted(modelId));
+            conflict = new ModelCommitConflict(modelId, stateIndex, -1L);
+        }
+
+        ModelCommitConflict conflict() { return conflict; }
+    }
+
+    private static final class DeferredBoundary {
+        private long stateIndex;
+        private LongSupplier verification;
+        private RuntimeException failure;
+
+        private DeferredBoundary(long stateIndex, LongSupplier verification) {
+            this.stateIndex = stateIndex;
+            this.verification = verification;
+        }
+
+        private synchronized void verify() {
+            if (failure != null) { throw failure; }
+            if (verification != null) {
+                try {
+                    stateIndex = verification.getAsLong();
+                    verification = null;
+                } catch (RuntimeException e) {
+                    failure = e;
+                    throw e;
+                }
+            }
+        }
+    }
 
     void resetGraphReads() {
+        deferredBoundary = null;
+        failedPreparationReads = null;
         graphReadGeneration++;
         graphReadTypes = null;
         graphReadEntities = null;
@@ -77,6 +165,14 @@ public final class CommitAttempt {
         readResolver = resolver;
     }
 
+    /** Internal guard before a public asynchronous mutation leaves its originating thread. */
+    public static void requireNoAtomicCallback(ModelRepository repository) {
+        CommitAttempt context = currentReadContext(repository);
+        if (context != null && context.readsDurableStateOnly()) {
+            throw new IllegalStateException("Atomic Graph callbacks must stage changes, not start nested commits");
+        }
+    }
+
     /** Returns this repository's active mutation read context, never an event-replay or escaped async context. */
     public static CommitAttempt currentReadContext(ModelRepository repository) {
         CommitAttempt context = graphInvocation.get();
@@ -85,6 +181,13 @@ public final class CommitAttempt {
         ModelRepository owner = context.graphReadOwner.readResolver.repository();
         return owner == repository || owner instanceof DefaultModelRepository standard
                                      && standard.sharesReadContext(repository) ? context : null;
+    }
+
+    void durableReadsOnly() { durableReadsOnly = true; }
+
+    /** Whether this independent operation excludes uncommitted message-batch overlays. */
+    public boolean readsDurableStateOnly() {
+        return durableReadsOnly || graphReadOwner != null && graphReadOwner.durableReadsOnly;
     }
 
     boolean mutationContext() { return graphReadOwner != null && !Entity.isLoading(); }
@@ -103,7 +206,7 @@ public final class CommitAttempt {
     /** Attaches the same attempt provenance to a repository-created Graph without changing its snapshot. */
     public <T> Graph<T> trackGraph(Graph<T> graph, ModelRepository repository) {
         return graphReadOwner == null ? graph : Graphs.withReadContext(graph,
-                new GraphReadContext(graphReadOwner, graphReadOwner.graphReadGeneration, repository, readStateIndex));
+                new GraphReadContext(graphReadOwner, graphReadOwner.graphReadGeneration, repository, readStateIndex()));
     }
 
     record GraphReadContext(CommitAttempt owner, long generation, ModelRepository repository, long boundary) {
@@ -116,6 +219,7 @@ public final class CommitAttempt {
 
     void bindGraphReads(CommitAttempt owner) {
         graphReadOwner = owner;
+        if (deferredBoundary != null) { owner.deferredBoundary = deferredBoundary; }
         recordAncestorReads(false);
     }
 
@@ -609,7 +713,7 @@ public final class CommitAttempt {
     }
 
     public long readStateIndex() {
-        return readStateIndex;
+        return deferredBoundary == null ? readStateIndex : deferredBoundary.stateIndex;
     }
 
     public List<String> modelIds() {
@@ -778,6 +882,7 @@ public final class CommitAttempt {
         result.readStateIndex = readStateIndex;
         result.resolution = resolution;
         result.entities = immutable(updated);
+        result.deferredBoundary = deferredBoundary;
         result.graphReadOwner = graphReadOwner;
         result.readCollector = readCollector;
         if (graphUpdated != null) {

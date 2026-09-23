@@ -225,6 +225,10 @@ When their read/write sets overlap, the later command waits for the predecessor'
 reevaluated against canonical state before committing. Predecessor failure fails the dependent chain. Unrelated model
 chains remain parallel.
 
+A command rejected during validation does not fail independent commands in that batch, including deferred commits.
+Each command retains its own commit/result outcome. A real outer batch abort still stops pending batch work;
+this cannot roll back a commit already accepted by storage.
+
 This is not one transaction across commands: every command retains its own atomic commit, result and conflict policy.
 Different consumers or routing segments have no implied ordering; configure a shared consumer and routing key when
 that order is a domain requirement.

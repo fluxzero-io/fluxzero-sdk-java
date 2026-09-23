@@ -27,6 +27,9 @@ import java.util.concurrent.CompletableFuture;
  * </p>
  */
 public class ServiceException extends RuntimeException {
+    /** Typed historical-read evidence, or null for an ordinary request failure or an older Runtime response. */
+    @lombok.Getter
+    private final ErrorResult.ModelHistoryUnavailable modelHistoryUnavailable;
 
     /**
      * Constructs a new exception with the specified error message.
@@ -34,6 +37,12 @@ public class ServiceException extends RuntimeException {
      * @param message the message describing the failure
      */
     public ServiceException(String message) {
+        this(message, null);
+    }
+
+    /** Constructs a request failure preserving the Runtime's optional historical-read evidence. */
+    public ServiceException(String message, ErrorResult.ModelHistoryUnavailable modelHistoryUnavailable) {
         super(message);
+        this.modelHistoryUnavailable = modelHistoryUnavailable;
     }
 }

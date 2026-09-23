@@ -268,6 +268,11 @@ public class WebResponse extends Message {
 
     /**
      * Retrieves the payload and converts it to the specified type.
+     * Gzip-encoded streams are decoded when converted to a body value; consuming a stream remains a one-shot operation.
+     * Requesting the stream itself (or {@code Object}) does not consume or decode it, and its owner remains responsible
+     * for closing it.
+     * Streamed responses received through the request gateway have a byte-array payload, including when their
+     * content type is JSON. Use this method to convert those bytes to a desired body type.
      *
      * @param <R>  the desired type of the returned payload
      * @param type the target type to which the payload should be converted
@@ -275,7 +280,13 @@ public class WebResponse extends Message {
      */
     @Override
     public <R> R getPayloadAs(Type type) {
-        return WebUtils.convertPayload(getPayload(), type, getContentType());
+        Object payload = getPayload();
+        if (payload instanceof InputStream && !(type instanceof Class<?> c && c.isInstance(payload))
+            && Objects.equals(getHeaders("Content-Encoding"), gzipEncoding)) {
+            byte[] encoded = WebUtils.convertPayload(payload, byte[].class, getContentType());
+            payload = CompressionAlgorithm.GZIP.decompress(encoded);
+        }
+        return WebUtils.convertPayload(payload, type, getContentType());
     }
 
     /**
@@ -355,7 +366,8 @@ public class WebResponse extends Message {
     @SneakyThrows
     Object decodePayload() {
         Object result = getEncodedPayload();
-        if (result instanceof byte[] bytes && Objects.equals(getHeaders("Content-Encoding"), gzipEncoding)) {
+        if (result instanceof byte[] bytes && bytes.length > 0
+            && Objects.equals(getHeaders("Content-Encoding"), gzipEncoding)) {
             return CompressionAlgorithm.GZIP.decompress(bytes);
         }
         return result;

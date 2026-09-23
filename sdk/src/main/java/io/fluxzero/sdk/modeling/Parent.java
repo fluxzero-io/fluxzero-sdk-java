@@ -107,6 +107,9 @@ public @interface Parent {
      * This keeps graph validation, API documentation, cascade deletion and cycle detection statically knowable while
      * allowing one domain property such as {@code Id<?> nominee} to refer to different model types. This attribute and
      * {@link #value()} are mutually exclusive.
+     * The standard serializer preserves polymorphic IDs as an object with {@code name} (logical Model name) and
+     * {@code id} (functional ID). Each allowed Model must declare its concrete ID class as {@link EntityId}.
+     * This allowlist is also enforced when reading the discriminator; unknown or ambiguous names are rejected.
      */
     Class<?>[] types() default {};
 

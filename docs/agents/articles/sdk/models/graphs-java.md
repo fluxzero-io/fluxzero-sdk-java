@@ -56,6 +56,10 @@ Graph relation and cascade ownership. Being displayed below or deleted with the 
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
 - For one polymorphic typed relation, use `@Parent(types = {Project.class, Folder.class}, ...) Id<?> parentId`; the
   concrete typed ID selects one statically declared parent type. Use separate properties for distinct relation roles.
+  The standard serializer writes `{"name":"project","id":"owner-a"}` for such a property (using the actual logical
+  Model name). Each allowed Model declares its concrete ID class as `@EntityId`; `types` is also the read allowlist.
+  No additional `@JsonTypeInfo` is needed. Unknown, ambiguous or conflicting names fail rather than guessing.
+  Custom concrete ID deserializers retain the enclosing property context.
 - `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
@@ -124,6 +128,18 @@ retried merely because newer state might allow it. Existing injection paths can 
 manual Graph discovered during apply keeps the attempt's boundary; it does not force a read-RPC on every ordinary
 cache-only command. Relationships remain lazy. Pending state belongs to the owning repository family and namespace,
 never another application's cache or batch. See the invariant example at `/docs/sdk/entities/assert-legal`.
+
+DOCUMENT-only mutations read authoritative documents without replaying published history. A simple single-target
+write using built-in RETRY needs no extra namespace head read unless it requests an additional transactional
+dependency. The first such read verifies the original document revision and pins one shared namespace boundary.
+If that revision changed, the whole evaluation restarts eagerly, consuming the normal retry budget; assertions
+and applies must therefore be repeatable. Once pinned, the boundary never moves.
+Complex targets, known Graph dependencies, aliases, parent bindings, batches and custom conflict handling retain
+eager preparation: one batched head read, with head/document preparation races retried at most eight times before
+user code runs. An unavailable pinned document version fails explicitly; use EVENT_SOURCED for historical reads.
+Deletion/cascade planning that loses such a version raises a terminal `ModelCommitConflictException`: no commit
+submission or reevaluation, including under RETRY. `getReadConflict()` identifies the unavailable Model and pinned
+boundary; `getResult()` is null because no storage rejection occurred. See `/docs/sdk/models/conflicts`.
 
 Open `graph.current()` for the same Model without replacing the original Graph. Outside mutations it pins a new
 current boundary during the call and captures pending batch changes; inside a mutation it shares that attempt's
@@ -238,10 +254,15 @@ head metadata without replay. These factories pin their boundary during the call
 reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
 changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 
-Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary with a head-only read even when the root
-is cached; an older root observation cannot prove unchanged relationships. Within a mutation it instead reuses the
-attempt boundary and joins its readset. Values remain lazy and use their authoritative persistence source, including
-current document authority for DOCUMENT-only Models.
+Outside a mutation, `loadCurrentGraph` establishes a fresh storage boundary even when the root is cached;
+an older root observation cannot prove unchanged relationships. Event-sourced root values remain lazy.
+For a DOCUMENT-only root, the factory resolves its head and document coherently before returning and retains
+that value: subsequent replacement or deletion cannot change the returned root. Relationships and descendants
+remain lazy; this does not create historical document versions.
+Within a mutation it instead reuses the attempt boundary and joins its readset.
+An unpinned current value read retries the complete lookup a bounded number of times if its head and document
+change during resolution. Historical, already pinned and mutation-shared reads never silently advance.
+Persistent instability fails with an explicit platform error.
 
 ## Complete graph-change handlers
 

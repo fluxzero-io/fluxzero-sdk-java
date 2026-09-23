@@ -691,6 +691,61 @@ public interface Graph<T> {
     Graph<T> update(UnaryOperator<T> update);
 
     /**
+     * Replaces this existing Model only if this graph's {@link #revisionStateIndex()} is still current.
+     * A null replacement deletes the Model. Returns only after durable commit; false means the expected
+     * revision was absent or conflicted. Technical failures still propagate. No retry is performed.
+     * Even an equal replacement writes a new revision, so comparison is always verified by storage.
+     * This independent operation is not allowed inside a Model mutation or on a staged/custom Graph.
+     * Uses the application's configured namespace; consumer namespace overrides are not supported.
+     * This is a direct state replacement, not an invocation of payload apply handlers or their assertions.
+     */
+    default boolean compareAndSet(@Nullable T replacement) {
+        return AtomicGraphUpdate.compareAndSet(this, replacement);
+    }
+
+    /** Equivalent to {@link #updateAndGet(UnaryOperator, int)} with no retries. */
+    default Graph<T> updateAndGet(UnaryOperator<Graph<T>> update) {
+        return updateAndGet(update, 0);
+    }
+
+    /**
+     * Updates one existing Model from a fresh transactional Graph and returns its committed resulting view.
+     * The function must return a same-target graph produced with {@link #update(UnaryOperator)} or {@link #delete()},
+     * or its input unchanged. All consumed Graph values and relationships participate in conflict validation.
+     * On a rejected storage commit the function may run again, at most {@code maxRetries} additional times;
+     * do not perform external effects in it. Application failures and unavailable pinned document history are
+     * not retried. An absent Model is never implicitly created. Equal values still write a checked revision.
+     * This is an independently durable operation, not a nested part of a surrounding Model mutation.
+     * It reads committed state, not provisional changes from other commands in the current batch.
+     * Uses the application's configured namespace; consumer namespace overrides are not supported.
+     * This directly replaces state; run required validation in the function, without nested writes.
+     * Return new immutable values: never modify a cached input value in place, even if the commit later fails.
+     * Returned root values and revisions are retained. Lazy related-state reads still require available history.
+     *
+     * @param update side-effect-free transformation of the fresh graph
+     * @param maxRetries maximum additional attempts after storage conflicts, nonnegative
+     * @return the exact successful commit's view, not a subsequent current load
+     * @throws java.util.NoSuchElementException if the selected Model is absent at an attempt's read boundary
+     */
+    default Graph<T> updateAndGet(UnaryOperator<Graph<T>> update, int maxRetries) {
+        return AtomicGraphUpdate.update(this, update, maxRetries, false);
+    }
+
+    /** Equivalent to {@link #getAndUpdate(UnaryOperator, int)} with no retries. */
+    default Graph<T> getAndUpdate(UnaryOperator<Graph<T>> update) {
+        return getAndUpdate(update, 0);
+    }
+
+    /**
+     * Like {@link #updateAndGet(UnaryOperator, int)}, but returns the graph immediately before the successful
+     * attempt. No old value is released before commit succeeds. This can implement consume-once with
+     * {@code graph.getAndUpdate(Graph::delete)}; it does not make an external side effect atomic with deletion.
+     */
+    default Graph<T> getAndUpdate(UnaryOperator<Graph<T>> update, int maxRetries) {
+        return AtomicGraphUpdate.update(this, update, maxRetries, true);
+    }
+
+    /**
      * Marks this model as deleted and returns the staged resulting graph. Return it from model handling so it joins the
      * surrounding commit, or call {@link #commit()} for an explicit graph operation.
      */
@@ -735,8 +790,9 @@ public interface Graph<T> {
 
     /**
      * Opens a new, deliberately current view of this Model using its exact repository identity and owning repository.
-     * The new namespace boundary is pinned during this call, ignoring an active event-handler boundary; values and
-     * relationships remain lazy. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current
+     * The new namespace boundary is pinned during this call, ignoring an active event-handler boundary.
+     * Event-sourced values and relationships remain lazy; a DOCUMENT-only root is coherently read and retained
+     * during this call. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current
      * message-batch overlay. It is not a continuously updating view and does not modify this graph or commit its edits.
      * <p>The result is rooted at this Model, even when this node was reached through a parent. Reparenting is reflected
      * in its new navigation; a deleted Model has an empty value. View-only path selections, filters, mapped values and

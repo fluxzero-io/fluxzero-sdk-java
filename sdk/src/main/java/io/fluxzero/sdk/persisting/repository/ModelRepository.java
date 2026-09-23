@@ -81,6 +81,8 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Loads a model using the string representation of the supplied ID, resolving a current model alias when no primary
      * model has that identity.
+     * An undecorated fallback ignores primary Models of unrelated types (for example the parent of an absent
+     * companion). Genuine aliases and compatible primary identities remain valid; explicit wrong-type reads fail.
      */
     default <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
         String functionalId = modelId.toString();
@@ -89,6 +91,11 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
                 ? functionalId : metadata.repositoryId(modelId);
         Entity<T> result = load(primaryId, modelType);
         if (result.isPresent() || primaryId.equals(functionalId) || !metadata.hasAliases()) {
+            return result;
+        }
+        Entity<?> candidate = load(functionalId, Object.class);
+        if (!candidate.isPresent() || functionalId.equals(String.valueOf(candidate.id()))
+                                   && !modelType.isAssignableFrom(candidate.type())) {
             return result;
         }
         Entity<T> alias = load(functionalId, modelType);
@@ -109,6 +116,11 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
                 ? functionalId : metadata.repositoryId(modelId);
         Entity<T> result = loadCurrent(primaryId, modelType);
         if (result.isPresent() || primaryId.equals(functionalId) || !metadata.hasAliases()) {
+            return result;
+        }
+        Entity<?> candidate = loadCurrent(functionalId, Object.class);
+        if (!candidate.isPresent() || functionalId.equals(String.valueOf(candidate.id()))
+                                   && !modelType.isAssignableFrom(candidate.type())) {
             return result;
         }
         Entity<T> alias = loadCurrent(functionalId, modelType);
