@@ -207,7 +207,7 @@ public enum CompressionAlgorithm {
     /**
      * Compresses bytes using this algorithm's public SDK wire format.
      *
-     * <p>ZSTD uses the Fluxzero compression header so the decoder
+     * <p>LZ4 preserves the legacy 4-byte size prefix format. ZSTD uses the Fluxzero compression header so the decoder
      * can identify the payload algorithm. GZIP keeps the standard gzip stream format.</p>
      *
      * @param uncompressed bytes to compress

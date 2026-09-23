@@ -112,7 +112,7 @@ public class WebsocketRuntimeDispatchBenchmark {
             Math.multiplyExact(Integer.getInteger("largeLoadLargeMiB", 35), 1 << 20)};
     private static final long[] LARGE_LOAD_RETAINED_BYTES = {16L << 20, 64L << 20, 128L << 20};
     private static final CompressionAlgorithm LARGE_LOAD_COMPRESSION = CompressionAlgorithm.valueOf(
-            System.getProperty("largeLoadCompression", "ZSTD"));
+            System.getProperty("largeLoadCompression", "LZ4"));
     private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
             "completionTargetResults", 1_000_000);
     private static final long LOAD_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
@@ -199,7 +199,7 @@ public class WebsocketRuntimeDispatchBenchmark {
     }
 
     private static void runBoundedLoadComparison() {
-        for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.ZSTD)) {
+        for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
             for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
                 double singleWorkerElapsed = 0d;
                 for (int concurrency = 1;
@@ -229,7 +229,7 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static void runMetricsEnabledBoundedLoad() {
         for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
             try (BoundedLoadScenario scenario = new BoundedLoadScenario(
-                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessions, CompressionAlgorithm.ZSTD, true)) {
+                    JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES, sessions, CompressionAlgorithm.LZ4, true)) {
                 for (int i = 0; i < WARMUPS; i++) {
                     scenario.run(LOAD_ITERATIONS);
                 }
@@ -240,14 +240,14 @@ public class WebsocketRuntimeDispatchBenchmark {
 
     private static void runSmallResultLoadComparison() {
         for (int valueBytes : SMALL_RESULT_VALUE_BYTES) {
-            for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.ZSTD)) {
+            for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
                 for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
                     measureSmallResultLoad(valueBytes, compression, sessions, false, false);
                     measureSmallResultLoad(valueBytes, compression, sessions, false, true);
                 }
             }
             for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
-                measureSmallResultLoad(valueBytes, CompressionAlgorithm.ZSTD, sessions, true, true);
+                measureSmallResultLoad(valueBytes, CompressionAlgorithm.LZ4, sessions, true, true);
             }
         }
     }
@@ -323,7 +323,7 @@ public class WebsocketRuntimeDispatchBenchmark {
 
     private static void runConfiguredCapacitySmoke() {
         try (BoundedLoadScenario scenario = new BoundedLoadScenario(
-                2, 1, CompressionAlgorithm.ZSTD, false, 7, 256L * 1024)) {
+                2, 1, CompressionAlgorithm.LZ4, false, 7, 256L * 1024)) {
             scenario.run(LOAD_ITERATIONS);
             measureBoundedLoad(scenario, LOAD_ITERATIONS);
         }

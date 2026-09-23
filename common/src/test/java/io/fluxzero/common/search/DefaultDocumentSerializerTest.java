@@ -57,6 +57,16 @@ class DefaultDocumentSerializerTest {
     }
 
     @Test
+    void readsDocumentWrittenByReleasedSdkWithNativeLz4() {
+        // Serialized by the unmodified common 2.0.0-rc.20 jar using its native LZ4 writer.
+        byte[] bytes = java.util.Base64.getDecoder().decode(
+                "AAAALPAdAKpoaXN0b3JpY2FswMCqY29sbGVjdGlvbpEAqcOp5ryi8J+ZgpGldmFsdWU=");
+        assertEquals(Map.of(new Document.Entry(Document.EntryType.TEXT, "é漢🙂"),
+                            List.of(new Document.Path("value"))),
+                     subject.deserialize(new Data<>(bytes, "type", 7, Data.DOCUMENT_FORMAT)));
+    }
+
+    @Test
     void readsLegacyAndFramedDocuments() throws Exception {
         byte[] value = "historical value".getBytes(StandardCharsets.UTF_8);
         byte[] raw = versionZeroDocument(value);
@@ -67,8 +77,7 @@ class DefaultDocumentSerializerTest {
         System.arraycopy(legacy, 0, framedLz4, 3, legacy.length);
         byte[] none = java.nio.ByteBuffer.allocate(raw.length + 7)
                 .put((byte) 0xff).put((byte) 0).put((byte) 0).putInt(raw.length).put(raw).array();
-        for (byte[] bytes : List.of(legacy, framedLz4, none, CompressionAlgorithm.ZSTD.compress(raw),
-                                   com.github.luben.zstd.Zstd.compress(raw))) {
+        for (byte[] bytes : List.of(legacy, framedLz4, none, CompressionAlgorithm.ZSTD.compress(raw))) {
             assertEquals(expected(value), subject.deserialize(new Data<>(bytes, "type", 0, Data.DOCUMENT_FORMAT)));
         }
     }

@@ -70,7 +70,7 @@ class WebsocketRuntimeDispatchBenchmarkTest {
     @Test
     void smallLoadPayloadsAreDeterministicDecodableAndIndependentlyOwned() throws Exception {
         for (int valueBytes : List.of(16, 320)) {
-            for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.ZSTD)) {
+            for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
                 byte[] first = WebsocketRuntimeDispatchBenchmark.compressedLoadPayload(compression, valueBytes);
                 byte[] second = WebsocketRuntimeDispatchBenchmark.compressedLoadPayload(compression, valueBytes);
 
@@ -96,7 +96,7 @@ class WebsocketRuntimeDispatchBenchmarkTest {
     void calibratesValidPayloadByCompressedWireSize() throws Exception {
         int targetBytes = 128 * 1024;
 
-        for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.ZSTD)) {
+        for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
             WebsocketRuntimeDispatchBenchmark.SizedLoadPayload payload =
                     WebsocketRuntimeDispatchBenchmark.compressedLoadPayloadNear(compression, targetBytes);
 

@@ -101,11 +101,11 @@ class WebsocketRuntimeResultCrossVersionBenchmarkTest {
     @Test
     void createsDistinctSingletonAndResultBatchPayloads() throws Exception {
         byte[] singletonPayload = WebsocketRuntimeResultCrossVersionBenchmark.createPayload(
-                CompressionAlgorithm.ZSTD, 16, 0);
+                CompressionAlgorithm.LZ4, 16, 0);
         byte[] singleResultBatchPayload = WebsocketRuntimeResultCrossVersionBenchmark.createPayload(
-                CompressionAlgorithm.ZSTD, 16, 1);
+                CompressionAlgorithm.LZ4, 16, 1);
         byte[] largeResultBatchPayload = WebsocketRuntimeResultCrossVersionBenchmark.createPayload(
-                CompressionAlgorithm.ZSTD, 16, 1_024);
+                CompressionAlgorithm.LZ4, 16, 1_024);
 
         assertInstanceOf(StringResult.class, decode(singletonPayload));
         assertEquals(1, assertInstanceOf(ResultBatch.class, decode(singleResultBatchPayload)).getResults().size());
@@ -121,6 +121,6 @@ class WebsocketRuntimeResultCrossVersionBenchmarkTest {
 
     private static Object decode(byte[] compressedPayload) throws Exception {
         return WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
-                .decode(CompressionAlgorithm.ZSTD.decompress(compressedPayload));
+                .decode(CompressionAlgorithm.LZ4.decompress(compressedPayload));
     }
 }

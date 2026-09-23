@@ -616,7 +616,7 @@ class JdkWebsocketConnectorTest {
         WebSocketTransportCodec codec = WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper);
         List<byte[]> responses = new ArrayList<>(resultCount);
         for (int i = 0; i < resultCount; i++) {
-            responses.add(CompressionAlgorithm.ZSTD.compress(codec.encode(new VoidResult(i))));
+            responses.add(CompressionAlgorithm.LZ4.compress(codec.encode(new VoidResult(i))));
         }
         assertTrue(responses.stream().mapToInt(response -> response.length).max().orElseThrow() < 128,
                    "The overload regression should retain customer-sized compressed responses");
@@ -2220,7 +2220,7 @@ class JdkWebsocketConnectorTest {
             session.getUserProperties().put(RUNTIME_SESSION_ID_USER_PROPERTY, "test-runtime-session");
             session.getUserProperties().put(
                     NEGOTIATED_SESSION_ID_USER_PROPERTY, "test-client-session_test-runtime-session");
-            session.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.ZSTD);
+            session.getUserProperties().put(SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.LZ4);
             session.getUserProperties().put(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
         }
 

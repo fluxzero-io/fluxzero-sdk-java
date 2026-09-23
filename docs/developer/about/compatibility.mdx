@@ -43,11 +43,10 @@ compression preferences do not force document conversion. Custom document format
 
 For a mixed fleet, upgrade Runtime before introducing ZSTD document writes if any connected SDK cannot read ZSTD.
 Such an SDK needs the new Runtime conversion when reading documents written by SDK 2.0. An older Runtime cannot
-supply this new negotiation behavior merely because a newer producer is connected. Explicit document capabilities take precedence. Without them, Runtime honors a document-specific ZSTD request;
-otherwise, advertised or selected ZSTD transport identifies older Java SDKs that already read Fluxzero-framed
-LZ4, ZSTD and NONE documents. Those SDKs retain supported stored envelopes. A raw ZSTD frame receives only the
-Fluxzero framing header needed by that older document reader; it is not recompressed. Only without this support
-information does Runtime fall back to size-prefixed LZ4.
+supply this new negotiation behavior merely because a newer producer is connected. Explicit document capabilities take precedence. Without them, advertised or selected ZSTD transport identifies older
+Java SDKs that already read Fluxzero-framed LZ4, ZSTD and NONE documents. Only without this support information does
+Runtime fall back to size-prefixed LZ4. Document writers retain the established size-prefixed LZ4 or Fluxzero-framed
+formats; ZSTD documents use the Fluxzero envelope.
 
 ## Java Version
 
@@ -68,6 +67,7 @@ This requirement does not change the Java baseline of the SDK 1.x release line.
 | `com.fasterxml.jackson.datatype:jackson-datatype-jsr310` | runtime |
 | `com.fasterxml.jackson.datatype:jackson-datatype-jdk8`   | runtime |
 | `org.msgpack:msgpack-core`                               | runtime |
+| `at.yawk.lz4:lz4-java`                                          | runtime |
 | `com.github.luben:zstd-jni`                                       | runtime |
 
 ### Payload Validation

@@ -108,7 +108,7 @@ public enum DefaultDocumentSerializer {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
         try (MessageUnpacker unpacker = newDocumentUnpacker(
-                decompress(document.getValue()))) {
+                CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
             int version = unpacker.unpackInt();
             if (version != 0) {
                 throw new IllegalArgumentException("Unsupported document revision: " + version);
@@ -132,13 +132,6 @@ public enum DefaultDocumentSerializer {
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not deserialize document", e);
         }
-    }
-
-    private static byte[] decompress(byte[] bytes) {
-        // Fluxzero-framed inputs self-identify through the LZ4 compatibility decoder. Raw ZSTD frames have no prefix.
-        return bytes.length >= 4 && bytes[0] == 0x28 && bytes[1] == (byte) 0xb5
-               && bytes[2] == 0x2f && bytes[3] == (byte) 0xfd
-                ? CompressionAlgorithm.ZSTD.decompress(bytes) : CompressionAlgorithm.LZ4.decompress(bytes);
     }
 
     private static MessageUnpacker newDocumentUnpacker(byte[] bytes) {

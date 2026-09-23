@@ -458,6 +458,14 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void serviceUrlRetainsLegacyHintWhenLz4IsExplicitlySupported() {
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("test-client")
+                .supportedCompressionAlgorithms(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.LZ4)).build();
+        assertEquals(CompressionAlgorithm.LZ4, ServiceUrlBuilder.legacyCompressionHint(config));
+        assertTrue(ServiceUrlBuilder.gatewayUrl(MessageType.EVENT, null, config).contains("compression=LZ4"));
+    }
+
+    @Test
     void serviceUrlUsesZstdForDefaultConfig() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
