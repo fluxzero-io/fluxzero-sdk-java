@@ -38,6 +38,8 @@ import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -51,6 +53,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -58,6 +61,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -68,6 +73,256 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultTrackingAsyncResultTest {
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    @Timeout(10)
+    void deferredFailurePublishesErrorHandlerRecoveryOnce(boolean asynchronousRecovery, boolean awaitResults)
+            throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway gateway = mock(ResultGateway.class);
+        when(gateway.forNamespace(null)).thenReturn(gateway);
+        CompletableFuture<Object> published = new CompletableFuture<>();
+        when(gateway.respond(any(), eq("benchmark-app"), eq(7))).thenAnswer(invocation -> {
+            published.complete(invocation.getArgument(0));
+            return CompletableFuture.completedFuture(null);
+        });
+        TestTracking tracking = tracking(gateway, serializer);
+        CompletableFuture<Object> deferred = new CompletableFuture<>();
+        CompletableFuture<Object> recovery = new CompletableFuture<>();
+        CountDownLatch observed = new CountDownLatch(1);
+        CountDownLatch errorHandled = new CountDownLatch(1);
+        AtomicInteger errorCount = new AtomicInteger();
+        AtomicReference<CompletableFuture<Void>> owned = new AtomicReference<>();
+        IllegalStateException failure = new IllegalStateException("commit rejected");
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("web").awaitAsyncResults(awaitResults)
+                .errorHandler((error, description, retry) -> {
+                    assertSame(failure, error);
+                    errorCount.incrementAndGet();
+                    errorHandled.countDown();
+                    return asynchronousRecovery ? recovery : "recovered";
+                }).build();
+        CompletableFuture<Void> batch = runIsolatedBatch(() -> tracking.handleBatch(
+                List.of(message(serializer)), List.of(handler(() -> {
+                    owned.set(Invocation.observeDeferredResult(deferred, () -> { }));
+                    DeserializingMessage.whenBatchCompletes(ignored -> AsyncCompletionScope.register(owned.get()));
+                    observed.countDown();
+                })), config, true));
+        try {
+            assertTrue(observed.await(1, TimeUnit.SECONDS));
+            deferred.completeExceptionally(failure);
+            assertTrue(errorHandled.await(1, TimeUnit.SECONDS));
+            if (asynchronousRecovery) {
+                assertFalse(owned.get().isDone());
+                assertFalse(batch.isDone());
+                assertFalse(published.isDone());
+                recovery.complete("recovered");
+            }
+            batch.get(2, TimeUnit.SECONDS);
+            assertEquals("recovered", published.get(2, TimeUnit.SECONDS));
+            assertEquals(1, errorCount.get());
+        } finally {
+            deferred.complete(null);
+            recovery.complete("recovered");
+            tracking.close();
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void throwingErrorHandlerKeepsDeferredBatchFailureExceptional() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway gateway = mock(ResultGateway.class);
+        when(gateway.forNamespace(null)).thenReturn(gateway);
+        TestTracking tracking = tracking(gateway, serializer);
+        CompletableFuture<Object> deferred = new CompletableFuture<>();
+        CountDownLatch observed = new CountDownLatch(1);
+        AtomicInteger errorCount = new AtomicInteger();
+        IllegalStateException stop = new IllegalStateException("stop tracking");
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("web").awaitAsyncResults(true)
+                .errorHandler((error, description, retry) -> {
+                    errorCount.incrementAndGet();
+                    throw stop;
+                }).build();
+        CompletableFuture<Void> batch = runIsolatedBatch(() -> tracking.handleBatch(
+                List.of(message(serializer)), List.of(handler(() -> {
+                    CompletableFuture<Void> owned = Invocation.observeDeferredResult(deferred, () -> { });
+                    DeserializingMessage.whenBatchCompletes(ignored -> AsyncCompletionScope.register(owned));
+                    observed.countDown();
+                })), config, false));
+        try {
+            assertTrue(observed.await(1, TimeUnit.SECONDS));
+            deferred.completeExceptionally(new IllegalStateException("commit failed"));
+            Throwable failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> batch.get(2, TimeUnit.SECONDS));
+            assertSame(stop, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(1, errorCount.get());
+        } finally {
+            deferred.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void deferredRetryRequestsProgressAndRetainsOneBatchOwner() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway gateway = mock(ResultGateway.class);
+        when(gateway.forNamespace(null)).thenReturn(gateway);
+        when(gateway.respond(any(), eq("benchmark-app"), eq(7)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        TestTracking tracking = tracking(gateway, serializer);
+        CompletableFuture<Object> first = new CompletableFuture<>();
+        CompletableFuture<Object> retried = new CompletableFuture<>();
+        CountDownLatch observed = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicInteger errors = new AtomicInteger();
+        AtomicBoolean progressRequested = new AtomicBoolean();
+        AtomicReference<CompletableFuture<Void>> owner = new AtomicReference<>();
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("web").awaitAsyncResults(true)
+                .errorHandler((error, description, retry) -> {
+                    errors.incrementAndGet();
+                    try {
+                        return retry.call();
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }).build();
+        Handler<DeserializingMessage> handler = handler(() -> {
+            boolean initial = attempts.incrementAndGet() == 1;
+            CompletableFuture<Void> owned = Invocation.observeDeferredResult(initial ? first : retried, () -> {
+                progressRequested.set(true);
+                retried.complete("retried");
+            });
+            if (initial) {
+                owner.set(owned);
+                DeserializingMessage.whenBatchCompletes(ignored -> AsyncCompletionScope.register(owned));
+                observed.countDown();
+            } else {
+                assertSame(owner.get(), owned);
+            }
+        });
+        CompletableFuture<Void> batch = runIsolatedBatch(() -> tracking.handleBatch(
+                List.of(message(serializer)), List.of(handler), config, true));
+        try {
+            assertTrue(observed.await(1, TimeUnit.SECONDS));
+            first.completeExceptionally(new IllegalStateException("retry this commit"));
+            batch.get(2, TimeUnit.SECONDS);
+            assertTrue(progressRequested.get());
+            assertEquals(2, attempts.get());
+            assertEquals(1, errors.get());
+            verify(gateway).respond("retried", "benchmark-app", 7);
+        } finally {
+            first.complete(null);
+            retried.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void asynchronousRecoveryCanAcquireItsFirstDeferredResultOwner() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway gateway = mock(ResultGateway.class);
+        when(gateway.forNamespace(null)).thenReturn(gateway);
+        when(gateway.respond(any(), eq("benchmark-app"), eq(7)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        TestTracking tracking = tracking(gateway, serializer);
+        CompletableFuture<Object> recovery = new CompletableFuture<>();
+        CompletableFuture<Object> deferred = new CompletableFuture<>();
+        AtomicReference<Runnable> resumeRecovery = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> owner = new AtomicReference<>();
+        CountDownLatch recoveryStarted = new CountDownLatch(1);
+        CountDownLatch initialInvocationReturned = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger();
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("web").awaitAsyncResults(true)
+                .errorHandler((error, description, retry) -> {
+                    resumeRecovery.set(DeserializingMessage.getCurrent().captureContext().wrap(() -> {
+                        try {
+                            recovery.complete(retry.call());
+                        } catch (Throwable failure) {
+                            recovery.completeExceptionally(failure);
+                        }
+                    }));
+                    recoveryStarted.countDown();
+                    return recovery;
+                }).build();
+        Handler<DeserializingMessage> handler = handler(() -> {
+            if (attempts.incrementAndGet() == 1) {
+                DeserializingMessage.whenBatchCompletes(ignored -> initialInvocationReturned.countDown());
+                throw new IllegalStateException("fail before starting a commit");
+            }
+            owner.set(Invocation.observeDeferredResult(deferred, () -> deferred.complete("recovered")));
+        });
+        CompletableFuture<Void> batch = runIsolatedBatch(() -> tracking.handleBatch(
+                List.of(message(serializer)), List.of(handler), config, true));
+        try {
+            assertTrue(recoveryStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(initialInvocationReturned.await(1, TimeUnit.SECONDS));
+            assertFalse(batch.isDone());
+            resumeRecovery.get().run();
+            batch.get(2, TimeUnit.SECONDS);
+            owner.get().get(2, TimeUnit.SECONDS);
+            assertEquals(2, attempts.get());
+            verify(gateway).respond("recovered", "benchmark-app", 7);
+        } finally {
+            deferred.complete(null);
+            recovery.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    @Timeout(10)
+    void nestedDeferredWorkPreservesOuterResultAndItsOwnBatchFailure() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway gateway = mock(ResultGateway.class);
+        when(gateway.forNamespace(null)).thenReturn(gateway);
+        CompletableFuture<Object> published = new CompletableFuture<>();
+        when(gateway.respond(any(), eq("benchmark-app"), eq(7))).thenAnswer(invocation -> {
+            published.complete(invocation.getArgument(0));
+            return CompletableFuture.completedFuture(null);
+        });
+        TestTracking tracking = tracking(gateway, serializer);
+        DeserializingMessage outer = message(serializer);
+        DeserializingMessage nested = message(serializer, "nested", null);
+        CompletableFuture<Object> deferred = new CompletableFuture<>();
+        AtomicInteger errors = new AtomicInteger();
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("web").awaitAsyncResults(true)
+                .errorHandler((error, description, retry) -> {
+                    errors.incrementAndGet();
+                    return error;
+                }).build();
+        Handler<DeserializingMessage> handler = handlerInvoker(HandlerInvoker.call(() -> {
+            nested.apply(current -> Invocation.performInvocation(() -> {
+                assertNull(Invocation.observeDeferredResult(deferred, () -> { }));
+                return null;
+            }));
+            DeserializingMessage.whenBatchCompletes(ignored -> AsyncCompletionScope.register(deferred));
+            return "outer result";
+        }));
+        CompletableFuture<Void> batch = runIsolatedBatch(() -> tracking.handleBatch(
+                List.of(outer), List.of(handler), config, true));
+        try {
+            assertEquals("outer result", published.get(2, TimeUnit.SECONDS));
+            assertFalse(batch.isDone());
+            IllegalStateException nestedFailure = new IllegalStateException("nested commit failed");
+            deferred.completeExceptionally(nestedFailure);
+            Throwable failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> batch.get(2, TimeUnit.SECONDS));
+            assertSame(nestedFailure, io.fluxzero.common.ObjectUtils.unwrapException(failure));
+            assertEquals(0, errors.get());
+        } finally {
+            deferred.complete(null);
+            tracking.close();
+        }
+    }
+
+    private static CompletableFuture<Void> runIsolatedBatch(Runnable task) {
+        // A JUnit ForkJoin worker must not steal this task while waiting for an intermediate result: batch
+        // completion deliberately blocks until the test supplies a commit or recovery outcome.
+        return CompletableFuture.runAsync(task, command -> Thread.ofVirtual().start(command));
+    }
 
     @Test
     void defaultResultGatewaySkipsPublicationCompletionWhenResultsAreNotAwaited() {

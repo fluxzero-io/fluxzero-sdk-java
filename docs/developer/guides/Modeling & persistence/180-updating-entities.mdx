@@ -298,6 +298,12 @@ A command rejected during validation does not fail independent commands in that 
 Each command retains its own commit/result outcome. A real outer batch abort still stops pending batch work;
 this cannot roll back a commit already accepted by storage.
 
+With normal commit-before-result handling, an automatic Model command's validation or commit failure is handled
+once by that command's consumer error policy. Batch completion still awaits every commit, but does not report an
+already handled failure again as a whole-batch error or retry unrelated commands. Unhandled failures and real batch
+aborts remain failures. Disabling `fluxzero.model.awaitAfterHandlerCommitsBeforeResults` keeps deferred commit errors
+at the batch boundary; an early successful response does not promise a successful commit.
+
 With ASYNC consumer handling, automatic Model commits that start after the handler also coordinate overlapping
 readsets within the tracking batch. Evaluation stays parallel; a ready commit first waits for earlier evaluations to
 discover their readsets, then waits only for overlapping predecessors in the same namespace and reevaluates before

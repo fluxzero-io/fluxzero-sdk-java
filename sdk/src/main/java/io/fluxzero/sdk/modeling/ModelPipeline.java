@@ -1492,9 +1492,14 @@ final class ModelPipeline {
         message.putContext(AutomaticExecution.class, AutomaticExecution.INSTANCE);
         ExecutionRequest request = new ExecutionRequest(
                 message, null, -1, Mode.AUTOMATIC);
-        CompletableFuture<Object> completion = execute(request, commitPolicy, preparedEntry);
+        ModelBatchScope.CommitCoordination entry = preparedEntry == null
+                ? ModelBatchScope.register(this, message, commitPolicy, batchLifecycle) : preparedEntry;
+        if (commitPolicy.awaitAfterBatch() && awaitAfterHandlerCommitsBeforeResults) {
+            entry.handledCompletion = Invocation.observeDeferredResult(entry.attempt().completion(), entry::commitCurrent);
+        }
+        CompletableFuture<Object> completion = execute(request, commitPolicy, entry);
         if (commitPolicy.awaitAfterBatch()) {
-            if (awaitAfterHandlerCommitsBeforeResults) {
+            if (awaitAfterHandlerCommitsBeforeResults && entry.handledCompletion == null) {
                 Invocation.awaitBeforeResultPublication(message, completion);
             }
             return null;

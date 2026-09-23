@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.function.BiConsumer;
 
 /**
@@ -88,6 +89,9 @@ public class Invocation {
     @Getter(AccessLevel.NONE)
     @NonFinal
     transient List<BiConsumer<Object, Throwable>> callbacks;
+    @Getter(AccessLevel.NONE)
+    @NonFinal
+    transient ResultObservation resultObservation;
 
     private Invocation(String handler) {
         this.handler = handler;
@@ -201,6 +205,122 @@ public class Invocation {
     public static Invocation getCurrent() {
         Invocation result = current.get();
         return result == null ? LocalExecution.currentInvocation() : result;
+    }
+
+    /**
+     * Transfers a deferred automatic handler result to the active tracking invocation, if it observes results.
+     * The returned completion represents error handling, not durability; dependencies must keep using the original
+     * completion. Local/manual invocations return {@code null} and retain their existing completion contract.
+     *
+     * @param completion original deferred handler result
+     * @param progress releases deferred work when an error handler explicitly retries this invocation
+     * @return completion owned by tracking, or {@code null} when no observer is active
+     */
+    public static CompletableFuture<Void> observeDeferredResult(CompletableFuture<Object> completion, Runnable progress) {
+        Invocation invocation = getCurrent();
+        ResultObservation observation = invocation == null ? null : invocation.resultObservation;
+        if (observation == null || observation.message != DeserializingMessage.getCurrent()
+            || observation.deferred != null) {
+            return null;
+        }
+        observation.deferred = completion;
+        observation.progress = progress;
+        if (observation.owner.handled == null) {
+            observation.owner.handled = new CompletableFuture<>();
+            if (observation.owner.resultObserved) {
+                observation.owner.settle(observation.owner.result);
+            }
+        }
+        return observation.owner.handled;
+    }
+
+    /**
+     * Tracking's invocation-local ownership of a deferred result. Installing an observation does not change ordinary
+     * handler results. Only explicitly attached deferred results replace the handler's immediate placeholder result.
+     */
+    public static final class ResultObservation {
+        private final ResultObservation owner;
+        private final DeserializingMessage message;
+        private CompletableFuture<Object> deferred;
+        private volatile CompletableFuture<Void> handled;
+        private Object result;
+        private volatile boolean resultObserved;
+        private Runnable progress;
+
+        /** Creates an observation for exactly the message being handled, excluding nested local messages. */
+        public ResultObservation(DeserializingMessage message) {
+            owner = this;
+            this.message = message;
+        }
+
+        private ResultObservation(ResultObservation owner) {
+            this.owner = owner;
+            this.message = owner.message;
+        }
+
+        /** Whether this invocation has transferred a deferred result to tracking. */
+        public boolean observesDeferredResult() {
+            return deferred != null;
+        }
+
+        /** Invokes a handler inside an existing {@link Invocation} and exposes its deferred result, if any. */
+        public Object invoke(Callable<Object> action) throws Exception {
+            Invocation invocation = getCurrent();
+            ResultObservation previous = invocation.resultObservation;
+            invocation.resultObservation = this;
+            try {
+                Object result = action.call();
+                if (deferred == null || result == null) {
+                    return deferred == null ? result : deferred;
+                }
+                // Decorators may replace the placeholder with a response. Preserve it after durability.
+                return result instanceof CompletionStage<?> stage
+                        ? deferred.thenCompose(ignored -> stage)
+                        : deferred.thenApply(ignored -> result);
+            } finally {
+                invocation.resultObservation = previous;
+            }
+        }
+
+        /** Retries only this handler, releasing and awaiting its deferred commit before reporting retry success. */
+        public Object retry(HandlerDescriptor handler, Callable<Object> action) {
+            ResultObservation retry = new ResultObservation(owner);
+            Object result = performInvocation(handler, () -> retry.invoke(action));
+            if (retry.deferred != null) {
+                retry.progress.run();
+                return ((CompletionStage<?>) result).toCompletableFuture().join();
+            }
+            return result;
+        }
+
+        /** Settles batch ownership after tracking's error handler and any asynchronous recovery have finished. */
+        public Object complete(Object result) {
+            this.result = result;
+            resultObserved = true;
+            if (handled != null) {
+                settle(result);
+            }
+            return result;
+        }
+
+        private void settle(Object result) {
+            if (result instanceof CompletionStage<?> stage) {
+                stage.whenComplete((value, failure) -> {
+                    if (failure == null) {
+                        settle(value);
+                    } else {
+                        handled.completeExceptionally(failure);
+                    }
+                });
+            } else {
+                handled.complete(null);
+            }
+        }
+
+        /** Keeps an unhandled error exceptional for batch recovery. */
+        public void fail(Throwable failure) {
+            complete(CompletableFuture.failedFuture(failure));
+        }
     }
 
     static boolean hasThreadLocalContext() {

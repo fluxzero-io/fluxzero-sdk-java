@@ -1147,16 +1147,28 @@ public class DefaultTracking implements Tracking {
     @SuppressWarnings("unchecked")
     protected Object doHandle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                               ConsumerConfiguration config) {
+        var observation = new Invocation.ResultObservation(message);
+        Callable<Object> retry = () -> observation.retry(h, h::invoke);
         try {
-            Object result = Invocation.performInvocation(h, h::invoke);
+            Object result;
+            try {
+                result = Invocation.performInvocation(h, () -> observation.invoke(h::invoke));
+            } catch (Throwable e) {
+                return observation.complete(processError(e, message, h, handler, config, retry));
+            }
             if (result instanceof CompletionStage<?>) {
                 var context = message.captureContext();
-                return ((CompletionStage<Object>) result).exceptionally(
-                        context.wrap(e -> processError(e, message, h, handler, config)));
+                result = observation.observesDeferredResult()
+                        ? ((CompletionStage<Object>) result).exceptionallyAsync(
+                                context.wrap(e -> processError(e, message, h, handler, config, retry)),
+                                messageHandlerExecutor)
+                        : ((CompletionStage<Object>) result).exceptionally(
+                                context.wrap(e -> processError(e, message, h, handler, config)));
             }
-            return result;
+            return observation.complete(result);
         } catch (Throwable e) {
-            return processError(e, message, h, handler, config, h::invoke);
+            observation.fail(e);
+            throw e;
         }
     }
 

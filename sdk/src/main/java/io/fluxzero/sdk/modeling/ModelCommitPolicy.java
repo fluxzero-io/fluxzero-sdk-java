@@ -30,6 +30,9 @@ import java.util.Objects;
  * regardless of that producer's outcome. Each command retains its own validation and commit result. Ordinary handlers
  * that consumed provisional state still require successful producer completion before publishing their result.
  * An abort of the owning batch stops pending batch work but cannot roll back commits already accepted by storage.
+ * When tracking owns the commit-before-result completion, its consumer error handler handles a failed command once;
+ * batch completion awaits durability and handling without reporting an already handled failure again. With early
+ * responses explicitly enabled, deferred commit failures retain their batch-level error handling.
  */
 public enum ModelCommitPolicy implements CommitPolicy {
 
