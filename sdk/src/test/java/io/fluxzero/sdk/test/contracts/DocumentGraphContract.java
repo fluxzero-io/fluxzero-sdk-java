@@ -63,6 +63,30 @@ public abstract class DocumentGraphContract {
     protected abstract Client[] clients(String namespace);
 
     @ParameterizedTest
+    @CsvSource({"FAIL,false", "RETRY,true", "ACCEPT,true", "DEFAULT,true"})
+    void staleDocumentDeleteIsAPublicNonRetryingConflict(ModelConflictPolicy policy, boolean pinGraph) {
+        try (var h = new Harness(builder -> {
+            if (policy != ModelConflictPolicy.DEFAULT) {
+                builder.configureModelConflictHandling(policy, ModelConflictResolver.retryIfAllowed(), 3);
+            }
+        })) {
+            write(h.writer, new SeedDocumentReceipt("receipt"));
+            h.set(1);
+            AtomicInteger invocations = new AtomicInteger();
+            AtomicReference<Runnable> deletion = new AtomicReference<>(
+                    () -> write(h.writer, new DeleteDocumentReceipt("receipt")));
+            var failure = assertThrows(Exception.class, () -> write(h.reader,
+                    new PausedDocumentDelete("receipt", pinGraph, () -> h.run(deletion), invocations)));
+            assertAll(
+                    () -> assertTrue(hasCause(failure, ModelCommitConflictException.class), failure.toString()),
+                    () -> assertEquals(1, invocations.get(), "A pinned stale mutation must not be reevaluated"),
+                    () -> assertEquals(1, h.gates.get()),
+                    () -> assertEquals(0, h.commits.get(), "The incomplete cascade must not reach storage"),
+                    () -> assertNull(h.writer.apply(fc -> Fluxzero.loadModel("receipt", DocumentReceipt.class).get())));
+        }
+    }
+
+    @ParameterizedTest
     @CsvSource({"none,false", "scalar,false", "before,false", "apply,false", "after,false", "helper,false", "interceptHelper,false",
                 "none,true", "apply,true"})
     void documentBoundaryIsAcquiredOnlyWhenUsed(String phase, boolean direct) {
@@ -535,6 +559,16 @@ public abstract class DocumentGraphContract {
     }
     public record DeleteDocumentReceipt(String receiptId) {
         @Apply DocumentReceipt apply(DocumentReceipt previous) { return null; }
+    }
+    public record PausedDocumentDelete(String receiptId, boolean pinGraph, @JsonIgnore Runnable gate,
+                                       @JsonIgnore AtomicInteger invocations) {
+        @Apply DocumentReceipt apply(DocumentReceipt previous) {
+            invocations.incrementAndGet();
+            assertNotNull(previous);
+            if (pinGraph) { checkDocument(); }
+            gate.run();
+            return null;
+        }
     }
     public record FailingReceiptWrite(String receiptId) {
         @Apply(conflictPolicy = ModelConflictPolicy.FAIL)
