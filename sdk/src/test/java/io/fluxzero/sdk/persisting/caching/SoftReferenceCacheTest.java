@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.caching;
 
 import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache.SoftCacheReference;
 import io.fluxzero.sdk.test.TestFixture;
@@ -40,6 +41,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -190,7 +192,7 @@ class SoftReferenceCacheTest {
 
     @Test
     @Timeout(10)
-    void mergeAllWaitsForAnInFlightComputeOnTheSameKey() throws InterruptedException {
+    void mergeAllWaitsForAnInFlightComputeOnTheSameKey() throws Exception {
         assertBulkUpdateWaitsForCompute(
                 cache -> cache.mergeAll(
                         Map.of("id", 20),
@@ -199,43 +201,33 @@ class SoftReferenceCacheTest {
 
     @Test
     @Timeout(10)
-    void updateAllWaitsForAnInFlightComputeOnTheSameKey() throws InterruptedException {
+    void updateAllWaitsForAnInFlightComputeOnTheSameKey() throws Exception {
         assertBulkUpdateWaitsForCompute(
                 cache -> cache.updateAll(
                         Map.of("id", ignored -> 20)));
     }
 
     private void assertBulkUpdateWaitsForCompute(
-            Consumer<SoftReferenceCache> bulkUpdate) throws InterruptedException {
+            Consumer<SoftReferenceCache> bulkUpdate) throws Exception {
         subject.put("id", 0);
         CountDownLatch computeStarted = new CountDownLatch(1);
         CountDownLatch completeCompute = new CountDownLatch(1);
-        Thread compute = Thread.ofPlatform().unstarted(
+        try (TestTask compute = new TestTask(
                 () -> subject.compute(
                         "id",
                         (ignored, current) -> ObjectUtils.call(() -> {
                             computeStarted.countDown();
                             completeCompute.await();
                             return 10;
-                        })));
-        compute.start();
-        computeStarted.await();
-
-        Thread bulk = Thread.ofPlatform().unstarted(() -> bulkUpdate.accept(subject));
-        Thread.State blockedState;
-        try {
-            bulk.start();
-            while (bulk.isAlive() && bulk.getState() != Thread.State.BLOCKED) {
-                Thread.sleep(1);
+                        })), completeCompute::countDown)) {
+            assertTrue(computeStarted.await(2, TimeUnit.SECONDS));
+            try (TestTask bulk = new TestTask(() -> bulkUpdate.accept(subject), completeCompute::countDown)) {
+                bulk.awaitBlockedIn(SoftReferenceCache.class, "compute", Duration.ofSeconds(2));
+                completeCompute.countDown();
+                compute.awaitCompletion(Duration.ofSeconds(2));
+                bulk.awaitCompletion(Duration.ofSeconds(2));
             }
-            blockedState = bulk.getState();
-        } finally {
-            completeCompute.countDown();
-            compute.join();
-            bulk.join();
         }
-
-        assertEquals(Thread.State.BLOCKED, blockedState);
         assertEquals(20, subject.<Integer>get("id"));
     }
 
@@ -264,29 +256,21 @@ class SoftReferenceCacheTest {
     void testLockingSameKey() {
         var latch = new CountDownLatch(1);
         var entered = new CountDownLatch(1);
-        var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+        try (TestTask first = new TestTask(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
             entered.countDown();
             latch.await();
             return "bar";
-        })));
-        var thread2 = new Thread(
-                () ->
-                        subject.compute(
-                                new String("foo"),
-                                (k, v) -> "bar2"));
-        try {
-            thread1.start();
-            entered.await();
-            thread2.start();
-            assertEventually(() -> {
-                assertEquals(Thread.State.WAITING, thread1.getState());
-                assertEquals(Thread.State.BLOCKED, thread2.getState());
-            });
-            assertNull(subject.get("foo"));
-        } finally {
-            latch.countDown();
-            thread1.join();
-            thread2.join();
+        })), latch::countDown)) {
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            try (TestTask second = new TestTask(
+                    () -> subject.compute(new String("foo"), (k, v) -> "bar2"), latch::countDown)) {
+                first.awaitBlockedIn(CountDownLatch.class, "await", EVENTUALLY_TIMEOUT);
+                second.awaitBlockedIn(SoftReferenceCache.class, "compute", EVENTUALLY_TIMEOUT);
+                assertNull(subject.get("foo"));
+                latch.countDown();
+                first.awaitCompletion(EVENTUALLY_TIMEOUT);
+                second.awaitCompletion(EVENTUALLY_TIMEOUT);
+            }
         }
         assertEquals("bar2", subject.get("foo"));
     }
@@ -297,28 +281,22 @@ class SoftReferenceCacheTest {
     void testNoLockIfDifferentKey() {
         var latch = new CountDownLatch(1);
         var entered = new CountDownLatch(1);
-        var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+        try (TestTask first = new TestTask(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
             entered.countDown();
             latch.await();
             return "bar";
-        })));
-        var thread2 = new Thread(() -> subject.compute("foo2", (k, v) -> "bar2"));
-        try {
-            thread1.start();
-            entered.await();
-            thread2.start();
-            thread2.join();
-            assertNull(subject.get("foo"));
-            assertEquals("bar2", subject.get("foo2"));
-            assertEventually(() -> assertEquals(Thread.State.WAITING, thread1.getState()));
-            assertEquals(Thread.State.TERMINATED, thread2.getState());
-        } finally {
-            latch.countDown();
-            thread1.join();
-            thread2.join();
+        })), latch::countDown)) {
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            try (TestTask second = new TestTask(
+                    () -> subject.compute("foo2", (k, v) -> "bar2"), latch::countDown)) {
+                second.awaitCompletion(EVENTUALLY_TIMEOUT);
+                assertNull(subject.get("foo"));
+                assertEquals("bar2", subject.get("foo2"));
+                first.awaitBlockedIn(CountDownLatch.class, "await", EVENTUALLY_TIMEOUT);
+            }
+            first.awaitCompletion(EVENTUALLY_TIMEOUT);
         }
         assertEquals("bar", subject.get("foo"));
-        assertEquals(Thread.State.TERMINATED, thread1.getState());
     }
 
     @Test

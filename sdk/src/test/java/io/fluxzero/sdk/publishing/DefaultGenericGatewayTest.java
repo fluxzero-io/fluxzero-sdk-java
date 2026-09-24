@@ -16,6 +16,7 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
@@ -39,10 +40,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -166,16 +165,14 @@ class DefaultGenericGatewayTest {
                 appendCompletion);
         DefaultGenericGateway gateway = gateway(gatewayClient);
 
-        CompletableFuture<Void> scopedCompletion = CompletableFuture.runAsync(
+        try (var scopedCompletion = new TestTask(
                 () -> AsyncCompletionScope.runAndAwait(
-                        () -> gateway.sendAndForget(Guarantee.STORED, new Message("command"))));
-
-        TimeUnit.MILLISECONDS.sleep(50L);
-        assertFalse(scopedCompletion.isDone());
-
-        appendCompletion.complete(null);
-
-        assertDoesNotThrow(() -> scopedCompletion.get(1, TimeUnit.SECONDS));
+                        () -> gateway.sendAndForget(Guarantee.STORED, new Message("command"))),
+                () -> appendCompletion.complete(null))) {
+            scopedCompletion.awaitBlockedIn(AsyncCompletionScope.class, "await", java.time.Duration.ofSeconds(1));
+            appendCompletion.complete(null);
+            scopedCompletion.awaitCompletion(java.time.Duration.ofSeconds(1));
+        }
     }
 
     @Test

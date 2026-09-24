@@ -16,9 +16,11 @@
 package io.fluxzero.sdk.givenwhenthen.spring;
 
 import io.fluxzero.common.search.SearchExclude;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.test.spring.FluxzeroTestConfig;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -44,11 +46,13 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD;
 
@@ -59,6 +63,7 @@ import static org.springframework.test.annotation.DirtiesContext.ClassMode.AFTER
 class GivenWhenThenSpringTest {
 
     private static final AtomicReference<CountDownLatch> slowCommandHandlerStarted = new AtomicReference<>();
+    private static final AtomicReference<CompletableFuture<Void>> slowCommandResult = new AtomicReference<>();
 
     private final TestFixture testFixture;
 
@@ -100,13 +105,21 @@ class GivenWhenThenSpringTest {
     void testWaitForSlowResultAfterTerminate() {
         CountDownLatch handlerStarted = new CountDownLatch(1);
         slowCommandHandlerStarted.set(handlerStarted);
+        var handlerResult = new CompletableFuture<Void>();
+        slowCommandResult.set(handlerResult);
         try {
             CompletableFuture<Object> result = testFixture.getFluxzero().commandGateway().send(new SlowCommand());
             assertTrue(handlerStarted.await(1, TimeUnit.SECONDS));
-            testFixture.getFluxzero().close();
-            assertTrue(result.isDone());
+            try (var shutdown = new TestTask(() -> testFixture.getFluxzero().close(), () -> handlerResult.complete(null))) {
+                shutdown.awaitBlockedIn(DefaultFluxzero.class, "close", Duration.ofSeconds(1));
+                handlerResult.complete(null);
+                shutdown.awaitCompletion(Duration.ofSeconds(1));
+                assertNull(result.get(1, TimeUnit.SECONDS));
+            }
         } finally {
+            handlerResult.complete(null);
             slowCommandHandlerStarted.set(null);
+            slowCommandResult.set(null);
         }
     }
 
@@ -119,7 +132,12 @@ class GivenWhenThenSpringTest {
     void selfTracked_disabled() {
         testFixture.whenExecuting(fc -> {
             Fluxzero.sendAndForgetCommand(new DisabledSelfTracked());
-            Thread.sleep(100);
+            // Handler registration is synchronous. Inspect that decision instead of hoping a disabled consumer
+            // would have thrown within an arbitrary observation window.
+            var handlers = io.fluxzero.common.reflection.ReflectionUtils.<java.util.Map<
+                    io.fluxzero.sdk.tracking.ConsumerConfiguration, ?>>readProperty(
+                    "startedHandlers", fc.tracking(io.fluxzero.common.MessageType.COMMAND)).orElseThrow();
+            assertTrue(handlers.keySet().stream().noneMatch(c -> "DisabledSelfTracked".equals(c.getName())));
         }).expectNoErrors();
     }
 
@@ -250,11 +268,6 @@ class GivenWhenThenSpringTest {
         String someId;
     }
 
-    @SneakyThrows
-    private static void sleepAWhile(int millis) {
-        Thread.sleep(millis);
-    }
-
     @Configuration
     @ComponentScan
     static class FooConfig {
@@ -280,13 +293,9 @@ class GivenWhenThenSpringTest {
 
         @HandleCommand
         public CompletableFuture<?> handle(SlowCommand command) {
-            return CompletableFuture.runAsync(() -> {
-                CountDownLatch handlerStarted = slowCommandHandlerStarted.get();
-                if (handlerStarted != null) {
-                    handlerStarted.countDown();
-                }
-                sleepAWhile(100);
-            });
+            var result = slowCommandResult.get();
+            slowCommandHandlerStarted.get().countDown();
+            return result;
         }
     }
 

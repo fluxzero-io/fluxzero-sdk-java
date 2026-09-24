@@ -16,6 +16,7 @@ package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
@@ -23,6 +24,7 @@ import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -42,6 +44,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -398,13 +401,11 @@ class DefaultTrackingAsyncResultTest {
         tracking.report(
                 handlerResult, descriptor(), message(serializer), ConsumerConfiguration.builder().name("web").build());
 
-        CompletableFuture<Void> close = CompletableFuture.runAsync(tracking::close);
-        TimeUnit.MILLISECONDS.sleep(50L);
-        assertFalse(close.isDone());
-
-        handlerResult.complete("ok");
-
-        assertDoesNotThrow(() -> close.get(1, TimeUnit.SECONDS));
+        try (var close = new TestTask(tracking::close, () -> handlerResult.complete("ok"))) {
+            close.awaitBlockedIn(ClientUtils.class, "waitForResults", Duration.ofSeconds(1));
+            handlerResult.complete("ok");
+            close.awaitCompletion(Duration.ofSeconds(1));
+        }
         verify(resultGateway).respond("ok", "benchmark-app", 7);
     }
 
@@ -437,21 +438,19 @@ class DefaultTrackingAsyncResultTest {
         TestTracking tracking = tracking(resultGateway, serializer);
         CompletableFuture<String> handlerResult = new CompletableFuture<>();
 
-        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+        try (var batchCompletion = new TestTask(() -> tracking.handleBatch(
                 List.of(message(serializer)),
                 List.of(handler(handlerResult)),
                 ConsumerConfiguration.builder().name("web").awaitAsyncResults(true).build(),
-                true));
-
-        TimeUnit.MILLISECONDS.sleep(50L);
-        assertFalse(batchCompletion.isDone());
-        verify(resultGateway, never()).respond("ok", "benchmark-app", 7);
-
-        handlerResult.complete("ok");
-
-        assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+                true), () -> handlerResult.complete("ok"))) {
+            batchCompletion.awaitBlockedIn(DefaultTracking.class, "awaitAsyncResultCompletions", Duration.ofSeconds(1));
+            verify(resultGateway, never()).respond("ok", "benchmark-app", 7);
+            handlerResult.complete("ok");
+            batchCompletion.awaitCompletion(Duration.ofSeconds(1));
+        } finally {
+            tracking.close();
+        }
         verify(resultGateway).respond("ok", "benchmark-app", 7);
-        tracking.close();
     }
 
     @Test
@@ -558,23 +557,20 @@ class DefaultTrackingAsyncResultTest {
         CompletableFuture<Void> releaseHandler = new CompletableFuture<>();
         CountDownLatch handlerStarted = new CountDownLatch(1);
 
-        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+        try (var batchCompletion = new TestTask(() -> tracking.handleBatch(
                 List.of(message(serializer)),
                 List.of(handler(() -> {
                     handlerStarted.countDown();
                     releaseHandler.join();
                 })),
                 asyncConfig(true),
-                true));
-
-        try {
+                true), () -> releaseHandler.complete(null))) {
             assertTrue(handlerStarted.await(1, TimeUnit.SECONDS));
-            TimeUnit.MILLISECONDS.sleep(50L);
-            assertFalse(batchCompletion.isDone());
+            batchCompletion.awaitBlockedIn(DefaultTracking.class, "awaitAsyncResultCompletions", Duration.ofSeconds(1));
 
             releaseHandler.complete(null);
 
-            assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+            batchCompletion.awaitCompletion(Duration.ofSeconds(1));
         } finally {
             releaseHandler.complete(null);
             tracking.close();
@@ -946,23 +942,20 @@ class DefaultTrackingAsyncResultTest {
         CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
         CountDownLatch handlerRan = new CountDownLatch(1);
 
-        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+        try (var batchCompletion = new TestTask(() -> tracking.handleBatch(
                 List.of(message(serializer)),
                 List.of(handler(() -> {
                     AsyncCompletionScope.register(sendCompletion);
                     handlerRan.countDown();
                 })),
                 asyncConfig(true),
-                true));
-
-        try {
+                true), () -> sendCompletion.complete(null))) {
             assertTrue(handlerRan.await(1, TimeUnit.SECONDS));
-            TimeUnit.MILLISECONDS.sleep(50L);
-            assertFalse(batchCompletion.isDone());
+            batchCompletion.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(1));
 
             sendCompletion.complete(null);
 
-            assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
+            batchCompletion.awaitCompletion(Duration.ofSeconds(1));
         } finally {
             sendCompletion.complete(null);
             tracking.close();
@@ -977,19 +970,17 @@ class DefaultTrackingAsyncResultTest {
         TestTracking tracking = tracking(resultGateway, serializer);
         CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
 
-        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+        try (var batchCompletion = new TestTask(() -> tracking.handleBatch(
                 List.of(message(serializer)),
                 List.of(handler(() -> AsyncCompletionScope.register(sendCompletion))),
                 ConsumerConfiguration.builder().name("web").build(),
-                false));
-
-        TimeUnit.MILLISECONDS.sleep(50L);
-        assertFalse(batchCompletion.isDone());
-
-        sendCompletion.complete(null);
-
-        assertDoesNotThrow(() -> batchCompletion.get(1, TimeUnit.SECONDS));
-        tracking.close();
+                false), () -> sendCompletion.complete(null))) {
+            batchCompletion.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(1));
+            sendCompletion.complete(null);
+            batchCompletion.awaitCompletion(Duration.ofSeconds(1));
+        } finally {
+            tracking.close();
+        }
     }
 
     @Test
@@ -1000,7 +991,7 @@ class DefaultTrackingAsyncResultTest {
         TestTracking tracking = tracking(resultGateway, serializer);
         CompletableFuture<Void> sendCompletion = new CompletableFuture<>();
 
-        CompletableFuture<Void> batchCompletion = CompletableFuture.runAsync(() -> tracking.handleBatch(
+        CompletableFuture<Void> batchCompletion = runIsolatedBatch(() -> tracking.handleBatch(
                 List.of(message(serializer)),
                 List.of(handler(() -> AsyncCompletionScope.register(sendCompletion))),
                 ConsumerConfiguration.builder()
@@ -1057,7 +1048,7 @@ class DefaultTrackingAsyncResultTest {
         Fluxzero fluxzero = mockFluxzero(config, MessageType.EVENT);
 
         try {
-            CompletableFuture<Void> processing = CompletableFuture.runAsync(() -> {
+            CompletableFuture<Void> processing = runIsolatedBatch(() -> {
                 Tracker.current.set(new Tracker("tracker-id", MessageType.EVENT, null, config, null));
                 try {
                     fluxzero.execute(fc -> consumer.accept(List.of(new Message("event").serialize(serializer))));

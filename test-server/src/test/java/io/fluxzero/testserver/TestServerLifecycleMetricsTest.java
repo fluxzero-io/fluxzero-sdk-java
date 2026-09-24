@@ -116,9 +116,14 @@ class TestServerLifecycleMetricsTest {
         Server second = null;
         WebSocketClient client = null;
         try {
-            second = TestServer.startServer(0);
-            int port = getServerConnector(second).getLocalPort();
             String consumer = "restart-" + UUID.randomUUID();
+            CompletableFuture<Void> trackerRequestReceived = new CompletableFuture<>();
+            second = TestServer.startServer(0, tracker -> {
+                if (consumer.equals(tracker.getConsumerName()) && "tracker".equals(tracker.getTrackerId())) {
+                    trackerRequestReceived.complete(null);
+                }
+            });
+            int port = getServerConnector(second).getLocalPort();
             client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
                     .runtimeBaseUrl("ws://localhost:" + port)
                     .name("restart-test")
@@ -135,7 +140,7 @@ class TestServerLifecycleMetricsTest {
 
             CompletableFuture<MessageBatch> read = client.getTrackingClient(WEBREQUEST)
                     .read("tracker", null, config);
-            Thread.sleep(100L);
+            trackerRequestReceived.get(5, SECONDS);
             assertFalse(read.isDone(), "Read should be waiting before a message is appended");
 
             client.getGatewayClient(WEBREQUEST).append(

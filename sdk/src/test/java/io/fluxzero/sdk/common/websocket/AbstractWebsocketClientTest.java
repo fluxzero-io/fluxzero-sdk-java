@@ -713,7 +713,12 @@ class AbstractWebsocketClientTest {
                 .build();
         CloseObservingClient client = new CloseObservingClient(mock(WebsocketConnector.class), clientConfig);
         WebsocketSession session = mockSession("client123_runtime456");
-        CompletableFuture<Void> closeHandshake = new CompletableFuture<>();
+        CompletableFuture<Void> closeHandshake = new CompletableFuture<>() {
+            @Override public CompletableFuture<Void> orTimeout(long timeout, TimeUnit unit) {
+                assertEquals(client.getCloseHandshakeTimeout().toMillis(), unit.toMillis(timeout));
+                return this; // The test explicitly attempts the late timeout below.
+            }
+        };
         when(session.closeAsync(any())).thenReturn(closeHandshake);
 
         try {
@@ -722,7 +727,7 @@ class AbstractWebsocketClientTest {
             verify(session).closeAsync(any());
             verify(session, never()).abort(any());
             closeHandshake.complete(null);
-            Thread.sleep(150);
+            assertFalse(closeHandshake.completeExceptionally(new java.util.concurrent.TimeoutException()));
             verify(session, never()).abort(any());
         } finally {
             client.close();
@@ -933,7 +938,8 @@ class AbstractWebsocketClientTest {
                 .pingDelay(Duration.ofMillis(10))
                 .pingTimeout(Duration.ofMillis(40))
                 .build();
-        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
+        var scheduler = new ManuallyTriggeredTaskScheduler();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, scheduler);
         WebsocketSession session = mock(WebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
                 AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
@@ -948,16 +954,15 @@ class AbstractWebsocketClientTest {
         try {
             client.onOpen(session);
 
-            assertTimeout(Duration.ofSeconds(1), () -> {
-                while (org.mockito.Mockito.mockingDetails(session)
-                               .getInvocations().stream()
-                               .filter(i -> i.getMethod().getName().equals("sendPing"))
-                               .count() < 3L) {
-                    Thread.sleep(5L);
-                }
-            });
-            Thread.sleep(60L);
-
+            for (int i = 0; i < 3; i++) {
+                assertEquals(1, scheduler.pendingTaskCount(), "Only the next ping may remain, not the old deadline");
+                assertEquals(scheduler.clock().millis() + clientConfig.getPingDelay().toMillis(), scheduler.nextDeadline());
+                scheduler.advance(clientConfig.getPingDelay());
+                scheduler.dequeue().run();
+            }
+            assertEquals(1, scheduler.pendingTaskCount());
+            verify(session, org.mockito.Mockito.times(3)).sendPing(any());
+            verify(session, never()).closeAsync(any());
             verify(session, never()).abort(any());
         } finally {
             client.close();

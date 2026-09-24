@@ -356,13 +356,15 @@ class TestServerWebsocketContractTest {
                 new ReconnectObservingTrackingClient(URI.create(ServiceUrlBuilder.trackingUrl(EVENT, null, config)),
                                                      client);
         try {
+            CompletableFuture<Void> trackerRequestReceived = expectTrackerRequest("reconnect-consumer", "reconnect-tracker");
             CompletableFuture<MessageBatch> read = tracking.read("reconnect-tracker", null,
                                                                  ConsumerConfiguration.builder()
                                                                          .name("reconnect-consumer")
                                                                          .maxWaitDuration(Duration.ofSeconds(30))
                                                                          .build());
             assertTrue(tracking.awaitFirstOpen(5, TimeUnit.SECONDS));
-            Thread.sleep(100L);
+            await(trackerRequestReceived);
+            assertFalse(read.isDone());
 
             tracking.closeFirstSession();
 

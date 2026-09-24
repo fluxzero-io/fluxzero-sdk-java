@@ -357,28 +357,31 @@ class DefaultTrackerTest {
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
         CountDownLatch fetching = new CountDownLatch(1);
+        CountDownLatch releaseFetch = new CountDownLatch(1);
         AtomicReference<Throwable> uncaught = new AtomicReference<>();
 
         when(trackingClient.getPosition("consumer")).thenReturn(new Position(-1L));
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
             fetching.countDown();
-            try {
-                Thread.sleep(TimeUnit.SECONDS.toMillis(10));
-                return null;
-            } catch (InterruptedException e) {
-                throw e;
-            }
+            releaseFetch.await();
+            return null;
         });
 
         Thread trackerThread = new Thread(defaultTracker, "test-tracker");
         trackerThread.setUncaughtExceptionHandler((thread, error) -> uncaught.set(error));
         trackerThread.start();
 
-        assertTrue(fetching.await(1, TimeUnit.SECONDS));
-        defaultTracker.cancel();
-
-        assertFalse(trackerThread.isAlive(), "Cancellation should await the interrupted fetch thread");
-        assertNull(uncaught.get());
+        try {
+            assertTrue(fetching.await(1, TimeUnit.SECONDS));
+            defaultTracker.cancel();
+            assertFalse(trackerThread.isAlive(), "Cancellation should await the interrupted fetch thread");
+            assertNull(uncaught.get());
+        } finally {
+            releaseFetch.countDown();
+            defaultTracker.cancel();
+            trackerThread.interrupt();
+            assertTrue(trackerThread.join(Duration.ofSeconds(1)));
+        }
     }
 
     @Test
@@ -388,13 +391,14 @@ class DefaultTrackerTest {
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
         CountDownLatch fetching = new CountDownLatch(1);
+        CountDownLatch releaseFetch = new CountDownLatch(1);
         AtomicReference<Throwable> uncaught = new AtomicReference<>();
 
         when(trackingClient.getPosition("consumer")).thenReturn(new Position(-1L));
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
             fetching.countDown();
             try {
-                Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+                releaseFetch.await();
                 return null;
             } catch (InterruptedException ignored) {
                 throw new ExecutionException(
@@ -406,11 +410,17 @@ class DefaultTrackerTest {
         trackerThread.setUncaughtExceptionHandler((thread, error) -> uncaught.set(error));
         trackerThread.start();
 
-        assertTrue(fetching.await(1, TimeUnit.SECONDS));
-        defaultTracker.cancel();
-
-        assertFalse(trackerThread.isAlive(), "Cancellation should await the failed fetch thread");
-        assertNull(uncaught.get());
+        try {
+            assertTrue(fetching.await(1, TimeUnit.SECONDS));
+            defaultTracker.cancel();
+            assertFalse(trackerThread.isAlive(), "Cancellation should await the failed fetch thread");
+            assertNull(uncaught.get());
+        } finally {
+            releaseFetch.countDown();
+            defaultTracker.cancel();
+            trackerThread.interrupt();
+            assertTrue(trackerThread.join(Duration.ofSeconds(1)));
+        }
     }
 
     @Test
@@ -465,6 +475,7 @@ class DefaultTrackerTest {
         CountDownLatch releaseFirstBatch = new CountDownLatch(1);
         CountDownLatch secondTrackerFetching = new CountDownLatch(1);
         CountDownLatch secondTrackerInterrupted = new CountDownLatch(1);
+        CountDownLatch releaseSecondFetch = new CountDownLatch(1);
         SerializedMessage message = mock(SerializedMessage.class);
         when(message.getIndex()).thenReturn(1L);
         when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
@@ -474,7 +485,7 @@ class DefaultTrackerTest {
             }
             secondTrackerFetching.countDown();
             try {
-                Thread.sleep(TimeUnit.SECONDS.toMillis(10));
+                releaseSecondFetch.await();
                 return null;
             } catch (InterruptedException e) {
                 secondTrackerInterrupted.countDown();
@@ -496,16 +507,19 @@ class DefaultTrackerTest {
         try {
             assertTrue(processingFirstBatch.await(1, TimeUnit.SECONDS));
             assertTrue(secondTrackerFetching.await(1, TimeUnit.SECONDS));
-            CompletableFuture<Void> cancellation = CompletableFuture.runAsync(registration::cancel);
-
-            assertTrue(secondTrackerInterrupted.await(1, TimeUnit.SECONDS),
+            try (var cancellation = new io.fluxzero.common.TestTask(registration::cancel, () -> {
+                releaseFirstBatch.countDown();
+                releaseSecondFetch.countDown();
+            })) {
+                assertTrue(secondTrackerInterrupted.await(1, TimeUnit.SECONDS),
                        "The idle tracker should stop fetching while another tracker finishes its batch");
-            assertFalse(cancellation.isDone(), "Cancellation should still await the active batch");
-
-            releaseFirstBatch.countDown();
-            cancellation.get(1, TimeUnit.SECONDS);
+                cancellation.awaitBlockedIn(DefaultTracker.class, "awaitCancellation", Duration.ofSeconds(1));
+                releaseFirstBatch.countDown();
+                cancellation.awaitCompletion(Duration.ofSeconds(1));
+            }
         } finally {
             releaseFirstBatch.countDown();
+            releaseSecondFetch.countDown();
             registration.cancel();
         }
     }

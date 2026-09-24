@@ -104,8 +104,8 @@ class JdkWebsocketConnectorTest {
                 URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
                 Runnable::run);
 
-        Thread.sleep(10);
-
+        assertEquals(0L, io.fluxzero.common.reflection.ReflectionUtils.<Long>readProperty(
+                "lastInboundNanos", session).orElseThrow());
         assertEquals(0L, session.runtimeDataState().lastInboundAgeMillis());
     }
 
@@ -118,9 +118,12 @@ class JdkWebsocketConnectorTest {
                 URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
                 Runnable::run);
 
-        Thread.sleep(10);
-
-        assertTrue(session.runtimeDataState().lastInboundAgeMillis() > 0L);
+        assertTrue(io.fluxzero.common.reflection.ReflectionUtils.<Long>readProperty(
+                "lastInboundNanos", session).orElseThrow() != 0L);
+        // The timestamp is the input to the age calculation; no real-time sleep is needed to test it.
+        io.fluxzero.common.reflection.ReflectionUtils.writeProperty(
+                "lastInboundNanos", session, System.nanoTime() - TimeUnit.SECONDS.toNanos(5));
+        assertTrue(session.runtimeDataState().lastInboundAgeMillis() >= 5_000L);
     }
 
     @Test
