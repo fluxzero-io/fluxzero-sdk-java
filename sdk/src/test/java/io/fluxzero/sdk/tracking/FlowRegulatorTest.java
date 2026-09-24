@@ -63,13 +63,11 @@ class FlowRegulatorTest {
         }
 
         static class PausePastConsumerTimeout implements FlowRegulator {
-            final AtomicBoolean pausedOnce = new AtomicBoolean();
             @Override
             public Optional<Duration> pauseDuration() {
-                if (pausedOnce.compareAndSet(false, true)) {
-                    return Optional.of(Duration.ofMillis(100));
-                }
-                return Optional.empty();
+                // Registration can outlast a one-shot pause before the test even publishes its event.
+                // Keep this consumer paused; PauseBriefly separately verifies resumption.
+                return Optional.of(Duration.ofMillis(100));
             }
         }
 
