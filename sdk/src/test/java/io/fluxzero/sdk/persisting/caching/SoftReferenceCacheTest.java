@@ -28,12 +28,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.function.Executable;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.util.AbstractSet;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
@@ -41,6 +48,7 @@ import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
 import static io.fluxzero.common.caching.CacheEviction.Reason.memoryPressure;
 import static io.fluxzero.common.caching.CacheEviction.Reason.size;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -61,6 +69,45 @@ class SoftReferenceCacheTest {
     void testPutAndGet() {
         subject.put("foo", "bar");
         assertEquals("bar", subject.get("foo"));
+    }
+
+    @Test
+    void modifyEachSnapshotsKeysUnderTheMapLockButRunsModifiersOutsideIt() {
+        var mutex = new AtomicReference<Object>();
+        var backing = new LinkedHashMap<Object, SoftReferenceCache.CacheReference>(16, 0.75f, true) {
+            @Override
+            public Set<Object> keySet() {
+                var keys = super.keySet();
+                return new AbstractSet<>() {
+                    @Override
+                    public Iterator<Object> iterator() {
+                        assertTrue(Thread.holdsLock(mutex.get()), "LRU iteration must hold the map lock");
+                        return keys.iterator();
+                    }
+
+                    @Override
+                    public int size() {
+                        return keys.size();
+                    }
+                };
+            }
+        };
+        var map = Collections.synchronizedMap(backing);
+        mutex.set(map);
+        subject.close();
+        subject = new SoftReferenceCache(2, map, DirectExecutorService.newInstance(), null,
+                                         Duration.ofMinutes(1), false, Clock.systemUTC());
+        subject.put("first", "one");
+        subject.put("second", "two");
+
+        subject.<String>modifyEach((key, value) -> {
+            assertFalse(Thread.holdsLock(map), "Modifiers must not invert map/compute lock ordering");
+            subject.get("first"); // Change LRU ordering while processing the detached snapshot.
+            return value + "!";
+        });
+
+        assertEquals("one!", subject.get("first"));
+        assertEquals("two!", subject.get("second"));
     }
 
     @Test
