@@ -27,6 +27,7 @@ import lombok.AllArgsConstructor;
 
 import java.lang.reflect.Executable;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -54,8 +55,14 @@ public class ContentFilterInterceptor implements HandlerInterceptor {
         if (filterContent == null) {
             return PreparedHandlerInterceptor.noOp;
         }
-        return (message, descriptor, combiner, next) -> serializer.filterContent(
-                next.apply(message, descriptor, combiner), User.getCurrent());
+        return (message, descriptor, combiner, next) -> {
+            Object result = next.apply(message, descriptor, combiner);
+            User viewer = User.getCurrent();
+            if (result instanceof CompletableFuture<?> future) {
+                return future.thenApply(message.captureContext().wrap(value -> serializer.filterContent(value, viewer)));
+            }
+            return serializer.filterContent(result, viewer);
+        };
     }
 
     @Override

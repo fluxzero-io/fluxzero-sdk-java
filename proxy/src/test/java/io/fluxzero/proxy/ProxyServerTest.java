@@ -26,6 +26,12 @@ import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.FilterContent;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.Parent;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -130,6 +136,31 @@ class ProxyServerTest {
 
     @Nested
     class Basic {
+
+        @Test
+        void composedGraphResponseRetainsFilteredJsonThroughHttpProxy() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/graph-response") @FilterContent
+                        CompletableFuture<Graph<WebGraphRoot>> get() {
+                            return CompletableFuture.completedFuture(Fluxzero.loadGraph("root", WebGraphRoot.class));
+                        }
+                    }).givenCommands(new CreateWebGraph("root"))
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/graph-response", proxyPort)))
+                                    .header("Accept-Encoding", "gzip").GET().build(), BodyHandlers.ofByteArray()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("gzip", response.headers().firstValue("Content-Encoding").orElseThrow());
+                        var json = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                                CompressionAlgorithm.GZIP.decompress(response.body()),
+                                com.fasterxml.jackson.databind.JsonNode.class);
+                        assertEquals("root", json.path("id").asText());
+                        assertEquals("x".repeat(3000), json.path("description").asText());
+                        assertEquals(1, json.path("children").size());
+                        assertEquals("visible", json.path("children").get(0).path("id").asText());
+                        assertFalse(json.has("stateIndex"));
+                    }).expectNoErrors();
+        }
 
         @Test
         void httpOnlyProxyCannotShareAnOccupiedLoopbackPort() throws Exception {
@@ -2454,6 +2485,23 @@ class ProxyServerTest {
             parts.add(Arrays.copyOfRange(payload, offset, Math.min(payload.length, offset + publisherChunkSize)));
         }
         return BodyPublishers.fromPublisher(BodyPublishers.ofByteArrays(parts), payload.length);
+    }
+
+    @Model
+    record WebGraphRoot(@EntityId String id, String description) {}
+
+    @Model
+    record WebGraphChild(@EntityId String id,
+                         @Parent(types = WebGraphRoot.class, pathInParent = "children") String rootId) {
+        @FilterContent
+        WebGraphChild filter() { return id.equals("visible") ? this : null; }
+    }
+
+    record CreateWebGraph(String id) {
+        @Apply WebGraphRoot root() { return new WebGraphRoot(id, "x".repeat(3000)); }
+        @Apply List<WebGraphChild> children() {
+            return List.of(new WebGraphChild("visible", id), new WebGraphChild("hidden", id));
+        }
     }
 
     private static class TestProxyRequestHandler extends ProxyRequestHandler {

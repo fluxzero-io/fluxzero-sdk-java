@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.LazyInputStream;
 import io.fluxzero.common.ThrowingSupplier;
 import io.fluxzero.common.api.Metadata;
@@ -22,6 +23,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import lombok.AccessLevel;
@@ -53,6 +55,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static io.fluxzero.common.ObjectUtils.asSupplier;
+import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.sdk.web.WebUtils.asHeaderMap;
 import static java.util.stream.Collectors.toList;
 
@@ -144,14 +147,23 @@ public class WebResponse extends Message {
     }
 
     /**
-     * Serializes the response using the content type if applicable.
+     * Serializes the response using the content type if applicable. A Graph payload is sent as its composed
+     * JSON document, not as a reconstructible Graph implementation. Content filtering must precede serialization.
      */
     @Override
     public SerializedMessage serialize(Serializer serializer) {
-        return headers.getOrDefault("Content-Type", List.of()).stream().findFirst().map(
+        SerializedMessage result = headers.getOrDefault("Content-Type", List.of()).stream().findFirst().map(
                         format -> new SerializedMessage(serializer.serialize(getEncodedPayload(), format), getMetadata(),
                                                         getMessageId(), getTimestamp().toEpochMilli()))
                 .orElseGet(() -> super.serialize(serializer));
+        if (getEncodedPayload() instanceof Graph<?> graph
+            && JSON_FORMAT.equals(result.getData().getFormat())
+            && graph.getClass().getName().equals(result.getData().getType())) {
+            // Graph serialization already produced the complete JSON. Correct only its envelope, without composing
+            // or copying it again. Preserve serializers that supply their own response type or non-JSON format.
+            return result.withData(result.getData().withType(JsonNode.class.getName()).withRevision(0));
+        }
+        return result;
     }
 
     /**

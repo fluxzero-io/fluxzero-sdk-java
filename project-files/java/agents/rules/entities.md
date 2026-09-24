@@ -463,6 +463,10 @@ public record Task(
 The child remains an independent Model with its own lifecycle boundary. This task's `@Parent` expresses both a
 Graph relation and cascade ownership. Being displayed below or deleted with the parent does not make it a `@Member`.
 
+Returning a `Graph<T>` directly from a web handler, or as a `WebResponse` payload, sends its composed JSON:
+selected child paths and `@GraphProperty` values, not a live Graph. Enable `@FilterContent` explicitly when
+viewer-specific filtering is required. Ordinary typed response payloads retain their existing contract.
+
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.

@@ -96,6 +96,12 @@ This is useful for making decisions based on global context.
 
 ---
 
+## Asynchronous handler results
+
+For automatic handler-result filtering, a `CompletableFuture` is filtered after successful completion, using
+the original request context and viewer even when completion happens on another thread. Failed or cancelled
+futures propagate without running content filters. This applies equally to ordinary values and Graph results.
+
 ## Manual filtering
 
 Developers can explicitly apply filtering by calling `Fluxzero.filterContent(object, user)` when they want precise control over when and how filtering occurs.

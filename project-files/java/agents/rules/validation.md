@@ -259,6 +259,9 @@ Filtering allows objects to dynamically adjust their exposed content based on wh
 Content filtering is not automatic. You must add `@FilterContent` to the **handler method, class, or package** to enable
 it for a specific flow.
 
+An annotated handler returning a `CompletableFuture` filters the successful value after completion, using the
+original request context and viewer. Failed or cancelled futures propagate without running content filters.
+
 [//]: # (@formatter:off)
 ```java
 @Component

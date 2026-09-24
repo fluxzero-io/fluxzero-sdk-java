@@ -2,6 +2,11 @@
 
 ## Relationships
 
+A web handler can return a `Graph<T>` directly or as a `WebResponse` payload. The transported response contains
+the composed JSON, including selected child paths and `@GraphProperty` values, not a live Graph. SDK callers use
+`response.getPayloadAs(JsonNode.class)`.
+Enable `@FilterContent` explicitly for viewer-specific filtering; ordinary typed responses remain typed.
+
 Choose which relationships belong in the Graph first, then choose the deletion policy for each relationship.
 A meaningful Graph relation without ownership is a normal use of `@Parent`, not an exception to the model.
 

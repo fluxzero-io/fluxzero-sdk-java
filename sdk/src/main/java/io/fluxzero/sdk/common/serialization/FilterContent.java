@@ -88,6 +88,8 @@ import java.lang.annotation.Target;
  *   <li>Type level - automatically filters all handler results in the class</li>
  *   <li>Package level - automatically filters all handler results in the package or subpackage</li>
  * </ul>
+ * A handler returning a {@link java.util.concurrent.CompletableFuture} is filtered after successful completion,
+ * using the original request context and viewer. Exceptional completion and cancellation bypass filtering.
  *
  * @see Fluxzero#filterContent(Object, User)
  */

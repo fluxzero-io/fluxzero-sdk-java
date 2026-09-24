@@ -223,6 +223,35 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void directGraphResponseIsJsonOverWebsocket() {
+        var parentId = new WireParentId("response");
+        var fixture = io.fluxzero.sdk.test.TestFixture.createAsync(
+                io.fluxzero.sdk.configuration.DefaultFluxzero.builder(), client("graph-response"), new Object() {
+                    @io.fluxzero.sdk.web.HandleGet("/graph-response")
+                    @io.fluxzero.sdk.common.serialization.FilterContent
+                    @io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired
+                    CompletableFuture<io.fluxzero.sdk.modeling.Graph<WireParent>> get() {
+                        return CompletableFuture.completedFuture(io.fluxzero.sdk.Fluxzero.loadGraph(parentId));
+                    }
+                });
+        try {
+            fixture.givenCommands(new CreateWireParent(parentId), new CreateWireChild("remote-child", parentId))
+                    .whenGet("/graph-response")
+                    .expectWebResult(response -> {
+                        assertEquals(200, response.getStatus());
+                        com.fasterxml.jackson.databind.JsonNode body =
+                                response.getPayloadAs(com.fasterxml.jackson.databind.JsonNode.class);
+                        assertEquals(1, body.path("children").size());
+                        assertEquals("remote-child", body.path("children").get(0).path("childId").asText());
+                        assertFalse(body.has("stateIndex"));
+                        return true;
+                    }).expectNoErrors();
+        } finally {
+            fixture.getFluxzero().close();
+        }
+    }
+
+    @Test
     void polymorphicParentLifecycleSurvivesWebsocketSerialization() {
         var fixture = io.fluxzero.sdk.test.TestFixture.createAsync(
                 io.fluxzero.sdk.configuration.DefaultFluxzero.builder()

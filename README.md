@@ -73,6 +73,10 @@ See the relationship guide for allowlists and migration boundaries.
 See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
 Returned validation objects can select their own Model dependencies while retaining the triggering command context.
 
+Web handlers may return Graphs directly: transported responses contain their composed JSON, not a reconstructible
+Graph implementation. Annotated `@FilterContent` handlers also filter successful future results using the original
+viewer and request context. See [web responses](docs/developer/guides/Messaging/120-handling-web-requests.mdx).
+
 Intentionally embedded `@Member` handlers, including concrete subtype handlers on explicitly addressed owners,
 update their owning Model in the same atomic operation and replay stream;
 see [embedded members](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx#intentionally-embedded-members).

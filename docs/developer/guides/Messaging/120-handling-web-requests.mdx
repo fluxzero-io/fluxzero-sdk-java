@@ -55,6 +55,12 @@ fun listUsers(): List<UserAccount> {
 
 This will match incoming `GET /users` requests and return a list of users. The response is published as a `WebResponse`.
 
+A handler may return a `Graph<T>` directly, or use one as a `WebResponse` payload. The transported body is its
+composed JSON document, including selected child paths and `@GraphProperty` values—not a live Graph that the
+receiver can mutate. SDK callers can read it with `response.getPayloadAs(JsonNode.class)`. Enable
+`@FilterContent` on the handler when the Graph needs viewer-specific filtering; serialization does not enable
+filtering implicitly. Ordinary typed response payloads keep their existing deserialization contract.
+
 Use the general-purpose `@HandleWeb` annotation if you want to support multiple paths, multiple methods, or define a custom method:
 
 <Tabs>

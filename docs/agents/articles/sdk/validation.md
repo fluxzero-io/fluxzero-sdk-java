@@ -77,6 +77,9 @@ Security annotations are checked before the handler runs:
 
 Enable response/content filtering explicitly with `@FilterContent` on the handler method, class, or package. Filtering applies recursively to objects, collections, and maps. A filter method can inject the current user and the root object; returning `null` removes the object from the result.
 
+When an annotated handler returns a `CompletableFuture`, its successful result is filtered in the original
+request context with the original viewer. Failures and cancellation bypass filtering.
+
 Use `@ProtectData` for fields that should not be stored in the normal message stream. Fluxzero stores protected values temporarily in KV and reinjects them for trusted handling. Nested protection works only when every segment of the nested path is annotated. Use `@DropProtectedData` only on the trusted handler that should consume the value for the last time. Deletion happens during restoration before the handler body runs and is not rolled back after handler failure. Read the protected-data lifecycle article before relying on ordering, retries, missing-data policy, or deletion tests.
 
 Test each independent constraint with all other fields valid, and assert `ValidationException` plus the relevant `ViolationSummary.path()`. A payload that makes two required fields blank proves only that validation ran, not that either individual constraint is protected. Use the authorization and validation behavior-matrix article for exact-role, inherited-role, roleless, unauthenticated, and one-cause-per-scenario examples.
