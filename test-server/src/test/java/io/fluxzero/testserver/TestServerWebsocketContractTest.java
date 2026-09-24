@@ -15,6 +15,7 @@
 
 package io.fluxzero.testserver;
 
+import com.sun.management.HotSpotDiagnosticMXBean;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -76,11 +77,17 @@ import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.extension.TestWatcher;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
+import java.lang.management.ManagementFactory;
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -110,6 +117,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Execution(ExecutionMode.CONCURRENT)
 class TestServerWebsocketContractTest {
+    @RegisterExtension
+    static final TestWatcher failureThreads = new TestWatcher() {
+        @Override
+        public void testFailed(ExtensionContext context, Throwable cause) {
+            try {
+                Path reports = Path.of("target", "surefire-reports").toAbsolutePath();
+                Files.createDirectories(reports);
+                // Unlike Thread.getAllStackTraces(), this also captures blocked virtual handlers.
+                ManagementFactory.getPlatformMXBean(HotSpotDiagnosticMXBean.class).dumpThreads(
+                        reports.resolve(context.getRequiredTestMethod().getName() + "-" + UUID.randomUUID()
+                                        + "-threads.txt").toString(),
+                        HotSpotDiagnosticMXBean.ThreadDumpFormat.TEXT_PLAIN);
+            } catch (Exception diagnosticFailure) {
+                cause.addSuppressed(diagnosticFailure);
+            }
+        }
+    };
+
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
     private static final long TIMEOUT_SECONDS = 5L;
     private static final Map<String, CompletableFuture<Void>> pendingTrackerRequests = new ConcurrentHashMap<>();
