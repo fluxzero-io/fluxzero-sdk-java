@@ -226,7 +226,7 @@ class SoftReferenceCacheTest {
         try {
             bulk.start();
             while (bulk.isAlive() && bulk.getState() != Thread.State.BLOCKED) {
-                Thread.onSpinWait();
+                Thread.sleep(1);
             }
             blockedState = bulk.getState();
         } finally {
@@ -260,48 +260,63 @@ class SoftReferenceCacheTest {
 
     @SneakyThrows
     @Test
+    @Timeout(10)
     void testLockingSameKey() {
         var latch = new CountDownLatch(1);
+        var entered = new CountDownLatch(1);
         var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+            entered.countDown();
             latch.await();
             return "bar";
         })));
-        thread1.start();
-        Thread.sleep(10);
         var thread2 = new Thread(
                 () ->
                         subject.compute(
                                 new String("foo"),
                                 (k, v) -> "bar2"));
-        thread2.start();
-        Thread.sleep(10);
-        assertNull(subject.get("foo"));
-        assertEquals(Thread.State.WAITING, thread1.getState());
-        assertEquals(Thread.State.BLOCKED, thread2.getState());
-        latch.countDown();
-        thread2.join();
+        try {
+            thread1.start();
+            entered.await();
+            thread2.start();
+            assertEventually(() -> {
+                assertEquals(Thread.State.WAITING, thread1.getState());
+                assertEquals(Thread.State.BLOCKED, thread2.getState());
+            });
+            assertNull(subject.get("foo"));
+        } finally {
+            latch.countDown();
+            thread1.join();
+            thread2.join();
+        }
         assertEquals("bar2", subject.get("foo"));
     }
 
     @SneakyThrows
     @Test
+    @Timeout(10)
     void testNoLockIfDifferentKey() {
         var latch = new CountDownLatch(1);
+        var entered = new CountDownLatch(1);
         var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+            entered.countDown();
             latch.await();
             return "bar";
         })));
-        thread1.start();
-        Thread.sleep(10);
         var thread2 = new Thread(() -> subject.compute("foo2", (k, v) -> "bar2"));
-        thread2.start();
-        thread2.join();
-        assertNull(subject.get("foo"));
-        assertEquals("bar2", subject.get("foo2"));
-        assertEquals(Thread.State.WAITING, thread1.getState());
-        assertEquals(Thread.State.TERMINATED, thread2.getState());
-        latch.countDown();
-        thread1.join();
+        try {
+            thread1.start();
+            entered.await();
+            thread2.start();
+            thread2.join();
+            assertNull(subject.get("foo"));
+            assertEquals("bar2", subject.get("foo2"));
+            assertEventually(() -> assertEquals(Thread.State.WAITING, thread1.getState()));
+            assertEquals(Thread.State.TERMINATED, thread2.getState());
+        } finally {
+            latch.countDown();
+            thread1.join();
+            thread2.join();
+        }
         assertEquals("bar", subject.get("foo"));
         assertEquals(Thread.State.TERMINATED, thread1.getState());
     }
