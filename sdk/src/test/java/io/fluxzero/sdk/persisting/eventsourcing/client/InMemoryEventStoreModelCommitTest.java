@@ -37,6 +37,7 @@ import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -45,6 +46,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,6 +62,15 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryEventStoreModelCommitTest {
+
+    // These tests deliberately block one operation while starting another. The common pool may have one worker.
+    private final ExecutorService operations = Executors.newVirtualThreadPerTaskExecutor();
+
+    @AfterEach
+    void stopOperations() throws InterruptedException {
+        operations.shutdownNow();
+        assertTrue(operations.awaitTermination(2, TimeUnit.SECONDS), "Test operations did not terminate");
+    }
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
@@ -750,7 +762,7 @@ class InMemoryEventStoreModelCommitTest {
                                         ModelCommitStep.builder()
                                                 .event(event("nested-event"))
                                                 .targets(List.of(storedTarget("nested-model")))
-                                        .build())).join()).join();
+                                        .build())).join(), operations).join();
                     }
                     return () -> { };
                 });
@@ -777,7 +789,7 @@ class InMemoryEventStoreModelCommitTest {
         BlockingNotificationEventStore store = new BlockingNotificationEventStore();
         assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
             CompletableFuture<Void> append = CompletableFuture.runAsync(
-                    () -> store.append(List.of(event("ordinary-event"))).join());
+                    () -> store.append(List.of(event("ordinary-event"))).join(), operations);
             try {
                 store.notificationStarted.await();
                 AtomicReference<Thread> commitThread = new AtomicReference<>();
@@ -790,10 +802,11 @@ class InMemoryEventStoreModelCommitTest {
                                     .publishEvent(true)
                                     .targets(List.of(storedTarget("model-1")))
                                     .build())).join();
-                });
+                }, operations);
                 while (commitThread.get() == null
                        || commitThread.get().getState() != Thread.State.BLOCKED) {
-                    Thread.onSpinWait();
+                    // Let the preemptive timeout release the notification latch, even if the contender never starts.
+                    Thread.sleep(1);
                 }
                 store.continueNotification.countDown();
                 append.join();
