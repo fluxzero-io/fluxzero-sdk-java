@@ -34,12 +34,16 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
+import java.net.BindException;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.util.UUID;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -56,12 +60,20 @@ class ModelAssertionConflictTest {
 
     @BeforeAll
     static void start() {
-        server = TestServer.startServer(0, ignored -> {});
+        server = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
         port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
     }
 
     @AfterAll
     static void stop() throws Exception { server.stop(); }
+
+    @Test
+    void modelServerCannotBeShadowedOnItsClientAddress() throws Exception {
+        try (ServerSocket other = new ServerSocket()) {
+            other.setReuseAddress(true);
+            assertThrows(BindException.class, () -> other.bind(new InetSocketAddress("127.0.0.1", port)));
+        }
+    }
 
     @ParameterizedTest
     @CsvSource({"RETRY", "ACCEPT"})
@@ -153,7 +165,7 @@ class ModelAssertionConflictTest {
 
     private static WebSocketClient.ClientConfig config(String namespace, String name) {
         return WebSocketClient.ClientConfig.builder().name(name).namespace(namespace)
-                .runtimeBaseUrl("ws://localhost:" + port).build();
+                .runtimeBaseUrl("ws://127.0.0.1:" + port).build();
     }
 
     private static void execute(Fluxzero app, Object command, boolean targeted) {
