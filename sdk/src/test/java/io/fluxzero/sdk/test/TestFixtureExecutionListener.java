@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.test;
 
+import org.junit.jupiter.api.extension.AfterAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.MethodSource;
@@ -33,14 +36,34 @@ import java.util.Optional;
  * This listener is useful in test environments that rely on side-effectful or stateful behaviors (e.g. schedules,
  * in-memory gateways, spies), especially when running multiple tests within the same JVM.
  *
- * <p><strong>Usage:</strong> Register this listener in your {@code junit-platform.properties} file:
+ * <p><strong>Usage:</strong> Register this listener and enable the companion Jupiter extension in your
+ * {@code junit-platform.properties} file:
  * <pre>{@code
  * junit.platform.listeners.default = io.fluxzero.sdk.test.TestFixtureExecutionListener
+ * junit.jupiter.extensions.autodetection.enabled = true
  * }</pre>
+ * Cleanup completes before the owning test finishes. The Jupiter extension also makes cleanup failures part of the
+ * test outcome; launcher listeners alone can only report such failures as warnings.
  *
  * @see TestFixture
  */
-public class TestFixtureExecutionListener implements TestExecutionListener {
+public class TestFixtureExecutionListener implements TestExecutionListener, AfterEachCallback, AfterAllCallback {
+
+    /**
+     * Completes cleanup inside Jupiter's test lifecycle so cleanup failures fail the test rather than merely being
+     * logged as a launcher-listener warning. Enabled through Jupiter extension autodetection; the listener remains
+     * a fallback for other engines and incomplete executions.
+     */
+    @Override
+    public void afterEach(ExtensionContext context) {
+        TestFixtureLifecycle.finishScope(context.getUniqueId());
+    }
+
+    /** Completes container-owned cleanup before Jupiter reports the container's outcome. */
+    @Override
+    public void afterAll(ExtensionContext context) {
+        TestFixtureLifecycle.finishScope(context.getUniqueId());
+    }
 
     /**
      * Opens a fixture scope for a test or container execution.

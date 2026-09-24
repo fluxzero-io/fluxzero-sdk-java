@@ -208,6 +208,7 @@
                         <forkedProcessTimeoutInSeconds>300</forkedProcessTimeoutInSeconds>
                         <properties>
                             <configurationParameters>
+                                junit.jupiter.extensions.autodetection.enabled = true
                                 junit.jupiter.execution.parallel.enabled = true
                                 junit.jupiter.execution.parallel.config.strategy = fixed
                                 junit.jupiter.execution.parallel.config.fixed.parallelism = ${junit.parallelism}

@@ -29,11 +29,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
-import static io.fluxzero.common.ObjectUtils.tryCatch;
 
 /**
  * Owns {@link TestFixture} instances per JUnit execution scope and closes them without affecting parent or sibling
@@ -125,10 +128,22 @@ final class TestFixtureLifecycle {
             return;
         }
         fixtures.forEach(fixture -> closedFixtureInstances.add(fixture.getFluxzero()));
-        fixtures.forEach(fixture -> shutdownExecutor.execute(
-                tryCatch(() -> fixture.getFluxzero().execute(fc -> fixture.getFluxzero().close(true)))));
-        reconcileCurrentFluxzero(currentScopes.get());
-        GivenWhenThenAssertionError.clearTrace();
+        var completions = fixtures.stream().map(fixture -> CompletableFuture.runAsync(
+                () -> fixture.getFluxzero().execute(fc -> fc.close(true)), shutdownExecutor))
+                .toArray(CompletableFuture<?>[]::new);
+        try {
+            // Close independent fixtures concurrently, but never hand their resources to the next execution early.
+            // This deadline only detects stuck cleanup; no successful path depends on the elapsed time.
+            CompletableFuture.allOf(completions).get(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while closing test fixtures", e);
+        } catch (ExecutionException | TimeoutException e) {
+            throw new AssertionError("Test fixture cleanup did not complete successfully", e);
+        } finally {
+            reconcileCurrentFluxzero(currentScopes.get());
+            GivenWhenThenAssertionError.clearTrace();
+        }
     }
 
     private static void reconcileCurrentFluxzero(Deque<FixtureScope> scopes) {

@@ -108,6 +108,7 @@
                         <configuration>
                             <includes>
                                 <include>**/*Utils.*</include>
+                                <include>**/TestTask.class</include>
                             </includes>
                         </configuration>
                     </execution>
