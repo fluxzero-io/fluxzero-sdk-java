@@ -67,6 +67,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "parentDataRestoration",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.parentDataRestoration",
+    "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "Restores selected protected parent fields for an ownership-only read view; never for dispatch. ",
+    "constantValue" : null
+  }, {
     "name" : "schedulingClient",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.schedulingClient",
     "type" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",
@@ -297,6 +305,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#resolveParents",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previouslyOwnedCommand",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "runIfExpired",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#runIfExpired",
     "returnType" : "void",
@@ -389,6 +418,37 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#schedule",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ifAbsent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commandParents",
+      "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.ParentSelection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#scheduleCommand",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -467,6 +527,12 @@
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$LocalScheduleTask",
     "kind" : "class",
     "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ParentSelection",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$ParentSelection",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }

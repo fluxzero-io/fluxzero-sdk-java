@@ -230,6 +230,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "annotatedExecutables",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotatedExecutables",
+    "returnType" : "java.util.List<java.lang.reflect.Executable>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns annotated methods, including inherited methods, followed by annotated constructors declared by this\n type.\n"
+  }, {
     "name" : "annotatedFields",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotatedFields",
     "returnType" : "java.util.List<java.lang.reflect.Field>",

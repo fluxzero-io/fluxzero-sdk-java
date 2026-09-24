@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "fieldGetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.fieldGetter",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.FieldGetter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "inNativeImage",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker.inNativeImage",
     "type" : "boolean",
@@ -187,6 +195,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "computeFieldGetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#computeFieldGetter",
+    "returnType" : "io.fluxzero.common.reflection.DefaultMemberInvoker.FieldGetter",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "field",
+      "type" : "java.lang.reflect.Field",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "computeInvokeFunctions",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#computeInvokeFunctions",
     "returnType" : "io.fluxzero.common.reflection.DefaultMemberInvoker.InvokeFunctions",
@@ -335,6 +359,15 @@
   "nestedTypes" : [ {
     "name" : "FallbackFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FallbackFunction",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "FieldGetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FieldGetter",
     "kind" : "interface",
     "modifiers" : [ "abstract", "private", "static" ],
     "annotations" : [ {

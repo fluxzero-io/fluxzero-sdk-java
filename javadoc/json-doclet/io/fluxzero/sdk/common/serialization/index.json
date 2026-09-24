@@ -70,9 +70,19 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
     "kind" : "class"
   }, {
+    "file" : "DeserializingMessage.MessageBatchResources.json",
+    "name" : "DeserializingMessage.MessageBatchResources",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageBatchResources",
+    "kind" : "record"
+  }, {
     "file" : "DeserializingMessage.MessageSpliterator.json",
     "name" : "DeserializingMessage.MessageSpliterator",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator",
+    "kind" : "class"
+  }, {
+    "file" : "DeserializingMessage.RestoredPayloadMessage.json",
+    "name" : "DeserializingMessage.RestoredPayloadMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage",
     "kind" : "class"
   }, {
     "file" : "DeserializingObject.json",

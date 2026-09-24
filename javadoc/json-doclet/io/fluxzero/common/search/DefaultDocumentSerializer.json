@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Default serializer for {@link Document} instances in the Fluxzero Runtime.\n <p>\n This serializer uses the <a href=\"https://msgpack.org/\">MessagePack</a> binary format to efficiently encode and decode documents\n for storage or transport. It supports compression and is version-aware, allowing for future extension of the format.\n\n <h2>Serialization Format</h2>\n The current (version 0) serialization includes:\n <ul>\n   <li>{@code int} format version (currently {@code 0})</li>\n   <li>{@code String} document ID</li>\n   <li>{@code Instant} timestamp (as epoch millis)</li>\n   <li>{@code Instant} end timestamp (as epoch millis)</li>\n   <li>{@code String} collection name</li>\n   <li>{@code List<Entry>} entries and their associated {@code List<Path>}</li>\n </ul>\n\n <p>\n Compression is applied to the final byte output using {@link CompressionAlgorithm#LZ4} and marked with the format\n {@code document} via {@link Data#DOCUMENT_FORMAT}.\n\n @see Document\n @see Data\n",
+  "documentation" : " Default serializer for {@link Document} instances in the Fluxzero Runtime.\n <p>\n This serializer uses the <a href=\"https://msgpack.org/\">MessagePack</a> binary format to efficiently encode and decode documents\n for storage or transport. It supports compression and is version-aware, allowing for future extension of the format.\n\n <h2>Serialization Format</h2>\n The current (version 0) serialization includes:\n <ul>\n   <li>{@code int} format version (currently {@code 0})</li>\n   <li>{@code String} document ID</li>\n   <li>{@code Instant} timestamp (as epoch millis)</li>\n   <li>{@code Instant} end timestamp (as epoch millis)</li>\n   <li>{@code String} collection name</li>\n   <li>{@code List<Entry>} entries and their associated {@code List<Path>}</li>\n </ul>\n\n <p>\n Compression is applied to the final byte output using {@link CompressionAlgorithm#ZSTD} and marked with the format\n {@code document} via {@link Data#DOCUMENT_FORMAT}. Readers accept ZSTD and historical LZ4 envelopes; LZ4 decoding\n uses the bounds-checked Java implementation.\n\n @see Document\n @see Data\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.common.search.DefaultDocumentSerializer>",
   "interfaces" : [ ],
@@ -17,6 +17,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : 0
+  }, {
+    "name" : "smallDocumentUnpackerConfig",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer.smallDocumentUnpackerConfig",
+    "type" : "org.msgpack.core.MessagePack.UnpackerConfig",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DefaultDocumentSerializer",
@@ -61,6 +69,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Deserializes a {@link Data} blob containing a compressed, binary {@link Document}.\n The data must be in the correct format and contain a supported version.\n\n @param document the data to deserialize\n @return the reconstructed {@link Document} entries\n @throws IllegalArgumentException if the data cannot be parsed or is invalid\n"
+  }, {
+    "name" : "newDocumentUnpacker",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#newDocumentUnpacker",
+    "returnType" : "org.msgpack.core.MessageUnpacker",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "packTimestamp",
     "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#packTimestamp",

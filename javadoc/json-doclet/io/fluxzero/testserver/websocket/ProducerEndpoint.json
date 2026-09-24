@@ -245,6 +245,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#payloadCodecs",
+    "returnType" : "java.util.List<io.fluxzero.common.api.tracking.TrackingWebSocketCodec>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "shouldHandleIdempotently",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint#shouldHandleIdempotently",
     "returnType" : "boolean",

@@ -12,6 +12,22 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "adoptModelMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#adoptModelMigration",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.AdoptModelMigration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Atomically adopts a previously inspected and application-verified staged Model document while retaining the\n accepted normalized source until an ordinary Model write ends legacy-write coexistence.\n"
+  }, {
     "name" : "bulkUpdate",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#bulkUpdate",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -285,6 +301,22 @@
     "varArgs" : false,
     "documentation" : " Asynchronously fetches a histogram for documents matching the query.\n <p>\n The default implementation adapts {@link #fetchHistogram(GetSearchHistogram)} to a future. Remote clients can\n override this method to use a native asynchronous transport.\n\n @param request the histogram query parameters\n @return a future with the histogram for matching documents\n"
   }, {
+    "name" : "fetchModelDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchModelDocument",
+    "returnType" : "io.fluxzero.common.api.search.GetDocumentResult",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Fetches a direct Model document together with the durable head written by the same\n materialization transaction.\n"
+  }, {
     "name" : "fetchStatistics",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#fetchStatistics",
     "returnType" : "java.util.List<io.fluxzero.common.api.search.DocumentStats>",
@@ -336,6 +368,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Asynchronously retrieves search statistics over matching documents.\n <p>\n The default implementation adapts {@link #fetchStatistics(SearchQuery, List, List)} to a future. Remote clients\n can override this method to use a native asynchronous transport.\n\n @param query   the query to filter documents\n @param fields  the fields to compute statistics for\n @param groupBy field names used to group statistics\n @return a future with search statistics\n"
+  }, {
+    "name" : "getModelMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#getModelMigration",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationResult",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetModelMigration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retrieves the production and staged direct documents used to verify one Model migration. "
+  }, {
+    "name" : "getModelMigrations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#getModelMigrations",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationsResult",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetModelMigrations",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retrieves a bounded batch of staged direct Model migrations. "
   }, {
     "name" : "getSearchCollections",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#getSearchCollections",
@@ -431,6 +495,48 @@
     "varArgs" : false,
     "documentation" : " Moves a document to another collection.\n\n @param documentId       the document id\n @param collection       the collection to move from\n @param targetCollection the collection to move to\n @param guarantee        delivery guarantee\n @return a future that completes when the move has been performed\n"
   }, {
+    "name" : "rewriteModelGraphDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#rewriteModelGraphDocument",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expectedManifest",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Conditionally replaces one materialized model-graph document while its manifest still matches the handled\n version. Implementations without durable model-graph projections may retain the unsupported default.\n"
+  }, {
+    "name" : "rewriteModelSourceDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#rewriteModelSourceDocument",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.RewriteModelSourceDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Atomically rewrites a verified internal source at the same Model head and document proof. "
+  }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#search",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
@@ -472,6 +578,90 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Asynchronously executes a search query using the given criteria and fetch size and materializes the matching hits.\n <p>\n The default implementation adapts {@link #search(SearchDocuments, int)} to a future. Remote clients can override\n this method to use a native asynchronous transport.\n\n @param searchDocuments the search parameters and query\n @param fetchSize       the number of results to fetch per page\n @return a future with search hits matching the query\n"
+  }, {
+    "name" : "searchModelGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#searchModelGraph",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchModelGraphDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a current-state model search and composes each matching root's explicitly placed child graph.\n"
+  }, {
+    "name" : "searchModelGraphAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#searchModelGraphAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchModelGraphDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously searches and composes current independent-model graphs.\n"
+  }, {
+    "name" : "searchModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#searchModels",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchModelDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a bounded current-state search across independent model relationships.\n"
+  }, {
+    "name" : "searchModelsAsync",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#searchModelsAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchModelDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Asynchronously executes a bounded current-state search across independent model relationships.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

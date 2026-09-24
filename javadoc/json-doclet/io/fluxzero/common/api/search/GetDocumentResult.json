@@ -21,6 +21,27 @@
     "documentation" : " The document that was retrieved, or {@code null} if no matching document was found.\n",
     "constantValue" : null
   }, {
+    "name" : "modelHead",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.modelHead",
+    "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Durable head written atomically with a direct Model document, or {@code null} for an\n ordinary document read or a Model that has never existed.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelStateVerified",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.modelStateVerified",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : "True only when the store verified the actual document body against evidence captured with its Model fence. ",
+    "constantValue" : null
+  }, {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.requestId",
     "type" : "long",
@@ -43,7 +64,77 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetDocumentResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult#GetDocumentResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelHead",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetDocumentResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult#GetDocumentResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"document\",\"modelHead\",\"modelStateVerified\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelHead",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelStateVerified",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

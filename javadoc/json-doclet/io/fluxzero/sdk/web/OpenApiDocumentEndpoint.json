@@ -42,6 +42,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint.modelTypes",
+    "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "path",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint.path",
     "type" : "java.lang.String",
@@ -72,6 +80,11 @@
     }, {
       "name" : "handler",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -109,6 +122,11 @@
     }, {
       "name" : "handler",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -181,6 +199,32 @@
     }, {
       "name" : "handler",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forHandler",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#forHandler",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.OpenApiDocumentEndpoint>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

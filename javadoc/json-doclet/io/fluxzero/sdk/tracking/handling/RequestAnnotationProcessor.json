@@ -121,6 +121,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isGraphJsonCompatible",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#isGraphJsonCompatible",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expectedType",
+      "type" : "javax.lang.model.type.TypeMirror",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " A Graph is an intentional JSON response representation: the central serializer emits its recursively composed\n model document. Permit that representation behind an explicitly JSON-typed request contract while retaining the\n ordinary exact request return-type validation for every non-JSON response.\n"
+  }, {
     "name" : "isPassive",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor#isPassive",
     "returnType" : "boolean",

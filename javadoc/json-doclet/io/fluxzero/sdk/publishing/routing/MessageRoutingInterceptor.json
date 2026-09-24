@@ -5,9 +5,6 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
@@ -15,7 +12,15 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.publishing.DispatchInterceptor" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "modelRoutingTarget",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor.modelRoutingTarget",
+    "type" : "java.util.function.Function<io.fluxzero.sdk.common.Message,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "MessageRoutingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#MessageRoutingInterceptor",
@@ -25,9 +30,40 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "Routes messages using only their explicitly defined routing key. "
+  }, {
+    "name" : "MessageRoutingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#MessageRoutingInterceptor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelRoutingTarget",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.Message,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds a command-only Model-ID fallback when no explicit routing is declared. "
   } ],
   "methods" : [ {
+    "name" : "hasExplicitRouting",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#hasExplicitRouting",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "An explicit routing declaration suppresses automatic Model routing even if its value is absent. "
+  }, {
     "name" : "interceptDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor#interceptDispatch",
     "returnType" : "io.fluxzero.sdk.common.Message",

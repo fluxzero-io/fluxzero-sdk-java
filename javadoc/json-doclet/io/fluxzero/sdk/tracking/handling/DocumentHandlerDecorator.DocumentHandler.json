@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.tracking.handling",
   "kind" : "class",
   "modifiers" : [ "protected" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
@@ -27,12 +24,38 @@
     "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "decorate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler#decorate",
+    "returnType" : "io.fluxzero.common.handling.HandlerInvoker",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler#getInvoker",
     "returnType" : "java.util.Optional<io.fluxzero.common.handling.HandlerInvoker>",
@@ -71,6 +94,12 @@
   "nestedTypes" : [ {
     "name" : "DocumentHandlerInvoker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler$DocumentHandlerInvoker",
+    "kind" : "class",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelGraphDocumentHandlerInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler$ModelGraphDocumentHandlerInvoker",
     "kind" : "class",
     "modifiers" : [ "protected" ],
     "annotations" : [ ]

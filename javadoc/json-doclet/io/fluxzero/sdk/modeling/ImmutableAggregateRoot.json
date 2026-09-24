@@ -28,10 +28,16 @@
     "values" : {
       "callSuper" : "true"
     }
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true",
+      "onlyExplicitlyIncluded" : "true"
+    }
   } ],
   "documentation" : " Immutable representation of an {@link AggregateRoot}, extending {@link ImmutableEntity} with additional metadata for\n event sourcing.\n <p>\n\n The {@code previous} field stores a reference to the prior state, enabling recursive traversal of historical states.\n When aggregate caching with a {@link Aggregate#cachingDepth() caching depth} is enabled, older states may be replaced\n by a {@link LazyAggregateRoot}, which holds a reference but defers loading the full state.\n <p>\n This allows memory-efficient checkpointing of long-lived aggregates: once the maximum caching depth is reached,\n earlier states are no longer retained in memory and must be reloaded via event sourcing when accessed.\n\n @param <T> the type of the domain object represented by this aggregate root\n @see io.fluxzero.sdk.modeling.Entity\n @see io.fluxzero.sdk.modeling.AggregateRoot\n @see ImmutableEntity\n @see LazyAggregateRoot\n",
   "typeParameters" : [ "T" ],
-  "superClass" : "io.fluxzero.sdk.modeling.ImmutableEntity<T>",
+  "superClass" : "io.fluxzero.sdk.modeling.ImmutableRoot<T>",
   "interfaces" : [ "io.fluxzero.sdk.modeling.AggregateRoot<T>" ],
   "fields" : [ {
     "name" : "eventStore",
@@ -39,45 +45,6 @@
     "type" : "io.fluxzero.sdk.persisting.eventsourcing.EventStore",
     "modifiers" : [ "transient" ],
     "annotations" : [ {
-      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
-      "values" : {}
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "lastEventId",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot.lastEventId",
-    "type" : "java.lang.String",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
-      "values" : {}
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "lastEventIndex",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot.lastEventIndex",
-    "type" : "java.lang.Long",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
-      "values" : {}
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "previous",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot.previous",
-    "type" : "io.fluxzero.sdk.modeling.Entity<T>",
-    "modifiers" : [ "transient" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.ToString.Exclude",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
-      "values" : {}
-    }, {
       "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
       "values" : {}
     } ],
@@ -92,41 +59,10 @@
       "annotationType" : "lombok.ToString.Exclude",
       "values" : {}
     }, {
-      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
-      "values" : {}
-    }, {
       "annotationType" : "lombok.Getter",
       "values" : {
         "lazy" : "true"
       }
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "sequenceNumber",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot.sequenceNumber",
-    "type" : "long",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.Builder.Default",
-      "values" : {}
-    } ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "timestamp",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot.timestamp",
-    "type" : "java.time.Instant",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
-      "values" : {}
-    }, {
-      "annotationType" : "lombok.Builder.Default",
-      "values" : {}
     } ],
     "documentation" : null,
     "constantValue" : null
@@ -265,6 +201,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "withPrevious",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot#withPrevious",
+    "returnType" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "previous",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "withSequenceNumber",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot#withSequenceNumber",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -286,5 +241,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ImmutableAggregateRootBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot$ImmutableAggregateRootBuilder",
+    "kind" : "class",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

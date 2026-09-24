@@ -264,6 +264,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isExcluded",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExtractor#isExcluded",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "java.lang.reflect.AnnotatedElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isFrameworkParameter",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExtractor#isFrameworkParameter",
     "returnType" : "boolean",

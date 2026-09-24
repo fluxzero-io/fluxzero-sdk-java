@@ -101,6 +101,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the Java reflection constructor that corresponds to a Kotlin class' primary constructor.\n\n @param type the Kotlin type to inspect\n @return the Java constructor for the Kotlin primary constructor, or {@code null} when none is available\n"
+  }, {
+    "name" : "isDataClassComponent",
+    "qualifiedName" : "io.fluxzero.common.reflection.KotlinReflectionUtils#isDataClassComponent",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

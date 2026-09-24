@@ -405,6 +405,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "mergeAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#mergeAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<?,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mergeFunction",
+      "type" : "java.util.function.BiFunction<? super T,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "modifyEach",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#modifyEach",
     "returnType" : "void",
@@ -607,6 +631,117 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supplyAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#supplyAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "lookups",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "valueConsumer",
+      "type" : "java.util.function.BiConsumer<? super U,? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<?,? extends java.util.function.Function<? super T,? extends T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

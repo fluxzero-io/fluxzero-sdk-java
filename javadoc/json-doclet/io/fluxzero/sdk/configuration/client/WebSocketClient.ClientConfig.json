@@ -274,7 +274,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum number of runtime request results whose SDK completion logic and synchronous customer future\n continuations may run concurrently per client. Large result batches are submitted incrementally and share\n this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer\n and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to\n {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.\n",
+    "documentation" : " Maximum number of runtime request results whose SDK completion logic and synchronous customer future\n continuations may run concurrently per client. Large result batches are submitted incrementally and share\n this bound with individual responses. Each admitted completion runs on its own virtual thread. Defaults to\n {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.\n",
     "constantValue" : null
   }, {
     "name" : "maxConcurrentRuntimeWebSocketMessages",
@@ -423,7 +423,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Ordered list of compression algorithms the client supports for websocket communication, with the preferred\n algorithm first. Should not be empty.\n",
+    "documentation" : " Ordered list of compression algorithms the client supports for websocket communication, with the preferred\n algorithm first. Defaults to ZSTD and requires a ZSTD-capable Runtime. Should not be empty.\n",
     "constantValue" : null
   }, {
     "name" : "supportedTransportFormats",

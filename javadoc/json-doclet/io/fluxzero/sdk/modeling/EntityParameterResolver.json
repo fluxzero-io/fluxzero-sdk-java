@@ -88,6 +88,69 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "canResolveModel",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#canResolveModel",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#currentMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentModelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#currentModelRepository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "currentRepository",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#currentRepository",
     "returnType" : "io.fluxzero.sdk.persisting.repository.AggregateRepository",
@@ -360,6 +423,189 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "modelArgument",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelArgument",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelBinding",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelBinding",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityParameterResolver.ModelBinding",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelCollection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelCollection",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "references",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelContext",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.CommitAttempt>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelReferences",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelReferences",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelRepository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelResolutionCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#modelResolutionCache",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityParameterResolver.ModelResolutionCache",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "playbackToHandledMessage",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#playbackToHandledMessage",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -450,6 +696,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolvedModelBinding",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#resolvedModelBinding",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.EntityParameterResolver.ModelBinding>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "supportsMessageEntityInjection",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#supportsMessageEntityInjection",
     "returnType" : "boolean",
@@ -459,6 +726,22 @@
     "parameters" : [ {
       "name" : "methodAnnotation",
       "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsModelBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#supportsModelBoundary",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -485,6 +768,18 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache",
     "kind" : "class",
     "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelBinding",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelResolutionCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelResolutionCache",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }

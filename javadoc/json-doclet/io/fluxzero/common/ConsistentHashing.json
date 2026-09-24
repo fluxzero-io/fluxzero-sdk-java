@@ -9,15 +9,7 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
-  "fields" : [ {
-    "name" : "defaultHashFunction",
-    "qualifiedName" : "io.fluxzero.common.ConsistentHashing.defaultHashFunction",
-    "type" : "java.util.function.Function<java.lang.String,java.lang.Integer>",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : " Default hash function used to compute segment index from a routing key. Uses Murmur3 32-bit hash for fast and\n stable hashing.\n",
-    "constantValue" : null
-  } ],
+  "fields" : [ ],
   "constructors" : [ {
     "name" : "ConsistentHashing",
     "qualifiedName" : "io.fluxzero.common.ConsistentHashing#ConsistentHashing",
@@ -30,6 +22,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "computeSegment",
+    "qualifiedName" : "io.fluxzero.common.ConsistentHashing#computeSegment",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "hash",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSegments",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "computeSegment",
     "qualifiedName" : "io.fluxzero.common.ConsistentHashing#computeSegment",
     "returnType" : "int",

@@ -53,6 +53,14 @@
     "documentation" : " If {@code true}, disables segment-based filtering, allowing access to all segments.\n",
     "constantValue" : null
   }, {
+    "name" : "includeDocumentTombstones",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read.includeDocumentTombstones",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " If {@code true}, includes typed model-graph deletion records while tracking a document collection.\n <p>\n Ordinary document consumers leave this disabled. The Java SDK enables it only for consumers containing a\n {@code @HandleDocument(modelGraph = ...)} handler.\n",
+    "constantValue" : null
+  }, {
     "name" : "lastIndex",
     "qualifiedName" : "io.fluxzero.common.api.tracking.Read.lastIndex",
     "type" : "java.lang.Long",
@@ -66,7 +74,7 @@
     "type" : "long",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.\n",
+    "documentation" : " Maximum number of complete serialized message bytes to return in a single batch. A value of {@code 0} disables\n this limit.\n",
     "constantValue" : null
   }, {
     "name" : "maxSize",
@@ -202,11 +210,256 @@
     "annotations" : [ {
       "annotationType" : "java.beans.ConstructorProperties",
       "values" : {
-        "value" : "\"messageType\",\"consumer\",\"trackerId\",\"maxSize\",\"maxBytes\",\"maxTimeout\",\"typeFilter\",\"filterMessageTarget\",\"ignoreSegment\",\"singleTracker\",\"clientControlledIndex\",\"lastIndex\",\"purgeTimeout\""
+        "value" : "\"messageType\",\"consumer\",\"trackerId\",\"maxSize\",\"maxBytes\",\"maxTimeout\",\"typeFilter\",\"filterMessageTarget\",\"ignoreSegment\",\"singleTracker\",\"clientControlledIndex\",\"includeDocumentTombstones\",\"lastIndex\",\"purgeTimeout\""
       }
     } ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxTimeout",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFilter",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filterMessageTarget",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ignoreSegment",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "singleTracker",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clientControlledIndex",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentTombstones",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "purgeTimeout",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Read",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read#Read",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxTimeout",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFilter",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filterMessageTarget",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ignoreSegment",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "singleTracker",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clientControlledIndex",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "purgeTimeout",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Read",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read#Read",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxTimeout",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeFilter",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filterMessageTarget",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ignoreSegment",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "singleTracker",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clientControlledIndex",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentTombstones",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "purgeTimeout",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Read",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Read#Read",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "messageType",
       "type" : "io.fluxzero.common.MessageType",
       "varArgs" : false,

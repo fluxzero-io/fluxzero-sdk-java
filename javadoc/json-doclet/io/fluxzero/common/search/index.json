@@ -55,6 +55,36 @@
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter",
     "kind" : "class"
   }, {
+    "file" : "ModelGraphDocumentManifest.json",
+    "name" : "ModelGraphDocumentManifest",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
+    "kind" : "record"
+  }, {
+    "file" : "ModelGraphDocumentManifest.Node.json",
+    "name" : "ModelGraphDocumentManifest.Node",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest$Node",
+    "kind" : "record"
+  }, {
+    "file" : "ModelGraphDocumentSearch.json",
+    "name" : "ModelGraphDocumentSearch",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentSearch",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentStitcher.json",
+    "name" : "ModelGraphDocumentStitcher",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentStitcher.Bounds.json",
+    "name" : "ModelGraphDocumentStitcher.Bounds",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$Bounds",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentStitcher.ManifestBuilder.json",
+    "name" : "ModelGraphDocumentStitcher.ManifestBuilder",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$ManifestBuilder",
+    "kind" : "class"
+  }, {
     "file" : "SearchExclude.json",
     "name" : "SearchExclude",
     "qualifiedName" : "io.fluxzero.common.search.SearchExclude",

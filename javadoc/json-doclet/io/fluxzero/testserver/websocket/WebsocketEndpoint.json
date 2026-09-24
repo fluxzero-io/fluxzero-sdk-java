@@ -32,7 +32,7 @@
     "name" : "ESTIMATED_RESULT_OVERHEAD_BYTES",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint.ESTIMATED_RESULT_OVERHEAD_BYTES",
     "type" : "int",
-    "modifiers" : [ "final", "private", "static" ],
+    "modifiers" : [ "final", "protected", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : 256
@@ -569,21 +569,21 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "estimateMessageBatchBytes",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#estimateMessageBatchBytes",
+    "name" : "estimateRequestResultBytes",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#estimateRequestResultBytes",
     "returnType" : "int",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "batch",
-      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.RequestResult",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "Estimates one endpoint-specific request result for websocket batch sizing. "
   }, {
     "name" : "estimateResultBytes",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#estimateResultBytes",
@@ -601,42 +601,10 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "estimateSerializedMessageBytes",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#estimateSerializedMessageBytes",
-    "returnType" : "int",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "message",
-      "type" : "io.fluxzero.common.api.SerializedMessage",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "estimateSerializedMessagesBytes",
-    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#estimateSerializedMessagesBytes",
-    "returnType" : "int",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "messages",
-      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "estimateStringBytes",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#estimateStringBytes",
     "returnType" : "int",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "protected", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -1154,6 +1122,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#payloadCodecs",
+    "returnType" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns compact payload codecs owned by this concrete endpoint protocol. "
   }, {
     "name" : "processCommandRequest",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#processCommandRequest",

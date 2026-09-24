@@ -150,7 +150,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for the internal HTTP client derived from the supplied client, native JDK WebSocket\n listener callbacks, and SDK runtime messages.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
+    "documentation" : " Creates a connector backed by the supplied HTTP client and executor.\n\n <p>The executor is used for the internal HTTP client derived from the supplied client, native JDK WebSocket\n listener callbacks, and SDK runtime messages. Connection-open callbacks run on an independent virtual worker,\n so opening a connection cannot depend on available data-callback capacity.</p>\n\n @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused\n @param executor   executor for JDK websocket and listener callback work\n"
   }, {
     "name" : "JdkWebsocketConnector",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#JdkWebsocketConnector",

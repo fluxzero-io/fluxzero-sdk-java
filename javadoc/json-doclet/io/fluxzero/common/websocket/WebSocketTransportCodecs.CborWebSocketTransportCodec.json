@@ -10,9 +10,25 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ "io.fluxzero.common.websocket.WebSocketTransportCodec" ],
   "fields" : [ {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec.format",
+    "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "objectMapper",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec.objectMapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec.payloadCodecs",
+    "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -27,6 +43,16 @@
     "parameters" : [ {
       "name" : "objectMapper",
       "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadCodecs",
+      "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -122,6 +148,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec#payloadCodecs",
+    "returnType" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborWebSocketTransportCodec#toString",
     "returnType" : "java.lang.String",
@@ -135,8 +172,18 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "format",
+    "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "objectMapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "payloadCodecs",
+    "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
     "annotations" : [ ],
     "documentation" : null
   } ],

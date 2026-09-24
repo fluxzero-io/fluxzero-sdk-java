@@ -325,6 +325,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$Endpoint",
     "kind" : "record"
   }, {
+    "file" : "OpenApiProcessor.ModelGraphRelation.json",
+    "name" : "OpenApiProcessor.ModelGraphRelation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$ModelGraphRelation",
+    "kind" : "record"
+  }, {
     "file" : "OpenApiProcessor.ParameterInfo.json",
     "name" : "OpenApiProcessor.ParameterInfo",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$ParameterInfo",
@@ -384,6 +389,16 @@
     "name" : "OpenApiRenderer.DocumentInfoBuilder",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$DocumentInfoBuilder",
     "kind" : "class"
+  }, {
+    "file" : "OpenApiRenderer.ModelGraphExpansion.json",
+    "name" : "OpenApiRenderer.ModelGraphExpansion",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$ModelGraphExpansion",
+    "kind" : "record"
+  }, {
+    "file" : "OpenApiRenderer.ModelGraphRelation.json",
+    "name" : "OpenApiRenderer.ModelGraphRelation",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$ModelGraphRelation",
+    "kind" : "record"
   }, {
     "file" : "OpenApiRenderer.RenderedResponse.json",
     "name" : "OpenApiRenderer.RenderedResponse",

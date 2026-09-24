@@ -13,6 +13,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.serialization.ContentFilter" ],
   "fields" : [ {
+    "name" : "descendantGraphMatcherCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.descendantGraphMatcherCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,java.lang.Object>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "graphMatcherCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.graphMatcherCache",
+    "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,java.lang.Object>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "mapper",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter.mapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
@@ -66,6 +82,127 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "filterGraph",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#filterGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"rawtypes\",\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "viewer",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "filterGraphValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#filterGraphValue",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "viewer",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "filterGraphView",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#filterGraphView",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "viewer",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "restore",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#restore",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.ThreadLocal<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previous",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "returnsGraph",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter#returnsGraph",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
@@ -81,5 +218,11 @@
       "annotationType" : "lombok.extern.slf4j.Slf4j",
       "values" : {}
     } ]
+  }, {
+    "name" : "GraphParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$GraphParameterResolver",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
   } ]
 }

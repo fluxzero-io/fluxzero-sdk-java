@@ -4,15 +4,28 @@
   "packageName" : "io.fluxzero.sdk.persisting.search",
   "kind" : "class",
   "modifiers" : [ "protected" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.RequiredArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : null,
-  "typeParameters" : [ ],
+  "typeParameters" : [ "R" ],
   "superClass" : "java.lang.Object",
-  "interfaces" : [ "io.fluxzero.sdk.persisting.search.Search" ],
+  "interfaces" : [ "io.fluxzero.sdk.persisting.search.Search<R>" ],
   "fields" : [ {
+    "name" : "graphComposition",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch.graphComposition",
+    "type" : "io.fluxzero.common.api.search.ModelGraphComposition",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "graphPathOverrides",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch.graphPathOverrides",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphPathOverride>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "pathFilters",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch.pathFilters",
     "type" : "java.util.List<java.lang.String>",
@@ -24,6 +37,14 @@
     "name" : "queryBuilder",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch.queryBuilder",
     "type" : "io.fluxzero.common.api.search.SearchQuery.Builder",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationConstraints",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch.relationConstraints",
+    "type" : "java.util.List<io.fluxzero.common.api.search.ModelRelationConstraint>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -44,6 +65,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "targetModelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch.targetModelType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DefaultSearch",
@@ -55,11 +84,46 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "DefaultSearch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#DefaultSearch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "queryBuilder",
+      "type" : "io.fluxzero.common.api.search.SearchQuery.Builder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultSearch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#DefaultSearch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "queryBuilder",
+      "type" : "io.fluxzero.common.api.search.SearchQuery.Builder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetModelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "before",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#before",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -83,7 +147,7 @@
   }, {
     "name" : "constraint",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#constraint",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -98,6 +162,59 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "convert",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#convert",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "effectiveType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "converter",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#converter",
+    "returnType" : "java.util.function.Function<io.fluxzero.common.api.search.SerializedDocument,T>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultResultType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#defaultResultType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   }, {
     "name" : "delete",
@@ -121,7 +238,7 @@
   }, {
     "name" : "exclude",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#exclude",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -168,13 +285,13 @@
   }, {
     "name" : "fetch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#fetch",
-    "returnType" : "java.util.List<T>",
+    "returnType" : "java.util.List<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ "T" ],
+    "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "maxSize",
       "type" : "int",
@@ -211,13 +328,13 @@
   }, {
     "name" : "fetchAsync",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#fetchAsync",
-    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<T>>",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<R>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ "T" ],
+    "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "maxSize",
       "type" : "int",
@@ -347,9 +464,20 @@
     "varArgs" : true,
     "documentation" : null
   }, {
+    "name" : "hasPathFilters",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#hasPathFilters",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "inPeriod",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#inPeriod",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -383,7 +511,7 @@
   }, {
     "name" : "includeOnly",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#includeOnly",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -398,6 +526,22 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "isPublicFacet",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#isPublicFacet",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "stats",
+      "type" : "io.fluxzero.common.api.search.FacetStats",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   }, {
     "name" : "mapHits",
@@ -445,9 +589,60 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "relation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#relation",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "constraints",
+      "type" : "io.fluxzero.common.api.search.ModelRelationConstraint[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "requireOrdinarySearch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#requireOrdinarySearch",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchRequest",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#searchRequest",
+    "returnType" : "io.fluxzero.common.api.search.SearchDocuments",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "since",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#since",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -471,7 +666,7 @@
   }, {
     "name" : "skip",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#skip",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -490,7 +685,7 @@
   }, {
     "name" : "sortBy",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#sortBy",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -514,7 +709,7 @@
   }, {
     "name" : "sortByScore",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#sortByScore",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -528,7 +723,7 @@
   }, {
     "name" : "sortByTimestamp",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#sortByTimestamp",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -547,13 +742,13 @@
   }, {
     "name" : "streamHits",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#streamHits",
-    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<T>>",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<R>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ "T" ],
+    "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -561,13 +756,13 @@
   }, {
     "name" : "streamHits",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#streamHits",
-    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<T>>",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<R>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ "T" ],
+    "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "fetchSize",
       "type" : "int",
@@ -617,6 +812,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "useModelCurrentDocumentCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch#useModelCurrentDocumentCollection",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

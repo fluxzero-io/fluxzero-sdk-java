@@ -59,6 +59,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$UnconfiguredHandlerConsumerMode.PER_HANDLER",
     "annotations" : [ ],
     "documentation" : null
+  }, {
+    "name" : "PER_PACKAGE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$UnconfiguredHandlerConsumerMode.PER_PACKAGE",
+    "annotations" : [ ],
+    "documentation" : null
   } ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

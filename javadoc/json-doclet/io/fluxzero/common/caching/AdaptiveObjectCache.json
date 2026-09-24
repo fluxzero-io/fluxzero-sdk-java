@@ -113,6 +113,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "weightUnit",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache.weightUnit",
+    "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "AdaptiveObjectCache",
@@ -302,6 +310,46 @@
   }, {
     "name" : "AdaptiveObjectCache",
     "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#AdaptiveObjectCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEntryWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weigher",
+      "type" : "java.util.function.ToLongBiFunction<? super java.lang.Object,? super java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "memoryPressureController",
+      "type" : "io.fluxzero.common.caching.MemoryPressureController",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weightUnit",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "AdaptiveObjectCache",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#AdaptiveObjectCache",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -333,6 +381,51 @@
     }, {
       "name" : "clock",
       "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "AdaptiveObjectCache",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#AdaptiveObjectCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEntryWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weigher",
+      "type" : "java.util.function.ToLongBiFunction<? super java.lang.Object,? super java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "memoryPressureController",
+      "type" : "io.fluxzero.common.caching.MemoryPressureController",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weightUnit",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -378,6 +471,56 @@
     }, {
       "name" : "clock",
       "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "AdaptiveObjectCache",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#AdaptiveObjectCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEntryWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weigher",
+      "type" : "java.util.function.ToLongBiFunction<? super java.lang.Object,? super java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "memoryPressureController",
+      "type" : "io.fluxzero.common.caching.MemoryPressureController",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiryCheckDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weightUnit",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -489,7 +632,7 @@
     "name" : "containsKey",
     "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#containsKey",
     "returnType" : "boolean",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
@@ -599,7 +742,7 @@
     "name" : "get",
     "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#get",
     "returnType" : "T",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
@@ -624,6 +767,30 @@
     "parameters" : [ {
       "name" : "reason",
       "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mergeAll",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#mergeAll",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<?,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mergeFunction",
+      "type" : "java.util.function.BiFunction<? super T,? super T,? extends T>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -823,6 +990,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "supplyAll",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#supplyAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "lookups",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "valueConsumer",
+      "type" : "java.util.function.BiConsumer<? super U,? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "trimForMemoryPressure",
     "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#trimForMemoryPressure",
     "returnType" : "boolean",
@@ -848,6 +1044,88 @@
     "parameters" : [ {
       "name" : "entry",
       "type" : "io.fluxzero.common.caching.AdaptiveObjectCache.CacheEntry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<?,? extends java.util.function.Function<? super T,? extends T>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

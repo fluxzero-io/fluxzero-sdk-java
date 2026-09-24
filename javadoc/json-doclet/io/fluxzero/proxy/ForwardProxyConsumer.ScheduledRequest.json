@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "executionCancellationRequested",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest.executionCancellationRequested",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "initialFailure",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest.initialFailure",
     "type" : "java.lang.Throwable",
@@ -258,8 +266,8 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "isRequeuing",
-    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest#isRequeuing",
+    "name" : "isRequeuingOrRequeued",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest#isRequeuingOrRequeued",
     "returnType" : "boolean",
     "modifiers" : [ "private" ],
     "annotations" : [ ],

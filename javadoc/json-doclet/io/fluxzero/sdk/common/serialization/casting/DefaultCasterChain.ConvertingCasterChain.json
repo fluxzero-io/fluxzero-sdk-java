@@ -61,6 +61,30 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "canSkipCast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#canSkipCast",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cast",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#cast",
     "returnType" : "java.util.stream.Stream<? extends io.fluxzero.common.api.SerializedObject<?>>",
@@ -123,6 +147,30 @@
     "parameters" : [ {
       "name" : "input",
       "type" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareForSkippingCast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#prepareForSkippingCast",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

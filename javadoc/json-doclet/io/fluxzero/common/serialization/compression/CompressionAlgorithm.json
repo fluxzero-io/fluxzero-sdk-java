@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "public", "sealed" ],
   "annotations" : [ ],
-  "documentation" : " Enumeration of supported compression algorithms used for serializing and deserializing byte data.\n\n <p>The available algorithms include:\n <ul>\n   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>\n   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>\n   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>\n   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>\n </ul>\n",
+  "documentation" : " Enumeration of supported compression algorithms used for serializing and deserializing byte data.\n\n <p>The available algorithms include:\n <ul>\n   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>\n   <li>{@link #LZ4} – Bounds-checked Java LZ4 for historical envelopes and explicit compatibility.</li>\n   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>\n   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>\n </ul>\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
   "interfaces" : [ ],
@@ -99,6 +99,32 @@
     "varArgs" : false,
     "documentation" : " Decompresses bytes using this algorithm's public SDK wire format.\n\n @param compressed bytes to decompress\n @return decompressed bytes\n"
   }, {
+    "name" : "decompress",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#decompress",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Decompresses one byte range without first copying that range into a temporary array.\n\n <p>Fluxzero-framed payloads are decoded directly from the supplied backing array. Other formats retain the\n existing whole-array implementation as a compatibility fallback.</p>\n"
+  }, {
     "name" : "decompressFluxzeroCompressionHeader",
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#decompressFluxzeroCompressionHeader",
     "returnType" : "byte[]",
@@ -108,6 +134,32 @@
     "parameters" : [ {
       "name" : "compressed",
       "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decompressFluxzeroCompressionHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#decompressFluxzeroCompressionHeader",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -146,22 +198,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "fastestInstance",
-    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#fastestInstance",
-    "returnType" : "net.jpountz.lz4.LZ4Factory",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.SuppressWarnings",
-      "values" : {
-        "value" : "\"deprecation\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Returns the fastest available LZ4 factory.\n\n <p>Fluxzero deliberately uses the native insecure factory when possible. The non-deprecated\n {@link LZ4Factory#fastestInstance()} selects the secure native factory, which keeps the fast decompressor on the\n Java implementation in this LZ4 release.</p>\n"
-  }, {
     "name" : "fromFluxzeroCompressionId",
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#fromFluxzeroCompressionId",
     "returnType" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm",
@@ -187,6 +223,32 @@
     "parameters" : [ {
       "name" : "compressed",
       "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasFluxzeroCompressionHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm#hasFluxzeroCompressionHeader",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compressed",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -303,7 +365,7 @@
     "name" : "LZ4",
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4",
     "annotations" : [ ],
-    "documentation" : " Fast compression using the LZ4 codec. Includes original size prefix in output.\n"
+    "documentation" : " Bounds-checked Java LZ4. Includes the historical original-size prefix in output.\n"
   }, {
     "name" : "NONE",
     "qualifiedName" : "io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE",

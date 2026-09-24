@@ -36,7 +36,7 @@
   }, {
     "name" : "classForNameCache",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.classForNameCache",
-    "type" : "java.util.function.Function<java.lang.String,java.util.Optional<java.lang.Class<?>>>",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.String,io.fluxzero.common.reflection.ReflectionUtils.ClassLookup>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -88,6 +88,14 @@
     "name" : "primitiveWrappers",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.primitiveWrappers",
     "type" : "java.util.Map<java.lang.Class<?>,java.lang.Class<?>>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registeredTypesSupplier",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils.registeredTypesSupplier",
+    "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -309,6 +317,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "classLookup",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#classLookup",
+    "returnType" : "io.fluxzero.common.reflection.ReflectionUtils.ClassLookup",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "compareAccess",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#compareAccess",
     "returnType" : "int",
@@ -384,6 +408,22 @@
     "name" : "computeClassForName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeClassForName",
     "returnType" : "java.util.Optional<java.lang.Class<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeClassLookup",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#computeClassLookup",
+    "returnType" : "io.fluxzero.common.reflection.ReflectionUtils.ClassLookup",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -789,6 +829,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getAnnotatedPropertyValueOrNull",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyValueOrNull",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "annotation",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the value of the first property carrying the given annotation, or {@code null} when the target,\n annotated property, or property value is absent.\n\n <p>This is the allocation-free counterpart of {@link #getAnnotatedPropertyValue(Object, Class)} for callers\n that already use {@code null} as their absence sentinel. It uses the same centrally cached\n {@link TypeMetadata} and compiled {@link MemberInvoker}.</p>\n\n @param target target object, or {@code null}\n @param annotation annotation that identifies the property\n @return the property value, or {@code null} when absent\n"
   }, {
     "name" : "getAnnotatedPropertyValues",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyValues",
@@ -1547,6 +1608,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getRegisteredTypes",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getRegisteredTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the loadable types from the generated application type registry.\n <p>\n The result is resolved once and uses the same class cache as {@link #classForName(String)}.\n"
+  }, {
     "name" : "getSimpleName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getSimpleName",
     "returnType" : "java.lang.String",
@@ -1998,6 +2070,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isKotlinDataClassComponent",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isKotlinDataClassComponent",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether a no-argument method is a compiler-generated Kotlin data-class component accessor.\n These duplicate constructor properties and should not be inferred as additional domain properties.\n Handwritten component methods and ordinary Java methods are not excluded.\n"
+  }, {
     "name" : "isKotlinReflectionSupported",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isKotlinReflectionSupported",
     "returnType" : "boolean",
@@ -2167,6 +2255,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "loadClassWithoutInitialization",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#loadClassWithoutInitialization",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "binaryName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "classLoader",
+      "type" : "java.lang.ClassLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.ClassNotFoundException" ],
+    "varArgs" : false,
+    "documentation" : " Loads an exact binary class name without executing its static initializer or resolving serialization aliases.\n Uses the supplied index-owning classloader. Intended for generated structural indexes;\n the JVM owns class identity and {@link #getTypeMetadata(Class)} owns subsequent structural reflection.\n\n @throws ClassNotFoundException when the named class is unavailable\n"
   }, {
     "name" : "methodKey",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#methodKey",
@@ -2410,6 +2519,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveRegisteredTypeName",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#resolveRegisteredTypeName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a unique registered simple or partial name to its class name. Canonical names, unknown identifiers,\n {@code null} and generic signatures are returned unchanged. Generic signatures do not initiate class loading.\n Name normalization shares the class-lookup cache; it never caches application-specific serialization aliases.\n\n @param name the serialized type identifier\n @return its uniquely registered class name, or the original identifier if no normalization is needed\n"
+  }, {
     "name" : "setField",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#setField",
     "returnType" : "void",
@@ -2598,6 +2723,12 @@
   }, {
     "name" : "AnnotationProjectionKey",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotationProjectionKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ClassLookup",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$ClassLookup",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]

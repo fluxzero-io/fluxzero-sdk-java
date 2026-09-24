@@ -18,7 +18,7 @@
     "type" : "long",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " The total number of bytes in the data across all messages within the batch.\n",
+    "documentation" : " The complete serialized size of all messages within the batch.\n",
     "constantValue" : null
   }, {
     "name" : "caughtUp",

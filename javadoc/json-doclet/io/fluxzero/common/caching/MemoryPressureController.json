@@ -13,12 +13,20 @@
   "superClass" : null,
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Minimum occupied percentage of a cache's configured weight budget before sustained GC time alone may trigger\n trimming. Defaults to {@code 50}. Actual post-GC heap pressure remains sufficient by itself.\n",
+    "constantValue" : "fluxzero.cache.memoryPressure.gcCacheUtilizationPercent"
+  }, {
     "name" : "MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController.MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY",
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " GC-time percentage over the sampling window that triggers JVM-wide memory-aware cache trimming. Defaults to\n {@code 20}.\n",
+    "documentation" : " GC-time percentage over the sampling window that triggers JVM-wide memory-aware cache trimming. Defaults to\n {@code 20}. GC pressure is evaluated over a sustained window so a single short collection does not evict hot\n cache entries while heap usage remains healthy.\n",
     "constantValue" : "fluxzero.cache.memoryPressure.gcTimeThresholdPercent"
   }, {
     "name" : "MEMORY_PRESSURE_HEAP_THRESHOLD_PERCENT_PROPERTY",
@@ -26,7 +34,7 @@
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.\n",
+    "documentation" : " Post-GC heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.\n Measuring retained occupancy instead of instantaneous Eden usage prevents a normal allocation burst just before\n a young collection from evicting hot cache entries.\n",
     "constantValue" : "fluxzero.cache.memoryPressure.heapThresholdPercent"
   }, {
     "name" : "MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY",

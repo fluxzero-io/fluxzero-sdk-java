@@ -5,6 +5,16 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "AdoptModelMigration.json",
+    "name" : "AdoptModelMigration",
+    "qualifiedName" : "io.fluxzero.common.api.search.AdoptModelMigration",
+    "kind" : "class"
+  }, {
+    "file" : "AdoptModelMigrationWithSource.json",
+    "name" : "AdoptModelMigrationWithSource",
+    "qualifiedName" : "io.fluxzero.common.api.search.AdoptModelMigrationWithSource",
+    "kind" : "class"
+  }, {
     "file" : "BulkUpdate.json",
     "name" : "BulkUpdate",
     "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdate",
@@ -135,6 +145,36 @@
     "qualifiedName" : "io.fluxzero.common.api.search.GetFacetStatsResult$Metric",
     "kind" : "class"
   }, {
+    "file" : "GetModelMigration.json",
+    "name" : "GetModelMigration",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigration",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelMigrationResult.json",
+    "name" : "GetModelMigrationResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelMigrationResult.Metric.json",
+    "name" : "GetModelMigrationResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationResult$Metric",
+    "kind" : "record"
+  }, {
+    "file" : "GetModelMigrations.json",
+    "name" : "GetModelMigrations",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrations",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelMigrationsResult.json",
+    "name" : "GetModelMigrationsResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelMigrationsResult.Metric.json",
+    "name" : "GetModelMigrationsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigrationsResult$Metric",
+    "kind" : "record"
+  }, {
     "file" : "GetSearchCollections.json",
     "name" : "GetSearchCollections",
     "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollections",
@@ -180,6 +220,21 @@
     "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments$Metric",
     "kind" : "class"
   }, {
+    "file" : "ModelGraphComposition.json",
+    "name" : "ModelGraphComposition",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelGraphComposition",
+    "kind" : "class"
+  }, {
+    "file" : "ModelRelationConstraint.json",
+    "name" : "ModelRelationConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint",
+    "kind" : "class"
+  }, {
+    "file" : "ModelRelationConstraint.RelationDirection.json",
+    "name" : "ModelRelationConstraint.RelationDirection",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint$RelationDirection",
+    "kind" : "enum"
+  }, {
     "file" : "MoveDocumentById.json",
     "name" : "MoveDocumentById",
     "qualifiedName" : "io.fluxzero.common.api.search.MoveDocumentById",
@@ -193,6 +248,16 @@
     "file" : "NoOpConstraint.json",
     "name" : "NoOpConstraint",
     "qualifiedName" : "io.fluxzero.common.api.search.NoOpConstraint",
+    "kind" : "class"
+  }, {
+    "file" : "RewriteModelGraphDocument.json",
+    "name" : "RewriteModelGraphDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.RewriteModelGraphDocument",
+    "kind" : "class"
+  }, {
+    "file" : "RewriteModelSourceDocument.json",
+    "name" : "RewriteModelSourceDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.RewriteModelSourceDocument",
     "kind" : "class"
   }, {
     "file" : "SearchCollection.json",
@@ -223,6 +288,26 @@
     "file" : "SearchHistogram.json",
     "name" : "SearchHistogram",
     "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram",
+    "kind" : "class"
+  }, {
+    "file" : "SearchModelDocuments.json",
+    "name" : "SearchModelDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchModelDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "SearchModelDocuments.Metric.json",
+    "name" : "SearchModelDocuments.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchModelDocuments$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "SearchModelGraphDocuments.json",
+    "name" : "SearchModelGraphDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchModelGraphDocuments",
+    "kind" : "class"
+  }, {
+    "file" : "SearchModelGraphDocuments.Metric.json",
+    "name" : "SearchModelGraphDocuments.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchModelGraphDocuments$Metric",
     "kind" : "class"
   }, {
     "file" : "SearchQuery.json",

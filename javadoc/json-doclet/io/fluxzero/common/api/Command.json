@@ -13,13 +13,28 @@
   "constructors" : [ {
     "name" : "Command",
     "qualifiedName" : "io.fluxzero.common.api.Command#Command",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Command",
+    "qualifiedName" : "io.fluxzero.common.api.Command#Command",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restores a request identifier while decoding an optimized transport representation.\n"
   } ],
   "methods" : [ {
     "name" : "getGuarantee",

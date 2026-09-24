@@ -5,9 +5,6 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
@@ -16,6 +13,14 @@
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.search.DocumentStore>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.search.DocumentStore", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
   "fields" : [ {
+    "name" : "NON_SEARCHABLE_MODEL_QUERY_PREFIX",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.NON_SEARCHABLE_MODEL_QUERY_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$nonSearchableModels/"
+  }, {
     "name" : "client",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.client",
     "type" : "io.fluxzero.sdk.configuration.client.Client",
@@ -35,6 +40,30 @@
       "annotationType" : "lombok.experimental.Delegate",
       "values" : {}
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelNamePrefix",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.modelNamePrefix",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelRepositorySupplier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.modelRepositorySupplier",
+    "type" : "java.util.function.Supplier<io.fluxzero.sdk.persisting.repository.ModelRepository>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelTypesSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.modelTypesSupplier",
+    "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -68,7 +97,92 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerRegistry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultDocumentStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerRegistry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelNamePrefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultDocumentStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerRegistry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelNamePrefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelRepositorySupplier",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.persisting.repository.ModelRepository>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypesSupplier",
+      "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -97,6 +211,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "configureModelGraphSupport",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#configureModelGraphSupport",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelRepository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypesSupplier",
+      "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures typed materialized-graph reconstruction after the model subsystem has initialized. "
   }, {
     "name" : "createAuditTrail",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#createAuditTrail",
@@ -184,6 +319,28 @@
       "type" : "io.fluxzero.common.Guarantee",
       "varArgs" : false,
       "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "determineCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#determineCollection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -535,16 +692,62 @@
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#search",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ ],
+    "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "searchBuilder",
       "type" : "io.fluxzero.common.api.search.SearchQuery.Builder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#searchGraph",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootModelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceAdHoc",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -571,13 +774,16 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "DefaultGraphSearch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultGraphSearch",
+    "kind" : "class",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ]
+  }, {
     "name" : "DefaultSearch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore$DefaultSearch",
     "kind" : "class",
     "modifiers" : [ "protected" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.RequiredArgsConstructor",
-      "values" : {}
-    } ]
+    "annotations" : [ ]
   } ]
 }

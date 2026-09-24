@@ -10,6 +10,22 @@
   "superClass" : "java.util.Spliterators.AbstractSpliterator<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "messageIndex",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator.messageIndex",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sharedResources",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator.sharedResources",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.MessageBatchResources",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "upStream",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator.upStream",
     "type" : "java.util.Spliterator<io.fluxzero.sdk.common.serialization.DeserializingMessage>",

@@ -1,6 +1,7 @@
 io.fluxzero.common
 io.fluxzero.common.api
 io.fluxzero.common.api.eventsourcing
+io.fluxzero.common.api.internal
 io.fluxzero.common.api.keyvalue
 io.fluxzero.common.api.modeling
 io.fluxzero.common.api.publishing
@@ -13,6 +14,8 @@ io.fluxzero.common.application
 io.fluxzero.common.caching
 io.fluxzero.common.encryption
 io.fluxzero.common.handling
+io.fluxzero.common.jfr
+io.fluxzero.common.modeling
 io.fluxzero.common.reflection
 io.fluxzero.common.search
 io.fluxzero.common.serialization

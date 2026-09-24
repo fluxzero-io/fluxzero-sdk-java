@@ -23,7 +23,7 @@
     "type" : "long",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.\n",
+    "documentation" : " Maximum number of complete serialized message bytes to return in a single batch. A value of {@code 0} disables\n this limit.\n",
     "constantValue" : null
   }, {
     "name" : "maxSize",

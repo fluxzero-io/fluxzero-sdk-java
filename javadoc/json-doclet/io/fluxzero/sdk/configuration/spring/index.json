@@ -60,6 +60,11 @@
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig",
     "kind" : "class"
   }, {
+    "file" : "ModelHandlerPostProcessor.json",
+    "name" : "ModelHandlerPostProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ModelHandlerPostProcessor",
+    "kind" : "class"
+  }, {
     "file" : "SocketEndpointPostProcessor.json",
     "name" : "SocketEndpointPostProcessor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SocketEndpointPostProcessor",

@@ -8,7 +8,7 @@
   "documentation" : " Controls when aggregate changes are committed and whether multiple commits in the same completion phase may run\n concurrently.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.AggregateCommitPolicy>",
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.sdk.modeling.CommitPolicy" ],
   "fields" : [ {
     "name" : "AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY",
@@ -84,7 +84,10 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#async",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
@@ -95,7 +98,10 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#awaitAfterBatch",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
@@ -106,7 +112,10 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy#commitAfterBatch",
     "returnType" : "boolean",
     "modifiers" : [ "public" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],

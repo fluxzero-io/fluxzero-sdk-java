@@ -35,6 +35,21 @@
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration",
     "kind" : "interface"
   }, {
+    "file" : "PublishedEventModelMigration.json",
+    "name" : "PublishedEventModelMigration",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration",
+    "kind" : "class"
+  }, {
+    "file" : "PublishedEventModelMigration.Builder.json",
+    "name" : "PublishedEventModelMigration.Builder",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$Builder",
+    "kind" : "class"
+  }, {
+    "file" : "PublishedEventModelMigration.EventMigrator.json",
+    "name" : "PublishedEventModelMigration.EventMigrator",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.PublishedEventModelMigration$EventMigrator",
+    "kind" : "record"
+  }, {
     "file" : "Substitutable.json",
     "name" : "Substitutable",
     "qualifiedName" : "io.fluxzero.sdk.configuration.Substitutable",

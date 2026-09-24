@@ -328,6 +328,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a new {@code SerializedDocument} instance with the specified collection name.\n Updates the collection field of the document and its serialized representation if present.\n\n @param collection the name of the collection to associate with this document\n @return a new {@code SerializedDocument} instance with the updated collection\n"
+  }, {
+    "name" : "withoutSearchIndexes",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#withoutSearchIndexes",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a retrieval-only view that preserves the complete serialized payload and document identity while\n discarding all derived search data.\n <p>\n The returned document has no text summary, facets or sortable indexes. Its entries and metadata remain available\n for deserialization, including through a custom document serializer.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

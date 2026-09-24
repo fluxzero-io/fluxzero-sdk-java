@@ -23,7 +23,7 @@
   }, {
     "name" : "correlationData",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest.correlationData",
-    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "type" : "java.lang.Object",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -53,10 +53,26 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "resultContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest.resultContext",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "sendTimestamp",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest.sendTimestamp",
     "type" : "long",
     "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sent",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest.sent",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -81,6 +97,33 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "failSend",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest#failSend",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareSend",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest#prepareSend",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$WebSocketRequest#send",
     "returnType" : "java.util.concurrent.CompletableFuture<T>",

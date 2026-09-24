@@ -94,6 +94,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "determineRelationSearchCollection",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#determineRelationSearchCollection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the internal current-source collection used to select related models by their own contents.\n Public DOCUMENT projections remain the result collection, not the related-predicate source.\n <p>\n Ordinary document classes keep their public search collection. Models use the same collection owner as their\n commit and load paths, including private type-isolated collections for graph components that are not\n independently searchable.\n"
+  }, {
     "name" : "determineSearchCollection",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#determineSearchCollection",
     "returnType" : "java.lang.String",
@@ -182,6 +201,22 @@
     "varArgs" : false,
     "documentation" : " Extracts the revision number from the {@link Revision} annotation on the given object’s class.\n\n @return the revision number, or 0 if not present\n"
   }, {
+    "name" : "getRevisionNumberForType",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#getRevisionNumberForType",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extracts the revision number from the {@link Revision} annotation on the given type.\n\n @return the revision number, or 0 if not present\n"
+  }, {
     "name" : "getSearchParameters",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#getSearchParameters",
     "returnType" : "io.fluxzero.sdk.modeling.SearchParameters",
@@ -196,7 +231,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the effective {@link SearchParameters} for the given type, using the {@link Searchable} annotation.\n Defaults to a collection name matching the class’s simple name if not explicitly set.\n"
+    "documentation" : " Returns the effective {@link SearchParameters} for the given type. Ordinary searchable documents default to the\n class's simple name; Models default to their resolved logical name.\n"
   }, {
     "name" : "getTopic",
     "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils#getTopic",

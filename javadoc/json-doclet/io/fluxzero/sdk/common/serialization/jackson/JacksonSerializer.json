@@ -13,6 +13,14 @@
   "superClass" : "io.fluxzero.sdk.common.serialization.AbstractSerializer<com.fasterxml.jackson.databind.JsonNode>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.search.DocumentSerializer" ],
   "fields" : [ {
+    "name" : "BYTE_WORDS",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.BYTE_WORDS",
+    "type" : "java.lang.invoke.VarHandle",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "CLASS_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.CLASS_PROPERTY",
     "type" : "java.lang.String",
@@ -20,6 +28,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "@class"
+  }, {
+    "name" : "NULL_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.NULL_BYTES",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   }, {
     "name" : "contentFilter",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.contentFilter",
@@ -56,6 +72,14 @@
       "annotationType" : "lombok.Getter",
       "values" : {}
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "singlePassLargePayloads",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.singlePassLargePayloads",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -334,6 +358,22 @@
     "varArgs" : false,
     "documentation" : " Serializes the object to a JSON byte array.\n"
   }, {
+    "name" : "escapeProperty",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#escapeProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "fromDocument",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#fromDocument",
     "returnType" : "T",
@@ -409,6 +449,22 @@
     "varArgs" : false,
     "documentation" : " Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.\n"
   }, {
+    "name" : "hasZeroByte",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#hasZeroByte",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isKnownType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#isKnownType",
     "returnType" : "boolean",
@@ -439,6 +495,16 @@
       "type" : "byte[]",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -459,6 +525,78 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "modelStateSnapshot",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#modelStateSnapshot",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializedPropertyPaths",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#serializedPropertyPaths",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializedPropertyPaths",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#serializedPropertyPaths",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Maps standard bean properties using this mapper's naming, alias and unwrapping configuration. Custom codecs,\n dynamic output and type/root wrappers require an explicit mapping override; unsupported mappings fail closed.\n"
   }, {
     "name" : "toDocument",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#toDocument",
@@ -497,6 +635,43 @@
     }, {
       "name" : "metadata",
       "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unsupportedPropertyMapping",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#unsupportedPropertyMapping",
+    "returnType" : "java.lang.UnsupportedOperationException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "usesPropertyTypeId",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#usesPropertyTypeId",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inclusion",
+      "type" : "com.fasterxml.jackson.annotation.JsonTypeInfo.As",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

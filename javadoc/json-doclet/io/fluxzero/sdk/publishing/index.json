@@ -65,6 +65,11 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler",
     "kind" : "class"
   }, {
+    "file" : "DefaultRequestHandler.PreparedRequest.json",
+    "name" : "DefaultRequestHandler.PreparedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$PreparedRequest",
+    "kind" : "record"
+  }, {
     "file" : "DefaultRequestHandler.ResponseCallback.json",
     "name" : "DefaultRequestHandler.ResponseCallback",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback",
@@ -74,6 +79,21 @@
     "name" : "DefaultResultGateway",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway",
     "kind" : "class"
+  }, {
+    "file" : "DefaultResultGateway.BatchResponse.json",
+    "name" : "DefaultResultGateway.BatchResponse",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway$BatchResponse",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultResultGateway.PreparedResponse.json",
+    "name" : "DefaultResultGateway.PreparedResponse",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway$PreparedResponse",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultResultGateway.ResultPreparationErrorHandler.json",
+    "name" : "DefaultResultGateway.ResultPreparationErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway$ResultPreparationErrorHandler",
+    "kind" : "interface"
   }, {
     "file" : "DispatchInterceptor.json",
     "name" : "DispatchInterceptor",

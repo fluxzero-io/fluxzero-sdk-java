@@ -17,10 +17,7 @@
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession$PendingRequest.callback",
     "type" : "java.util.concurrent.CompletableFuture<R>",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.experimental.Delegate",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -44,6 +41,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "completeExceptionally",
+    "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession$PendingRequest#completeExceptionally",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "completeSafely",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession$PendingRequest#completeSafely",
     "returnType" : "void",

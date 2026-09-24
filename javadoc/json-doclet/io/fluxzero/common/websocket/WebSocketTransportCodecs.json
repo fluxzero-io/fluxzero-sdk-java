@@ -22,6 +22,43 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "binary",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#binary",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Negotiated binary codec. Protocol values without a compact representation retain the CBOR representation.\n"
+  }, {
+    "name" : "binary",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#binary",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadCodecs",
+      "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Negotiated binary codec extended with protocol-specific compact payload representations. "
+  }, {
     "name" : "cbor",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#cbor",
     "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
@@ -58,6 +95,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a codec for the supplied format.\n"
+  }, {
+    "name" : "forFormat",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#forFormat",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadCodecs",
+      "type" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a codec with optional protocol-specific compact payload representations. "
   }, {
     "name" : "json",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs#json",

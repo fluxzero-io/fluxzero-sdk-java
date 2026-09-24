@@ -72,6 +72,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getTypeNames",
+    "qualifiedName" : "io.fluxzero.common.serialization.DefaultTypeRegistry#getTypeNames",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadAllRegisteredTypes",
     "qualifiedName" : "io.fluxzero.common.serialization.DefaultTypeRegistry#loadAllRegisteredTypes",
     "returnType" : "java.util.List<java.lang.String>",

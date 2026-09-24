@@ -160,6 +160,17 @@
     "varArgs" : false,
     "documentation" : " Regulates message flow and backpressure behavior. Default is {@link NoOpFlowRegulator}.\n"
   }, {
+    "name" : "graphProjectionCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#graphProjectionCompletion",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Overrides graph-projection result completion for model commits handled by this consumer.\n"
+  }, {
     "name" : "handlerInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#handlerInterceptors",
     "returnType" : "java.lang.Class<? extends io.fluxzero.sdk.tracking.handling.HandlerInterceptor>[]",
@@ -202,7 +213,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Maximum serialized payload bytes to fetch in a batch.\n <p>\n The default {@link ConsumerConfiguration#USE_DEFAULT_MAX_FETCH_BYTES} inherits\n {@link ConsumerConfiguration#MAX_FETCH_BYTES_PROPERTY} when configured, otherwise\n {@link ConsumerConfiguration#DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit.\n"
+    "documentation" : " Maximum complete serialized message bytes to fetch in a batch.\n <p>\n The default {@link ConsumerConfiguration#USE_DEFAULT_MAX_FETCH_BYTES} inherits\n {@link ConsumerConfiguration#MAX_FETCH_BYTES_PROPERTY} when configured, otherwise\n {@link ConsumerConfiguration#DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit.\n"
   }, {
     "name" : "maxFetchSize",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#maxFetchSize",

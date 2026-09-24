@@ -159,6 +159,37 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "executables",
+      "type" : "java.util.Collection<? extends java.lang.reflect.Executable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.common.handling.HandlerConfiguration<? super M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Builds a matcher from centrally cached structural handler metadata.\n <p>\n This variant lets domain-specific metadata owners avoid a second reflective method scan while retaining the\n same parameter-resolution, applicability and invocation plan used by ordinary handlers.\n"
+  }, {
+    "name" : "inspect",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInspector#inspect",
+    "returnType" : "io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "parameterResolvers",
       "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super M>>",
       "varArgs" : false,

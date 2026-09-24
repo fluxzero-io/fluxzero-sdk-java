@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities",
     "kind" : "class"
   }, {
+    "file" : "WebSocketPayloadCodec.json",
+    "name" : "WebSocketPayloadCodec",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketPayloadCodec",
+    "kind" : "interface"
+  }, {
     "file" : "WebSocketTransportCodec.json",
     "name" : "WebSocketTransportCodec",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodec",

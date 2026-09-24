@@ -10,6 +10,30 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "expandedModelGraphs",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext.expandedModelGraphs",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "markModelGraphTypes",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext.markModelGraphTypes",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphSelections",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext.modelGraphSelections",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "names",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext.names",
     "type" : "java.util.Map<java.lang.String,java.lang.String>",
@@ -21,6 +45,14 @@
     "name" : "openApiVersion",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext.openApiVersion",
     "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "preparedModelGraphs",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext.preparedModelGraphs",
+    "type" : "java.util.Set<java.lang.String>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -59,6 +91,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "markType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext#markType",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext#name",
     "returnType" : "java.lang.String",
@@ -82,6 +130,22 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareModelGraph",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaContext#prepareModelGraph",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "root",
+      "type" : "javax.lang.model.element.TypeElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

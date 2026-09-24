@@ -109,6 +109,16 @@
     "name" : "StorePosition",
     "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition",
     "kind" : "class"
+  }, {
+    "file" : "TrackingWebSocketCodec.json",
+    "name" : "TrackingWebSocketCodec",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.TrackingWebSocketCodec",
+    "kind" : "enum"
+  }, {
+    "file" : "TrackingWireCodec.json",
+    "name" : "TrackingWireCodec",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.TrackingWireCodec",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

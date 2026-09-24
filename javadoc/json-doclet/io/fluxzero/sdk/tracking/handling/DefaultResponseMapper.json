@@ -65,6 +65,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "map",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultResponseMapper#map",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "mapPayload",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultResponseMapper#mapPayload",
     "returnType" : "java.lang.Object",

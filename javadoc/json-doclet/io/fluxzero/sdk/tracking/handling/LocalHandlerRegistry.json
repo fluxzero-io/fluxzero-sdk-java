@@ -181,6 +181,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "canSkipLocalHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#canSkipLocalHandling",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getLocalHandlers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#getLocalHandlers",
     "returnType" : "java.util.List<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",

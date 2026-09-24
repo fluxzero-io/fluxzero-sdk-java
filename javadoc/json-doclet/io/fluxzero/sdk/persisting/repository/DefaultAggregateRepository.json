@@ -531,8 +531,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "annotation",
-      "type" : "io.fluxzero.sdk.modeling.Aggregate",
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

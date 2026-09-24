@@ -55,6 +55,16 @@
     "qualifiedName" : "io.fluxzero.common.serialization.Revision",
     "kind" : "annotation_type"
   }, {
+    "file" : "SerializedMessagePackCodec.json",
+    "name" : "SerializedMessagePackCodec",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec",
+    "kind" : "class"
+  }, {
+    "file" : "SerializedMessagePackCodec.ReusableUnpacker.json",
+    "name" : "SerializedMessagePackCodec.ReusableUnpacker",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker",
+    "kind" : "class"
+  }, {
     "file" : "StripStringsModule.json",
     "name" : "StripStringsModule",
     "qualifiedName" : "io.fluxzero.common.serialization.StripStringsModule",

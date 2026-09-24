@@ -103,6 +103,34 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepareAsyncInvocation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#prepareAsyncInvocation",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requiresBatchSegmentOrder",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#requiresBatchSegmentOrder",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker$DelegatingHandlerInvoker#toString",
     "returnType" : "java.lang.String",

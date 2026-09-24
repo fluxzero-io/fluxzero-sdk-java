@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.caching.MemoryPressureController" ],
   "fields" : [ {
+    "name" : "DEFAULT_GC_CACHE_UTILIZATION_PERCENT",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.DEFAULT_GC_CACHE_UTILIZATION_PERCENT",
+    "type" : "int",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 50
+  }, {
     "name" : "DEFAULT_GC_TIME_THRESHOLD_PERCENT",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.DEFAULT_GC_TIME_THRESHOLD_PERCENT",
     "type" : "int",
@@ -48,11 +56,19 @@
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
-    "constantValue" : 100
+    "constantValue" : 5000
   }, {
     "name" : "collectionMillisSupplier",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.collectionMillisSupplier",
     "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gcCacheUtilizationPercent",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController.gcCacheUtilizationPercent",
+    "type" : "int",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -257,6 +273,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "gcCacheUtilizationPercent",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "trimRatioPercent",
       "type" : "int",
       "varArgs" : false,
@@ -272,6 +293,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "cacheUtilizationLooksHigh",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#cacheUtilizationLooksHigh",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "collectionMillisSupplier",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#collectionMillisSupplier",
     "returnType" : "java.util.function.LongSupplier",
@@ -291,7 +333,7 @@
     "name" : "gcTimeLooksHigh",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#gcTimeLooksHigh",
     "returnType" : "boolean",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "synchronized" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -320,6 +362,27 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "postCollectionUsedMemorySupplier",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#postCollectionUsedMemorySupplier",
+    "returnType" : "java.util.function.LongSupplier",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "memoryPools",
+      "type" : "java.util.List<java.lang.management.MemoryPoolMXBean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallback",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -369,6 +432,27 @@
     }, {
       "name" : "defaultValue",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "saturatedAdd",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController$JvmMemoryPressureController#saturatedAdd",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

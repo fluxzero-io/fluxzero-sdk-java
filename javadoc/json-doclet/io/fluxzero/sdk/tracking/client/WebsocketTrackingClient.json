@@ -211,6 +211,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#payloadCodecs",
+    "returnType" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "read",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#read",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",

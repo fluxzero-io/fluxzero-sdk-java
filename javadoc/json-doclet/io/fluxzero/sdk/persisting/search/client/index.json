@@ -15,6 +15,31 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore",
     "kind" : "class"
   }, {
+    "file" : "InMemorySearchStore.DirectDocumentVersion.json",
+    "name" : "InMemorySearchStore.DirectDocumentVersion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion",
+    "kind" : "record"
+  }, {
+    "file" : "InMemorySearchStore.DocumentUpdateLog.json",
+    "name" : "InMemorySearchStore.DocumentUpdateLog",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DocumentUpdateLog",
+    "kind" : "class"
+  }, {
+    "file" : "InMemorySearchStore.ModelDocumentCollectionResolver.json",
+    "name" : "InMemorySearchStore.ModelDocumentCollectionResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelDocumentCollectionResolver",
+    "kind" : "interface"
+  }, {
+    "file" : "InMemorySearchStore.ModelGraphResolver.json",
+    "name" : "InMemorySearchStore.ModelGraphResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelGraphResolver",
+    "kind" : "interface"
+  }, {
+    "file" : "InMemorySearchStore.ModelRelationResolver.json",
+    "name" : "InMemorySearchStore.ModelRelationResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelRelationResolver",
+    "kind" : "interface"
+  }, {
     "file" : "LocalDocumentHandlerRegistry.json",
     "name" : "LocalDocumentHandlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry",

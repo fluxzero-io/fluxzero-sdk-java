@@ -15,6 +15,21 @@
     "qualifiedName" : "io.fluxzero.common.Backlog$BatchConsumer",
     "kind" : "interface"
   }, {
+    "file" : "Backlog.ConsumerBatch.json",
+    "name" : "Backlog.ConsumerBatch",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch",
+    "kind" : "record"
+  }, {
+    "file" : "Backlog.Submission.json",
+    "name" : "Backlog.Submission",
+    "qualifiedName" : "io.fluxzero.common.Backlog$Submission",
+    "kind" : "class"
+  }, {
+    "file" : "Backlog.SubmissionSlice.json",
+    "name" : "Backlog.SubmissionSlice",
+    "qualifiedName" : "io.fluxzero.common.Backlog$SubmissionSlice",
+    "kind" : "class"
+  }, {
     "file" : "ConsistentHashing.json",
     "name" : "ConsistentHashing",
     "qualifiedName" : "io.fluxzero.common.ConsistentHashing",
@@ -130,10 +145,15 @@
     "qualifiedName" : "io.fluxzero.common.ObjectUtils$BreakingSpliterator",
     "kind" : "class"
   }, {
-    "file" : "ObjectUtils.PrefixedThreadFactory.json",
-    "name" : "ObjectUtils.PrefixedThreadFactory",
-    "qualifiedName" : "io.fluxzero.common.ObjectUtils$PrefixedThreadFactory",
+    "file" : "ObjectUtils.CpuWorkers.json",
+    "name" : "ObjectUtils.CpuWorkers",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$CpuWorkers",
     "kind" : "class"
+  }, {
+    "file" : "ObjectUtils.ParallelResult.json",
+    "name" : "ObjectUtils.ParallelResult",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$ParallelResult",
+    "kind" : "record"
   }, {
     "file" : "Registration.json",
     "name" : "Registration",
@@ -235,6 +255,12 @@
   }, {
     "name" : "handling",
     "path" : "handling"
+  }, {
+    "name" : "jfr",
+    "path" : "jfr"
+  }, {
+    "name" : "modeling",
+    "path" : "modeling"
   }, {
     "name" : "reflection",
     "path" : "reflection"

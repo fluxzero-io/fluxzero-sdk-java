@@ -183,6 +183,27 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelCommitExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero.modelCommitExecutor",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero.modelRepository",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "propertySource",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero.propertySource",
     "type" : "io.fluxzero.common.application.PropertySource",
@@ -347,6 +368,143 @@
     "parameters" : [ {
       "name" : "topic",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeModelAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#executeModelAssertions",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#executeModelCommit",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#executeModelCommit",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeModelCommits",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#executeModelCommits",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.sdk.common.Message>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeStoredModelEvent",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#executeStoredModelEvent",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "migratePublishedEvent",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#migratePublishedEvent",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerMigrationTypes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#registerMigrationTypes",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

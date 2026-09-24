@@ -167,6 +167,17 @@
     "documentation" : " Constructs a {@code Data} instance with a {@link Supplier} to support lazy access.\n"
   } ],
   "methods" : [ {
+    "name" : "byteArrayView",
+    "qualifiedName" : "io.fluxzero.common.api.Data#byteArrayView",
+    "returnType" : "io.fluxzero.common.api.Data.ByteArrayView",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a read-only byte range when the value supplier can expose one without materializing a new array.\n\n @return the byte range, or {@code null} for ordinary values and suppliers\n"
+  }, {
     "name" : "data",
     "qualifiedName" : "io.fluxzero.common.api.Data#data",
     "returnType" : "io.fluxzero.common.api.Data<T>",
@@ -276,5 +287,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ByteArrayView",
+    "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

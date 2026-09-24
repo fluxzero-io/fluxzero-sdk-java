@@ -16,6 +16,14 @@
   "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.publishing.RequestHandler>",
   "interfaces" : [ "io.fluxzero.sdk.publishing.RequestHandler" ],
   "fields" : [ {
+    "name" : "RESPONSE_MAX_FETCH_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.RESPONSE_MAX_FETCH_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "callbacks",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.callbacks",
     "type" : "java.util.Map<java.lang.Integer,io.fluxzero.sdk.publishing.DefaultRequestHandler.ResponseCallback>",
@@ -68,6 +76,14 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.responseExecutor",
     "type" : "java.util.concurrent.ExecutorService",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseProcessing",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.responseProcessing",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -240,7 +256,7 @@
     "name" : "handleResults",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#handleResults",
     "returnType" : "void",
-    "modifiers" : [ "protected" ],
+    "modifiers" : [ "protected", "synchronized" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -272,6 +288,84 @@
     }, {
       "name" : "intermediateCallback",
       "type" : "java.util.function.Consumer<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#prepareRequest",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.PreparedRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "intermediateCallback",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleTimeout",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "processResults",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#processResults",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scheduleBatchTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#scheduleBatchTimeout",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestIds",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "results",
+      "type" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.common.api.SerializedMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -395,6 +489,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "timeoutException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#timeoutException",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "timeoutExecutor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#timeoutExecutor",
     "returnType" : "java.util.concurrent.ScheduledThreadPoolExecutor",
@@ -409,6 +529,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "PreparedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$PreparedRequest",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "ResponseCallback",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler$ResponseCallback",
     "kind" : "class",

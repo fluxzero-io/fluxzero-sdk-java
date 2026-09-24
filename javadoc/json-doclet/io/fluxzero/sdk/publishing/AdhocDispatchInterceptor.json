@@ -60,7 +60,7 @@
     "name" : "hasAdhocInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#hasAdhocInterceptor",
     "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -169,6 +169,45 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Optionally modifies the serialized message before dispatch, delegating to any registered ad hoc interceptor for\n the current thread.\n"
+  }, {
+    "name" : "modifySerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#modifySerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serialized",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "monitorDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.AdhocDispatchInterceptor#monitorDispatch",

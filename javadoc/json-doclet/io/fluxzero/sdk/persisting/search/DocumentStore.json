@@ -1273,10 +1273,10 @@
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#search",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
-    "typeParameters" : [ ],
+    "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "queryBuilder",
       "type" : "io.fluxzero.common.api.search.SearchQuery.Builder",
@@ -1289,10 +1289,29 @@
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#search",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
-    "typeParameters" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares a typed search for the collection represented by the given document class.\n <p>\n For independent Models, unrestricted search requires a public direct document. Adding a relationship selector\n can instead use a direct reference-only or internal Graph-component document. Neither route replays Models or\n inherits a handler's historical boundary. See {@link Search} for capabilities and consistency limits.\n"
+  }, {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "collection",
       "type" : "java.lang.@lombok.NonNull Object",
@@ -1305,6 +1324,49 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Prepares a search query for one or more document collections. {@code  collections} may be a\n {@link Collection list} of collections. Collection names are resolved using\n {@link #determineCollection(Object)}.\n"
+  }, {
+    "name" : "searchGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#searchGraph",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootModelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Searches complete graph views for an independent model root.\n <p>\n A configured materialized graph collection is used by default. If the root has no materialized projection, the\n current graph is composed live from its public or private current document and explicit parent paths.\n A root without any current document is rejected; having children alone does not supply that root document.\n <p>\n Results contain complete composed documents, not pathless relationships. Graph predicates select roots without\n pruning their nonmatching children. {@link Graph#get()} returns only the root Model value; navigate children\n through the Graph. Use raw JSON results when configuring output field selection.\n <p>\n Live composition applies root and nested field predicates, ordering and pagination after composition; related\n selectors can narrow candidate roots first. It reads current documents, not an atomic historical snapshot.\n Materialized projections may lag commits. Related predicates still select current related documents even when\n the returned projection is older. These searches do not inherit an event boundary or a transaction readset.\n"
+  }, {
+    "name" : "searchGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#searchGraph",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootModelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "forceAdHoc",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Searches complete graph views for an independent model root.\n\n @param rootModelType root model class\n @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

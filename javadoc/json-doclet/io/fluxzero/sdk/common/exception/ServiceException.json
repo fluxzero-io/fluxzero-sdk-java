@@ -9,7 +9,18 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.RuntimeException",
   "interfaces" : [ ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "modelHistoryUnavailable",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.ServiceException.modelHistoryUnavailable",
+    "type" : "io.fluxzero.common.api.ErrorResult.ModelHistoryUnavailable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : "Typed historical-read evidence, or null for an ordinary request failure or an older Runtime response. ",
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "ServiceException",
     "qualifiedName" : "io.fluxzero.sdk.common.exception.ServiceException#ServiceException",
@@ -25,6 +36,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs a new exception with the specified error message.\n\n @param message the message describing the failure\n"
+  }, {
+    "name" : "ServiceException",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.ServiceException#ServiceException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelHistoryUnavailable",
+      "type" : "io.fluxzero.common.api.ErrorResult.ModelHistoryUnavailable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Constructs a request failure preserving the Runtime's optional historical-read evidence. "
   } ],
   "methods" : [ ],
   "enumConstants" : [ ],

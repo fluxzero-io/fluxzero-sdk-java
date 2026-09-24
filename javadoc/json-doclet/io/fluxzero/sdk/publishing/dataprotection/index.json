@@ -25,9 +25,24 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$PendingProtectedData",
     "kind" : "class"
   }, {
+    "file" : "DataProtectionInterceptor.PreparedProtection.json",
+    "name" : "DataProtectionInterceptor.PreparedProtection",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$PreparedProtection",
+    "kind" : "record"
+  }, {
+    "file" : "DataProtectionInterceptor.ProtectionContext.json",
+    "name" : "DataProtectionInterceptor.ProtectionContext",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$ProtectionContext",
+    "kind" : "class"
+  }, {
     "file" : "DataProtectionInterceptor.RestoredMessage.json",
     "name" : "DataProtectionInterceptor.RestoredMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$RestoredMessage",
+    "kind" : "record"
+  }, {
+    "file" : "DataProtectionInterceptor.RestoredValue.json",
+    "name" : "DataProtectionInterceptor.RestoredValue",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$RestoredValue",
     "kind" : "record"
   }, {
     "file" : "DropProtectedData.json",

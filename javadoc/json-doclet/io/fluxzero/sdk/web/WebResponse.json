@@ -589,7 +589,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Serializes the response using the content type if applicable.\n"
+    "documentation" : " Serializes the response using the content type if applicable. A Graph payload is sent as its composed\n JSON document, not as a reconstructible Graph implementation. Content filtering must precede serialization.\n"
   }, {
     "name" : "toBuilder",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse#toBuilder",

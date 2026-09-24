@@ -31,6 +31,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "payloadClass",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject.payloadClass",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "serializedObject",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject.serializedObject",
     "type" : "S",

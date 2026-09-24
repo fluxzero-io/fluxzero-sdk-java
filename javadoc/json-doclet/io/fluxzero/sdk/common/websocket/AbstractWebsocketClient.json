@@ -66,6 +66,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1024
+  }, {
     "name" : "MAX_RECONNECT_DELAY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.MAX_RECONNECT_DELAY",
     "type" : "java.time.Duration",
@@ -164,6 +172,22 @@
   }, {
     "name" : "TRANSPORT_METRIC_PUBLICATION_TIMEOUT",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.TRANSPORT_METRIC_PUBLICATION_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "WEBSOCKET_REQUEST_BATCH_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WEBSOCKET_REQUEST_BATCH_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "WEBSOCKET_REQUEST_COLLECTION_DELAY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WEBSOCKET_REQUEST_COLLECTION_DELAY",
     "type" : "java.time.Duration",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
@@ -325,6 +349,14 @@
     "name" : "resultExecutor",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.resultExecutor",
     "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resultHandlingContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.resultHandlingContext",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.ResultHandlingContext>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -644,6 +676,43 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ "java.lang.InterruptedException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#applyCorrelationData",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "correlationData",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "captureCorrelationData",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#captureCorrelationData",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   }, {
@@ -1037,6 +1106,58 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "failReceivedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#failReceivedRequest",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "failReceivedRequests",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#failReceivedRequests",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "receivedRequests",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "start",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getCloseHandshakeTimeout",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#getCloseHandshakeTimeout",
     "returnType" : "java.time.Duration",
@@ -1232,6 +1353,62 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Invoked asynchronously after the pong deadline has been acknowledged on the protocol callback path.\n Subclasses may override this method for observation but should not perform liveness bookkeeping themselves.\n"
+  }, {
+    "name" : "handlePreparedResult",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handlePreparedResult",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.RequestResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "preparation",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "frameTiming",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketResultDiagnostics.FrameTiming",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "decodedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "decodeDuration",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "callbackQueuedTimestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "handleResult",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#handleResult",
@@ -1442,6 +1619,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "jfrResultType",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#jfrResultType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "results",
+      "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Classifies decoded results for optional protocol-specific JFR diagnostics. "
+  }, {
     "name" : "logConnectionRetryStatus",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#logConnectionRetryStatus",
     "returnType" : "void",
@@ -1480,6 +1673,33 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maxRequestBatchSize",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#maxRequestBatchSize",
+    "returnType" : "int",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.Request>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the maximum transport chunk for the supplied requests. "
+  }, {
+    "name" : "metricsEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#metricsEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1768,6 +1988,174 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "outstandingRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#outstandingRequest",
+    "returnType" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the still-outstanding request for a decoded response, or {@code null} when it is no longer pending. "
+  }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#payloadCodecs",
+    "returnType" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns compact payload codecs owned by this concrete protocol client. "
+  }, {
+    "name" : "prepareRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#prepareRequest",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.PreparedRequest<R>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Captures a request without releasing it to the websocket queue yet. "
+  }, {
+    "name" : "prepareRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#prepareRequest",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.PreparedRequest<R>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Captures a request and result context without releasing it to the websocket queue yet. "
+  }, {
+    "name" : "prepareResultGroup",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#prepareResultGroup",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "results",
+      "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requests",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareResults",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#prepareResults",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "results",
+      "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestContexts",
+      "type" : "java.util.List<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Allows a specialized client to complete request-owned work for a decoded result group before individual request\n futures are released.\n"
+  }, {
+    "name" : "publishRequestMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishRequestMetrics",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "correlationData",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "publishResultMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishResultMetrics",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.RequestResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clientResultTiming",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketResultDiagnostics.ResultTiming",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "webSocketRequest",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "publishTransportMetric",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishTransportMetric",
     "returnType" : "void",
@@ -1820,6 +2208,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "receiveResultContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#receiveResultContext",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.RequestResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "receiveResultContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#receiveResultContext",
+    "returnType" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "results",
+      "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "reconnectBackoffEnabled",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#reconnectBackoffEnabled",
     "returnType" : "boolean",
@@ -1829,6 +2249,27 @@
     "parameters" : [ {
       "name" : "propertySource",
       "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestBacklog",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#requestBacklog",
+    "returnType" : "io.fluxzero.common.Backlog<io.fluxzero.common.api.Request>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1852,10 +2293,10 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "resultCallback",
-    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#resultCallback",
-    "returnType" : "java.lang.Runnable",
-    "modifiers" : [ "private" ],
+    "name" : "restoreResultContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#restoreResultContext",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -1864,34 +2305,30 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "batchId",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "sessionId",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "frameTiming",
-      "type" : "io.fluxzero.sdk.common.websocket.WebsocketResultDiagnostics.FrameTiming",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "decodedTimestamp",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "decodeDuration",
-      "type" : "long",
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Restores context from the request that belongs to a decoded result before grouped result preparation starts.\n"
+  }, {
+    "name" : "restoreResultContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#restoreResultContext",
+    "returnType" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "results",
+      "type" : "java.util.List<io.fluxzero.common.api.RequestResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restores request-owned context that a specialized compact response deliberately omits from the wire.\n"
   }, {
     "name" : "retryOutstandingRequests",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#retryOutstandingRequests",
@@ -2001,6 +2438,27 @@
   }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sends a request with context retained locally until its result is decoded. "
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#send",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "private" ],
     "annotations" : [ {
@@ -2015,7 +2473,7 @@
       "annotations" : [ ]
     }, {
       "name" : "correlationData",
-      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -2116,6 +2574,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendBatchChunkAsync",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendBatchChunkAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.Request>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendCommand",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendCommand",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -2193,6 +2672,48 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendPreparedRequests",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendPreparedRequests",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "preparedRequests",
+      "type" : "java.util.List<? extends io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.PreparedRequest<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Releases prepared requests per selected session in one queue operation. "
+  }, {
+    "name" : "sendUntracked",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendUntracked",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "correlationData",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "serverMsDuration",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#serverMsDuration",
     "returnType" : "java.lang.Long",
@@ -2251,6 +2772,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "startRequestBatchEvent",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#startRequestBatchEvent",
+    "returnType" : "io.fluxzero.common.jfr.FluxzeroJfr.Batch",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.Request>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Starts an optional request-batch event owned by the concrete protocol client. "
   }, {
     "name" : "submitRuntimeResult",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#submitRuntimeResult",
@@ -2466,6 +3003,18 @@
       "annotationType" : "java.lang.FunctionalInterface",
       "values" : {}
     } ]
+  }, {
+    "name" : "PreparedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest",
+    "kind" : "class",
+    "modifiers" : [ "final", "protected" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ResultHandlingContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ResultHandlingContext",
+    "kind" : "class",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ]
   }, {
     "name" : "RuntimeIngressLiveness",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeIngressLiveness",

@@ -5,10 +5,10 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " Represents the root of an aggregate in a domain model.\n <p>\n An {@code AggregateRoot} is a specialized {@link Entity} that serves as the entry point for a consistency boundary\n in domain-driven design.\n <p>\n Unlike nested entities, an {@code AggregateRoot}'s {@link #parent()} is always {@code null}, as it is the top-level\n context for its child entities.\n <p>\n {@link #previous()} can be used to access the prior version of the aggregate, enabling differential processing.\n\n @param <T> the type of the underlying domain object\n\n @see Entity\n @see Aggregate\n",
+  "documentation" : " Represents the root of a legacy aggregate in a domain model.\n <p>\n This compatibility specialization retains aggregate vocabulary while the shared persisted-root contract lives in\n {@link PersistedRoot}. Existing aggregate implementations and callers remain valid.\n\n @param <T> the type of the underlying domain object\n\n @see Entity\n @see Aggregate\n @see PersistedRoot\n",
   "typeParameters" : [ "T" ],
   "superClass" : null,
-  "interfaces" : [ "io.fluxzero.sdk.modeling.Entity<T>" ],
+  "interfaces" : [ "io.fluxzero.sdk.modeling.PersistedRoot<T>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {

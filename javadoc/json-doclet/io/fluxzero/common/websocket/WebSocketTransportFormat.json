@@ -50,6 +50,11 @@
     "documentation" : null
   } ],
   "enumConstants" : [ {
+    "name" : "BINARY",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY",
+    "annotations" : [ ],
+    "documentation" : " Native binary transport. Serialized messages use a patchable envelope with opaque payload and metadata bytes;\n protocol values without a compact representation use CBOR.\n"
+  }, {
     "name" : "CBOR",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR",
     "annotations" : [ ],

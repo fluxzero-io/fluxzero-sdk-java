@@ -161,6 +161,32 @@
     "varArgs" : false,
     "documentation" : " Returns whether the cache is empty.\n\n @return {@code true} if the cache is empty; otherwise {@code false}\n"
   }, {
+    "name" : "mergeAll",
+    "qualifiedName" : "io.fluxzero.common.caching.Cache#mergeAll",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<?,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mergeFunction",
+      "type" : "java.util.function.BiFunction<? super T,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Merges a bounded group of candidate values into this cache.\n <p>\n The default implementation preserves the ordinary per-key {@link #compute(Object, BiFunction)} contract.\n Implementations may override this method to reduce lock transitions while retaining the same per-key merge\n semantics. The group as a whole is not an atomic transaction.\n\n @param values        candidate value by cache key\n @param mergeFunction selects the retained value from the current and candidate value\n @param <T>           value type\n"
+  }, {
     "name" : "modifyEach",
     "qualifiedName" : "io.fluxzero.common.caching.Cache#modifyEach",
     "returnType" : "void",
@@ -272,6 +298,105 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the number of entries currently stored in the cache.\n\n @return the number of entries\n"
+  }, {
+    "name" : "supplyAll",
+    "qualifiedName" : "io.fluxzero.common.caching.Cache#supplyAll",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "lookups",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "valueConsumer",
+      "type" : "java.util.function.BiConsumer<? super U,? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Supplies every present value from an ordered group of lookups.\n <p>\n The default implementation preserves the ordinary per-key {@link #get(Object)} contract. Implementations may\n override this method to amortize shared bookkeeping or lock transitions, but must retain the same per-key access\n and eviction semantics in iteration order.\n\n @param lookups       lookup values\n @param keyFunction   derives the cache key for a lookup\n @param valueConsumer receives a lookup and its cached value when present\n @param <U>           lookup value type\n @param <T>           cache value type\n"
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.Cache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies an ordered group of updates while deriving each cache key from the update value.\n <p>\n Unlike the map-shaped overload, this form permits repeated keys and applies them in iteration order. The default\n implementation preserves the ordinary per-key {@link #compute(Object, BiFunction)} contract; implementations\n may override it to amortize locking and pressure bookkeeping.\n\n @param updates        ordered update values\n @param keyFunction    derives the cache key for an update\n @param updateFunction applies an update to the current cached value\n @param <U>            update value type\n @param <T>            cache value type\n"
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.Cache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies an ordered group of updates using a possibly transient lookup key and a stable key for new entries.\n\n <p>The default implementation uses only {@code retainedKeyFunction}, preserving the ordinary cache contract for\n custom implementations. Caches that can distinguish lookup from insertion may override this method to avoid\n allocating a stable key when an existing entry is merely replaced. A lookup key must compare equal to its\n retained counterpart for the duration of the lookup and must never be retained by an implementation.</p>\n\n @param updates             ordered update values\n @param lookupKeyFunction   derives a key that may be reused after each lookup\n @param retainedKeyFunction derives the stable key to retain when an entry must be inserted\n @param updateFunction      applies an update to the current cached value\n @param <U>                 update value type\n @param <T>                 cache value type\n"
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.Cache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<?,? extends java.util.function.Function<? super T,? extends T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies independent per-key update functions as one bounded cache operation.\n <p>\n The default implementation preserves the ordinary per-key {@link #compute(Object, BiFunction)} contract.\n Implementations may override this method to amortize shared bookkeeping or lock transitions. The group as a\n whole is not an atomic transaction.\n\n @param updates update function by cache key\n @param <T>     value type\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

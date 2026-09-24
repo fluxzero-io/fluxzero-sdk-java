@@ -40,6 +40,21 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler$DocumentHandlerInvoker",
     "kind" : "class"
   }, {
+    "file" : "DocumentHandlerDecorator.DocumentHandler.ModelGraphDocumentHandlerInvoker.json",
+    "name" : "DocumentHandlerDecorator.DocumentHandler.ModelGraphDocumentHandlerInvoker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler$ModelGraphDocumentHandlerInvoker",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentHandlerDecorator.GraphDocumentWriter.json",
+    "name" : "DocumentHandlerDecorator.GraphDocumentWriter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$GraphDocumentWriter",
+    "kind" : "interface"
+  }, {
+    "file" : "DocumentHandlerTopics.json",
+    "name" : "DocumentHandlerTopics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics",
+    "kind" : "class"
+  }, {
     "file" : "HandleCommand.json",
     "name" : "HandleCommand",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCommand",
@@ -240,6 +255,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation",
     "kind" : "class"
   }, {
+    "file" : "Invocation.ResultObservation.json",
+    "name" : "Invocation.ResultObservation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultObservation",
+    "kind" : "class"
+  }, {
     "file" : "Invocation.ResultPublicationBarrier.json",
     "name" : "Invocation.ResultPublicationBarrier",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",
@@ -358,6 +378,11 @@
     "file" : "RequestAnnotationProcessor.json",
     "name" : "RequestAnnotationProcessor",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestAnnotationProcessor",
+    "kind" : "class"
+  }, {
+    "file" : "RequestGraphResponseInterceptor.json",
+    "name" : "RequestGraphResponseInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.RequestGraphResponseInterceptor",
     "kind" : "class"
   }, {
     "file" : "ResponseMapper.json",

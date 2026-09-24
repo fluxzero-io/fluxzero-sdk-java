@@ -174,7 +174,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Scans source messages until the source count or accepted-message byte budget is exhausted.\n <p>\n The first accepted message is returned even when it exceeds {@code maxBytes}, so consumers can keep making\n progress.\n\n @param source   source messages in index order\n @param maxSize  maximum number of source messages to scan\n @param maxBytes maximum accepted-message payload bytes, or {@code 0} for no byte limit\n @param filter   predicate deciding which messages enter the returned batch\n @return a batch with both accepted messages and source scan metadata\n"
+    "documentation" : " Scans source messages until the source count or accepted-message byte budget is exhausted.\n <p>\n The first accepted message is returned even when it exceeds {@code maxBytes}, so consumers can keep making\n progress.\n\n @param source   source messages in index order\n @param maxSize  maximum number of source messages to scan\n @param maxBytes maximum accepted complete-message bytes, or {@code 0} for no byte limit\n @param filter   predicate deciding which messages enter the returned batch\n @return a batch with both accepted messages and source scan metadata\n"
   }, {
     "name" : "scannedSize",
     "qualifiedName" : "io.fluxzero.common.tracking.MessageStoreBatch#scannedSize",

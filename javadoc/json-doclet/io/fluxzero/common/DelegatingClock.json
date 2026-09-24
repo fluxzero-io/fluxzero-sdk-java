@@ -69,6 +69,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "millis",
+    "qualifiedName" : "io.fluxzero.common.DelegatingClock#millis",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "onChange",
     "qualifiedName" : "io.fluxzero.common.DelegatingClock#onChange",
     "returnType" : "io.fluxzero.common.Registration",

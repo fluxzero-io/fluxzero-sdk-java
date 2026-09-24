@@ -12,6 +12,27 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "canSkipCast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#canSkipCast",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "I",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this chain is guaranteed to return the input as one unchanged logical value.\n\n <p>The default is deliberately conservative. Implementations may return {@code true} only when no caster can\n drop, split or transform this input at the requested revision.</p>\n"
+  }, {
     "name" : "castFirstOrNull",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#castFirstOrNull",
     "returnType" : "O",
@@ -53,6 +74,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Composes this caster chain with input and output interceptors. Allows pre- and post-processing transformations\n around the casting logic.\n\n @param before a function to convert from {@code BEFORE} to {@code I}\n @param after  a function to convert from {@code O} to {@code AFTER}\n @param <BEFORE> the new input type\n @param <AFTER> the new output type\n @return a new {@code CasterChain} with adapted input/output types\n"
+  }, {
+    "name" : "prepareForSkippingCast",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#prepareForSkippingCast",
+    "returnType" : "I",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "I",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rev",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares an input for direct deserialization when no content caster can transform, split or drop it.\n Implementations may normalize its type identifier, but must not execute content casters or converters.\n\n <p>Returns the prepared input, or {@code null} when the ordinary casting path is required. The default is\n deliberately conservative, including for intercepted chains whose callbacks may transform their input.</p>\n\n @param input the input value\n @param rev the target revision number (nullable)\n @return the input with any required type normalization, or {@code null} if casting cannot safely be skipped\n"
   }, {
     "name" : "registerCasterCandidates",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.CasterChain#registerCasterCandidates",

@@ -734,6 +734,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "trackingBatchEvent",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#trackingBatchEvent",
+    "returnType" : "io.fluxzero.common.jfr.FluxzeroJfr.Batch",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "withFluxzeroBatchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#withFluxzeroBatchInterceptors",
     "returnType" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",

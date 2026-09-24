@@ -45,6 +45,11 @@
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate",
     "kind" : "record"
   }, {
+    "file" : "MemoryAwareCacheSupport.WeightUnit.json",
+    "name" : "MemoryAwareCacheSupport.WeightUnit",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit",
+    "kind" : "enum"
+  }, {
     "file" : "MemoryAwareCacheSupportEviction.json",
     "name" : "MemoryAwareCacheSupportEviction",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction",

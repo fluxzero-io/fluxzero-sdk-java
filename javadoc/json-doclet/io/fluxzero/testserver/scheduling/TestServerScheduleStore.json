@@ -186,6 +186,35 @@
     "varArgs" : true,
     "documentation" : null
   }, {
+    "name" : "scheduleBoundToParents",
+    "qualifiedName" : "io.fluxzero.testserver.scheduling.TestServerScheduleStore#scheduleBoundToParents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedules",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.testserver.scheduling.TestServerScheduleStore#truncate",
     "returnType" : "void",

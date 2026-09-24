@@ -6,7 +6,9 @@
   "modifiers" : [ "public" ],
   "annotations" : [ {
     "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
+    "values" : {
+      "access" : "PRIVATE"
+    }
   } ],
   "documentation" : " A handler registry implementation intended for local testing and development that registers handlers for document\n updates in a specific collection.\n\n @see InMemorySearchStore\n @see HandlerRegistry\n",
   "typeParameters" : [ ],
@@ -24,6 +26,14 @@
     "name" : "dispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry.dispatchInterceptor",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documentReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry.documentReader",
+    "type" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -62,7 +72,27 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerRegistry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

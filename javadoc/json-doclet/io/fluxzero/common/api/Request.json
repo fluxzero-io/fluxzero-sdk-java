@@ -35,13 +35,28 @@
   "constructors" : [ {
     "name" : "Request",
     "qualifiedName" : "io.fluxzero.common.api.Request#Request",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Request",
+    "qualifiedName" : "io.fluxzero.common.api.Request#Request",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restores a transport-assigned request identifier.\n\n <p>This constructor is reserved for lossless protocol decoding. Application requests should\n continue to use the no-argument constructor so identifiers remain unique within the client.\n"
   } ],
   "methods" : [ ],
   "enumConstants" : [ ],

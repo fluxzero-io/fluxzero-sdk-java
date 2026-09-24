@@ -57,6 +57,25 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "request",
+      "type" : "io.fluxzero.common.api.search.AdoptModelMigration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
       "type" : "io.fluxzero.common.api.search.BulkUpdateDocuments",
       "varArgs" : false,
       "annotations" : [ ]
@@ -219,6 +238,44 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationResult",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetModelMigration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationsResult",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetModelMigrations",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
     "returnType" : "io.fluxzero.common.api.search.GetSearchCollectionsResult",
     "modifiers" : [ ],
     "annotations" : [ {
@@ -333,6 +390,44 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.RewriteModelGraphDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.RewriteModelSourceDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
     "returnType" : "io.fluxzero.common.api.search.SearchDocumentsResult",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -343,6 +438,44 @@
     "parameters" : [ {
       "name" : "request",
       "type" : "io.fluxzero.common.api.search.SearchDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "io.fluxzero.common.api.search.SearchDocumentsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.SearchModelDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
+    "returnType" : "io.fluxzero.common.api.search.SearchDocumentsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.SearchModelGraphDocuments",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

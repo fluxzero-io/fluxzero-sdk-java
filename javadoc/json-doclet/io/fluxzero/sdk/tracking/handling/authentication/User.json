@@ -60,6 +60,20 @@
     "varArgs" : false,
     "documentation" : " Returns the user currently associated with the executing thread.\n\n @param <U> the expected user subtype\n @return the current {@code User}, or {@code null} if none is set\n"
   }, {
+    "name" : "getName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#getName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this user's principal name, using the explicit identity when no separate name is supplied.\n Override this method for a distinct principal or display name; identity-dependent behavior still uses\n {@link #id()}. This one-way default does not infer an identity from a name.\n\n @return the principal name\n"
+  }, {
     "name" : "hasRole",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#hasRole",
     "returnType" : "boolean",
@@ -79,13 +93,13 @@
     "name" : "id",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#id",
     "returnType" : "java.lang.String",
-    "modifiers" : [ "default", "public" ],
+    "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the stable identifier of this user.\n <p>\n The default delegates to {@link #getName()} so existing {@code User} implementations remain source-, binary-,\n and behavior-compatible. Implementations should override this method when the principal name is not a stable\n application user identifier. Fluxzero uses this value for user metadata, provider lookups, and diagnostics that\n identify the acting user.\n\n @return the stable user identifier\n"
+    "documentation" : " Returns the stable identifier of this user.\n <p>\n Every implementation must supply this identity explicitly. There is no fallback to {@link #getName()}; a\n principal or display name is not an identity contract. Fluxzero uses this value for ID-based user metadata,\n provider lookups, and diagnostics that identify the acting user. Implementations should return a non-null,\n stable identifier that their {@link UserProvider} can resolve.\n\n @return the stable user identifier\n"
   }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#run",

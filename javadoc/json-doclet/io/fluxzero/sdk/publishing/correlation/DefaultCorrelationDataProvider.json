@@ -25,6 +25,25 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "getCorrelationMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider#getCorrelationMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentMessage",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the default correlation data directly in its compact metadata representation.\n\n @param currentMessage the message currently being handled, or {@code null}\n @return compact correlation metadata equivalent to {@link #getCorrelationData(DeserializingMessage)}\n"
+  }, {
     "name" : "valueOf",
     "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider#valueOf",
     "returnType" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",

@@ -43,7 +43,60 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ReadResult",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ReadResult#ReadResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "requestId"
+        }
+      } ]
+    }, {
+      "name" : "messageBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "messageBatch"
+        }
+      } ]
+    }, {
+      "name" : "timestamp",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "timestamp"
+        }
+      } ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

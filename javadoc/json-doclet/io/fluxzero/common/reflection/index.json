@@ -15,6 +15,11 @@
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FallbackFunction",
     "kind" : "interface"
   }, {
+    "file" : "DefaultMemberInvoker.FieldGetter.json",
+    "name" : "DefaultMemberInvoker.FieldGetter",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$FieldGetter",
+    "kind" : "interface"
+  }, {
     "file" : "DefaultMemberInvoker.GeneralFunction.json",
     "name" : "DefaultMemberInvoker.GeneralFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$GeneralFunction",
@@ -183,6 +188,11 @@
     "file" : "ReflectionUtils.AnnotationProjectionKey.json",
     "name" : "ReflectionUtils.AnnotationProjectionKey",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotationProjectionKey",
+    "kind" : "record"
+  }, {
+    "file" : "ReflectionUtils.ClassLookup.json",
+    "name" : "ReflectionUtils.ClassLookup",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$ClassLookup",
     "kind" : "record"
   }, {
     "file" : "ReflectionUtils.MemberInvokerKey.json",

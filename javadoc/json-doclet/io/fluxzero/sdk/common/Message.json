@@ -20,7 +20,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Represents a unit of communication within the Fluxzero Runtime, wrapping a payload and its metadata.\n <p>\n A {@code Message} serves as the base class for all messages in Fluxzero (e.g., commands, events, queries, web\n requests). It contains a strongly typed payload, immutable metadata, a globally unique message ID, and a timestamp.\n </p>\n\n <p>\n Messages can be enriched with metadata, transformed with a new payload, or serialized for transmission.\n </p>\n\n <h2>Key Features</h2>\n <ul>\n   <li>Immutable, with {@code withX} and {@code addMetadata} methods for safe transformation</li>\n   <li>Supports auto-generation of message ID and timestamp if not provided</li>\n   <li>Lazy routing key computation via {@code getRoutingKey()}</li>\n </ul>\n\n @see Metadata\n @see Schedule\n @see WebRequest\n @see WebResponse\n",
+  "documentation" : " Represents a unit of communication within the Fluxzero Runtime, wrapping a payload and its metadata.\n <p>\n A {@code Message} serves as the base class for all messages in Fluxzero (e.g., commands, events, queries, web\n requests). It contains a strongly typed payload, immutable metadata, a globally unique message ID, and a timestamp.\n </p>\n\n <p>\n Messages can be enriched with metadata, transformed with a new payload, or serialized for transmission.\n Logical redispatch retains the message ID unless explicitly replaced; it does not forward an\n incoming transport envelope. Source, target, request ID and log index belong to {@code SerializedMessage}, not\n this value. Request transport sets source to the sending client for response correlation. Local in-process\n handling has no transport source. Blocking gateway methods do not determine whether delivery is local or remote.\n </p>\n\n <h2>Key Features</h2>\n <ul>\n   <li>Immutable, with {@code withX} and {@code addMetadata} methods for safe transformation</li>\n   <li>Supports auto-generation of message ID and timestamp if not provided</li>\n   <li>Lazy routing key computation via {@code getRoutingKey()}</li>\n </ul>\n\n @see Metadata\n @see Schedule\n @see WebRequest\n @see WebResponse\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.HasMessage" ],
@@ -29,10 +29,7 @@
     "qualifiedName" : "io.fluxzero.sdk.common.Message.messageId",
     "type" : "java.lang.String",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.With",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : " Unique technical identifier for the message. Auto-generated if not provided.\n",
     "constantValue" : null
   }, {
@@ -40,10 +37,7 @@
     "qualifiedName" : "io.fluxzero.sdk.common.Message.metadata",
     "type" : "io.fluxzero.common.api.Metadata",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.With",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : " Immutable metadata attached to the message. May include routing information, context, user info, etc.\n",
     "constantValue" : null
   }, {
@@ -73,22 +67,42 @@
       "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
       "values" : {}
     }, {
-      "annotationType" : "lombok.Getter",
-      "values" : {
-        "lazy" : "true"
-      }
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
     } ],
     "documentation" : " Lazily computed routing key based on the payload and metadata. Used for partitioning or load balancing.\n",
+    "constantValue" : null
+  }, {
+    "name" : "routingKeyComputed",
+    "qualifiedName" : "io.fluxzero.sdk.common.Message.routingKeyComputed",
+    "type" : "boolean",
+    "modifiers" : [ "volatile" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "timestamp",
     "qualifiedName" : "io.fluxzero.sdk.common.Message.timestamp",
     "type" : "java.time.Instant",
     "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "lombok.With",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "documentation" : " The creation timestamp of the message, in UTC. Defaults to the current time, truncated to milliseconds.\n",
     "constantValue" : null
   } ],
@@ -281,6 +295,20 @@
     "varArgs" : false,
     "documentation" : " Returns the strongly typed payload of the message.\n\n @param <R> the expected type of the payload\n @return the payload\n"
   }, {
+    "name" : "getRoutingKey",
+    "qualifiedName" : "io.fluxzero.sdk.common.Message#getRoutingKey",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the lazily computed routing key. The value, including an invalid {@code null} returned by a custom\n {@link #computeRoutingKey()} implementation, is computed at most once per message.\n"
+  }, {
     "name" : "serialize",
     "qualifiedName" : "io.fluxzero.sdk.common.Message#serialize",
     "returnType" : "io.fluxzero.common.api.SerializedMessage",
@@ -311,6 +339,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "withMessageId",
+    "qualifiedName" : "io.fluxzero.sdk.common.Message#withMessageId",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new message with the supplied technical identifier.\n"
+  }, {
+    "name" : "withMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.Message#withMetadata",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new message with the supplied metadata.\n"
+  }, {
     "name" : "withPayload",
     "qualifiedName" : "io.fluxzero.sdk.common.Message#withPayload",
     "returnType" : "io.fluxzero.sdk.common.Message",
@@ -326,6 +386,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a new message instance with the provided payload and existing metadata, ID, and timestamp.\n"
+  }, {
+    "name" : "withTimestamp",
+    "qualifiedName" : "io.fluxzero.sdk.common.Message#withTimestamp",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new message with the supplied timestamp.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

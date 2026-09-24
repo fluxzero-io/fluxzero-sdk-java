@@ -11,7 +11,7 @@
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
-  "documentation" : " Utility for running tasks with a maximum execution duration.\n <p>\n If a task does not complete within the configured duration, it is cancelled using interruption.\n <p>\n By default, the executor depends on the runtime version:\n <ul>\n     <li>Java 25 or newer: virtual thread-per-task executor</li>\n     <li>Older Java versions: cached thread pool</li>\n </ul>\n",
+  "documentation" : " Utility for running tasks with a maximum execution duration.\n <p>\n If a task does not complete within the configured duration, it is cancelled using interruption.\n <p>\n By default, each task runs on its own named virtual thread. A caller-supplied executor retains its execution policy.\n Closing this utility shuts down its executor without waiting for active tasks to finish.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "java.lang.AutoCloseable" ],
@@ -102,17 +102,6 @@
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "defaultExecutor",
-    "qualifiedName" : "io.fluxzero.common.TimeboxedExecutor#defaultExecutor",
-    "returnType" : "java.util.concurrent.ExecutorService",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],

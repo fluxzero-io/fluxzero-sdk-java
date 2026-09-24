@@ -318,6 +318,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "executables",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#executables",
+    "returnType" : "java.util.List<java.lang.reflect.Executable>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "kind",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "explicitlyTargetsOtherEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#explicitlyTargetsOtherEntity",
     "returnType" : "boolean",
@@ -338,6 +359,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getAggregateRootConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#getAggregateRootConfiguration",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the legacy Aggregate defaults even when an Aggregate fallback load is attempted for a Model type. "
   }, {
     "name" : "getInterceptInvoker",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#getInterceptInvoker",
@@ -370,6 +407,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the cached or default @Aggregate annotation for a given type.\n"
+  }, {
+    "name" : "getRootConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#getRootConfiguration",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the shared persistence configuration for a model or aggregate root.\n <p>\n Unannotated values retain the legacy default aggregate configuration. An unknown {@link Object} root keeps the\n historical non-caching default used while an aggregate type is still being inferred from its first event.\n"
   }, {
     "name" : "hasSelfReferentialMember",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#hasSelfReferentialMember",
@@ -450,6 +503,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "validateModelApplyMethods",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#validateModelApplyMethods",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Validates model apply methods discovered on the given type.\n <p>\n This method is intended for model registration and handler discovery. A void apply declared by a model, or a\n void apply with a model parameter, cannot identify the independently stored target state and is therefore\n rejected. Aggregate-only handler types retain their existing mutable-entity behavior.\n\n @param type model or apply-handler type to validate\n @throws IllegalStateException if the type contains a void apply targeting a model\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

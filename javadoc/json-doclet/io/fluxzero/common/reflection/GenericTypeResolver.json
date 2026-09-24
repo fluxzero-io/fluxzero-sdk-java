@@ -156,7 +156,7 @@
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#resolve",
     "returnType" : "java.lang.reflect.Type",
-    "modifiers" : [ "static" ],
+    "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -177,7 +177,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves a type declared by {@code declaringType} in the generic context of {@code contextType}.\n\n @param type          declared type to resolve\n @param contextType   concrete subtype that supplies the type arguments\n @param declaringType type that declares {@code type}\n"
   }, {
     "name" : "resolveType",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#resolveType",

@@ -11,7 +11,7 @@
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
-  "documentation" : " Represents a fully serialized message for transmission or storage within the Fluxzero Runtime.\n <p>\n A {@code SerializedMessage} wraps the binary {@link Data} of a message payload, along with associated\n {@link Metadata} and optional routing and tracking information such as {@code index}, {@code segment}, and\n {@code requestId}.\n </p>\n\n <p>\n This class is the wire format and persistence format for messages. It implements {@link SerializedObject} to expose\n type and revision metadata, and {@link HasMetadata} to allow downstream access to structured metadata.\n </p>\n\n <h2>Key Features</h2>\n <ul>\n   <li>Encapsulates payload as serialized {@code byte[]} via {@link Data}</li>\n   <li>Immutable-style updates via {@code @With} for metadata, segment, etc.</li>\n   <li>Tracks message origin and target via {@code source} and {@code target}</li>\n   <li>Supports custom revision control via {@code originalRevision}, set before upcasting</li>\n </ul>\n\n <h2>Tracking Fields</h2>\n <ul>\n   <li><b>segment</b> – the segment of the message log this message belongs to (used for partitioning)</li>\n   <li><b>index</b> – the index of this message in the log, used for ordering and deduplication</li>\n   <li><b>requestId</b> – identifier that ties a response to its originating request</li>\n </ul>\n\n <h2>Typical Use</h2>\n Serialized messages are produced by serializing a {@code Message} using a {@code Serializer},\n and are then stored, indexed, transmitted, or routed based on metadata and log location.\n\n @see Data\n @see Metadata\n @see SerializedObject\n",
+  "documentation" : " A serialized message value. Transport codecs own its binary representation; this class owns only message data.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.api.HasMetadata", "io.fluxzero.common.api.SerializedObject<byte[]>" ],
@@ -19,90 +19,90 @@
     "name" : "data",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.data",
     "type" : "io.fluxzero.common.api.@lombok.NonNull Data<byte[]>",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ {
       "annotationType" : "lombok.NonNull",
       "values" : {}
     } ],
-    "documentation" : " The serialized representation of the message payload.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.index",
     "type" : "java.lang.Long",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " The index of the message within its segment. Used for message ordering and deduplication.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "messageId",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.messageId",
     "type" : "java.lang.String",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " The unique identifier of the message.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "metadata",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.metadata",
     "type" : "io.fluxzero.common.api.Metadata",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ {
       "annotationType" : "lombok.With",
       "values" : {}
     } ],
-    "documentation" : " Structured metadata associated with the message, such as headers or routing info.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "originalRevision",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.originalRevision",
     "type" : "java.lang.Integer",
-    "modifiers" : [ "private", "transient" ],
+    "modifiers" : [ "private", "transient", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " If set, contains the original revision of the message prior to upcasting.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.requestId",
     "type" : "java.lang.Integer",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " An optional request ID linking this message to a request-response interaction.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "segment",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.segment",
     "type" : "java.lang.Integer",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ {
       "annotationType" : "lombok.With",
       "values" : {}
     } ],
-    "documentation" : " The segment number for this message, used for partitioning and consistent hashing.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "source",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.source",
     "type" : "java.lang.String",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " The identifier of the source that published this message.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "target",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.target",
     "type" : "java.lang.String",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " The optional target ID that this message is addressed to.\n",
+    "documentation" : null,
     "constantValue" : null
   }, {
     "name" : "timestamp",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage.timestamp",
     "type" : "java.lang.Long",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
-    "documentation" : " The timestamp when this message was created, in epoch milliseconds.\n",
+    "documentation" : null,
     "constantValue" : null
   } ],
   "constructors" : [ {
@@ -151,6 +151,104 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "encodedMetadataContainsKey",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#encodedMetadataContainsKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "encodedMetadataLongValue",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#encodedMetadataLongValue",
+    "returnType" : "long",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "encodedMetadataValue",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#encodedMetadataValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getBytes",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#getBytes",
     "returnType" : "long",
@@ -163,7 +261,44 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the length of bytes in the serialized payload. If the amount cannot be determined, {@code 0} is returned.\n"
+    "documentation" : "Returns the exact size used by the compact binary transports. "
+  }, {
+    "name" : "getMetadataLongValue",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#getMetadataLongValue",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns a decimal metadata value, or the fallback when absent or malformed. "
+  }, {
+    "name" : "getMetadataValue",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#getMetadataValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns one metadata value, or {@code null} when metadata or the key is absent. "
   }, {
     "name" : "getOriginalRevision",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#getOriginalRevision",
@@ -174,7 +309,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the original revision of the payload object.\n <p>\n If {@code originalRevision} was explicitly set before upcasting, it is returned. Otherwise, the revision is\n delegated to {@link Data#getRevision()}.\n\n @return the original revision of the serialized payload\n"
+    "documentation" : "Returns the payload revision before any upcasting. "
   }, {
     "name" : "getRevision",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#getRevision",
@@ -209,6 +344,54 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "metadataContainsKey",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#metadataContainsKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Checks a metadata key without forcing callers to handle absent metadata. "
+  }, {
+    "name" : "targetEquals",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#targetEquals",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidate",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compares the target without an intermediate optional value. "
+  }, {
+    "name" : "typeEquals",
+    "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#typeEquals",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidate",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compares the serialized payload type. "
   }, {
     "name" : "withData",
     "qualifiedName" : "io.fluxzero.common.api.SerializedMessage#withData",

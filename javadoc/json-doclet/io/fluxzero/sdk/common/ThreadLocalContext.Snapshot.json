@@ -59,10 +59,20 @@
     "name" : "activate",
     "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#activate",
     "returnType" : "void",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "previous",
+      "type" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

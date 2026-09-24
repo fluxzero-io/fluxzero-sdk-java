@@ -74,6 +74,14 @@
     "documentation" : null,
     "constantValue" : "Fluxzero-Supported-Compression-Algorithms"
   }, {
+    "name" : "SUPPORTED_DOCUMENT_COMPRESSION_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_DOCUMENT_COMPRESSION_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Supported document compression codecs; stored bytes are preserved when the client knows their codec. ",
+    "constantValue" : "Fluxzero-Supported-Document-Compression"
+  }, {
     "name" : "SUPPORTED_TRANSPORT_FORMATS_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_TRANSPORT_FORMATS_HEADER",
     "type" : "java.lang.String",

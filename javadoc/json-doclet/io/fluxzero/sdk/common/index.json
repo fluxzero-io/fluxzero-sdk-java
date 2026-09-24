@@ -100,6 +100,21 @@
     "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext",
     "kind" : "class"
   }, {
+    "file" : "ThreadLocalContext.Activation.json",
+    "name" : "ThreadLocalContext.Activation",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Activation",
+    "kind" : "class"
+  }, {
+    "file" : "ThreadLocalContext.ActiveValues.json",
+    "name" : "ThreadLocalContext.ActiveValues",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues",
+    "kind" : "class"
+  }, {
+    "file" : "ThreadLocalContext.ParticipatingThreadLocal.json",
+    "name" : "ThreadLocalContext.ParticipatingThreadLocal",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ParticipatingThreadLocal",
+    "kind" : "class"
+  }, {
     "file" : "ThreadLocalContext.Snapshot.json",
     "name" : "ThreadLocalContext.Snapshot",
     "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot",

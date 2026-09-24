@@ -266,6 +266,28 @@
     "varArgs" : false,
     "documentation" : " Creates a deep copy of a Properties instance.\n"
   }, {
+    "name" : "cpuExecutor",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#cpuExecutor",
+    "returnType" : "java.util.concurrent.Executor",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the classloader-wide executor for bounded chunks of CPU work, isolated from the JVM common pool.\n Workers are daemon threads and may clear thread locals between submissions. Callers own batching and context\n propagation; blocking I/O belongs on a worker executor instead. This shared executor must not be shut down by\n individual components. Nested parallel work must use {@link #inParallel(Supplier)}.\n"
+  }, {
+    "name" : "cpuParallelism",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#cpuParallelism",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the target CPU parallelism, including the work formerly performed by a parallel stream's caller. "
+  }, {
     "name" : "deduplicate",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#deduplicate",
     "returnType" : "java.util.List<T>",
@@ -395,6 +417,25 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a consumer that runs the task only if {@code check} is true.\n"
+  }, {
+    "name" : "inParallel",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#inParallel",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Evaluates a parallel stream terminal operation on the isolated CPU pool and awaits its result.\n Nested calls already on that pool run directly. A caller's unrelated fork/join pool is never reused.\n The operation must complete its parallel work before returning; returning a lazy stream does not isolate it.\n Context must be propagated explicitly to the operation and its parallel tasks.\n\n @param operation terminal operation\n @param <T> result type\n @return the operation's result\n"
   }, {
     "name" : "isBlank",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#isBlank",
@@ -600,6 +641,22 @@
     "varArgs" : false,
     "documentation" : " Creates a new named virtual-thread {@link ThreadFactory}.\n"
   }, {
+    "name" : "newWorkerExecutor",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#newWorkerExecutor",
+    "returnType" : "java.util.concurrent.Executor",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a named virtual-thread-per-task executor without a queue or persistent worker resources.\n Inheritable thread locals are not copied; callers must propagate their intended context explicitly.\n The submitting component owns admission, task completion and cancellation. There is no executor shutdown phase,\n so late continuations of already accepted operations can still run during component shutdown.\n\n @param prefix worker thread name prefix\n @return an executor for independently completable, potentially blocking tasks\n"
+  }, {
     "name" : "newWorkerPool",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#newWorkerPool",
     "returnType" : "java.util.concurrent.ExecutorService",
@@ -619,7 +676,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a worker pool that uses virtual threads on Java 25+ and a fixed-size platform pool otherwise.\n"
+    "documentation" : " Creates an executor with one named virtual thread per task. The caller owns its shutdown.\n Concurrency and admission limits must be enforced by the submitting component, not by this executor.\n\n @param prefix   the worker thread name prefix\n @param poolSize a positive legacy sizing hint; does not bound virtual-thread concurrency\n"
   }, {
     "name" : "newWorkerThreadFactory",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#newWorkerThreadFactory",
@@ -635,7 +692,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Creates a worker thread factory that uses virtual threads on Java 25+ and platform threads otherwise.\n"
+    "documentation" : " Creates a named virtual-thread factory for workers.\n"
   }, {
     "name" : "noOpBiPredicate",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#noOpBiPredicate",
@@ -704,6 +761,22 @@
     "varArgs" : false,
     "documentation" : " Executes the runnable, forcibly rethrowing exceptions as unchecked.\n"
   }, {
+    "name" : "runInParallel",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils#runInParallel",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Runs a parallel terminal operation with the same isolation and completion contract as {@link #inParallel(Supplier)}. "
+  }, {
     "name" : "silentTest",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#silentTest",
     "returnType" : "java.util.function.Predicate<T>",
@@ -756,28 +829,15 @@
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#supportsVirtualThreadWorkers",
     "returnType" : "boolean",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {}
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "supportsVirtualThreadWorkers",
-    "qualifiedName" : "io.fluxzero.common.ObjectUtils#supportsVirtualThreadWorkers",
-    "returnType" : "boolean",
-    "modifiers" : [ "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "javaFeatureVersion",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns {@code true}: virtual workers are available on every supported Java runtime.\n\n @deprecated SDK v2 requires Java 25 or newer, so callers no longer need a runtime-version check.\n"
   }, {
     "name" : "tryAccept",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#tryAccept",
@@ -852,10 +912,16 @@
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ]
   }, {
-    "name" : "PrefixedThreadFactory",
-    "qualifiedName" : "io.fluxzero.common.ObjectUtils$PrefixedThreadFactory",
+    "name" : "CpuWorkers",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$CpuWorkers",
     "kind" : "class",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ParallelResult",
+    "qualifiedName" : "io.fluxzero.common.ObjectUtils$ParallelResult",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }

@@ -83,6 +83,25 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SchedulingEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.scheduling.GetScheduleParentsResult>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.scheduling.GetScheduleParents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SchedulingEndpoint#handle",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ ],
     "annotations" : [ {
@@ -93,6 +112,25 @@
     "parameters" : [ {
       "name" : "schedule",
       "type" : "io.fluxzero.common.api.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.SchedulingEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.common.api.scheduling.ScheduleWithParents",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

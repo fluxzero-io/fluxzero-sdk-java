@@ -42,7 +42,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " The total number of bytes in the data across all messages within all batches.\n"
+    "documentation" : " The complete serialized size of all messages within all batches.\n"
   }, {
     "name" : "getSize",
     "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric#getSize",

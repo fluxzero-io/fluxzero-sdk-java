@@ -160,6 +160,30 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "mergeAll",
+    "qualifiedName" : "io.fluxzero.common.caching.NoOpCache#mergeAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<?,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mergeFunction",
+      "type" : "java.util.function.BiFunction<? super T,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "modifyEach",
     "qualifiedName" : "io.fluxzero.common.caching.NoOpCache#modifyEach",
     "returnType" : "void",

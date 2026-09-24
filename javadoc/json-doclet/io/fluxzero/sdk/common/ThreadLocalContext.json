@@ -10,10 +10,10 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "participants",
-    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext.participants",
-    "type" : "java.lang.ThreadLocal<?>[]",
-    "modifiers" : [ "private", "static", "volatile" ],
+    "name" : "activeValues",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext.activeValues",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.common.ThreadLocalContext.ActiveValues>",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -52,15 +52,36 @@
     "varArgs" : false,
     "documentation" : " Creates a thread local whose value participates in this shared context.\n <p>\n The returned holder is an ordinary {@link ThreadLocal}; participation only adds work when a snapshot is captured\n or activated.\n"
   }, {
-    "name" : "register",
-    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#register",
-    "returnType" : "void",
-    "modifiers" : [ "private", "static", "synchronized" ],
+    "name" : "openActivation",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#openActivation",
+    "returnType" : "io.fluxzero.sdk.common.ThreadLocalContext.Activation",
+    "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Opens a scope that can switch directly between multiple snapshots and restores the original context on close.\n\n <p>This is useful for ordered batches whose items each carry their own request context. Unlike invoking\n {@link Snapshot#run(Runnable)} for every item, intermediate switches do not first restore an empty worker\n context. Context changes made while processing an item are still detected and cleared by the next switch.</p>\n"
+  }, {
+    "name" : "setSnapshotValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext#setSnapshotValue",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "participant",
       "type" : "java.lang.ThreadLocal<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -97,6 +118,24 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "Activation",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Activation",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ActiveValues",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ParticipatingThreadLocal",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ParticipatingThreadLocal",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "Snapshot",
     "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot",
     "kind" : "class",

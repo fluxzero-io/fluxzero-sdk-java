@@ -79,14 +79,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "run",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#run",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "notificationReadyNanos",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "runIfBehind",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#runIfBehind",
-    "returnType" : "void",
+    "returnType" : "boolean",
     "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "currentUpdateNotificationVersion",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "notificationReadyNanos",
       "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]

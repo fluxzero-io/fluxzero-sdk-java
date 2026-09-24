@@ -40,6 +40,11 @@
     "qualifiedName" : "io.fluxzero.common.api.Data",
     "kind" : "class"
   }, {
+    "file" : "Data.ByteArrayView.json",
+    "name" : "Data.ByteArrayView",
+    "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView",
+    "kind" : "interface"
+  }, {
     "file" : "DisconnectEvent.json",
     "name" : "DisconnectEvent",
     "qualifiedName" : "io.fluxzero.common.api.DisconnectEvent",
@@ -49,6 +54,11 @@
     "name" : "ErrorResult",
     "qualifiedName" : "io.fluxzero.common.api.ErrorResult",
     "kind" : "class"
+  }, {
+    "file" : "ErrorResult.ModelHistoryUnavailable.json",
+    "name" : "ErrorResult.ModelHistoryUnavailable",
+    "qualifiedName" : "io.fluxzero.common.api.ErrorResult$ModelHistoryUnavailable",
+    "kind" : "record"
   }, {
     "file" : "HasId.json",
     "name" : "HasId",
@@ -70,9 +80,29 @@
     "qualifiedName" : "io.fluxzero.common.api.Metadata",
     "kind" : "class"
   }, {
+    "file" : "Metadata.Builder.json",
+    "name" : "Metadata.Builder",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata$Builder",
+    "kind" : "class"
+  }, {
     "file" : "Metadata.ClassNameMappingJsonParser.json",
     "name" : "Metadata.ClassNameMappingJsonParser",
     "qualifiedName" : "io.fluxzero.common.api.Metadata$ClassNameMappingJsonParser",
+    "kind" : "class"
+  }, {
+    "file" : "Metadata.MetadataBinaryCodec.json",
+    "name" : "Metadata.MetadataBinaryCodec",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata$MetadataBinaryCodec",
+    "kind" : "class"
+  }, {
+    "file" : "Metadata.MetadataBinaryCodec.BinaryWriter.json",
+    "name" : "Metadata.MetadataBinaryCodec.BinaryWriter",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata$MetadataBinaryCodec$BinaryWriter",
+    "kind" : "class"
+  }, {
+    "file" : "Metadata.MetadataBinaryCodec.EncodedKeyCache.json",
+    "name" : "Metadata.MetadataBinaryCodec.EncodedKeyCache",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata$MetadataBinaryCodec$EncodedKeyCache",
     "kind" : "class"
   }, {
     "file" : "Request.json",
@@ -94,6 +124,11 @@
     "name" : "ResultBatch",
     "qualifiedName" : "io.fluxzero.common.api.ResultBatch",
     "kind" : "class"
+  }, {
+    "file" : "RetryAwareRequest.json",
+    "name" : "RetryAwareRequest",
+    "qualifiedName" : "io.fluxzero.common.api.RetryAwareRequest",
+    "kind" : "interface"
   }, {
     "file" : "RuntimeLifecycleEvent.json",
     "name" : "RuntimeLifecycleEvent",
@@ -128,6 +163,9 @@
   "subdirectories" : [ {
     "name" : "eventsourcing",
     "path" : "eventsourcing"
+  }, {
+    "name" : "internal",
+    "path" : "internal"
   }, {
     "name" : "keyvalue",
     "path" : "keyvalue"

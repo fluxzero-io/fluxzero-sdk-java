@@ -402,6 +402,53 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "address",
+      "type" : "java.net.InetSocketAddress",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts a caller-owned embedded test server on an explicit interface and port, without a JVM shutdown hook.\n Use {@code new InetSocketAddress(\"127.0.0.1\", 0)} for isolated loopback tests. Binding the exact client address\n avoids wildcard/specific-address port sharing on macOS. Other overloads retain their all-interface binding.\n\n @param address interface and port to bind; port {@code 0} selects an available port\n @return the started Jetty server, which the caller should stop\n"
+  }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "address",
+      "type" : "java.net.InetSocketAddress",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registerShutdownHook",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRequestObserver",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "stopServer",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#stopServer",
     "returnType" : "void",

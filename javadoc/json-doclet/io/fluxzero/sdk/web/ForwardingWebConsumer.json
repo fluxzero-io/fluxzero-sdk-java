@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "java.lang.AutoCloseable" ],
   "fields" : [ {
+    "name" : "HTTP_EXECUTOR",
+    "qualifiedName" : "io.fluxzero.sdk.web.ForwardingWebConsumer.HTTP_EXECUTOR",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "configuration",
     "qualifiedName" : "io.fluxzero.sdk.web.ForwardingWebConsumer.configuration",
     "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",

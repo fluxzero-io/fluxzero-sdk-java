@@ -516,6 +516,43 @@
     "varArgs" : false,
     "documentation" : " Serializes the given object into a {@link Data} wrapper using the specified format.\n\n @param object the object to serialize\n @param format the desired serialization format (e.g. \\\"json\\\"); may be {@code null}\n @return serialized object as {@link Data}\n @throws SerializationException if serialization fails\n"
   }, {
+    "name" : "serializedClassWithoutUpcasting",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#serializedClassWithoutUpcasting",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the payload class when this serialized value is guaranteed not to require structural upcasting.\n\n <p>This conservative hook supports allocation-sensitive replay planning. {@code null} means that callers must\n use the normal deserialization pipeline; it does not mean that the serialized type is unknown.</p>\n"
+  }, {
+    "name" : "serializedPropertyPaths",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#serializedPropertyPaths",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a slash-separated Java property path to its serialized names, with the canonical name first and any\n accepted aliases following it. Data protection uses this when editing an intermediate payload without losing\n unrelated serialized fields. An empty list means the property is not serialized.\n\n <p>Serializers that rename, flatten, or alias properties must override this method using their own\n configuration. Returned path segments use JSON Pointer escaping ({@code ~0} and {@code ~1}), without a leading\n slash. Implementations must reject configurations whose mapping cannot be established safely. The default\n throws rather than guessing a mapping that could leave private values in the serialized payload.</p>\n\n @param payload the logical payload, used to resolve polymorphic nested values\n @param propertyPath the Java property path\n @return canonical serialized path and aliases, or an empty list for an omitted property\n @throws UnsupportedOperationException if safe property mapping is not supported\n"
+  }, {
     "name" : "upcastType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#upcastType",
     "returnType" : "java.lang.String",

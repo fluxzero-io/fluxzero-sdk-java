@@ -61,7 +61,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Calculates the total number of bytes in the data across all messages within the batch.\n"
+    "documentation" : " Calculates the complete serialized size of all messages within the batch.\n"
   }, {
     "name" : "getSize",
     "qualifiedName" : "io.fluxzero.common.api.eventsourcing.EventBatch#getSize",

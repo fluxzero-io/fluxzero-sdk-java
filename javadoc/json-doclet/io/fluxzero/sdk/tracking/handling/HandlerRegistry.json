@@ -44,6 +44,27 @@
     "varArgs" : false,
     "documentation" : " Returns whether this registry has a local handler that can process the given message.\n\n @param message the message to inspect\n @return {@code true} if a local handler can handle the message, {@code false} otherwise\n"
   }, {
+    "name" : "canSkipLocalHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#canSkipLocalHandling",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Conservatively reports whether local handling can be skipped without first materializing a message.\n\n <p>Custom registries default to {@code false}. Returning {@code true} is an explicit promise that invoking this\n registry cannot produce a local result for the supplied message shape.</p>\n\n @param messageType the message type\n @param payloadType the runtime payload type\n @return {@code true} only when local handling can safely be skipped\n"
+  }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#handle",
     "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",

@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "fallbackFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.fallbackFactory",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerFactory",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "handlerAnnotation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.handlerAnnotation",
     "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
@@ -62,6 +70,14 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.methodInvocationValidator",
     "type" : "io.fluxzero.common.handling.MethodInvocationValidator<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphTypes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory.modelGraphTypes",
+    "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -460,6 +476,62 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Configures how this factory determines whether a handler type is currently registered.\n\n <p>This is used to prefer a concrete self-tracking specialization over a registered base type without\n suppressing explicitly registered base handlers when the specialization itself is absent.</p>\n\n @param registeredHandlerType predicate that returns {@code true} for active handler types\n"
+  }, {
+    "name" : "trackingTargets",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#trackingTargets",
+    "returnType" : "java.util.List<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withFallback",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#withFallback",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fallbackFactory",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerFactory",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a fallback for handler vocabularies that are intentionally outside the standard {@code @Handle...}\n annotations.\n <p>\n The regular handler path always wins. This method is intended for framework composition during configuration,\n before the factory is shared with tracking.\n"
+  }, {
+    "name" : "withModelGraphTypes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory#withModelGraphTypes",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelGraphTypes",
+      "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Supplies the independently registered model types used to document composed model-graph web responses.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

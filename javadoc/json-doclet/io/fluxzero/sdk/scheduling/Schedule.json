@@ -357,6 +357,22 @@
     "varArgs" : false,
     "documentation" : " Returns a new instance with the given metadata.\n"
   }, {
+    "name" : "withParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#withParents",
+    "returnType" : "io.fluxzero.sdk.scheduling.Schedule",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentIds",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Returns a schedule owned by the current committed lifetime of each supplied Model parent.\n Deletion of any parent asynchronously cancels it, including cascades. Parents must already exist\n in the schedule's namespace. Typed IDs use their Model's identity mapping; strings are canonical IDs.\n Nulls are ignored. An empty argument list explicitly disables payload {@code @Parent} declarations.\n This explicit selection replaces (does not supplement) ownership inferred from the payload.\n Already delivered messages cannot be recalled, so execution guards remain necessary.\n\n @param parentIds owning Model identities\n @return a copy with explicit ownership metadata\n"
+  }, {
     "name" : "withPayload",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#withPayload",
     "returnType" : "io.fluxzero.sdk.scheduling.Schedule",

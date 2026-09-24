@@ -208,6 +208,42 @@
     "varArgs" : false,
     "documentation" : " Allows modifications to the serialized representation of the message before it is actually published.\n <p>\n This is called after {@link #interceptDispatch} and should not be used to block dispatching — use\n {@link #interceptDispatch} for that purpose instead.\n\n @param serializedMessage the serialized form of the message\n @param message           the deserialized message object\n @param messageType       the message type\n @param topic             the target topic\n @return the modified or original {@link SerializedMessage}\n"
   }, {
+    "name" : "modifySerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#modifySerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedMessage",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Modifies an event derived from a handled message while retaining access to its transient handling context.\n\n <p>Model commits use this hook because an applied command can contain restored private values that must not\n enter the event stream. The default invokes the ordinary serialized-message hook, preserving existing\n interceptors and their ordering. The source remains the complete logical update; changes to the supplied\n serialized candidate must not change what was asserted or applied.</p>\n\n @param serializedMessage the current serialized candidate, including preceding interceptor changes\n @param source the applied message and its non-persistent handling context\n @param messageType the outgoing message type\n @param topic the outgoing topic, or {@code null}\n @param namespace the outgoing namespace, or {@code null} for the application namespace\n @return the modified or original serialized message\n"
+  }, {
     "name" : "monitorDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#monitorDispatch",
     "returnType" : "void",
@@ -279,7 +315,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Carries interceptor-private local dispatch state across a replacement {@link Message}.\n\n <p>The default returns the replacement unchanged. Stateful interceptors may override this without exposing\n their transient state through message metadata or serialization.</p>\n\n @param previousMessage the message before another interceptor replaced it\n @param replacement     the replacement returned by that interceptor, or {@code null} when dispatch was suppressed\n"
+    "documentation" : " Carries interceptor-private local dispatch state across a replacement {@link Message}.\n\n <p>The default does nothing. Stateful interceptors may override this without exposing\n their transient state through message metadata or serialization.</p>\n\n @param previousMessage the message before another interceptor replaced it\n @param replacement     the replacement returned by that interceptor, or {@code null} when dispatch was suppressed\n"
   }, {
     "name" : "storesLocalDispatchState",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#storesLocalDispatchState",

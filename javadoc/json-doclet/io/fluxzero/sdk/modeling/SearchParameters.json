@@ -16,7 +16,7 @@
       "toBuilder" : "true"
     }
   } ],
-  "documentation" : " Represents configuration options extracted from the\n {@link io.fluxzero.sdk.persisting.search.Searchable @Searchable} annotation on a domain type. These\n parameters determine how the entity should be indexed and queried within the {@code DocumentStore} and related search\n infrastructure.\n\n <p>Instances of this class are typically created during reflective analysis of annotated classes and cached\n for repeated lookups. They encapsulate metadata relevant to how documents are indexed, timestamped, and grouped\n within collections.\n\n <h2>Fields:</h2>\n <ul>\n   <li>{@code searchable} – whether documents of this type should be indexed and searchable.</li>\n   <li>{@code collection} – name of the logical collection under which documents are grouped; if not\n       specified, the simple name of the class is used.</li>\n   <li>{@code timestampPath} – expression to extract the primary timestamp (start time) from the object.</li>\n   <li>{@code endPath} – expression to extract the end timestamp (for ranged entities) from the object.</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.search.Searchable\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
+  "documentation" : " Represents configuration options extracted from the\n {@link io.fluxzero.sdk.persisting.search.Searchable @Searchable} annotation on a domain type. These\n parameters determine how the entity should be indexed and queried within the {@code DocumentStore} and related search\n infrastructure.\n\n <p>Instances of this class are typically created during reflective analysis of annotated classes and cached\n for repeated lookups. They encapsulate metadata relevant to how documents are indexed, timestamped, and grouped\n within collections.\n\n <h2>Fields:</h2>\n <ul>\n   <li>{@code searchable} – whether the type's ordinary search representation is enabled. For Models this controls\n       exposure through unrestricted typed search.</li>\n   <li>{@code collection} – name of the logical collection under which documents are grouped; if not specified,\n       ordinary documents use the simple class name and Models use their resolved logical name.</li>\n   <li>{@code timestampPath} – expression to extract the primary timestamp (start time) from the object.</li>\n   <li>{@code endPath} – expression to extract the end timestamp (for ranged entities) from the object.</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.search.Searchable\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.configuration.Substitutable<io.fluxzero.sdk.modeling.SearchParameters>" ],
@@ -29,7 +29,7 @@
       "annotationType" : "lombok.With",
       "values" : {}
     } ],
-    "documentation" : " Optional name of the document collection to use. If not specified, the simple class name will be used as the\n default.\n",
+    "documentation" : " Optional name of the document collection to use. If not specified, ordinary documents use the simple class name\n and Models use their resolved logical name.\n",
     "constantValue" : null
   }, {
     "name" : "defaultSearchParameters",
@@ -56,7 +56,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Whether instances of the annotated class are eligible for indexing and search. Defaults to {@code true}.\n",
+    "documentation" : " Whether the type's ordinary search representation is enabled. Defaults to {@code true}. For Models this controls\n exposure through unrestricted typed search; a non-searchable Model that participates in Graph composition may\n still maintain the internal indexes required by explicitly bounded Graph and relationship queries.\n",
     "constantValue" : null
   }, {
     "name" : "timestampPath",
@@ -79,6 +79,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "forType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters#forType",
+    "returnType" : "io.fluxzero.sdk.modeling.SearchParameters",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the effective search configuration for a model or searchable document type.\n\n <p>Models own their direct-document projection through {@link Model#document()}; other document types continue\n to use {@link Searchable}. An unspecified collection resolves to the simple name for an ordinary document and\n the resolved logical name for a Model.</p>\n"
+  }, {
     "name" : "substituteProperties",
     "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters#substituteProperties",
     "returnType" : "io.fluxzero.sdk.modeling.SearchParameters",

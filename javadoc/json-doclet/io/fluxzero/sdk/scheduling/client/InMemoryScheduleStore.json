@@ -13,6 +13,14 @@
   "superClass" : "io.fluxzero.sdk.tracking.client.InMemoryMessageStore",
   "interfaces" : [ "io.fluxzero.sdk.scheduling.client.SchedulingClient" ],
   "fields" : [ {
+    "name" : "cancellationMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.cancellationMetrics",
+    "type" : "java.util.function.Consumer<io.fluxzero.common.api.scheduling.ScheduleAutoCancelled>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "clock",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.clock",
     "type" : "io.fluxzero.common.DelegatingClock",
@@ -37,9 +45,41 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelStore",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.modelStore",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ownedScheduleIndices",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.ownedScheduleIndices",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ownedSchedules",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.ownedSchedules",
+    "type" : "java.util.Map<java.lang.String,java.util.Map<java.lang.String,java.lang.Long>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "scheduleIdsByIndex",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.scheduleIdsByIndex",
     "type" : "java.util.concurrent.ConcurrentSkipListMap<java.lang.Long,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "schedulesByParent",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore.schedulesByParent",
+    "type" : "java.util.Map<java.lang.String,java.util.Set<java.lang.String>>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -156,6 +196,41 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "bindScheduleParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#bindScheduleParents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.Map<java.lang.String,java.lang.Long>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cancelDeletedParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#cancelDeletedParents",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cancelSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#cancelSchedule",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -180,10 +255,36 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "cancelStaleParent",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#cancelStaleParent",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parent",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "epoch",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cancellations",
+      "type" : "java.util.List<io.fluxzero.common.api.scheduling.ScheduleAutoCancelled>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "clockChanged",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#clockChanged",
     "returnType" : "void",
-    "modifiers" : [ "protected", "synchronized" ],
+    "modifiers" : [ "protected" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -194,7 +295,7 @@
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#close",
     "returnType" : "void",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
@@ -203,6 +304,53 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "configureParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#configureParents",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelStore",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metrics",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.api.scheduling.ScheduleAutoCancelled>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Links scheduling to the namespace's committed Model store and payload-free metrics sink. "
+  }, {
+    "name" : "doScheduleBound",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#doScheduleBound",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cancellations",
+      "type" : "java.util.List<io.fluxzero.common.api.scheduling.ScheduleAutoCancelled>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedules",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
     "documentation" : null
   }, {
     "name" : "getBatch",
@@ -300,6 +448,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "publishCancellations",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#publishCancellations",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cancellations",
+      "type" : "java.util.List<io.fluxzero.common.api.scheduling.ScheduleAutoCancelled>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "purgeExpiredMessages",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#purgeExpiredMessages",
     "returnType" : "void",
@@ -328,6 +492,22 @@
     "parameters" : [ {
       "name" : "serializer",
       "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeOwnership",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#removeOwnership",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scheduleId",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -377,11 +557,8 @@
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#schedule",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    }, {
       "annotationType" : "java.lang.Override",
       "values" : {}
     } ],
@@ -401,10 +578,60 @@
     "varArgs" : true,
     "documentation" : null
   }, {
+    "name" : "scheduleBound",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#scheduleBound",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedules",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "scheduleBoundToParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#scheduleBoundToParents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedules",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "setClock",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#setClock",
     "returnType" : "void",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -437,7 +664,7 @@
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#truncate",
     "returnType" : "void",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}

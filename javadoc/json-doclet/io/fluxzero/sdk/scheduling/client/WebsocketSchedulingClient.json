@@ -77,6 +77,25 @@
     "documentation" : " Constructs a scheduling client connected to the given endpoint URI with an option to enable or disable metrics\n tracking.\n\n @param endpointUri The URI of the scheduling gateway.\n @param client      The WebSocket client configuration.\n @param sendMetrics Whether to send metrics about schedule operations.\n"
   } ],
   "methods" : [ {
+    "name" : "bindScheduleParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.WebsocketSchedulingClient#bindScheduleParents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.Map<java.lang.String,java.lang.Long>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cancelSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.WebsocketSchedulingClient#cancelSchedule",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -132,6 +151,35 @@
     "parameters" : [ {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedules",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "scheduleBoundToParents",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.WebsocketSchedulingClient#scheduleBoundToParents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {

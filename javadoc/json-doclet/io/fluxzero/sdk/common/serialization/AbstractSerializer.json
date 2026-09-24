@@ -202,6 +202,30 @@
   }, {
     "name" : "deserialize",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserialize",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "io.fluxzero.common.api.SerializedObject<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a single value directly when the caster chain guarantees that it cannot transform, split or drop\n that value. All other inputs retain the stream-based path so their existing casting and format semantics remain\n unchanged.\n"
+  }, {
+    "name" : "deserialize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#deserialize",
     "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingObject<byte[],S>>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -804,6 +828,30 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Converts common simple object types (e.g., String, byte[]) to the requested alternative format. Used when the\n object cannot be serialized using the current default format.\n"
+  }, {
+    "name" : "serializedClassWithoutUpcasting",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#serializedClassWithoutUpcasting",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "serializedObject",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "upcastType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#upcastType",

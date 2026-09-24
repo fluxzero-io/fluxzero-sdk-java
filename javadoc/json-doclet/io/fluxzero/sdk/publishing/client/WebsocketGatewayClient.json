@@ -147,6 +147,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "payloadCodecs",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.client.WebsocketGatewayClient#payloadCodecs",
+    "returnType" : "java.util.List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerMonitor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.client.WebsocketGatewayClient#registerMonitor",
     "returnType" : "io.fluxzero.common.Registration",

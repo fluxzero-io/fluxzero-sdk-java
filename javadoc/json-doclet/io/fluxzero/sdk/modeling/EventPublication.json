@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Controls whether an applied update should result in event publication.\n <p>\n This setting can be defined at the aggregate level (via {@link Aggregate}) and optionally overridden on specific\n {@link Apply @Apply} methods.\n <p>\n Event publication occurs when an update is applied to an entity. Depending on this setting and the configured\n {@link EventPublicationStrategy}, the update may be published and/or stored.\n\n @see Aggregate\n @see Apply\n @see InterceptApply\n @see EventPublicationStrategy\n",
+  "documentation" : " Controls whether an applied update should result in event publication.\n <p>\n This setting can be defined at the aggregate or independent-model level (via {@link Aggregate} or {@link Model})\n and optionally overridden on specific {@link Apply @Apply} methods.\n <p>\n Event publication occurs when an update is applied to an entity. Depending on this setting and the configured\n {@link EventPublicationStrategy}, the update may be published and/or stored.\n\n @see Aggregate\n @see Model\n @see Apply\n @see InterceptApply\n @see EventPublicationStrategy\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.EventPublication>",
   "interfaces" : [ ],
@@ -53,12 +53,12 @@
     "name" : "ALWAYS",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.ALWAYS",
     "annotations" : [ ],
-    "documentation" : " Always publish and/or store the applied update, even if it does not change the entity.\n <p>\n This is the default behavior if no other setting is specified.\n"
+    "documentation" : " Always publish and/or store the applied update, even if it does not change the entity.\n <p>\n This is the default behavior for aggregates if no other setting is specified.\n"
   }, {
     "name" : "DEFAULT",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.DEFAULT",
     "annotations" : [ ],
-    "documentation" : " Inherit the publication behavior from the parent context.\n <p>\n This may be the enclosing aggregate or the application-level default. If not explicitly configured elsewhere,\n {@link #ALWAYS} is used as a fallback.\n"
+    "documentation" : " Inherit the publication behavior from the parent context.\n <p>\n This may be the enclosing aggregate, model, or application-level default. If not explicitly configured\n elsewhere, aggregates fall back to {@link #ALWAYS}; independent models fall back to {@link #IF_MODIFIED}.\n"
   }, {
     "name" : "IF_MODIFIED",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.IF_MODIFIED",
@@ -68,7 +68,7 @@
     "name" : "NEVER",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.NEVER",
     "annotations" : [ ],
-    "documentation" : " Never publish or store applied updates.\n <p>\n Useful for aggregates where event sourcing is disabled or updates should remain private.\n"
+    "documentation" : " Never publish or store applied updates.\n <p>\n Useful for document-backed models or aggregates when the state change deliberately has no stored or published\n event. Event-sourced state-changing updates reject this value because they could not be reconstructed later.\n"
   } ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

@@ -5,7 +5,7 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " High-level entry point for all interactions with the Fluxzero Runtime.\n <p>\n This interface exposes static convenience methods to publish and track messages, interact with aggregates, schedule\n tasks, index/search documents, and more. It is designed to reduce boilerplate and promote location transparency in\n message-driven systems.\n </p>\n\n <h2>Usage Patterns</h2>\n <ul>\n   <li>To send or publish messages, use static methods such as {@link #sendCommand(Object)} or {@link #publishEvent(Object)}.</li>\n   <li>To track incoming messages, register handlers using {@link #registerHandlers(Object...)}.</li>\n   <li>To interact with aggregates, use {@link #loadAggregate(Id)} or {@link #aggregateRepository()}.</li>\n </ul>\n\n <p>\n Most applications will never need to hold or inject a {@code Fluxzero} instance directly. Instead, the Java SDK\n automatically binds the relevant instance to a thread-local scope, allowing access via static methods.\n </p>\n\n <p>\n A concrete instance is typically constructed using {@link DefaultFluxzero}.\n </p>\n",
+  "documentation" : " High-level entry point for all interactions with the Fluxzero Runtime.\n <p>\n This interface exposes static convenience methods to publish and track messages, interact with aggregates, schedule\n tasks, index/search documents, and more. It is designed to reduce boilerplate and promote location transparency in\n message-driven systems.\n </p>\n\n <h2>Usage Patterns</h2>\n <ul>\n   <li>To send or publish messages, use static methods such as {@link #sendCommand(Object)} or {@link #publishEvent(Object)}.</li>\n   <li>To track incoming messages, register handlers using {@link #registerHandlers(Object...)}.</li>\n   <li>To interact with independent models, use {@link #loadModel(Id)} or {@link #modelRepository()}.</li>\n   <li>To interact with legacy aggregates, use {@link #loadAggregate(Id)} or {@link #aggregateRepository()}.</li>\n </ul>\n\n <p>\n Most applications will never need to hold or inject a {@code Fluxzero} instance directly. Instead, the Java SDK\n automatically binds the relevant instance to a thread-local scope, allowing access via static methods.\n </p>\n\n <p>\n A concrete instance is typically constructed using {@link DefaultFluxzero}.\n </p>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.AutoCloseable" ],
@@ -73,6 +73,196 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns an Entity containing given value. The returned entity won't exhibit any side effects when they are\n updated, i.e. they won't be synced to any repository or give rise to any events. Other than, that they are fully\n functional.\n"
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "io.fluxzero.sdk.modeling.Graph<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs and commits an update against the explicitly selected model graph, independently of any model ID carried by\n the update payload. Applies remain scoped to that Model type; Model-owned handlers retain their target filtering.\n Assertions on the effective update payload also run when they read other Model types, with those dependencies participating\n in conflict handling. Event publication and commit guarantees otherwise match {@link #assertAndApply(Object)}.\n <p>\n Prefer {@link Graph#assertAndApply(Object)} in application code. This overload owns the direct model-pipeline\n bridge used by that convenience.\n\n @param target explicitly selected model graph\n @param update update payload or message to assert and apply\n @return the freshly loaded graph after the durable commit\n"
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "io.fluxzero.sdk.modeling.Graph<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs and commits an update with additional metadata against the explicitly selected model graph.\n\n @see #assertAndApply(Graph, Object)\n"
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApply",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs the model assertions, apply interceptors, and applies declared for the given update and waits until the\n resulting model commit has been committed. If this application has no locally reachable model apply, immediate\n assertions and apply interceptors still run, after which the call logs a warning and returns without committing.\n <p>\n This enters the model-commit pipeline directly. It does not dispatch the update as a command and therefore can\n safely be called from an explicit {@link HandleCommand} handler for the same payload type.\n\n @param update the update payload or message to assert and apply\n"
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApply",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs and commits a model commit with the supplied metadata.\n\n @param update   the update payload to assert and apply\n @param metadata metadata to attach to the model event\n"
+  }, {
+    "name" : "assertAndApplyAllAsync",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApplyAllAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs and commits multiple independent model updates asynchronously. Every update remains a separate model commit\n with its own conflict handling and durability boundary. Implementations may batch commits that become ready\n together for transport, without making the updates atomic or delaying already-full transport batches.\n <p>\n All updates are converted to messages before this method returns, so metadata and context inherited from the\n current handler remain available to every asynchronous commit pipeline.\n\n @param updates independent update payloads or messages to assert and apply\n @return completion after every resulting model commit has been durably stored\n"
+  }, {
+    "name" : "assertAndApplyAsync",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApplyAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs the model assertions, apply interceptors, and applies declared for the given update without blocking the\n caller, and completes after the resulting model commit has been durably stored.\n <p>\n The update is converted to a message before this method returns, so metadata and context inherited from the\n current handler remain available to the asynchronous commit pipeline.\n\n @param update the update payload or message to assert and apply\n @return completion of the durable model commit\n"
+  }, {
+    "name" : "assertAndApplyAsync",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertAndApplyAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs and commits a model commit asynchronously with the supplied metadata.\n\n @param update   the update payload to assert and apply\n @param metadata metadata to attach to the model event\n @return completion of the durable model commit\n"
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertLegal",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs apply interceptors and immediate model assertions declared for the given update without invoking applies or\n committing model changes.\n <p>\n Assertions marked with {@link io.fluxzero.sdk.modeling.AssertLegal#afterHandler()} are not invoked because this\n validation-only operation does not produce a post-apply model state. This enters the model pipeline directly and\n does not dispatch the update as a command.\n\n @param update the update payload or message to validate\n"
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertLegal",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs apply interceptors and immediate model assertions with the supplied metadata, without invoking applies or\n committing model changes.\n\n @param update   the update payload to validate\n @param metadata metadata available to interceptors and assertions\n"
+  }, {
+    "name" : "awaitModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#awaitModelCommit",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completion",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "beforeShutdown",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#beforeShutdown",
@@ -196,6 +386,28 @@
     "varArgs" : false,
     "documentation" : " Returns the gateway for command messages.\n"
   }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#commit",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Commits Model changes already produced in the current handling context without waiting for its normal automatic\n commit boundary.\n <p>\n This is an optional early flush of the existing Model commit, not a separate mutation or commit path. The\n returned future is the existing durable commit completion and therefore carries the same success or failure.\n Required predecessor commits are also released and flushed, so their ordinary batch boundary cannot prevent\n the current commit from completing. Independent deferred commits keep their normal commit boundary.\n When the current context has no pending Model changes, the method returns an already completed future and sends\n nothing to the Runtime. Automatic committing remains active and observes the same completion.\n\n @return completion of the current durable Model commit, or completed completion when no changes are pending\n"
+  }, {
+    "name" : "commitModelChanges",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#commitModelChanges",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Flushes Model changes already attached to the current handling context. This extension point backs\n {@link #commit()} and may be overridden by custom Fluxzero implementations with a different Model pipeline.\n"
+  }, {
     "name" : "configuration",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#configuration",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroConfiguration",
@@ -250,6 +462,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Fetches the configured identity provider used for both functional and technical IDs. The default is a\n {@link UuidFactory} that generates UUIDs.\n <p>\n If there is no current Fluxzero instance, a new UUID factory is generated.\n"
+  }, {
+    "name" : "currentModelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#currentModelRepository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "currentTime",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#currentTime",
@@ -419,6 +642,96 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Executes the given task with this Fluxzero set as current threadlocal instance.\n"
+  }, {
+    "name" : "executeModelAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#executeModelAssertions",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes model apply interceptors and immediate assertions without applying or committing the update.\n <p>\n This is an infrastructure extension point used by {@link #assertLegal(Object)}. Custom Fluxzero implementations\n that support independent models should override it.\n\n @param update message containing the model update to validate\n @return completion of the validation-only model evaluation\n"
+  }, {
+    "name" : "executeModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#executeModelCommit",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes one model commit without routing it through command handlers.\n <p>\n This is an infrastructure extension point used by {@link #assertAndApply(Object)}. Custom Fluxzero\n implementations that support independent models should override it.\n\n @param update message containing the model update\n @return completion of the durable model commit\n"
+  }, {
+    "name" : "executeModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#executeModelCommit",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes one model commit against an explicitly selected persisted model identity. This is the infrastructure\n extension used by {@link Graph#assertAndApply(Object)}; custom implementations supporting independent models may\n override it alongside {@link #executeModelCommit(Message)}.\n"
+  }, {
+    "name" : "executeModelCommits",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#executeModelCommits",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.sdk.common.Message>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes multiple independent model commits without routing them through command handlers. The default\n implementation preserves compatibility for custom implementations by invoking {@link #executeModelCommit(Message)}\n for every update. Implementations may override this to batch transport while retaining separate commit semantics.\n\n @param updates messages containing independent model updates\n @return completion after every durable model commit\n"
+  }, {
+    "name" : "executeStoredModelEvent",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#executeStoredModelEvent",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies an event that was already accepted by its original command flow to independent models.\n Assertions and apply interceptors are skipped, while regular {@code @Apply} methods and durable Model-event\n storage are preserved. The accepted event is not published again. This infrastructure hook is primarily used by\n replay and test fixtures.\n\n @param event previously accepted event to apply\n @return completion of the durable model commit\n"
   }, {
     "name" : "filterContent",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#filterContent",
@@ -952,6 +1265,32 @@
     "varArgs" : false,
     "documentation" : " Returns a client for the key value service offered by Fluxzero.\n"
   }, {
+    "name" : "legacyModelEntity",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#legacyModelEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "initial",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "loadAggregate",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadAggregate",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -966,7 +1305,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Loads the aggregate root of type {@code <T>} with given aggregateId.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
+    "documentation" : " Loads the aggregate root of type {@code <T>} with given aggregateId.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n Typed identifiers whose declared type is an independent {@link Model} are delegated to the model repository. This\n preserves source-compatible typed loads while migrating an aggregate root to an independent model.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
     "name" : "loadAggregate",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadAggregate",
@@ -1042,6 +1381,80 @@
     "varArgs" : false,
     "documentation" : " Loads the aggregate root of type {@code <T>} that currently contains the entity with given entityId. If no such\n aggregate exists an empty aggregate root is returned with given {@code defaultType} as its type.\n <p>\n This method can also be used if the entity is the aggregate root (aggregateId is equal to entityId). If the\n entity is associated with more than one aggregate the behavior of this method is unpredictable, though the\n default behavior is that any one of the associated aggregates is returned.\n <p>\n If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be\n played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.\n\n @see Aggregate for more info on how to define an event-sourced aggregate root\n"
   }, {
+    "name" : "loadCurrentGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads the latest state of the independently stored model identified by the typed ID as a relationship graph.\n\n @see #loadCurrentGraph(Object, Class)\n"
+  }, {
+    "name" : "loadCurrentGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or\n notification handler's historical read boundary.\n Within a Model mutation this shares the active attempt's boundary, staged state and inspected readset instead\n of opening a newer snapshot. Outside mutations the default repository pins a fresh storage boundary with a\n head read during this call, even when the root is cached: its relationships may have changed after the cache's\n observation boundary. Event-sourced values remain lazy and may reuse an exact matching cached revision.\n A DOCUMENT-only root is read coherently with its head during this call and retained, since later replacement\n cannot be replayed. Concurrent changes during this fresh resolution cause bounded retries of the complete\n lookup; an already returned Graph never advances. Descendants remain lazy. This is not the document-only\n {@link #loadCurrentModelState(String, Class)} read contract.\n <p>\n Use this when deliberately inspecting current intent, such as after a synchronous nested command or when\n reconciling schedules triggered by an older event. Ordinary {@link #loadGraph(Object, Class)} reads remain\n coherent with the message being handled and are preferred for event-bound comparisons and invariants.\n"
+  }, {
+    "name" : "loadCurrentModelState",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentModelState",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelState<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads a current document-backed Model using its typed identity. "
+  }, {
+    "name" : "loadCurrentModelState",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadCurrentModelState",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelState<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads a verified current Model document without replaying historical events. The exact persisted identity is\n required. The read-only result does not inherit a handler boundary or become a transaction read dependency.\n Missing/deleted state is distinct from an unavailable/stale document, which fails explicitly.\n @see ModelRepository#loadCurrentState(String, Class)\n"
+  }, {
     "name" : "loadEntity",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntity",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
@@ -1079,6 +1492,27 @@
     "varArgs" : false,
     "documentation" : " Loads the entity with given id. If the entity is not associated with any aggregate yet, a new aggregate root is\n loaded with the entityId as aggregate identifier. In case multiple entities are associated with the given\n entityId the most recent entity is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
   }, {
+    "name" : "loadEntity",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for\n independent models and entities embedded in legacy aggregates.\n"
+  }, {
     "name" : "loadEntityValue",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntityValue",
     "returnType" : "T",
@@ -1120,6 +1554,237 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads the current entity value for given entity id. Entity may be the aggregate root or any ancestral entity. If\n no such entity exists or its value is not set {@code null} is returned.\n <p>\n If the entity is loaded while handling an event its aggregate, the returned entity will automatically be played\n back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.\n"
+  }, {
+    "name" : "loadEntityValue",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadEntityValue",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Loads an entity value by functional ID and expected type. "
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Lazily loads the independently stored model identified by the typed ID as a relationship graph.\n <p>\n The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor\n lookup can normally resolve directly from stored relationship identities.\n Within a Model mutation this joins the active attempt's pinned boundary, staged state and inspected readset.\n Otherwise, outside historical event handling, the default repository establishes the snapshot at storage on the first\n storage read, independently of the root cache and whether value or relationships are requested first.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The default repository\n discovers its type from the head and pins the boundary during this call, without replaying the root value.\n The root Model contract must be locally known. Custom repositories may retain value-based discovery.\n Within a Model mutation this uses that attempt's pinned boundary, staged state and inspected readset.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "parentId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Lazily loads a parent-scoped model by functional child ID and explicit parent type as a relationship graph.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Lazily loads an independently stored model by ID and expected type as a relationship graph.\n Within a Model mutation this shares its pinned boundary, staged state and inspected readset. Otherwise the\n default repository establishes a new nonhistorical snapshot at storage on the first storage read.\n The resulting Graph stays pinned; later commits require a new view.\n"
+  }, {
+    "name" : "loadGraphAt",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadGraphAt",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a complete historical graph at the requested durable model-state boundary.\n"
+  }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.Id<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads the independently stored model identified by the given typed ID.\n <p>\n The typed ID's repository representation is wrapped in any prefix or postfix declared by the model's\n {@link EntityId @EntityId}. When no primary model has that identity, a current {@link Alias @Alias} value may\n resolve the model instead.\n"
+  }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads an independently stored model by ID. Typed IDs provide the requested model type; untyped IDs let the\n repository resolve the stored type.\n <p>\n A primary model ID is tried first, followed by a current {@link Alias @Alias} value.\n"
+  }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "parentId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parentType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a parent-scoped model by functional child ID and explicit parent type.\n"
+  }, {
+    "name" : "loadModel",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads an independently stored model by ID and expected type.\n <p>\n A primary model ID is tried first, followed by a current {@link Alias @Alias} value.\n"
+  }, {
+    "name" : "loadModels",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#loadModels",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads several independently stored models at one coherent state boundary.\n\n <p>The native repository batches stream I/O and reconstruction while preserving input order.</p>\n"
   }, {
     "name" : "memoization",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#memoization",
@@ -1435,6 +2100,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the gateway for metrics events. Metrics events can be published in any form to log custom performance\n metrics about an application.\n"
+  }, {
+    "name" : "modelMessage",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#modelMessage",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#modelRepository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the repository for independently stored models.\n <p>\n The default keeps existing custom {@code Fluxzero} implementations binary/source compatible while the model\n action transport is introduced. Standard runtime-backed configurations override this when that transport is\n available.\n"
   }, {
     "name" : "playbackToHandledMessage",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#playbackToHandledMessage",
@@ -2091,10 +2783,10 @@
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
-    "typeParameters" : [ ],
+    "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "queryBuilder",
       "type" : "io.fluxzero.common.api.search.SearchQuery.Builder",
@@ -2107,10 +2799,47 @@
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
-    "typeParameters" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Search the collection represented by the given document class and retain that class as the default result type.\n"
+  }, {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "additionalCollections",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Search the collections represented by the given document class and additional collection identifiers while\n retaining the document class as the default result type.\n"
+  }, {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "collection",
       "type" : "java.lang.Object",
@@ -2119,14 +2848,14 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Search the given collection for documents. Usually collection is the String name of the collection. However, it\n is also possible to call it with a {@link Collection} containing one or multiple collection names.\n <p>\n If collection is of type {@link Class} it is expected that the class is annotated with {@link Searchable}. It\n will then use the collection configured there.\n <p>\n For all other inputs, the collection name will be obtained by calling {@link Object#toString()} on the input.\n <p>\n Example usage: Fluxzero.search(\"myCollection\").query(\"foo !bar\").fetch(100);\n"
+    "documentation" : " Search the given collection for documents. Usually collection is the String name of the collection. However, it\n is also possible to call it with a {@link Collection} containing one or multiple collection names.\n <p>\n If collection is of type {@link Class} it is expected that the class is annotated with {@link Searchable}. It\n will then use the collection configured there.\n <p>\n For all other inputs, the collection name will be obtained by calling {@link Object#toString()} on the input.\n <p>\n Example usage: {@code Fluxzero.<MyDocument>search(\"myCollection\").query(\"foo !bar\").fetch(100)}.\n"
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
-    "returnType" : "io.fluxzero.sdk.persisting.search.Search",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
     "modifiers" : [ "public", "static" ],
     "annotations" : [ ],
-    "typeParameters" : [ ],
+    "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "collection",
       "type" : "java.lang.Object",
@@ -2140,7 +2869,44 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Search the given collections for documents.\n <p>\n If collection is of type {@link Class} it is expected that the class is annotated with * {@link Searchable}. It\n will then use the collection configured there. For all other inputs, the collection name will be obtained by\n calling {@link Object#toString()} on the input.\n <p>\n Example usage: Fluxzero.search(\"myCollection\", \"myOtherCollection).query(\"foo !bar\").fetch(100);\n"
+    "documentation" : " Search the given collections for documents.\n <p>\n If collection is of type {@link Class} it is expected that the class is annotated with {@link Searchable}. It\n will then use the collection configured there. For all other inputs, the collection name will be obtained by\n calling {@link Object#toString()} on the input.\n <p>\n Example usage: Fluxzero.search(\"myCollection\", \"myOtherCollection).query(\"foo !bar\").fetch(100);\n"
+  }, {
+    "name" : "searchGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#searchGraph",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootModelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Searches complete graph views for an independent model root. A configured materialized view is preferred;\n otherwise the graph is composed live.\n <p>\n The root needs a current direct/component document. Only explicit composition paths enter the search Graph;\n pathless relationships remain available through {@link #loadGraph(Id)}. Results represent current documents or\n a possibly lagging projection, not this handler's historical event boundary or transaction read dependencies.\n See {@link DocumentStore#searchGraph(Class)} for filtering, result and consistency semantics.\n"
+  }, {
+    "name" : "searchGraph",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#searchGraph",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootModelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceAdHoc",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Searches complete graph views for an independent model root.\n\n @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live\n"
   }, {
     "name" : "sendAndForgetCommand",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendAndForgetCommand",
@@ -2480,6 +3246,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the store for aggregate snapshots.\n"
+  }, {
+    "name" : "startModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#startModelCommit",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "taskScheduler",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#taskScheduler",

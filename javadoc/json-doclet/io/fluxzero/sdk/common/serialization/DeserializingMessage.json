@@ -24,6 +24,46 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.HasMessage" ],
   "fields" : [ {
+    "name" : "INITIAL_CONTEXT_CAPACITY",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.INITIAL_CONTEXT_CAPACITY",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 2
+  }, {
+    "name" : "activeMessageBatchIndex",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.activeMessageBatchIndex",
+    "type" : "int",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "activeMessageBatchResources",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.activeMessageBatchResources",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.MessageBatchResources",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "batchCompletionHandlers",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.batchCompletionHandlers",
     "type" : "java.lang.ThreadLocal<java.util.Set<java.util.function.Consumer<java.lang.Throwable>>>",
@@ -90,6 +130,14 @@
       "annotationType" : "lombok.experimental.NonFinal",
       "values" : {}
     } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageBatchMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.messageBatchMessage",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
   }, {
@@ -292,6 +340,32 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "activateMessageBatch",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#activateMessageBatch",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resources",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.MessageBatchResources",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "index",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "apply",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#apply",
     "returnType" : "T",
@@ -436,6 +510,64 @@
     }, {
       "name" : "function",
       "type" : "java.util.function.Function<? super K,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeForMessageBatchIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#computeForMessageBatchIfAbsent",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "function",
+      "type" : "java.util.function.Function<? super K,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns one resource shared by the complete current message batch, creating it when necessary.\n\n <p>Unlike {@link #computeForBatchIfAbsent(Object, Function)}, this resource participates in captured request\n context and is therefore visible to asynchronous handler workers. The mapping function and returned value must\n consequently be safe for concurrent use. Outside message-batch handling this method returns {@code null}.</p>\n"
+  }, {
+    "name" : "containsMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#containsMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks one metadata key without forcing an opaque serialized message to materialize its metadata wrapper.\n"
+  }, {
+    "name" : "expectedSize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#expectedSize",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "estimate",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -595,6 +727,60 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getMessageBatchIndex",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMessageBatchIndex",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the zero-based position of the current message in its tracking batch, or {@code -1} outside a batch.\n"
+  }, {
+    "name" : "getMessageBatchResource",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMessageBatchResource",
+    "returnType" : "V",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a previously created asynchronous message-batch resource, or {@code null} outside that batch.\n"
+  }, {
+    "name" : "getMessageBatchSegment",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMessageBatchSegment",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the routing segment of the current message-batch position, or {@code -1} outside a message batch.\n"
+  }, {
+    "name" : "getMessageBatchSize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMessageBatchSize",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the known message count of the current batch, or {@code -1} when its source did not expose a size.\n"
+  }, {
     "name" : "getMessageId",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMessageId",
     "returnType" : "java.lang.String",
@@ -622,6 +808,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getMetadataValue",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMetadataValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads one metadata value without forcing an opaque serialized message to materialize its metadata wrapper.\n"
   }, {
     "name" : "getOptionally",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getOptionally",
@@ -696,6 +898,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getSerializedObject",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getSerializedObject",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fallbackSerializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the existing serialized representation or lazily creates one using the supplied fallback serializer.\n The fallback is only used for programmatically created messages that were not constructed with a serializer.\n"
   }, {
     "name" : "getTimestamp",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getTimestamp",
@@ -784,6 +1002,27 @@
     "varArgs" : false,
     "documentation" : " Stores a message-scoped context value.\n\n @param contextKey the type key for the context value\n @param value      the context value to store\n @return this message\n"
   }, {
+    "name" : "restoreMessageBatchMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#restoreMessageBatchMessage",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "previous",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owned",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#run",
     "returnType" : "void",
@@ -793,6 +1032,22 @@
     "parameters" : [ {
       "name" : "task",
       "type" : "java.util.function.Consumer<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "segmentOf",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#segmentOf",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -812,7 +1067,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the lazily materialized logical message (payload, metadata, ID and timestamp).\n Transport fields such as source, target, request ID and index are not part of that logical message.\n <p>\n Treat the serialized input as read-only after handing it to this wrapper: later mutations do not update an\n already materialized logical message. Use {@link #withMessage(Message)} with an immutable Message replacement,\n or deserialize a deliberately edited serialized envelope again before dispatching it.\n"
   }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#toString",
@@ -863,6 +1118,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "withMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the complete logical message while retaining this wrapper's type, topic, serializer, and context.\n\n <p>Unlike {@link #withPayload(Object)}, this method deliberately retains the supplied message identity. It is\n used when one handled message expands into several independently publishable model updates.</p>\n"
+  }, {
     "name" : "withMetadata",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withMetadata",
     "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
@@ -895,6 +1166,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "withRestoredPayload",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withRestoredPayload",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Exposes a restored, same-type payload to handling code while retaining this message's serialized envelope.\n\n <p>This is intended for values restored from private storage, not for changing the event. Metadata-only\n copies retain the original data, revision and index. A subsequent {@link #withPayload(Object)} or\n {@link #withMessage(Message)} is a real replacement and uses ordinary serialization again.</p>\n\n @param payload the restored logical payload\n @return a view with the restored payload and the unchanged serialized source\n"
+  }, {
     "name" : "withSameContext",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withSameContext",
     "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
@@ -910,14 +1197,45 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withoutContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withoutContext",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "contextKey",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this message after removing one framework context value using copy-on-write semantics. Other messages\n derived from the same source retain their context.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "MessageBatchResources",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageBatchResources",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "MessageSpliterator",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator",
     "kind" : "class",
     "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RestoredPayloadMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }

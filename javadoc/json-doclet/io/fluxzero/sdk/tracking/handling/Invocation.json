@@ -68,6 +68,22 @@
     } ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "resultObservation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation.resultObservation",
+    "type" : "io.fluxzero.sdk.tracking.handling.Invocation.ResultObservation",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "Invocation",
@@ -230,6 +246,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "observeDeferredResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#observeDeferredResult",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completion",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "progress",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Transfers a deferred automatic handler result to the active tracking invocation, if it observes results.\n The returned completion represents error handling, not durability; dependencies must keep using the original\n completion. Local/manual invocations return {@code null} and retain their existing completion contract.\n\n @param completion original deferred handler result\n @param progress releases deferred work when an error handler explicitly retries this invocation\n @return completion owned by tracking, or {@code null} when no observer is active\n"
+  }, {
     "name" : "performInvocation",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#performInvocation",
     "returnType" : "V",
@@ -387,6 +424,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "ResultObservation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultObservation",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "ResultPublicationBarrier",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",
     "kind" : "class",

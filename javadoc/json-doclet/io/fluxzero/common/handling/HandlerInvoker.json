@@ -174,6 +174,28 @@
     "varArgs" : false,
     "documentation" : " Returns a no-op invoker associated with a handler method. This is useful for synthetic framework invocations that\n should still expose the user handler's metadata to decorators and interceptors.\n"
   }, {
+    "name" : "prepareAsyncInvocation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#prepareAsyncInvocation",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers framework lifecycle state on the dispatching thread before this invocation moves to an asynchronous\n worker. The returned cleanup runs after invocation or when the worker handoff fails, and must leave lifecycle\n state that was consumed by the invocation untouched. Cleanup must not throw. The default returns {@code null}\n when no preparation is required. Preparation does not alter invocation-result or result-publication completion;\n an invoker must express those through its result and the owning publication mechanism.\n"
+  }, {
+    "name" : "requiresBatchSegmentOrder",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#requiresBatchSegmentOrder",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether asynchronous invocations in one tracked batch must retain the generic message-segment order.\n\n <p>The default is {@code true}. Framework invokers may return {@code false} only when they own a stricter\n ordering mechanism based on the actual state read and written by the invocation.</p>\n"
+  }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerInvoker#run",
     "returnType" : "io.fluxzero.common.handling.HandlerInvoker",

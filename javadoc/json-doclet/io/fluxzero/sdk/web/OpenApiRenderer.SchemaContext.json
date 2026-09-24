@@ -10,6 +10,30 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "expandedModelGraphs",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext.expandedModelGraphs",
+    "type" : "java.util.Set<io.fluxzero.sdk.web.OpenApiRenderer.ModelGraphExpansion>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphSelections",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext.modelGraphSelections",
+    "type" : "java.util.Map<java.lang.Class<?>,java.util.List<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext.modelTypes",
+    "type" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "names",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext.names",
     "type" : "java.util.Map<java.lang.Class<?>,java.lang.String>",
@@ -53,12 +77,95 @@
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "SchemaContext",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext#SchemaContext",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "openApiVersion",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelTypes",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemas",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "bind",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext#bind",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "bindMarkedTypes",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext#bindMarkedTypes",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "classLoader",
+      "type" : "java.lang.ClassLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "markType",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext#markType",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer$SchemaContext#name",
     "returnType" : "java.lang.String",

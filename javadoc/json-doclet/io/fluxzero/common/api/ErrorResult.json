@@ -21,6 +21,19 @@
     "documentation" : " The error message returned from the Fluxzero Runtime or client logic.\n",
     "constantValue" : null
   }, {
+    "name" : "modelHistoryUnavailable",
+    "qualifiedName" : "io.fluxzero.common.api.ErrorResult.modelHistoryUnavailable",
+    "type" : "io.fluxzero.common.api.ErrorResult.ModelHistoryUnavailable",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "documentation" : " Optional evidence that a requested historical Model head cannot be reconstructed. Older peers ignore this\n additive field and retain the ordinary error message; absence must not be inferred from that message.\n",
+    "constantValue" : null
+  }, {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.ErrorResult.requestId",
     "type" : "long",
@@ -43,13 +56,59 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "Creates an ordinary unstructured request failure. "
+  }, {
+    "name" : "ErrorResult",
+    "qualifiedName" : "io.fluxzero.common.api.ErrorResult#ErrorResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"message\",\"modelHistoryUnavailable\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelHistoryUnavailable",
+      "type" : "io.fluxzero.common.api.ErrorResult.ModelHistoryUnavailable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a failure with optional, typed historical-read evidence. "
   } ],
   "methods" : [ ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ModelHistoryUnavailable",
+    "qualifiedName" : "io.fluxzero.common.api.ErrorResult$ModelHistoryUnavailable",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

@@ -37,30 +37,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "aggregateEventPublication",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.aggregateEventPublication",
-    "type" : "io.fluxzero.sdk.modeling.EventPublication",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "aggregateEventRouting",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.aggregateEventRouting",
-    "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
-    "name" : "aggregatePublicationStrategy",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.aggregatePublicationStrategy",
-    "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "applied",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.applied",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.AppliedEvent>",
@@ -109,6 +85,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "configuration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.configuration",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultActiveAggregateContext",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.defaultActiveAggregateContext",
     "type" : "java.lang.Object",
@@ -133,9 +117,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "eventSourced",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.eventSourced",
-    "type" : "boolean",
+    "name" : "eventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.eventRouting",
+    "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -247,6 +231,61 @@
     }, {
       "name" : "eventSourced",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitHandler",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ModifiableAggregateRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#ModifiableAggregateRoot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "activeAggregateContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -489,6 +528,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "eventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#eventRouting",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "apply",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.Apply",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getActiveAggregates",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregates",
     "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>",
@@ -702,6 +757,70 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitHandler",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads an aggregate using shared persistence settings and its Aggregate-specific event routing.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.@lombok.NonNull AggregateRepository",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "eventPublication",
       "type" : "io.fluxzero.sdk.modeling.EventPublication",
       "varArgs" : false,
@@ -745,6 +864,67 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Loads an aggregate in a scope owned by the supplied repository.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aggregateId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.AggregateCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventRouting",
+      "type" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitHandler",
+      "type" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "load",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#load",
@@ -936,8 +1116,39 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.TransitionSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "transitionConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#transitionConfiguration",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "eventPublication",
       "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

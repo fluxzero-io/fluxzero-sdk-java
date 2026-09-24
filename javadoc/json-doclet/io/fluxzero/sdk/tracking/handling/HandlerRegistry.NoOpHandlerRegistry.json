@@ -22,6 +22,30 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "canSkipLocalHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$NoOpHandlerRegistry#canSkipLocalHandling",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry$NoOpHandlerRegistry#handle",
     "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",

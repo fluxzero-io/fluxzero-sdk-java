@@ -48,7 +48,7 @@
     "type" : "long",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Default serialized payload byte limit per tracking fetch.\n",
+    "documentation" : " Default complete serialized message byte limit per tracking fetch.\n",
     "constantValue" : 104857600
   }, {
     "name" : "MAX_FETCH_BYTES_PROPERTY",
@@ -56,7 +56,7 @@
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default\n with the {@link Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.\n",
+    "documentation" : " Configures the default complete serialized message byte limit per tracking fetch. Consumers can override this\n default with the {@link Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.\n",
     "constantValue" : "fluxzero.tracking.maxFetchBytes"
   }, {
     "name" : "PER_HANDLER_CONSUMER_MODE",
@@ -67,12 +67,20 @@
     "documentation" : " Creates an isolated default consumer per unconfigured handler class.\n",
     "constantValue" : "perHandler"
   }, {
+    "name" : "PER_PACKAGE_CONSUMER_MODE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Creates one isolated default consumer per exact package containing unconfigured handler classes.\n",
+    "constantValue" : "perPackage"
+  }, {
     "name" : "UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY",
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Chooses how unconfigured tracking handlers are assigned to default consumers.\n <p>\n Supported values are {@link #PER_HANDLER_CONSUMER_MODE} and {@link #DEFAULT_APP_CONSUMER_MODE}. When absent,\n Fluxzero derives the default from {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.\n",
+    "documentation" : " Chooses how unconfigured tracking handlers are assigned to default consumers.\n <p>\n Supported values are {@link #PER_PACKAGE_CONSUMER_MODE}, {@link #PER_HANDLER_CONSUMER_MODE} and\n {@link #DEFAULT_APP_CONSUMER_MODE}. When absent, Fluxzero derives the default from\n {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.\n",
     "constantValue" : "fluxzero.tracking.unconfiguredHandlerConsumerMode"
   }, {
     "name" : "USE_DEFAULT_MAX_FETCH_BYTES",
@@ -256,6 +264,20 @@
     "documentation" : " Regulates the flow of messages to the consumer to prevent overload. Defaults to {@link NoOpFlowRegulator}, which\n performs no throttling.\n",
     "constantValue" : null
   }, {
+    "name" : "graphProjectionCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.graphProjectionCompletion",
+    "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull GraphProjectionCompletion",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Overrides graph-projection result completion for model commits handled by this consumer.\n",
+    "constantValue" : null
+  }, {
     "name" : "handlerFilter",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.handlerFilter",
     "type" : "java.util.function.@lombok.NonNull Predicate<java.lang.Object>",
@@ -314,6 +336,17 @@
     "documentation" : " If true, the consumer will ignore the segment assigned to it and process all messages regardless of partitioning.\n Useful for global handlers such as notifications or singletons.\n",
     "constantValue" : null
   }, {
+    "name" : "includeDocumentTombstones",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.includeDocumentTombstones",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Internal document-tracking option enabled automatically for consumers containing typed model-graph handlers.\n Ordinary document consumers leave this disabled.\n",
+    "constantValue" : null
+  }, {
     "name" : "maxFetchBytes",
     "qualifiedName" : "io.fluxzero.sdk.tracking.ConsumerConfiguration.maxFetchBytes",
     "type" : "long",
@@ -322,7 +355,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum serialized payload bytes to fetch per poll from the message log.\n <p>\n The default {@link #USE_DEFAULT_MAX_FETCH_BYTES} inherits {@link #MAX_FETCH_BYTES_PROPERTY} when configured,\n otherwise {@link #DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit. If a single message is\n larger than this limit, it may still be returned alone so tracking can make progress.\n",
+    "documentation" : " Maximum complete serialized message bytes to fetch per poll from the message log.\n <p>\n The default {@link #USE_DEFAULT_MAX_FETCH_BYTES} inherits {@link #MAX_FETCH_BYTES_PROPERTY} when configured,\n otherwise {@link #DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit. If a single message is\n larger than this limit, it may still be returned alone so tracking can make progress.\n",
     "constantValue" : null
   }, {
     "name" : "maxFetchSize",

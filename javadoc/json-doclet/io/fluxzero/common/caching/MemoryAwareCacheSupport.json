@@ -61,6 +61,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "mappingVersion",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.mappingVersion",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "maxEntryWeight",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.maxEntryWeight",
     "type" : "long",
@@ -137,6 +145,14 @@
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.weight",
     "type" : "long",
     "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "weightUnit",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.weightUnit",
+    "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -271,6 +287,51 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "MemoryAwareCacheSupport",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#MemoryAwareCacheSupport",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEntryWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weigher",
+      "type" : "java.util.function.ToLongBiFunction<? super K,? super V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyComparator",
+      "type" : "java.util.Comparator<? super K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "memoryPressureController",
+      "type" : "io.fluxzero.common.caching.MemoryPressureController",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "memoryPressureCheckInterval",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weightUnit",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "cleanupMemoryPressureCaches",
@@ -287,7 +348,7 @@
     "name" : "clear",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#clear",
     "returnType" : "void",
-    "modifiers" : [ "public", "synchronized" ],
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -295,18 +356,13 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "clear",
-    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#clear",
+    "name" : "clearEntries",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#clearEntries",
     "returnType" : "void",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "notify",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -408,7 +464,7 @@
     "name" : "evictCandidateForObservedMemoryPressure",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#evictCandidateForObservedMemoryPressure",
     "returnType" : "long",
-    "modifiers" : [ "private", "synchronized" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ {
       "annotationType" : "java.lang.SuppressWarnings",
       "values" : {
@@ -419,6 +475,32 @@
     "parameters" : [ {
       "name" : "candidate",
       "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.MemoryPressureEvictionCandidate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eviction",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#eviction",
+    "returnType" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction<K,V>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entry",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.Entry<V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reason",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -548,6 +630,38 @@
     }, {
       "name" : "reason",
       "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "notifyEviction",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#notifyEviction",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "notifyEvictions",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#notifyEvictions",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "evictions",
+      "type" : "java.util.List<io.fluxzero.common.caching.MemoryAwareCacheSupportEviction<K,V>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -709,6 +823,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "removeToWeight",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#removeToWeight",
+    "returnType" : "java.util.List<io.fluxzero.common.caching.MemoryAwareCacheSupportEviction<K,V>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reason",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "saturatedAdd",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#saturatedAdd",
     "returnType" : "long",
@@ -757,6 +892,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "supplyAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#supplyAll",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ {
+      "name" : "lookups",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "valueConsumer",
+      "type" : "java.util.function.BiConsumer<? super U,? super V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Supplies present values for an ordered group of lookups under one cache lock.\n Every hit retains the same LRU and cross-cache access bookkeeping as {@link #get(Object)}.\n"
+  }, {
     "name" : "targetWeightAfterPressureTrim",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#targetWeightAfterPressureTrim",
     "returnType" : "long",
@@ -799,6 +960,11 @@
       "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "weightUnit",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.WeightUnit",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -818,7 +984,7 @@
     "name" : "trimForObservedMemoryPressure",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#trimForObservedMemoryPressure",
     "returnType" : "boolean",
-    "modifiers" : [ "private", "synchronized" ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -840,6 +1006,161 @@
     }, {
       "name" : "reason",
       "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super V,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies ordered updates under one cache lock and checks memory pressure once after the batch.\n Repeated keys are applied in iteration order.\n"
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupKeyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super V,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies ordered updates while retaining a stable key only when an update inserts a new mapping.\n Repeated keys are applied in iteration order.\n"
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupKeyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super V,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "transientLookupKey",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<? extends K,? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super V,? extends V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies independent updates under one cache lock and checks memory pressure once after the batch.\n\n <p>Iteration order, admission, size eviction and manual-removal notifications are identical to applying the\n updates individually. The batch as a whole is not an atomic transaction.</p>\n"
+  }, {
+    "name" : "updateEntry",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#updateEntry",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "U" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "current",
+      "type" : "io.fluxzero.common.caching.MemoryAwareCacheSupport.Entry<V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "V",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "update",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,? extends K>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "transientLookupKey",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -923,6 +1244,12 @@
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$MemoryPressureEvictionCandidate",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "WeightUnit",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$WeightUnit",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ]
   } ]
 }
