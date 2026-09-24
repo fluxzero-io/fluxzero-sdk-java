@@ -116,6 +116,7 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Coding Guidelines
 
+- Keep the root README timeless and concise: explain the product, how to start, where to find documentation, and how to contribute. Do not add release-specific narratives, versioned feature lists, Model/Graph explanations, bug-fix details, or specialized configuration contracts. Put those in the owning guides, Javadocs, and release notes instead; review the README for relevance without appending a paragraph for every change. Current build prerequisites and stable documentation links may remain.
 - This public SDK is used by many external projects. Small mistakes can propagate widely, so favor durable, well-tested solutions over quick patches, local workarounds, or behavior that is hard to explain.
 - Do not paper over unclear failures. Understand the root cause, preserve invariants, and document any intentional trade-off in code, tests, or the commit body.
 - Preserve the existing package boundaries. Put shared serialization/protocol/reflection behavior in `common`, public SDK behavior in `sdk`, and server-specific behavior in `test-server` or `proxy`.
