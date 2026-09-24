@@ -74,6 +74,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -3272,7 +3273,18 @@ final class ModelReplayCursor {
             if (direct(request)) {
                 return loader.apply(request);
             }
-            return enqueue(request).join();
+            CompletableFuture<GetModelEventsResult> result = enqueue(request);
+            try {
+                return result.get();
+            } catch (InterruptedException failure) {
+                // Only abandon this reader. An in-flight storage call may also serve other readers.
+                result.cancel(false);
+                Thread.currentThread().interrupt();
+                throw new EventSourcingException("Interrupted while reading Model events", failure);
+            } catch (ExecutionException failure) {
+                // This future is already complete. Retain join's exact existing failure contract.
+                return result.join();
+            }
         }
 
         CompletableFuture<GetModelEventsResult> getAsync(

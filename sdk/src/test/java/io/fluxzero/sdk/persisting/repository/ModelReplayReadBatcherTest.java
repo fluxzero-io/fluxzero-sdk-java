@@ -21,6 +21,7 @@ import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -39,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,6 +52,51 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ModelReplayReadBatcherTest {
+    @Test
+    void synchronousReadPreservesTheOriginalCompletionFailure() {
+        var client = mock(EventStoreClient.class);
+        var failure = new CompletionException(new IllegalArgumentException("invalid read"));
+        when(client.getModelEvents(any())).thenThrow(failure);
+        var subject = new ModelReplayCursor.ReadBatcher(client, 16);
+        assertSame(failure, assertThrows(CompletionException.class, () -> subject.get(request("failed"))));
+    }
+
+    @Test
+    void interruptedReaderStopsWaitingWithoutInterruptingSharedReads() throws Exception {
+        try (GatedClient gate = new GatedClient()) {
+            var subject = new ModelReplayCursor.ReadBatcher(gate.client, 16);
+            var outcome = new CompletableFuture<Throwable>();
+            var interrupted = new AtomicBoolean();
+            Thread reader = Thread.ofVirtual().start(() -> {
+                try {
+                    subject.get(request("interrupted"));
+                    outcome.complete(null);
+                } catch (Throwable failure) {
+                    interrupted.set(Thread.currentThread().isInterrupted());
+                    outcome.complete(failure);
+                }
+            });
+            try {
+                Call first = gate.next();
+                var surviving = subject.getAsync(request("surviving"));
+                reader.interrupt();
+                var failure = assertInstanceOf(EventSourcingException.class, outcome.get(2, SECONDS));
+                assertInstanceOf(InterruptedException.class, failure.getCause());
+                assertTrue(interrupted.get());
+                assertFalse(first.response.isDone());
+                first.complete(11L);
+                Call next = gate.next();
+                assertEquals(List.of("surviving"), ids(next.request));
+                next.complete(12L);
+                assertEquals(12L, surviving.get(2, SECONDS).getStateIndex());
+            } finally {
+                gate.close();
+                reader.interrupt();
+                reader.join(2_000);
+                assertFalse(reader.isAlive());
+            }
+        }
+    }
 
     @Test
     void executesLocalStoreReadsOnTheCallingThread() {
