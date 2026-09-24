@@ -1,5 +1,8 @@
 # Models and Graphs in SDK v2
 
+For the design as a whole, Java/Kotlin examples and the upgrade path from 1.x, see the developer chapter
+[Fluxzero 2.0](https://fluxzero.io/docs/fluxzero-2). Use the focused articles below for individual contracts.
+
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
 (Kotlin: kapt) in every Model contract module; Model declarations contribute
 `META-INF/io.fluxzero.sdk.modeling.Model`. Rebuild older contract JARs to generate this index. A classic shaded JAR

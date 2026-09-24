@@ -28,7 +28,9 @@ and the final layout check.
 
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 
-For SDK v2 Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
+Start with [Fluxzero 2.0](docs/developer/getting-started/fluxzero-2.mdx) for the complete Model/Graph story,
+Java and Kotlin examples, and the migration path from 1.x.
+For individual Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
 
 For concurrent invariants, distinguish [read boundaries and commit dependencies](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx#model-read-boundaries):
 manual Graph reads inside a Model mutation share its snapshot and readset; event reads, explicit current reads outside
