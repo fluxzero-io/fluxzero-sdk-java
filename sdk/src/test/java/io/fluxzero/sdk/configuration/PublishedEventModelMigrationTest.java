@@ -131,7 +131,10 @@ class PublishedEventModelMigrationTest {
                     new Message(new LegacyIncrement("legacy", 2))
                             .serialize(serializer)).join();
 
-            await(() -> migration.repository()
+            // Materialized state can become visible before the replay batch acknowledges its position.
+            // Wait for both milestones within the existing deadline.
+            await(() -> !client.getTrackingClient(EVENT).getPosition(migration.name())
+                    .isNew(new int[]{0, MAX_SEGMENT}) && migration.repository()
                     .load("legacy", LegacyModel.class)
                     .map(LegacyModel.class::cast)
                     .map(model -> model.value() == 3)
