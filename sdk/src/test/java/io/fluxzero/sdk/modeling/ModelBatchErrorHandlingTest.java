@@ -46,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Execution(ExecutionMode.SAME_THREAD)
 class ModelBatchErrorHandlingTest {
     private static final AtomicInteger retryAttempts = new AtomicInteger();
+    private static final AtomicInteger retryRejections = new AtomicInteger();
 
     @AfterEach
     void cleanup() {
@@ -148,6 +149,7 @@ class ModelBatchErrorHandlingTest {
             names = {"ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH", "SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
     void explicitErrorHandlerRetryRetriesOnlyTheRejectedCommand(ModelCommitPolicy policy) {
         retryAttempts.set(0);
+        retryRejections.set(0);
         var calls = new AtomicInteger();
         TestFixture.createAsync(DefaultFluxzero.builder().configureDefaultConsumer(COMMAND, c -> c.toBuilder()
                         .errorHandler((error, description, retry) -> {
@@ -167,10 +169,13 @@ class ModelBatchErrorHandlingTest {
                     results.forEach(CompletableFuture::join);
                 })
                 .expectSuccessfulResult()
-                .expectEvents(new Create("first", false), new RetryCreate("retry"))
+                .expectOnlyEvents(new Create("first", false), new RetryCreate("retry"))
                 .expectThat(fc -> {
                     assertEquals(1, calls.get());
-                    assertEquals(2, retryAttempts.get());
+                    // Provisional assertions can run again after batch dependencies settle; that is not another
+                    // error-handler retry. Verify the rejection and durable effects, not evaluation scheduling.
+                    assertEquals(1, retryRejections.get());
+                    assertEquals(new Item("first"), Fluxzero.loadModel("first", Item.class).get());
                     assertEquals(new Item("retry"), Fluxzero.loadModel("retry", Item.class).get());
                 });
     }
@@ -214,11 +219,8 @@ class ModelBatchErrorHandlingTest {
     record RetryCreate(String id) {
         @AssertLegal
         void validate() {
-            int attempt = retryAttempts.getAndIncrement();
-            if (attempt > 1) {
-                new IllegalStateException("Unexpected retry validation " + (attempt + 1)).printStackTrace();
-            }
-            if (attempt == 0) {
+            if (retryAttempts.getAndIncrement() == 0) {
+                retryRejections.incrementAndGet();
                 throw new IllegalCommandException("try again");
             }
         }
