@@ -17,83 +17,7 @@ Use the SDK to describe a feature with plain messages, immutable models, and sma
 
 Fluxzero handles delivery, routing, persistence, retries, and observability around that code. You can test complete product flows locally with `TestFixture` and run the same application behavior on Fluxzero.
 
-For external APIs, give each interaction a local command or query whose handler calls the
-[WebRequest gateway](docs/developer/guides/Messaging/150-sending-web-requests.mdx). No injected API-service bean or
-`@TrackSelf` is required for request auditability, configurable HTTP retries and fixture-based tests. Standard API-key
-and authorization headers are masked in visible Auditlog records; authenticated calls do not require a separate HTTP client.
-
-Before adding application classes, choose their owning domains and follow the
-[application package structure](docs/developer/getting-started/package-structure.mdx), including the example tree
-and the final layout check.
-
 Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
-
-Start with [Fluxzero 2.0](docs/developer/getting-started/fluxzero-2.mdx) for the complete Model/Graph story,
-Java and Kotlin examples, and the migration path from 1.x.
-For individual Models, start with plain `@Model`: [design cohesive details and state](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx), then use the [Model and Graph query guide](docs/developer/guides/Modeling%20%26%20persistence/205-model-query-guide.mdx) to choose storage, queries, and the state they return.
-
-For concurrent invariants, distinguish [read boundaries and commit dependencies](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx#model-read-boundaries):
-manual Graph reads inside a Model mutation share its snapshot and readset; event reads, explicit current reads outside
-mutations and document search have different guarantees.
-Consumed Graph alias lookups also protect alias assignment/removal and canonical-ID precedence at commit;
-exact-ID reads remain independent of aliases.
-Model conflict handling defaults to `RETRY` for updates and creations, independently of `fluxzero.defaults.version`;
-choose `FAIL` or `ACCEPT` explicitly with `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`).
-ASYNC automatic Model handlers coordinate overlapping readsets within each tracking batch, including commits that start
-after the handler; independent scopes remain parallel once earlier readsets are known. External writers still require
-conflict validation and bounded retries. Model commands reevaluate after a provisional predecessor settles, including
-when that predecessor is rejected; each command retains its own result.
-With commit-before-result handling, Model command failures go through the command's error policy once; waiting for
-the batch does not log or retry an already handled rejection again. Real batch failures still propagate.
-Retry preserves create-only checks. A targeted `graph.assertAndApply(command)` limits writes, not the command's
-cross-Model assertions. See [conflict policies](docs/agents/articles/sdk/models/conflicts.md).
-
-For historical comparisons with `previous()`, keep `EVENT_SOURCED` enabled; `DOCUMENT` alone keeps current state only.
-Fresh current Graph reads retry head/document races before pinning. `loadCurrentGraph` retains a DOCUMENT-only
-root during construction; existing Graphs and mutation boundaries never silently advance.
-Simple single-target DOCUMENT writes defer namespace verification until an additional transactional read needs it;
-complex preparation verifies eagerly. Neither route replaces document authority with event replay.
-If deletion planning loses a required pinned DOCUMENT version, it fails with `ModelCommitConflictException`
-without submitting or reevaluating the mutation. Its `readConflict` identifies the unavailable Model and boundary;
-`result` is absent because storage has not rejected a submitted commit.
-The [Model recipes](docs/developer/guides/Modeling%20%26%20persistence/197-model-recipes.mdx) cover one-to-one companions,
-derived Graph preferences, atomic actions versus orchestration, and `graph.current()` without losing history.
-For existing Models, `Graph.compareAndSet` checks a captured revision, while `updateAndGet` and `getAndUpdate`
-accept a Graph transformation with bounded `maxRetries` (default 0). These independent direct-state operations
-return only after commit; the recipes distinguish consume-once from external-effect recovery.
-Missing companions remain empty even with `@Alias`: alias fallback does not reinterpret their parent as the companion.
-For eventless current state, non-searchable documents and erasure, read the
-[Model state boundaries](docs/developer/guides/Modeling%20%26%20persistence/202-model-state-boundaries.mdx):
-storage and query visibility are not authorization or secret-storage guarantees.
-Optional `DOCUMENT` projections are separate from internal Model/Graph sources: direct search returns the projection,
-while Graph composition and related-content predicates use the internal source. See the
-[migration guide](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) for independent reindexing.
-Choose [Graph relationships](docs/developer/guides/Modeling%20%26%20persistence/190-nested-entities.mdx) separately from ownership: a plain typed ID is only a reference; `@Parent` registers an edge, with cascade deletion configurable per relation.
-Polymorphic ID properties retain their type on the wire: Model IDs use their logical `name`, other IDs use `@class`;
-concrete ID properties remain scalar, and custom subtype deserializers retain their property context.
-See the relationship guide for allowlists and migration boundaries.
-See [Model updates](docs/developer/guides/Modeling%20%26%20persistence/180-updating-entities.mdx) for lifecycle checks and dynamic writes, and [schedule reconciliation](docs/developer/guides/Messaging/085-model-schedule-reconciliation.mdx) for delayed work and cascade cleanup.
-Returned validation objects can select their own Model dependencies while retaining the triggering command context.
-
-Web handlers may return Graphs directly: transported responses contain their composed JSON, not a reconstructible
-Graph implementation. Annotated `@FilterContent` handlers also filter successful future results using the original
-viewer and request context. See [web responses](docs/developer/guides/Messaging/120-handling-web-requests.mdx).
-
-Intentionally embedded `@Member` handlers, including concrete subtype handlers on explicitly addressed owners,
-update their owning Model in the same atomic operation and replay stream;
-see [embedded members](docs/developer/guides/Modeling%20%26%20persistence/195-model-state.mdx#intentionally-embedded-members).
-
-[Parent-owned schedules](docs/developer/guides/Messaging/086-parent-owned-schedules.mdx) use `@Parent` or
-`Schedule.withParents(...)` to cancel delayed work automatically when a committed Model is deleted.
-
-Changing existing state? Use [Model migration tests](docs/developer/guides/Modeling%20%26%20persistence/207-model-migration-tests.mdx) to distinguish value-preserving upcasts, event reconstruction, retained storage and search reindexing.
-
-Keep business facts in Models; use [stateful handlers](https://fluxzero.io/docs/guides/modeling-and-persistence/stateful-handlers)
-for durable integration progress, correlation and retries. A provider callback and a completed business transaction
-are distinct facts, with an explicit recovery boundary between them.
-Use events when every transition matters. Document observers may skip intermediate versions; they can reconcile
-work only while the latest state retains every unfinished action. See the stateful guide for bounded continuation
-and acknowledgement boundaries.
 
 ## Start building
 
@@ -113,36 +37,9 @@ SDK packages are published through [Fluxzero Packages](https://packages.fluxzero
 
 See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
-SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
-It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
-native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
-outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
-supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
-GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
-`fluxzero.defaults.version`.
-
-## Proxy response header buffers
-
-Set `fluxzero.proxy.responseHeaderBufferSize` (`FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE`)
-to select the initial response header buffer capacity. The default is 8192 bytes; the separate
-`FLUXZERO_PROXY_MAX_HEADER_SIZE` remains 1 MiB. Large headers can trigger a second allocation,
-whereas large response bodies do not require larger header buffers.
-
-HTTP/1.1 header growth has a known connection-close limitation tracked in
-[Jetty #15840](https://github.com/jetty/jetty.project/issues/15840); see the
-[buffering guidance](docs/agents/articles/sdk/web/advanced-transport.md#proxy-response-header-buffers)
-for the workaround scope and configuration fallback.
-
-Jetty uses direct HTTP output buffers by default. Set
-`fluxzero.proxy.useOutputDirectByteBuffers=false`
-(`FLUXZERO_PROXY_USE_OUTPUT_DIRECT_BYTE_BUFFERS=false`) to use heap output buffers instead. This
-setting applies to all HTTP output and should be selected together with the JVM and container
-memory budgets. See the [proxy buffering guidance](docs/agents/articles/sdk/web/advanced-transport.md#proxy-response-header-buffers)
-and [forked benchmark](proxy/HEADER_BUFFER_BENCHMARK.md).
-
 ## Work on the SDK
 
-The SDK is a Maven multi-module project.
+The SDK is a Maven multi-module project. Building from source requires Java 25+ and Python 3.9+.
 
 ```shell
 git clone https://github.com/fluxzero-io/fluxzero-sdk-java.git
