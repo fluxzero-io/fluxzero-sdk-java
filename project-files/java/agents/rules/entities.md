@@ -1,5 +1,8 @@
 # Models and state
 
+For the complete 2.0 design, Java/Kotlin examples and migration from 1.x, see
+[Fluxzero 2.0](https://fluxzero.io/docs/fluxzero-2).
+
 For complete companion, derived-preference and execution examples, read [Model recipes](model-recipes.md).
 
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
