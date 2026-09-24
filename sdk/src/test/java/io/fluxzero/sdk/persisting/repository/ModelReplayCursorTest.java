@@ -1439,6 +1439,7 @@ class ModelReplayCursorTest {
         EventStoreClient client = mock(EventStoreClient.class);
         CountDownLatch prefetchStarted = new CountDownLatch(1);
         CountDownLatch prefetchInterrupted = new CountDownLatch(1);
+        CountDownLatch prefetchFinished = new CountDownLatch(1);
         CountDownLatch blockPrefetch = new CountDownLatch(1);
         AtomicInteger requests = new AtomicInteger();
         ModelHeadState head = new ModelHeadState(
@@ -1455,23 +1456,32 @@ class ModelReplayCursorTest {
             } catch (InterruptedException expected) {
                 prefetchInterrupted.countDown();
                 throw new EventSourcingException("Prefetch interrupted", expected);
+            } finally {
+                prefetchFinished.countDown();
             }
         });
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
         IllegalStateException expected = new IllegalStateException("Apply failed");
 
-        IllegalStateException actual = assertThrows(
-                IllegalStateException.class,
-                () -> loader.load(List.of("a"), null, ignored -> {
-                    await(prefetchStarted);
-                    throw expected;
-                }));
+        try {
+            IllegalStateException actual = assertThrows(
+                    IllegalStateException.class,
+                    () -> loader.load(List.of("a"), null, ignored -> {
+                        await(prefetchStarted);
+                        throw expected;
+                    }));
 
-        assertSame(expected, actual);
-        assertTrue(prefetchInterrupted.await(2L, TimeUnit.SECONDS),
-                   "The prefetched transport read was not interrupted");
-        assertEquals(2, requests.get());
+            assertSame(expected, actual);
+            assertTrue(prefetchInterrupted.await(2L, TimeUnit.SECONDS),
+                       "The prefetched transport read was not interrupted");
+            assertEquals(2, requests.get());
+        } finally {
+            blockPrefetch.countDown();
+            if (prefetchStarted.getCount() == 0L) {
+                assertTrue(prefetchFinished.await(2L, TimeUnit.SECONDS));
+            }
+        }
     }
 
     @Test

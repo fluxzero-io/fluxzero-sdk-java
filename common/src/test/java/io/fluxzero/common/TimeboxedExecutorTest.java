@@ -55,7 +55,8 @@ class TimeboxedExecutorTest {
         CountDownLatch taskRelease = new CountDownLatch(1);
         CountDownLatch taskInterrupted = new CountDownLatch(1);
         ExecutorService executor = new StartAwaitingExecutor(taskStarted);
-        try (TimeboxedExecutor timeboxedExecutor = new TimeboxedExecutor(executor)) {
+        TimeboxedExecutor timeboxedExecutor = new TimeboxedExecutor(executor);
+        try {
             assertThrows(TimeoutException.class, () -> timeboxedExecutor.callAndWait(() -> {
                 taskStarted.countDown();
                 try {
@@ -68,6 +69,10 @@ class TimeboxedExecutorTest {
             }, Duration.ZERO));
 
             assertTrue(taskInterrupted.await(1, TimeUnit.SECONDS));
+        } finally {
+            taskRelease.countDown();
+            timeboxedExecutor.close();
+            assertTrue(executor.awaitTermination(1, TimeUnit.SECONDS));
         }
     }
 

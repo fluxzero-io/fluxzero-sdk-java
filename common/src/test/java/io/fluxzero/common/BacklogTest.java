@@ -85,19 +85,20 @@ class BacklogTest {
                 Thread.currentThread().interrupt();
             }
         });
-        assertTrue(dispatched.await(2, TimeUnit.SECONDS));
-        CompletableFuture<Void> drain = subject.shutDownAsync().toCompletableFuture();
-        Thread completion = Thread.startVirtualThread(() -> storage.complete(null));
         try {
-            drain.get(2, TimeUnit.SECONDS);
-            assertTrue(callbackStarted.await(2, TimeUnit.SECONDS));
-            assertFalse(producer.isDone());
+            assertTrue(dispatched.await(2, TimeUnit.SECONDS));
+            CompletableFuture<Void> drain = subject.shutDownAsync().toCompletableFuture();
+            try (TestTask completion = new TestTask(() -> storage.complete(null), releaseCallback::countDown)) {
+                drain.get(2, TimeUnit.SECONDS);
+                assertTrue(callbackStarted.await(2, TimeUnit.SECONDS));
+                assertFalse(producer.isDone());
+            }
+            producer.get(2, TimeUnit.SECONDS);
         } finally {
             releaseCallback.countDown();
-            completion.join(2_000);
+            storage.complete(null);
             subject.shutDown();
         }
-        producer.get(2, TimeUnit.SECONDS);
     }
 
     @Test
@@ -277,9 +278,10 @@ class BacklogTest {
 
     @Test
     void producerCompletionCallbacksDoNotKeepConsumerSlotsOccupied() throws Exception {
+        List<CompletableFuture<Void>> results = List.of(new CompletableFuture<>(), new CompletableFuture<>());
         List<CompletableFuture<Void>> gates = new CopyOnWriteArrayList<>();
         Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
-            CompletableFuture<Void> gate = new CompletableFuture<>();
+            CompletableFuture<Void> gate = results.get(batch.getFirst().equals("first") ? 0 : 1);
             gates.add(gate);
             return gate;
         }, 1, 1);
@@ -287,7 +289,7 @@ class BacklogTest {
         CountDownLatch releaseCallback = new CountDownLatch(1);
 
         CompletableFuture<Void> first = subject.add("first");
-        first.thenRun(() -> {
+        CompletableFuture<Void> continuation = first.thenRun(() -> {
             callbackStarted.countDown();
             try {
                 releaseCallback.await();
@@ -295,17 +297,22 @@ class BacklogTest {
                 Thread.currentThread().interrupt();
             }
         });
-        CompletableFuture<Void> second = subject.add("second");
-        await(() -> gates.size() == 1);
-
-        CompletableFuture.runAsync(() -> gates.getFirst().complete(null));
-        assertTrue(callbackStarted.await(2L, TimeUnit.SECONDS));
-        await(() -> gates.size() == 2);
-
-        releaseCallback.countDown();
-        gates.getLast().complete(null);
-        CompletableFuture.allOf(first, second).join();
-        subject.shutDown();
+        try {
+            CompletableFuture<Void> second = subject.add("second");
+            await(() -> gates.size() == 1);
+            try (TestTask completion = new TestTask(
+                    () -> gates.getFirst().complete(null), releaseCallback::countDown)) {
+                assertTrue(callbackStarted.await(2L, TimeUnit.SECONDS));
+                await(() -> gates.size() == 2);
+                gates.getLast().complete(null);
+                CompletableFuture.allOf(first, second).get(2, TimeUnit.SECONDS);
+            }
+            continuation.get(2, TimeUnit.SECONDS);
+        } finally {
+            releaseCallback.countDown();
+            results.forEach(gate -> gate.complete(null));
+            subject.shutDown();
+        }
     }
 
     @Test

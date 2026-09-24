@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE;
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CompressionAlgorithmTest {
 
@@ -102,7 +104,8 @@ class CompressionAlgorithmTest {
         byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
         int threadCount = 64;
         CountDownLatch start = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(threadCount)) {
+        var executor = Executors.newFixedThreadPool(threadCount, Thread.ofPlatform().daemon().factory());
+        try {
             List<java.util.concurrent.Future<byte[]>> futures = new ArrayList<>();
             for (int i = 0; i < threadCount; i++) {
                 futures.add(executor.submit(() -> {
@@ -112,8 +115,12 @@ class CompressionAlgorithmTest {
             }
             start.countDown();
             for (var future : futures) {
-                assertArrayEquals(bytes, future.get());
+                assertArrayEquals(bytes, future.get(5, TimeUnit.SECONDS));
             }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
         }
     }
 

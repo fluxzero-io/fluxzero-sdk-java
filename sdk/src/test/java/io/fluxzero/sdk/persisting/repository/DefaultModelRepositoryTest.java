@@ -1623,7 +1623,7 @@ class DefaultModelRepositoryTest {
     @Test
     @Timeout(20)
     void olderReconstructionCompletionCannotOverwriteANewerCachedModel()
-            throws InterruptedException {
+            throws Exception {
         for (Cache cache : modelCaches()) {
             try {
                 verifyOlderReconstructionCannotOverwriteNewerCommit(cache);
@@ -1634,7 +1634,7 @@ class DefaultModelRepositoryTest {
     }
 
     private void verifyOlderReconstructionCannotOverwriteNewerCommit(Cache cache)
-            throws InterruptedException {
+            throws Exception {
         AccountId id = new AccountId("reconstruction-fence");
         LocalClient localClient = LocalClient.newInstance(null);
         EventStoreClient eventStoreClient =
@@ -1664,13 +1664,11 @@ class DefaultModelRepositoryTest {
             return result;
         }).when(eventStoreClient)
                 .getModelEvents(any());
-        try (ExecutorService reconstructionExecutor = Executors.newSingleThreadExecutor();
-             Fluxzero fluxzero = withModelHandlers(
-                     DefaultFluxzero.builder()
-                             .disableKeepalive()
-                             .disableShutdownHook()
-                             .withModelCache(cache)
-                             .build(client))) {
+        Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .disableKeepalive().disableShutdownHook().withModelCache(cache).build(client));
+        ExecutorService reconstructionExecutor =
+                Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().factory());
+        try {
             fluxzero.commandGateway().send(
                     new CreateAccount(id, 5)).join();
             long oldStateIndex =
@@ -1703,7 +1701,7 @@ class DefaultModelRepositoryTest {
 
             assertEquals(
                     new Account(id, 5),
-                    olderReconstruction.join().get());
+                    olderReconstruction.get(5L, TimeUnit.SECONDS).get());
             AtomicReference<Entity<?>> cached =
                     new AtomicReference<>();
             cache.<Object>modifyEach((ignored, value) -> {
@@ -1722,6 +1720,12 @@ class DefaultModelRepositoryTest {
                             .stateIndex());
         } finally {
             allowReconstructionCompletion.countDown();
+            try {
+                reconstructionExecutor.shutdownNow();
+                assertTrue(reconstructionExecutor.awaitTermination(5L, TimeUnit.SECONDS));
+            } finally {
+                fluxzero.close();
+            }
         }
     }
 
