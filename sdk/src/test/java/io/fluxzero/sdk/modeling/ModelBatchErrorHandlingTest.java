@@ -214,7 +214,11 @@ class ModelBatchErrorHandlingTest {
     record RetryCreate(String id) {
         @AssertLegal
         void validate() {
-            if (retryAttempts.getAndIncrement() == 0) {
+            int attempt = retryAttempts.getAndIncrement();
+            if (attempt > 1) {
+                new IllegalStateException("Unexpected retry validation " + (attempt + 1)).printStackTrace();
+            }
+            if (attempt == 0) {
                 throw new IllegalCommandException("try again");
             }
         }
