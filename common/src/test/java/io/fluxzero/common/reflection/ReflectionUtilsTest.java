@@ -583,6 +583,17 @@ class ReflectionUtilsTest {
     @Nested
     class NullableTests {
         @Test
+        void javaNullabilityDoesNotInvokeKotlinReflection() throws Exception {
+            try (var kotlin = org.mockito.Mockito.mockStatic(KotlinReflectionUtils.class)) {
+                var method = JavaOnlyNullability.class.getDeclaredMethod("accept", String.class);
+                assertFalse(ReflectionUtils.isNullable(method.getParameters()[0]));
+                var constructor = JavaOnlyNullability.class.getDeclaredConstructor(String.class);
+                assertTrue(ReflectionUtils.isNullable(constructor.getParameters()[0]));
+                kotlin.verifyNoInteractions();
+            }
+        }
+
+        @Test
         void detectsParameterNullableAnnotation() throws Exception {
             Parameter parameter = NullableFixture.class.getDeclaredMethod("parameterNullable", String.class)
                     .getParameters()[0];
@@ -751,6 +762,14 @@ class ReflectionUtilsTest {
         @Retention(RetentionPolicy.RUNTIME)
         @Target(ElementType.TYPE_USE)
         private @interface Nullable {
+        }
+    }
+
+    private static class JavaOnlyNullability {
+        JavaOnlyNullability(@ParameterAnnotations.Nullable String value) {
+        }
+
+        void accept(String value) {
         }
     }
 

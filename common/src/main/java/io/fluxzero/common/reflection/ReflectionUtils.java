@@ -157,7 +157,11 @@ public class ReflectionUtils {
             memoize(ReflectionUtils::computePackageAnnotations);
     private static final Function<Parameter, Boolean> isNullableCache = memoize(
             parameter -> getParameterOverrideHierarchy(parameter).anyMatch(p -> {
-                if (isKotlinReflectionSupported()) {
+                // Java declarations have no Kotlin nullability metadata. Resolving them through kotlin-reflect
+                // needlessly initializes its compiler infrastructure on the first ordinary Java invocation.
+                if (getAnnotations(p.getDeclaringExecutable().getDeclaringClass()).stream()
+                        .anyMatch(a -> a.annotationType().getName().equals("kotlin.Metadata"))
+                    && isKotlinReflectionSupported()) {
                     var kotlinParameter = KotlinReflectionUtils.asKotlinParameter(p);
                     if (kotlinParameter != null && kotlinParameter.getType().isMarkedNullable()) {
                         return true;
