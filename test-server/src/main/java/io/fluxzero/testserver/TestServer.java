@@ -52,6 +52,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.component.LifeCycle;
 
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -146,6 +147,18 @@ public class TestServer {
     }
 
     /**
+     * Starts a caller-owned embedded test server on an explicit interface and port, without a JVM shutdown hook.
+     * Use {@code new InetSocketAddress("127.0.0.1", 0)} for isolated loopback tests. Binding the exact client address
+     * avoids wildcard/specific-address port sharing on macOS. Other overloads retain their all-interface binding.
+     *
+     * @param address interface and port to bind; port {@code 0} selects an available port
+     * @return the started Jetty server, which the caller should stop
+     */
+    public static Server startServer(InetSocketAddress address) {
+        return startServer(address, false, ignored -> {}, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    /**
      * Starts an embedded test server with a configurable look-back for consumers without a stored position.
      *
      * <p>The default overload starts new consumers one second before the current end of their log. A larger duration
@@ -170,6 +183,13 @@ public class TestServer {
     }
 
     private static Server startServer(int port, boolean registerShutdownHook,
+                                      Consumer<WebSocketTracker> readRequestObserver,
+                                      Duration initialPositionLag) {
+        return startServer(new InetSocketAddress("0.0.0.0", port), registerShutdownHook,
+                           readRequestObserver, initialPositionLag);
+    }
+
+    private static Server startServer(InetSocketAddress address, boolean registerShutdownHook,
                                       Consumer<WebSocketTracker> readRequestObserver,
                                       Duration initialPositionLag) {
         ServerState state = new ServerState(initialPositionLag);
@@ -237,12 +257,12 @@ public class TestServer {
 
         Server server;
         try {
-            server = router.start(port);
+            server = router.start(address);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to start Fluxzero test server on port " + port, e);
+            throw new IllegalStateException("Failed to start Fluxzero test server on port " + address.getPort(), e);
         }
 
-        int localPort = getLocalPort(server, port);
+        int localPort = getLocalPort(server, address.getPort());
         AtomicBoolean commandIdempotencyStoreClosed = new AtomicBoolean();
         registerRuntimeLifecycle(server, localPort, commandIdempotencyStore, commandIdempotencyStoreClosed,
                                  runtimeLifecycleMetrics);

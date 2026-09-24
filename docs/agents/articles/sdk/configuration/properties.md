@@ -6,7 +6,10 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 
 The supported symbol is `io.fluxzero.sdk.configuration.ApplicationProperties`. Reject the observed wrong imports `io.fluxzero.common.ApplicationProperties` and `io.fluxzero.common.application.ApplicationProperties`, as well as other guessed SDK, Spring, or application-local lookalikes; they are not substitutes for the SDK property source used by `TestFixture.withProperty(...)`.
 
-Resolve raw strings into a small typed settings object, then inject that object into handlers or gateways. Do not read environment variables or application properties from `@Apply` methods or throughout domain code. For processor integrations, also require an absolute HTTP(S) URI before building a one-way outbound request.
+Resolve raw strings into a small typed settings value when parsing is needed. A local integration command/query can
+load that value through `ApplicationProperties` at its handler boundary; a settings bean or injected API gateway is
+not required. Do not read environment variables or application properties from `@Apply` methods or throughout domain
+code. Require an absolute HTTP(S) URI before constructing an outbound request.
 
 ## Choose the accessor deliberately
 
@@ -25,7 +28,9 @@ An empty string is present: neither the default-value overload nor `requirePrope
 
 Property-style keys also map to conventional environment-variable names. For example, `processor.caption.base-url` can be supplied as `PROCESSOR_CAPTION_BASE_URL`; the normal precedence rules from the configuration overview still apply.
 
-## Inject typed settings
+<a id="inject-typed-settings"></a>
+
+## Load typed settings at the integration boundary
 
 Keep parsing in one place:
 
@@ -76,7 +81,13 @@ opaque, or hostless values and rejects query/fragment suffixes because operation
 different setting represents a complete request URI, define and test that separate contract rather than weakening this
 base-URL parser.
 
-Create this value near bootstrap and use normal constructor injection:
+Call `ProcessorSettings.load()` from the local integration handler or its shared request-construction helper, using
+the active application's property source. Keep operation behavior in named commands/queries; see
+`/docs/sdk/web/outbound-requests`. Validate the same settings during bootstrap when startup must fail on bad
+configuration. Do not store application-specific settings in a process-global static field: that bypasses subsequent
+fixture overrides and can mix configurations from different Fluxzero instances.
+
+For existing Spring components that already use constructor injection, a settings bean remains an option:
 
 ```java
 @Configuration
@@ -97,7 +108,8 @@ final class ProcessorGateway {
 }
 ```
 
-This keeps domain behavior deterministic and makes gateway tests independent of process-wide environment state.
+Both routes keep configuration outside replayable domain behavior. Constructor injection is an option for existing
+components, not a prerequisite for an external interaction.
 
 ## Override properties in TestFixture
 
@@ -144,7 +156,11 @@ for (String invalid : List.of(
 }
 ```
 
-Test handler behavior separately by constructing the handler with an explicit `ProcessorSettings`. The property test proves resolution and parsing; the handler test proves business or integration behavior without depending on ambient configuration.
+Test a local integration through `whenCommand(...)` or `whenQuery(...)`, with `withProperty(...)` supplying its
+configuration and a remote web handler supplying the response. Register only that remote stub. The property tests
+above prove parsing; the integration test proves the actual operation without mocking an API-service bean. If a
+standalone production handler deliberately uses constructor injection, construct it with explicit settings instead.
+
 ## Shared properties and module packaging
 
 All classpath `application.properties` resources are merged. Put shared defaults in a common module and let executable

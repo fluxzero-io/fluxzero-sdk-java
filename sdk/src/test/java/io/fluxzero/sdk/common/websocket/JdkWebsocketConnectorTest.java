@@ -104,8 +104,8 @@ class JdkWebsocketConnectorTest {
                 URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
                 Runnable::run);
 
-        Thread.sleep(10);
-
+        assertEquals(0L, io.fluxzero.common.reflection.ReflectionUtils.<Long>readProperty(
+                "lastInboundNanos", session).orElseThrow());
         assertEquals(0L, session.runtimeDataState().lastInboundAgeMillis());
     }
 
@@ -118,9 +118,12 @@ class JdkWebsocketConnectorTest {
                 URI.create("ws://localhost/test"), new JdkWebsocketConnector.CapturedHandshakeResponse(),
                 Runnable::run);
 
-        Thread.sleep(10);
-
-        assertTrue(session.runtimeDataState().lastInboundAgeMillis() > 0L);
+        assertTrue(io.fluxzero.common.reflection.ReflectionUtils.<Long>readProperty(
+                "lastInboundNanos", session).orElseThrow() != 0L);
+        // The timestamp is the input to the age calculation; no real-time sleep is needed to test it.
+        io.fluxzero.common.reflection.ReflectionUtils.writeProperty(
+                "lastInboundNanos", session, System.nanoTime() - TimeUnit.SECONDS.toNanos(5));
+        assertTrue(session.runtimeDataState().lastInboundAgeMillis() >= 5_000L);
     }
 
     @Test
@@ -210,6 +213,7 @@ class JdkWebsocketConnectorTest {
 
             assertTrue(messageReceived.await(1, TimeUnit.SECONDS));
             assertEquals("custom-websocket-executor", callbackThread.get());
+            assertTrue(endpoint.openThreadName.get().startsWith("fluxzero-websocket-open-"));
             assertEquals("shared-caller-owned", session.runtimeDataWorkerMode());
         } finally {
             executor.shutdownNow();
@@ -237,7 +241,16 @@ class JdkWebsocketConnectorTest {
 
     @Test
     void openCallbackDoesNotDependOnCallbackExecutorCapacity() throws Exception {
-        RecordingEndpoint endpoint = new RecordingEndpoint();
+        ThreadLocal<String> context = io.fluxzero.sdk.common.ThreadLocalContext.create();
+        AtomicReference<String> observedContext = new AtomicReference<>();
+        RecordingEndpoint endpoint = new RecordingEndpoint() {
+            @Override
+            public void onOpen(WebsocketSession session) {
+                super.onOpen(session);
+                observedContext.set(context.get());
+                assertTrue(Thread.currentThread().isVirtual());
+            }
+        };
         JdkWebsocketConnector connector = new JdkWebsocketConnector();
         JdkWebSocketSession session = new JdkWebSocketSession(
                 connector, endpoint,
@@ -249,8 +262,15 @@ class JdkWebsocketConnectorTest {
                 });
         WebSocket webSocket = mock(WebSocket.class);
 
-        session.createListener().onOpen(webSocket);
-        session.awaitOpen();
+        context.set("opening-context");
+        try {
+            session.createListener().onOpen(webSocket);
+            session.awaitOpen();
+            assertEquals("opening-context", context.get());
+            assertEquals("opening-context", observedContext.get());
+        } finally {
+            context.remove();
+        }
 
         assertSame(session, endpoint.session.get());
         assertTrue(session.isOpen());
@@ -621,7 +641,7 @@ class JdkWebsocketConnectorTest {
                                    session, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                                    Duration.ofSeconds(5)),
                            () -> "Ingress did not stop at its retained bound: " + session.runtimeDataState());
-                assertTrue(awaitAdmittedMessages(
+                assertTrue(awaitBlockedCompletionAdmission(
                                    session, BlockingBurstResultCompletionClient.TEST_COMPLETION_CONCURRENCY,
                                    Duration.ofSeconds(5)),
                            () -> "Completion admission did not settle at its configured bound: "
@@ -681,16 +701,22 @@ class JdkWebsocketConnectorTest {
         return true;
     }
 
-    private static boolean awaitAdmittedMessages(
+    private static boolean awaitBlockedCompletionAdmission(
             JdkWebSocketSession session, int expected, Duration timeout) throws InterruptedException {
         long deadline = System.nanoTime() + timeout.toNanos();
-        while (session.runtimeDataState().admittedMessages() != expected) {
+        while (true) {
+            JdkWebSocketSession.RuntimeDataState state = session.runtimeDataState();
+            // Admission can fill before the replacement dispatch worker starts. Both are required
+            // for the stable blocked snapshot asserted by the caller.
+            if (state.admittedMessages() == expected
+                && state.activeMessages() == JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES) {
+                return true;
+            }
             if (System.nanoTime() >= deadline) {
                 return false;
             }
             TimeUnit.MILLISECONDS.sleep(1);
         }
-        return true;
     }
 
     private static boolean awaitProcessedBatch(Semaphore processedPermits, int messagesInBatch,

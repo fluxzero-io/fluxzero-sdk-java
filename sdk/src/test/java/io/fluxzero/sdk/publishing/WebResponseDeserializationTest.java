@@ -140,7 +140,7 @@ class WebResponseDeserializationTest {
     void doesNotExpandSupportedEncodingsOrAlterUncompressedSerializerInput(String encoding) {
         var source = new SerializedMessage(serializer.serialize(new Reply("untouched")),
                 WebResponse.asMetadata(200, Map.of("Content-Encoding", List.of(encoding))), "response", 0L);
-        Serializer configured = mock(Serializer.class);
+        Serializer configured = responseSerializer();
         when(configured.deserialize(source)).thenReturn(new Reply("untouched"));
         var response = (WebResponse) receive(source, MessageType.WEBREQUEST, configured).join();
         verify(configured).deserialize(source);
@@ -157,7 +157,7 @@ class WebResponseDeserializationTest {
         source.setRequestId(42);
         source.setSource("sender");
         source.setTarget("receiver");
-        Serializer configured = mock(Serializer.class);
+        Serializer configured = responseSerializer();
         when(configured.deserialize(any())).thenAnswer(invocation -> {
             SerializedMessage decoded = invocation.getArgument(0);
             assertEquals(plain, decoded.getData());
@@ -199,7 +199,7 @@ class WebResponseDeserializationTest {
     void deserializedThrowableStillFailsFutureWithOriginalCause() {
         var source = new SerializedMessage(serializer.serialize(new Reply("error")).map(CompressionAlgorithm.GZIP::compress),
                 WebResponse.asMetadata(500, Map.of("Content-Encoding", List.of("gzip"))), "response", 0L);
-        Serializer configured = mock(Serializer.class);
+        Serializer configured = responseSerializer();
         var failure = new IllegalStateException("response error");
         when(configured.deserialize(any())).thenReturn(failure);
         assertSame(failure, assertThrows(CompletionException.class,
@@ -223,6 +223,12 @@ class WebResponseDeserializationTest {
 
     private CompletableFuture<Message> receive(SerializedMessage response, MessageType type) {
         return receive(response, type, serializer);
+    }
+
+    private Serializer responseSerializer() {
+        Serializer result = mock(Serializer.class);
+        when(result.serialize(any())).thenReturn(serializer.serialize("request"));
+        return result;
     }
 
     private CompletableFuture<Message> receive(SerializedMessage response, MessageType type, Serializer serializer) {

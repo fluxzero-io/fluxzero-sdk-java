@@ -49,8 +49,9 @@ import java.util.Map;
  * </ul>
  *
  * <p>
- * Compression is applied to the final byte output using {@link CompressionAlgorithm#LZ4} and marked with the format
- * {@code document} via {@link Data#DOCUMENT_FORMAT}.
+ * Compression is applied to the final byte output using {@link CompressionAlgorithm#ZSTD} and marked with the format
+ * {@code document} via {@link Data#DOCUMENT_FORMAT}. Readers accept ZSTD and historical LZ4 envelopes; LZ4 decoding
+ * uses the bounds-checked Java implementation.
  *
  * @see Document
  * @see Data
@@ -59,6 +60,9 @@ public enum DefaultDocumentSerializer {
     INSTANCE;
 
     private static final int currentVersion = 0;
+
+    private static final MessagePack.UnpackerConfig smallDocumentUnpackerConfig =
+            MessagePack.DEFAULT_UNPACKER_CONFIG.withStringDecoderBufferSize(1024);
 
     /**
      * Serializes the given {@link Document} into a compressed binary {@link Data} container.
@@ -84,7 +88,7 @@ public enum DefaultDocumentSerializer {
                 }
             }
             return new Data<>(
-                    CompressionAlgorithm.LZ4.compress(packer.toByteArray()),
+                    CompressionAlgorithm.ZSTD.compress(packer.toByteArray()),
                     document.getType(), document.getRevision(), Data.DOCUMENT_FORMAT);
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not serialize document", e);
@@ -103,8 +107,8 @@ public enum DefaultDocumentSerializer {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
-        try (MessageUnpacker unpacker =
-                     MessagePack.newDefaultUnpacker(CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
+        try (MessageUnpacker unpacker = newDocumentUnpacker(
+                CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
             int version = unpacker.unpackInt();
             if (version != 0) {
                 throw new IllegalArgumentException("Unsupported document revision: " + version);
@@ -128,6 +132,13 @@ public enum DefaultDocumentSerializer {
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not deserialize document", e);
         }
+    }
+
+    private static MessageUnpacker newDocumentUnpacker(byte[] bytes) {
+        // MessagePack allocates its string scratch buffer even for contiguous array input. A complete small
+        // document cannot need more characters than its byte length; keep the default for larger documents.
+        return bytes.length <= 1024 ? smallDocumentUnpackerConfig.newUnpacker(bytes)
+                : MessagePack.newDefaultUnpacker(bytes);
     }
 
     /**

@@ -106,7 +106,7 @@ public class DefaultSnapshotStore extends AbstractNamespaced<SnapshotStore> impl
     }
 
     protected CompletableFuture<Void> trimSnapshots(Entity<?> snapshot) {
-        int maxSnapshotCount = max(1, snapshot.rootAnnotation().maxSnapshotCount());
+        int maxSnapshotCount = max(1, snapshot.rootConfiguration().maxSnapshotCount());
         try {
             var snapshots = documentStore.search(SNAPSHOT_COLLECTION)
                     .match(snapshot.id().toString(), true, "aggregateId")

@@ -1,3 +1,6 @@
+This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
+and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+
 `@Apply` methods perform deterministic state transitions and are reused when Fluxzero rebuilds an entity from its event stream.
 
 Signatures determine intent:

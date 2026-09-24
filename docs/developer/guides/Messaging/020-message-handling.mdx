@@ -41,6 +41,12 @@ class UserEventHandler {
 
 This handler uses the static `sendCommand` method on Fluxzero, which works because the client is automatically injected into the thread-local context before message handling begins. This eliminates the need to inject `Fluxzero` into every handler.
 
+Reusable operations can keep their handler on the command/query payload itself. This is also the default for an
+external API interaction: the local `@HandleCommand` or `@HandleQuery` method makes the `WebRequestGateway` call,
+and other handlers dispatch its payload instead of injecting an API-service bean. No `@TrackSelf` or `@Consumer` is
+required merely for an external call. See [Local handling](/docs/guides/messaging/local-handling) and the complete
+[outbound integration example](/docs/guides/messaging/sending-web-requests).
+
 ---
 
 To receive that command, define a corresponding command handler:

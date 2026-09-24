@@ -14,6 +14,8 @@
 
 package io.fluxzero.common.tracking;
 
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.tracking.Read;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -41,8 +43,32 @@ public class TrackerClusterTest {
         assertArrayEquals(new int[]{0, maxSegment}, subject.getSegment(client));
     }
 
+    @Test
+    public void testSingleTrackerKeepsExtraApplicationInstancesIdle() {
+        Tracker first = asSingleTracker("migration", "application-1");
+        Tracker second = asSingleTracker("migration", "application-2");
+
+        subject = subject.withWaitingTracker(first).withWaitingTracker(second);
+
+        assertEquals(1, subject.getTrackers().stream()
+                .map(subject::getSegment)
+                .filter(segment -> segment[0] == 0 && segment[1] == maxSegment)
+                .count());
+        assertEquals(1, subject.getTrackers().stream()
+                .map(subject::getSegment)
+                .filter(segment -> segment[0] == 0 && segment[1] == 0)
+                .count());
+    }
+
     private Tracker asTracker(String name) {
         return SimpleTracker.builder().consumerName(name).build();
+    }
+
+    private Tracker asSingleTracker(String consumer, String trackerId) {
+        return new WebSocketTracker(
+                new Read(MessageType.EVENT, consumer, trackerId, 100, 0L,
+                         null, false, false, true, false, 0L, null),
+                MessageType.EVENT, trackerId, null);
     }
 
     @Test

@@ -15,18 +15,26 @@
 package io.fluxzero.sdk.test;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrations;
+import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.persisting.search.SearchHit;
@@ -91,6 +99,20 @@ class DocumentTrackingSearchClient implements SearchClient {
         }
     }
 
+    @Override
+    public CompletableFuture<Void> rewriteModelGraphDocument(
+            SerializedDocument document, String expectedManifest, Guarantee guarantee) {
+        // A stale manifest may make this operation a successful no-op. Do not invent a pending document dispatch;
+        // retained-store migration tests must observe the actual resulting projection/consumer progress.
+        return delegate.rewriteModelGraphDocument(document, expectedManifest, guarantee);
+    }
+
+    @Override
+    public CompletableFuture<Void> rewriteModelSourceDocument(
+            io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return delegate.rewriteModelSourceDocument(request);
+    }
+
     private void monitorDocumentUpdates(List<SerializedDocument> documents) {
         documents.forEach(interceptor::monitorDocumentDispatch);
     }
@@ -146,6 +168,30 @@ class DocumentTrackingSearchClient implements SearchClient {
     }
 
     @Override
+    public Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModels(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelsAsync(
+            SearchModelDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModelsAsync(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public Stream<SearchHit<SerializedDocument>> searchModelGraph(
+            SearchModelGraphDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModelGraph(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelGraphAsync(
+            SearchModelGraphDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModelGraphAsync(searchDocuments, fetchSize);
+    }
+
+    @Override
     public boolean documentExists(HasDocument request) {
         return delegate.documentExists(request);
     }
@@ -153,6 +199,29 @@ class DocumentTrackingSearchClient implements SearchClient {
     @Override
     public Optional<SerializedDocument> fetch(GetDocument request) {
         return delegate.fetch(request);
+    }
+
+    @Override
+    public GetDocumentResult fetchModelDocument(GetDocument request) {
+        return delegate.fetchModelDocument(request);
+    }
+
+    @Override
+    public GetModelMigrationResult getModelMigration(
+            GetModelMigration request) {
+        return delegate.getModelMigration(request);
+    }
+
+    @Override
+    public GetModelMigrationsResult getModelMigrations(
+            GetModelMigrations request) {
+        return delegate.getModelMigrations(request);
+    }
+
+    @Override
+    public CompletableFuture<Void> adoptModelMigration(
+            AdoptModelMigration request) {
+        return delegate.adoptModelMigration(request);
     }
 
     @Override

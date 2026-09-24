@@ -1,4 +1,4 @@
-Fluxzero apps usually run as Spring Boot applications on Java 21 or newer. If the project does not already have Fluxzero in the build, read project setup first and add the Maven/Gradle dependencies, BOM, annotation processing, and test runtime before writing domain code.
+Fluxzero apps usually run as Spring Boot applications on Java 25 or newer. If the project does not already have Fluxzero in the build, read project setup first and add the Maven/Gradle dependencies, BOM, annotation processing, and test runtime before writing domain code.
 
 ```java
 @SpringBootApplication
@@ -42,6 +42,10 @@ Spring auto-configuration registers annotated handlers, upcasters, downcasters, 
 
 `DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, host metrics, web request forwarding, and fetch byte limits. Keep these settings centralized near application bootstrap.
 
+The builder initializes its default task scheduler only on `taskScheduler()` access or `build(...)`.
+Use `replaceTaskScheduler(...)` before that to supply a scheduler without starting an unused default.
+Closing the built Fluxzero instance shuts down the selected scheduler.
+
 Use `application.properties`, environment variables, and runtime configuration for deploy-specific values. Access them through `ApplicationProperties.getProperty(...)`, its default-value overload, or `ApplicationProperties.requireProperty(...)`. The required accessor is `requireProperty`, not `require`. Read the focused property-access article for a typed configuration boundary and `TestFixture.withProperty(...)` scenarios.
 
 Avoid reading environment variables deep inside domain code. Pass configuration into handlers or service boundaries where it can be tested.
@@ -57,3 +61,11 @@ The runtime exposes WebSocket endpoints for commands, queries, events, event sou
 Runtime namespace defaults to `public` when no namespace is supplied and normalizes namespace values to lowercase. Use explicit namespaces only when the deployment model needs isolation.
 
 Runtime health and readiness are different: `/health` means the process is up, while `/ready` includes availability/database readiness and should be used for deployment readiness checks.
+
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
+outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
+supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
+GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+`fluxzero.defaults.version`.

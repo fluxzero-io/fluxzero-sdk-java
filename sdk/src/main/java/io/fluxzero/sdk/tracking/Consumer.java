@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -101,7 +102,7 @@ public @interface Consumer {
     int maxFetchSize() default 1024;
 
     /**
-     * Maximum serialized payload bytes to fetch in a batch.
+     * Maximum complete serialized message bytes to fetch in a batch.
      * <p>
      * The default {@link ConsumerConfiguration#USE_DEFAULT_MAX_FETCH_BYTES} inherits
      * {@link ConsumerConfiguration#MAX_FETCH_BYTES_PROPERTY} when configured, otherwise
@@ -114,6 +115,12 @@ public @interface Consumer {
      * time unit. Default is {@code 60} (seconds).
      */
     long maxWaitDuration() default 60;
+
+    /**
+     * Overrides graph-projection result completion for model commits handled by this consumer.
+     */
+    GraphProjectionCompletion graphProjectionCompletion()
+            default GraphProjectionCompletion.DEFAULT;
 
     /**
      * Unit for {@link #maxWaitDuration()}. Default is {@link ChronoUnit#SECONDS}.

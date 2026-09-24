@@ -95,6 +95,16 @@ public class ApplicationProperties {
      */
     public static final String APPLICATION_VERSION_PROPERTY = "fluxzero.application.version";
 
+    /**
+     * Optional literal prefix for every persisted logical {@code @Model} name in one application.
+     * <p>
+     * Fluxzero does not insert a separator. For example, prefix {@code billing} and Model name {@code Invoice}
+     * resolve to {@code billingInvoice}. Applications that share a Runtime namespace can use this to avoid Model-name
+     * collisions. Changing the prefix changes durable Model identity and requires an application-managed data
+     * transition.
+     */
+    public static final String MODEL_NAME_PREFIX_PROPERTY = "fluxzero.model.namePrefix";
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**
@@ -133,11 +143,13 @@ public class ApplicationProperties {
      *     </tr>
      *     <tr>
      *         <td>{@code >= 2026.06.09}</td>
-     *         <td>{@code fluxzero.aggregate.commitPolicy = async_after_handler_await_after_batch}</td>
-     *         <td>Aggregates using the default commit policy start their commits after each handler, keep active
-     *         thread-local aggregates visible until batch completion, and wait for all started commits together at the
-     *         end of the current message batch. Existing applications can keep the legacy behavior with
-     *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}.</td>
+     *         <td>{@code fluxzero.aggregate.commitPolicy = async_after_handler_await_after_batch}<br>
+     *         {@code fluxzero.model.commitPolicy = async_after_handler_await_after_batch}</td>
+     *         <td>Aggregates and independent models using their default commit policy start commits after their
+     *         handlers and wait for all started commits together at the end of the current message batch. Existing
+     *         aggregate applications can retain compatibility behavior with
+     *         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}. Independent models use the new behavior
+     *         regardless of the defaults version and can opt out explicitly.</td>
      *     </tr>
      *     <tr>
      *         <td>{@code >= 2026.06.20}</td>
@@ -146,6 +158,12 @@ public class ApplicationProperties {
      *         Existing applications can keep synchronous handling with
      *         {@code fluxzero.tracking.defaultHandlingMode.webrequest = sync} or by configuring the web request default
      *         consumer with {@code handlingMode = SYNC}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.07.27}</td>
+     *         <td>{@code fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage}</td>
+     *         <td>Handlers without an explicit consumer share one generated consumer per exact handler package and
+     *         message type. Explicit class/package consumers and custom configurations remain more specific.</td>
      *     </tr>
      *     <tr>
      *         <td>{@code >= 2026.08.04}</td>
@@ -177,7 +195,18 @@ public class ApplicationProperties {
      *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications
      *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.10}</td>
+     *         <td>{@code fluxzero.model.automaticRouting = true}</td>
+     *         <td>Commands with one statically unambiguous Model apply and single-Model events use the canonical
+     *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
+     *         Set the property to {@code false} to retain compatibility behavior.</td>
+     *     </tr>
      * </table>
+     * <p>
+     * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this
+     * version. Override it with {@code fluxzero.model.conflictPolicy} ({@code FLUXZERO_MODEL_CONFLICT_POLICY})
+     * or explicit builder/Model/Apply configuration. Create-only compatibility remains a separate check.
      * <p>
      * Memory-aware cache pressure can be tuned with
      * {@code fluxzero.cache.memoryPressure.heapThresholdPercent},

@@ -182,6 +182,82 @@ public class RequestAnnotationProcessorTest {
     }
 
     @Test
+    void permitsGraphImplementationBehindJsonRequestContract() {
+        RequestAnnotationProcessor p =
+                new RequestAnnotationProcessor();
+        Reflect.compile(
+                "io.fluxzero.sdk.tracking.handling.GraphJsonHandler",
+                """
+                        package io.fluxzero.sdk.tracking.handling;
+                        public class GraphJsonHandler implements Request<com.fasterxml.jackson.databind.node.ObjectNode> {
+                            @HandleQuery
+                            io.fluxzero.sdk.modeling.Graph<Model> handle() {
+                                return null;
+                            }
+                            record Model(String id) {}
+                        }
+                        """, new CompileOptions().processors(p)
+        ).create().get();
+    }
+
+    @Test
+    void permitsGraphListImplementationBehindJsonListContract() {
+        RequestAnnotationProcessor p =
+                new RequestAnnotationProcessor();
+        Reflect.compile(
+                "io.fluxzero.sdk.tracking.handling.GraphJsonListHandler",
+                """
+                        package io.fluxzero.sdk.tracking.handling;
+                        public class GraphJsonListHandler implements Request<java.util.List<com.fasterxml.jackson.databind.JsonNode>> {
+                            @HandleQuery
+                            java.util.List<io.fluxzero.sdk.modeling.Graph<Model>> handle() {
+                                return java.util.List.of();
+                            }
+                            record Model(String id) {}
+                        }
+                        """, new CompileOptions().processors(p)
+        ).create().get();
+    }
+
+    @Test
+    void rejectsGraphImplementationBehindNonJsonRequestContract() {
+        RequestAnnotationProcessor p =
+                new RequestAnnotationProcessor();
+        assertThrows(ReflectException.class, () -> Reflect.compile(
+                "io.fluxzero.sdk.tracking.handling.InvalidGraphHandler",
+                """
+                        package io.fluxzero.sdk.tracking.handling;
+                        public class InvalidGraphHandler implements Request<String> {
+                            @HandleQuery
+                            io.fluxzero.sdk.modeling.Graph<Model> handle() {
+                                return null;
+                            }
+                            record Model(String id) {}
+                        }
+                        """, new CompileOptions().processors(p)
+        ).create().get());
+    }
+
+    @Test
+    void rejectsUnsupportedGraphResponseContainer() {
+        RequestAnnotationProcessor p =
+                new RequestAnnotationProcessor();
+        assertThrows(ReflectException.class, () -> Reflect.compile(
+                "io.fluxzero.sdk.tracking.handling.InvalidGraphContainerHandler",
+                """
+                        package io.fluxzero.sdk.tracking.handling;
+                        public class InvalidGraphContainerHandler implements Request<java.util.stream.Stream<com.fasterxml.jackson.databind.JsonNode>> {
+                            @HandleQuery
+                            java.util.stream.Stream<io.fluxzero.sdk.modeling.Graph<Model>> handle() {
+                                return java.util.stream.Stream.empty();
+                            }
+                            record Model(String id) {}
+                        }
+                        """, new CompileOptions().processors(p)
+        ).create().get());
+    }
+
+    @Test
     void testPayloadHandlerWithCorrectType() {
         RequestAnnotationProcessor p = new RequestAnnotationProcessor();
         Reflect.compile(

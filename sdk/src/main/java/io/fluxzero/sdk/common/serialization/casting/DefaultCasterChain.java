@@ -185,7 +185,17 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         return cast(caster.cast(input), desiredRevision).findAny().orElse(null);
     }
 
-    private boolean canSkipCast(SerializedObject<?> input, Integer desiredRevision) {
+    @Override
+    public boolean canSkipCast(S input, Integer desiredRevision) {
+        return canSkipSerialized(input, desiredRevision);
+    }
+
+    @Override
+    public S prepareForSkippingCast(S input, Integer desiredRevision) {
+        return canSkipCast(input, desiredRevision) ? input : null;
+    }
+
+    private boolean canSkipSerialized(SerializedObject<?> input, Integer desiredRevision) {
         return isComplete(input, desiredRevision) || !hasCaster(input.getType(), input.getRevision());
     }
 
@@ -217,7 +227,7 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
                                                           Integer rev) {
             return inputStream.flatMap(input -> {
                 SerializedObject<BEFORE> resolvedInput = resolveInputType(input);
-                if (delegate.canSkipCast(resolvedInput, rev)) {
+                if (delegate.canSkipSerialized(resolvedInput, rev)) {
                     return Stream.of(convertFormat(resolvedInput));
                 }
                 ConvertingSerializedObject<BEFORE, INTERNAL> converting =
@@ -229,12 +239,23 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         @Override
         public SerializedObject<?> castFirstOrNull(SerializedObject<BEFORE> input, Integer rev) {
             input = resolveInputType(input);
-            if (delegate.canSkipCast(input, rev)) {
+            if (delegate.canSkipSerialized(input, rev)) {
                 return convertFormat(input);
             }
             ConvertingSerializedObject<BEFORE, INTERNAL> converting = new ConvertingSerializedObject<>(input, converter);
             ConvertingSerializedObject<BEFORE, INTERNAL> result = delegate.castFirstOrNull(converting, rev);
             return result == null ? null : result.getResult();
+        }
+
+        @Override
+        public boolean canSkipCast(SerializedObject<BEFORE> input, Integer rev) {
+            return delegate.canSkipSerialized(resolveInputType(input), rev);
+        }
+
+        @Override
+        public SerializedObject<BEFORE> prepareForSkippingCast(SerializedObject<BEFORE> input, Integer rev) {
+            SerializedObject<BEFORE> resolvedInput = resolveInputType(input);
+            return delegate.canSkipSerialized(resolvedInput, rev) ? resolvedInput : null;
         }
 
         @Override

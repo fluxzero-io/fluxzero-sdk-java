@@ -34,11 +34,13 @@ public class TypeAliasBenchmark {
     private static final int deserializationWarmupIterations =
             Integer.getInteger("deserializationWarmupIterations", 100_000);
     private static final int warmups = Integer.getInteger("warmups", 3);
+    private static final int payloadExtraBytes = Integer.getInteger("payloadExtraBytes", 0);
     private static final String[] currentTypes = createTypes("io.fluxzero.current");
     private static final String[] legacyTypes = createTypes("host.example.legacy");
     private static final ThreadMXBean allocationBean = allocationBean();
     private static final Data<byte[]> serializedValue = new Data<>(
-            "{\"value\":\"test\"}".getBytes(UTF_8), BenchmarkValue.class.getName(), 0, Data.JSON_FORMAT);
+            ("{\"value\":\"test" + "x".repeat(payloadExtraBytes) + "\"}").getBytes(UTF_8),
+            BenchmarkValue.class.getName(), 0, Data.JSON_FORMAT);
     private static volatile int blackhole;
     private static volatile Object objectBlackhole;
 
@@ -65,8 +67,8 @@ public class TypeAliasBenchmark {
             runDeserialize(matchingPackageAlias, deserializationWarmupIterations);
         }
 
-        System.out.printf("config iterations=%d warmups=%d packageAliasesSupported=%s%n",
-                          iterations, warmups, packageAliasesSupported());
+        System.out.printf("config iterations=%d warmups=%d payloadExtraBytes=%d packageAliasesSupported=%s%n",
+                          iterations, warmups, payloadExtraBytes, packageAliasesSupported());
         measure("no-aliases-no-match", noAliases, currentTypes);
         measure("eight-exact-aliases-no-match", exactAliases, currentTypes);
         if (packageAliasesSupported()) {

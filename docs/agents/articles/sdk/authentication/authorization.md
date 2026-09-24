@@ -13,11 +13,6 @@ public record Sender(UserId userId, Role userRole) implements User {
     }
 
     @Override
-    public String getName() {
-        return id();
-    }
-
-    @Override
     public boolean hasRole(String role) {
         if (role == null) {
             return false;
@@ -39,10 +34,15 @@ public record Sender(UserId userId, Role userRole) implements User {
 }
 ```
 
-Use `User.id()` wherever application behavior needs the stable actor identity. On the 1.x SDK it defaults to
-`Principal.getName()` so existing implementations keep working; override it when the principal name is a display or
-provider-facing name. `AbstractUserProvider` writes this ID to user metadata and passes it to `getUserById(...)` on
-receipt. Keep resolving earlier `getName()` values while messages written by an older SDK can still be in flight.
+Use `User.id()` wherever application behavior needs the stable actor identity. SDK 2.0 requires an explicit `id()`
+implementation; there is no identity fallback to a name. `User` remains a `Principal`, but `getName()` is optional and
+defaults to `id()`. A separate principal/display name must stay outside identity comparisons. Recompile older
+getName-only implementations after adding `id()`.
+
+When ID metadata is enabled (`fluxzero.defaults.version >= 2026.08.04` or `fluxzero.auth.useUserIdMetadata=true`),
+`AbstractUserProvider` writes this ID and passes it to `getUserById(...)` on receipt. Compatibility defaults retain
+complete-user JSON, without adding an automatic `id` property; new readers still accept that older format. If IDs
+change, explicitly resolve earlier stored identity values in the provider while old messages remain in flight.
 
 Create roles in the app, not in the IDP client:
 

@@ -1,0 +1,57 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.modeling;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Configures the independent public document projection maintained by a {@link Model} whose
+ * {@link Model#persistence() persistence} stores a document.
+ */
+@Documented
+@Target({})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface DocumentProjection {
+
+    /**
+     * Whether this current document is exposed through the Model's public search collection.
+     * <p>
+     * When {@code false}, Fluxzero does not expose the document through an unrestricted typed Model search. The direct
+     * document remains in {@link #collection() its normal resolved collection}, without a text summary, facets or
+     * sortable indexes, and is retrievable through exact parent or ancestor relationships. Model loads and verified
+     * current-state reads use a separate internal source. A Model that participates in Graph composition still
+     * maintains its independently required internal component indexes; use
+     * {@link io.fluxzero.common.search.SearchExclude @SearchExclude}, {@code @Facet} and {@code @Sortable} to shape
+     * those indexes explicitly.
+     * <p>This controls query visibility, not authorization, encryption or secret protection. Identity and related
+     * reads remain available to callers with store access; {@code @ProtectData} on an input message does not protect
+     * values copied into this document.</p>
+     */
+    boolean searchable() default true;
+
+    /** Collection receiving current Model documents. Blank defaults to the resolved logical Model name. */
+    String collection() default "";
+
+    /** Optional property path used as the document's start timestamp. */
+    String timestampPath() default "";
+
+    /** Optional property path used as the document's end timestamp. */
+    String endPath() default "";
+}

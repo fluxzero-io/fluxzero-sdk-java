@@ -1,5 +1,10 @@
 # Validation & Security
 
+For concurrent Model invariants, read [Model state and protection boundaries](https://fluxzero.io/docs/guides/modeling-and-persistence/model-state-boundaries/).
+Identify the Model values/relations, ID source and conflict policy. Inject the Model/Graph or load its Graph within
+the mutation. Search, arbitrary manual Model reads and standalone assertions are not automatic commit dependencies.
+An unclear binding must be resolved before adding an application workaround.
+
 Fluxzero provides a multi-layered approach to security and validation, ensuring that business logic is protected and
 data is filtered according to user permissions before it ever reaches the network or the client.
 
@@ -64,8 +69,7 @@ data class CreateUser(
 ) {
     @AssertTrue(message = "Username must not be the same as email")
     fun isUsernameValid(): Boolean {
-        // NOTE: Null-checks are not needed here; Fluxzero ensures @NotBlank/@NotNull 
-        // fields in details are validated before this method is even called.
+        // Pure method: normal payload validation retains required-field failures.
         return details.username != details.email
     }
 }
@@ -85,6 +89,35 @@ data class CreateUser(@field:NotBlank val userId: String) {
 
 If a constrained method declares parameters that cannot be resolved for the current validation run, Fluxzero skips that
 method instead of failing validation. Keep always-required checks on fields or no-argument constraint methods.
+
+### Fields before method constraints
+
+The default Fluxzero payload validator checks field constraints, including container-element constraints and
+field-based `@Valid` cascades, before the containing object's method constraints. Pure constraint methods may
+dereference values required by active field constraints without repeating null guards. For example:
+
+```kotlin
+data class ConfigureReminder(@field:NotNull val delay: Duration) {
+    @AssertTrue(message = "Choose a non-negative delay.")
+    fun hasNonNegativeDelay(): Boolean = !delay.isNegative
+}
+```
+
+For collections, require both the container and its elements, for example
+`@field:NotNull @field:Valid val reminders: List<@NotNull ReminderDetails>` (emit JVM type annotations with `-Xemit-jvm-type-annotations`). `@Valid` checks a present nested value; it does not
+make a missing value or element invalid. Use `@NotNull` or the appropriate field constraint separately.
+Optional values still need a null-aware rule. Conditionally required values need a combination rule.
+
+This applies to automatic payload validation and `assertValid`/`checkValidity`/`isValid` with the default validator.
+It is not a promise that a method is never called for invalid input: after finding field failures, the validator may
+try method constraints again to collect additional violations, suppressing failures from that diagnostic pass.
+Keep constraint methods pure. The raw `getConstraintViolations`/Jakarta `validate` APIs do not suppress such method
+exceptions; use the normal payload-validation API for this contract.
+
+Only constraints in the active groups and reached through enabled cascades establish these preconditions.
+A requirement in a later group-sequence stage cannot protect a method in an earlier stage. Method-level
+`@Valid` return values are not prevalidated fields. A replacement validator owns its own ordering and failure behavior.
+
 
 ### @ValidateWith
 
@@ -191,8 +224,11 @@ Fluxzero applications typically integrate with external identity providers (like
 `UserProvider`.
 
 - **UserProvider**: A Spring bean that resolves the current user from the message metadata or thread context.
-- **User identity**: Use `User.id()` for ownership, audit, and other stable identity comparisons. It defaults to
-  `Principal.getName()` for 1.x compatibility; override it when the principal name is not the application user ID.
+- **User identity**: SDK 2.0 requires `override fun id(): String`. Use it for ownership, audit, and identity
+  comparisons; never infer identity from a principal/display name. `User` remains a `Principal`, whose optional
+  `getName()` defaults to `id()`. Recompile getName-only implementations after adding `id()`. The existing complete-user
+  versus ID metadata setting is unchanged; providers must explicitly resolve earlier stored identities if IDs change
+  during a rolling upgrade.
 - **JWT**: In a typical setup, a gateway or proxy extracts the JWT, verifies it, and attaches the user information to
   the message `Metadata` before forwarding it to the Fluxzero application.
 - **Local Identity**: For local testing, the `TestFixture` uses a system user by default but can be configured with
@@ -211,13 +247,16 @@ Filtering allows objects to dynamically adjust their exposed content based on wh
 Content filtering is not automatic. You must add `@FilterContent` to the **handler method, class, or package** to enable
 it for a specific flow.
 
+An annotated handler returning a `CompletableFuture` filters the successful value after completion, using the
+original request context and viewer. Failed or cancelled futures propagate without running content filters.
+
 ```kotlin
 @Component
 class UserQueryHandler {
     @HandleQuery
     @FilterContent // Enables recursive filtering for the result
     fun handle(query: GetUserProfile): UserProfile {
-        return Fluxzero.loadAggregate(query.userId).get()
+        return Fluxzero.loadModel(query.userId).get()
     }
 }
 ```
@@ -232,6 +271,8 @@ Practical recursion behavior:
 - If a filtered list element returns `null`, it is removed from the list.
 - If a filtered map value returns `null`, the key is removed from the map.
 - Root-context injection (`filter(User, RootType)`) is useful when child visibility depends on parent state.
+- Graph values are filtered per typed node. A model filter may inject its current `Graph<T>` and a typed parent or root
+  `Graph<P>` without causing a new repository read.
 
 ```kotlin
 data class Order(val id: OrderId, val items: List<LineItem>, val isSecret: Boolean) {
@@ -275,7 +316,14 @@ payload, making it available to the handler.
 
 For a message handled only by a local handler with `logMessage = false`, the original value remains in memory and is
 passed directly to the handler without KV I/O. External fallback and `logMessage = true` use the KV-backed path;
-`@LocalOnly` never externalizes the value.
+`@LocalOnly` prevents external command dispatch, not durable domain writes performed by the handler.
+
+Independent `@Model` updates also redact stored/published events, including local automatic commands, explicit
+`assertAndApply`, and `@InterceptApply` replacements. Durable Model events require vault-backed references.
+Unchanged restored values retain their references without recreating erased values. Reconstruction restores only
+retained values; applies must tolerate erased (`null`) private data, while vault read failures fail reconstruction.
+Protection does not extend to secrets copied into Model state, documents, or snapshots. JSON aliases and configured
+property naming are respected; custom serializers must expose their serialized property paths.
 
 `@ProtectData` protects the annotated field **as a whole** when its value is:
 
@@ -309,6 +357,11 @@ In the nested example above, `details/socialSecurityNumber` is protected, while 
 the regular payload.
 
 <a name="drop-protected-data"></a>
+
+Input-message protection does not carry over to copies in Model state, snapshots, documents, results or logs.
+A result payload can declare its own protected fields for normal RESULT dispatch; this is not a blanket HTTP-body guarantee.
+Neither `DOCUMENT` nor `searchable = false` is an authorization or encryption boundary. For eventless state,
+atomic transitions and erasure limits, see [Model persistence boundaries](entities.md#persistence-and-protection-boundaries).
 
 ### @DropProtectedData
 

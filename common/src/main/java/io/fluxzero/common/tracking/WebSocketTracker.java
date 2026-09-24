@@ -46,6 +46,7 @@ public class WebSocketTracker implements Tracker {
     private final int maxSize;
     private final long maxBytes;
     private final Predicate<String> typeFilter;
+    private final boolean hasTypeFilter;
     private final boolean filterMessageTarget;
     @Accessors(fluent = true)
     private final boolean ignoreSegment;
@@ -53,6 +54,8 @@ public class WebSocketTracker implements Tracker {
     private final boolean clientControlledIndex;
     @Accessors(fluent = true)
     private final boolean singleTracker;
+    @Accessors(fluent = true)
+    private final boolean includeDocumentTombstones;
     @Accessors(fluent = true)
     private final long maxTimeout;
 
@@ -69,10 +72,17 @@ public class WebSocketTracker implements Tracker {
         this.maxSize = read.getMaxSize();
         this.maxBytes = read.getMaxBytes();
         this.typeFilter = typeFilterCache.apply(read.getTypeFilter());
+        this.hasTypeFilter = read.getTypeFilter() != null;
         this.filterMessageTarget = read.isFilterMessageTarget();
         this.ignoreSegment = read.isIgnoreSegment() || messageType == MessageType.NOTIFICATION;
         this.clientControlledIndex = read.isClientControlledIndex() || messageType == MessageType.NOTIFICATION;
         this.singleTracker = read.isSingleTracker();
+        this.includeDocumentTombstones = read.isIncludeDocumentTombstones();
+    }
+
+    @Override
+    public boolean hasTypeFilter() {
+        return hasTypeFilter;
     }
 
     @Override

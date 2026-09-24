@@ -20,6 +20,8 @@ and how applications can collaborate without direct app-to-app coupling.
 
 ## Command-to-Result Flow Across Apps
 
+SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. This does not replace application-supplied executors or the caller-controlled `AggregateEventStream.parallel()` contract. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
+
 Fluxzero uses request/result logs in the runtime. Apps do not call each other directly.
 
 1. App A sends command `C`.
@@ -46,10 +48,9 @@ sequenceDiagram
 
 ### Command Followed by Query
 
-For handlers that update searchable aggregates, handler results wait for asynchronous after-handler aggregate commits by
-default. A command followed by a query can therefore often read the just-committed aggregate/search state. Do not rely on
-this when the query depends on downstream side effects, such as indexing or projections performed by an event handler;
-wait for that projection's own signal or return the needed state from the command handler.
+For Models whose persistence set contains `DOCUMENT`, the direct document is part of Model-commit completion.
+A command followed by a direct Model query therefore reads committed state. Whole-Graph projections and documents
+written by event handlers remain asynchronous unless their own completion boundary is awaited.
 
 ---
 
@@ -156,11 +157,11 @@ This multi-consumer same-command setup is an advanced pattern and is discouraged
      `fluxzero.defaults.version`.
 - If multiple `FluxzeroBuilder` consumer predicates match, the first-registered configuration wins.
 
-In `perHandler` mode, Fluxzero creates a generated default consumer per handler class using the message type's default
-consumer configuration as a template. In `defaultAppConsumer` mode, unconfigured handlers share the application default
-consumer for that message type. If the mode is not set explicitly, `perHandler` is the default behavior for
-`fluxzero.defaults.version >= 2026.05.20`; older or missing defaults versions keep `defaultAppConsumer`. Builder-based
-consumer configs are less specific than `@Consumer`, but more specific than either fallback.
+In `perPackage` mode, Fluxzero creates a generated default consumer per exact handler package and message type. In
+`perHandler` mode it creates one per handler class; in `defaultAppConsumer` mode all unconfigured handlers share the
+application consumer. Without an explicit mode, defaults version `>= 2026.07.27` uses `perPackage`, versions from
+`2026.05.20` through `2026.07.26` use `perHandler`, and older or missing versions use `defaultAppConsumer`.
+Builder-based consumer configs are less specific than `@Consumer`, but more specific than any fallback.
 This enables:
 
 - Grouping multiple handlers into one consumer via a handler fitness predicate.

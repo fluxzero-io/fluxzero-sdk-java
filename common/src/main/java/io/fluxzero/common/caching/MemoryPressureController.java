@@ -19,6 +19,9 @@ import io.fluxzero.common.application.PropertySource;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.util.List;
 import java.util.function.LongSupplier;
 
@@ -28,16 +31,25 @@ import java.util.function.LongSupplier;
 @FunctionalInterface
 public interface MemoryPressureController {
     /**
-     * Heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.
+     * Post-GC heap usage percentage that triggers JVM-wide memory-aware cache trimming. Defaults to {@code 85}.
+     * Measuring retained occupancy instead of instantaneous Eden usage prevents a normal allocation burst just before
+     * a young collection from evicting hot cache entries.
      */
     String MEMORY_PRESSURE_HEAP_THRESHOLD_PERCENT_PROPERTY =
             "fluxzero.cache.memoryPressure.heapThresholdPercent";
     /**
      * GC-time percentage over the sampling window that triggers JVM-wide memory-aware cache trimming. Defaults to
-     * {@code 20}.
+     * {@code 20}. GC pressure is evaluated over a sustained window so a single short collection does not evict hot
+     * cache entries while heap usage remains healthy.
      */
     String MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY =
             "fluxzero.cache.memoryPressure.gcTimeThresholdPercent";
+    /**
+     * Minimum occupied percentage of a cache's configured weight budget before sustained GC time alone may trigger
+     * trimming. Defaults to {@code 50}. Actual post-GC heap pressure remains sufficient by itself.
+     */
+    String MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY =
+            "fluxzero.cache.memoryPressure.gcCacheUtilizationPercent";
     /**
      * Percentage of the registered memory-aware cache weight to evict per observed memory-pressure pass. Defaults to
      * {@code 20}.
@@ -78,9 +90,10 @@ public interface MemoryPressureController {
     class JvmMemoryPressureController implements MemoryPressureController {
         public static final int DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT = 85;
         public static final int DEFAULT_GC_TIME_THRESHOLD_PERCENT = 20;
+        public static final int DEFAULT_GC_CACHE_UTILIZATION_PERCENT = 50;
         public static final int DEFAULT_TRIM_RATIO_PERCENT = 20;
         public static final long DEFAULT_MAX_TRIM_WEIGHT = 1024L * 1024L * 1024L;
-        private static final long MIN_GC_SAMPLE_WINDOW_MILLIS = 100L;
+        private static final long MIN_GC_SAMPLE_WINDOW_MILLIS = 5_000L;
 
         private final LongSupplier nanoTimeSupplier;
         private final LongSupplier maxMemorySupplier;
@@ -88,6 +101,7 @@ public interface MemoryPressureController {
         private final LongSupplier collectionMillisSupplier;
         private final int heapUsageThresholdPercent;
         private final int gcTimeThresholdPercent;
+        private final int gcCacheUtilizationPercent;
         private final int trimRatioPercent;
         private final long maxTrimWeight;
         private volatile long lastCheckNanos;
@@ -100,7 +114,10 @@ public interface MemoryPressureController {
         JvmMemoryPressureController(PropertySource propertySource) {
             this(propertySource, System::nanoTime,
                  () -> Runtime.getRuntime().maxMemory(),
-                 () -> Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory(),
+                 postCollectionUsedMemorySupplier(
+                         ManagementFactory.getMemoryPoolMXBeans(),
+                         () -> Runtime.getRuntime().totalMemory()
+                               - Runtime.getRuntime().freeMemory()),
                  collectionMillisSupplier(ManagementFactory.getGarbageCollectorMXBeans()));
         }
 
@@ -115,6 +132,8 @@ public interface MemoryPressureController {
                                  DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT),
                  propertyPercent(propertySource, MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY,
                                  DEFAULT_GC_TIME_THRESHOLD_PERCENT),
+                 propertyPercent(propertySource, MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY,
+                                 DEFAULT_GC_CACHE_UTILIZATION_PERCENT),
                  propertyPercent(propertySource, MEMORY_PRESSURE_TRIM_RATIO_PERCENT_PROPERTY,
                                  DEFAULT_TRIM_RATIO_PERCENT),
                  propertyLong(propertySource, MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY,
@@ -124,13 +143,14 @@ public interface MemoryPressureController {
         JvmMemoryPressureController(LongSupplier nanoTimeSupplier, LongSupplier maxMemorySupplier,
                                     LongSupplier usedMemorySupplier, LongSupplier collectionMillisSupplier) {
             this(nanoTimeSupplier, maxMemorySupplier, usedMemorySupplier, collectionMillisSupplier,
-                 DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT, DEFAULT_GC_TIME_THRESHOLD_PERCENT, DEFAULT_TRIM_RATIO_PERCENT,
-                 DEFAULT_MAX_TRIM_WEIGHT);
+                 DEFAULT_HEAP_USAGE_THRESHOLD_PERCENT, DEFAULT_GC_TIME_THRESHOLD_PERCENT,
+                 DEFAULT_GC_CACHE_UTILIZATION_PERCENT, DEFAULT_TRIM_RATIO_PERCENT, DEFAULT_MAX_TRIM_WEIGHT);
         }
 
         JvmMemoryPressureController(LongSupplier nanoTimeSupplier, LongSupplier maxMemorySupplier,
                                     LongSupplier usedMemorySupplier, LongSupplier collectionMillisSupplier,
                                     int heapUsageThresholdPercent, int gcTimeThresholdPercent,
+                                    int gcCacheUtilizationPercent,
                                     int trimRatioPercent, long maxTrimWeight) {
             this.nanoTimeSupplier = nanoTimeSupplier;
             this.maxMemorySupplier = maxMemorySupplier;
@@ -140,6 +160,8 @@ public interface MemoryPressureController {
                                                              heapUsageThresholdPercent);
             this.gcTimeThresholdPercent = validatePercent(MEMORY_PRESSURE_GC_TIME_THRESHOLD_PERCENT_PROPERTY,
                                                           gcTimeThresholdPercent);
+            this.gcCacheUtilizationPercent = validatePercent(
+                    MEMORY_PRESSURE_GC_CACHE_UTILIZATION_PERCENT_PROPERTY, gcCacheUtilizationPercent);
             this.trimRatioPercent = validatePercent(MEMORY_PRESSURE_TRIM_RATIO_PERCENT_PROPERTY, trimRatioPercent);
             this.maxTrimWeight = validatePositiveLong(MEMORY_PRESSURE_MAX_TRIM_WEIGHT_PROPERTY, maxTrimWeight);
             this.lastCheckNanos = nanoTimeSupplier.getAsLong();
@@ -155,7 +177,8 @@ public interface MemoryPressureController {
         }
 
         boolean shouldEvictAll(long currentWeight, long maxWeight) {
-            return heapUsageLooksHigh() || gcTimeLooksHigh();
+            return heapUsageLooksHigh()
+                   || cacheUtilizationLooksHigh(currentWeight, maxWeight) && gcTimeLooksHigh();
         }
 
         @Override
@@ -174,15 +197,28 @@ public interface MemoryPressureController {
             return maxMemory > 0L && usedMemory * 100L / maxMemory >= heapUsageThresholdPercent;
         }
 
-        private boolean gcTimeLooksHigh() {
+        private boolean cacheUtilizationLooksHigh(long currentWeight, long maxWeight) {
+            if (currentWeight <= 0L || maxWeight <= 0L || maxWeight == Long.MAX_VALUE) {
+                return false;
+            }
+            long quotient = maxWeight / 100L;
+            long remainder = maxWeight % 100L;
+            long threshold = quotient * gcCacheUtilizationPercent
+                             + Math.ceilDiv(remainder * gcCacheUtilizationPercent, 100L);
+            return currentWeight >= threshold;
+        }
+
+        private synchronized boolean gcTimeLooksHigh() {
             long nowNanos = nanoTimeSupplier.getAsLong();
             long collectionMillis = collectionMillisSupplier.getAsLong();
             long elapsedMillis = (nowNanos - lastCheckNanos) / 1_000_000L;
+            if (elapsedMillis < MIN_GC_SAMPLE_WINDOW_MILLIS) {
+                return false;
+            }
             long collectionDelta = Math.max(0L, collectionMillis - lastCollectionMillis);
             lastCheckNanos = nowNanos;
             lastCollectionMillis = collectionMillis;
-            return elapsedMillis >= MIN_GC_SAMPLE_WINDOW_MILLIS
-                   && collectionDelta * 100L / elapsedMillis >= gcTimeThresholdPercent;
+            return collectionDelta * 100L / elapsedMillis >= gcTimeThresholdPercent;
         }
 
         private static LongSupplier collectionMillisSupplier(List<GarbageCollectorMXBean> garbageCollectors) {
@@ -196,6 +232,36 @@ public interface MemoryPressureController {
                 }
                 return result;
             };
+        }
+
+        static LongSupplier postCollectionUsedMemorySupplier(
+                List<MemoryPoolMXBean> memoryPools,
+                LongSupplier fallback) {
+            return () -> {
+                long result = 0L;
+                boolean supported = false;
+                for (MemoryPoolMXBean memoryPool : memoryPools) {
+                    if (memoryPool.getType() != MemoryType.HEAP) {
+                        continue;
+                    }
+                    MemoryUsage usage = memoryPool.getCollectionUsage();
+                    if (usage == null || usage.getUsed() < 0L) {
+                        continue;
+                    }
+                    supported = true;
+                    result = saturatedAdd(
+                            result, usage.getUsed());
+                }
+                return supported ? result : fallback.getAsLong();
+            };
+        }
+
+        private static long saturatedAdd(
+                long left,
+                long right) {
+            long result = left + right;
+            return result < 0L || result < left
+                    ? Long.MAX_VALUE : result;
         }
 
         private static int propertyPercent(PropertySource propertySource, String property, int defaultValue) {

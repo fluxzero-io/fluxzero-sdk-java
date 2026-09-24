@@ -1,5 +1,8 @@
 Use this for Kotlin source layout after `fz init --template flux-basic-kotlin` has generated the project, or when validating an existing Kotlin build. Treat the starter packages and handlers as replaceable scaffolding.
 
+Before creating application files, read `/docs/sdk/project-setup/package-structure` for the domain-first rules,
+a two-domain example tree and the final layout check. `<domain>` below is a business area, not a literal global package.
+
 Recommended folders:
 
 ```text
@@ -57,10 +60,14 @@ Notes:
 - For aggregate shapes that need Java-style builder ergonomics, define that builder manually rather than relying on Lombok-style generation.
 - Generate typed IDs before constructing commands, usually in an endpoint or command boundary, not in `@Apply`.
 
-Add `src/main/resources/fluxzero.properties`:
+For a new SDK v2 application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
 
 ```properties
-fluxzero.defaults.version=2026.06.20
+fluxzero.defaults.version=2026.09.10
 ```
 
 Continue with the create-app recipe once the source layout compiles.
+
+Preserve an existing application's defaults marker and explicit feature overrides unless changing them is part of
+the requested migration. This marker enables automatic Model routing (2026.09.10); Model RETRY is unconditional;
+the Model conflicts article explains their dedicated overrides and unchanged create-if-absent semantics.

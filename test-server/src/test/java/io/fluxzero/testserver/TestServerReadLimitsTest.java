@@ -21,6 +21,7 @@ import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
@@ -41,6 +42,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
 class TestServerReadLimitsTest {
@@ -67,27 +69,32 @@ class TestServerReadLimitsTest {
         try {
             GatewayClient gateway = client.getGatewayClient(EVENT);
             TrackingClient tracking = client.getTrackingClient(EVENT);
+            long firstIndex = IndexUtils.indexFromTimestamp(Instant.now().minusSeconds(10));
             await(gateway.append(STORED,
-                                 message("first", "aaaa".getBytes(UTF_8)),
-                                 message("second", "bbbb".getBytes(UTF_8)),
-                                 message("third", "cccc".getBytes(UTF_8))));
+                                 message("first", "aaaa".getBytes(UTF_8), firstIndex),
+                                 message("second", "bbbb".getBytes(UTF_8), firstIndex + 1),
+                                 message("third", "cccc".getBytes(UTF_8), firstIndex + 2)));
 
             List<SerializedMessage> direct = tracking.readFromIndex(0, 10, 5L);
             assertEquals(List.of("aaaa"), direct.stream().map(TestServerReadLimitsTest::payload).toList());
+            long firstMessageBytes = direct.getFirst().getBytes();
+            assertTrue(firstMessageBytes > 5L);
 
             String consumer = "contract-byte-limit-consumer";
             ConsumerConfiguration config = ConsumerConfiguration.builder()
                     .name(consumer)
                     .maxFetchSize(10)
-                    .maxFetchBytes(5L)
+                    .maxFetchBytes(firstMessageBytes)
                     .maxWaitDuration(Duration.ZERO)
                     .build();
 
             String trackerId = "byte-tracker";
-            MessageBatch firstBatch = await(tracking.read(trackerId, null, config));
+            // A new unpositioned consumer starts at the recent tail, which may already be past these
+            // stored messages after cold connection startup. This test reads their byte-bounded history.
+            MessageBatch firstBatch = await(tracking.read(trackerId, 0L, config));
             assertEquals(List.of("aaaa"),
                          firstBatch.getMessages().stream().map(TestServerReadLimitsTest::payload).toList());
-            assertEquals(4L, firstBatch.getBytes());
+            assertEquals(firstMessageBytes, firstBatch.getBytes());
             assertEquals(firstBatch.getMessages().getFirst().getIndex(), firstBatch.getLastIndex());
             assertFalse(firstBatch.isCaughtUp());
 
@@ -126,9 +133,11 @@ class TestServerReadLimitsTest {
         throw new IllegalStateException("Started test server has no bound local port");
     }
 
-    private static SerializedMessage message(String id, byte[] value) {
-        return new SerializedMessage(new Data<>(value, String.class.getName(), 0, "text/plain"),
-                                     Metadata.empty(), id + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
+    private static SerializedMessage message(String id, byte[] value, long index) {
+        var message = new SerializedMessage(new Data<>(value, String.class.getName(), 0, "text/plain"),
+                                            Metadata.empty(), id + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
+        message.setIndex(index);
+        return message;
     }
 
     private static String payload(SerializedMessage message) {

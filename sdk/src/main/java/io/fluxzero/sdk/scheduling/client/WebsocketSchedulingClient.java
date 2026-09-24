@@ -20,6 +20,9 @@ import io.fluxzero.common.api.scheduling.CancelSchedule;
 import io.fluxzero.common.api.scheduling.GetSchedule;
 import io.fluxzero.common.api.scheduling.GetScheduleResult;
 import io.fluxzero.common.api.scheduling.Schedule;
+import io.fluxzero.common.api.scheduling.ScheduleWithParents;
+import io.fluxzero.common.api.scheduling.GetScheduleParents;
+import io.fluxzero.common.api.scheduling.GetScheduleParentsResult;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -27,6 +30,8 @@ import io.fluxzero.sdk.scheduling.MessageScheduler;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -80,6 +85,18 @@ public class WebsocketSchedulingClient extends AbstractWebsocketClient implement
     @Override
     public CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
         return sendCommand(new Schedule(Arrays.asList(schedules), guarantee));
+    }
+
+    @Override
+    public CompletableFuture<Map<String, Long>> bindScheduleParents(List<String> parentIds) {
+        return this.<GetScheduleParentsResult>send(new GetScheduleParents(List.copyOf(parentIds)))
+                .thenApply(result -> Map.copyOf(result.getParents()));
+    }
+
+    @Override
+    public CompletableFuture<Void> scheduleBoundToParents(Guarantee guarantee, Map<String, Long> parents,
+                                                          SerializedSchedule... schedules) {
+        return sendCommand(new ScheduleWithParents(Arrays.asList(schedules), Map.copyOf(parents), guarantee));
     }
 
     @Override

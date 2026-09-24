@@ -1,0 +1,719 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.persisting.search.client;
+
+import io.fluxzero.common.SearchUtils;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
+import io.fluxzero.common.api.search.AdoptModelMigration;
+import io.fluxzero.common.api.search.Constraint;
+import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.ModelGraphComposition;
+import io.fluxzero.common.api.search.SearchDocuments;
+import io.fluxzero.common.api.search.SearchQuery;
+import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.search.Document;
+import io.fluxzero.common.search.ModelGraphDocumentManifest;
+import io.fluxzero.common.search.ModelGraphDocumentStitcher;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+
+import static io.fluxzero.common.Guarantee.STORED;
+import static io.fluxzero.common.api.search.constraints.ContainsConstraint.contains;
+import static io.fluxzero.common.api.search.constraints.ExistsConstraint.exists;
+import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
+import static io.fluxzero.common.api.search.constraints.NotConstraint.not;
+import static io.fluxzero.common.api.search.constraints.QueryConstraint.query;
+import static io.fluxzero.common.search.Document.EntryType.TEXT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class InMemorySearchStoreModelMaterializationTest {
+
+    private final InMemorySearchStore subject =
+            new InMemorySearchStore(Duration.ofDays(1));
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3, 4})
+    void staleSourceRewriteCannotReplaceMigrationUpdateDeletionRecreationOrUntrustedWrite(int intervening) {
+        String collection = ModelDocumentMutation.privateModelDocumentCollection("TestModel");
+        SerializedDocument original = structuredDocument("model-1", collection, "old");
+        SerializedDocument replacement = structuredDocument("model-1", collection, "migrated");
+        materialize(subject, "model-1", 10, new ModelDocumentMutation(collection, original));
+        var first = subject.fetchModelDocument(new GetDocument("model-1", collection, true, true));
+        var rewrite = new io.fluxzero.common.api.search.RewriteModelSourceDocument(replacement, first.getModelHead(),
+                io.fluxzero.common.modeling.ModelDocumentProof.of(first.getDocument(), first.getModelHead()), STORED);
+        SerializedDocument newer = structuredDocument("model-1", collection, "newer");
+        switch (intervening) {
+            case 0 -> subject.rewriteModelSourceDocument(new io.fluxzero.common.api.search.RewriteModelSourceDocument(
+                    newer, rewrite.getExpectedHead(), rewrite.getExpectedProof(), STORED)).join();
+            case 1 -> materialize(subject, "model-1", 11, new ModelDocumentMutation(collection, newer));
+            case 2 -> materialize(subject, "model-1", 11, new ModelDocumentMutation(collection, null));
+            case 3 -> {
+                materialize(subject, "model-1", 11, new ModelDocumentMutation(collection, null));
+                materialize(subject, "model-1", 12, new ModelDocumentMutation(collection, newer));
+            }
+            case 4 -> subject.index(List.of(newer), STORED, false).join();
+        }
+        subject.rewriteModelSourceDocument(rewrite).join();
+        subject.rewriteModelSourceDocument(rewrite).join();
+        assertEquals(intervening == 2 ? null : newer.getDocument(),
+                     subject.fetch(new GetDocument("model-1", collection)).map(SerializedDocument::getDocument).orElse(null));
+        if (intervening == 4) {
+            assertThrows(IllegalStateException.class,
+                         () -> subject.fetchModelDocument(new GetDocument("model-1", collection, true, true)));
+        } else {
+            assertTrue(subject.fetchModelDocument(new GetDocument("model-1", collection, true, true)).isModelStateVerified());
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("referenceOnlyQueries")
+    void referenceOnlyModelsRespectNecessarySummaryPredicatesButKeepEntryScanFallbacks(
+            Constraint constraint, boolean requiresSummary) {
+        SerializedDocument original = structuredDocument("model-1", "models", "open");
+        SerializedDocument reference = original.withoutSearchIndexes();
+        materialize(10, reference);
+        SearchDocuments search = SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("models").constraint(constraint).build()).build();
+        boolean entriesMatch = constraint.matches(reference.deserializeDocument());
+        assertEquals(!requiresSummary && entriesMatch ? 1L : 0L, subject.search(search, 10).count());
+
+        // The correction must not alter stored payloads, retrieval, or indexed Model matching.
+        assertEquals(original.deserializeDocument().getEntries(),
+                     subject.fetch(new GetDocument("model-1", "models")).orElseThrow()
+                             .deserializeDocument().getEntries());
+        materialize(11, original);
+        assertEquals(entriesMatch ? 1L : 0L, subject.search(search, 10).count());
+    }
+
+    static Stream<Arguments> referenceOnlyQueries() {
+        return Stream.of(
+                Arguments.of(match("open", "name"), true),
+                Arguments.of(match("open"), true),
+                Arguments.of(contains("open", "name"), true),
+                Arguments.of(contains("ope", false, true, "name"), true),
+                Arguments.of(contains("pen", true, false, "name"), true),
+                Arguments.of(query("open", "name"), true),
+                Arguments.of(match("open", "name").and(exists("name")), true),
+                Arguments.of(match("open", "name").or(match("closed", "name")), true),
+                Arguments.of(match("open", "name").or(exists("name")), false),
+                Arguments.of(match("closed", "name").or(exists("name")), false),
+                Arguments.of(contains("pe", true, true, "name"), false),
+                Arguments.of(contains("op", false, true, "name"), false),
+                Arguments.of(not(match("closed", "name")), false),
+                Arguments.of(match("\u0301", "name"), false),
+                Arguments.of(exists("name"), false));
+    }
+
+    @Test
+    void ordinarySummarylessDocumentsRetainTheirEntryScanContract() {
+        subject.index(List.of(structuredDocument("ordinary", "models", "open").withoutSearchIndexes()),
+                      STORED, false).join();
+        assertEquals(1L, subject.search(SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("models").constraint(match("open", "name")).build())
+                .build(), 10).count());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "\u0301", "é", "中", "open", "!\u0301", "0", "\u2003"})
+    void summaryRequirementPreservesNormalizedBlankAndUnicodeTerms(String term) {
+        SerializedDocument reference = structuredDocument("model-1", "models", term).withoutSearchIndexes();
+        materialize(10, reference);
+        Constraint constraint = match(term, "name");
+        boolean entriesMatch = constraint.matches(reference.deserializeDocument());
+        boolean needsSummary = !SearchUtils.normalize(term).isBlank();
+        assertEquals(entriesMatch && !needsSummary ? 1L : 0L, subject.search(SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("models").constraint(constraint).build()).build(), 10).count());
+    }
+
+    @Test
+    void textQueryStatisticsAndMutationsUseTheSameModelSummaryRequirement() {
+        materialize(10, structuredDocument("model-1", "models", "open").withoutSearchIndexes());
+        SearchQuery query = SearchQuery.builder().collection("models").constraint(match("open", "name")).build();
+        assertTrue(subject.fetchStatistics(query, List.of(), List.of()).isEmpty());
+        assertTrue(subject.fetchFacetStats(query).isEmpty());
+        subject.move(query, "moved", STORED).join();
+        subject.delete(query, STORED, 10).join();
+        assertTrue(subject.fetch(new GetDocument("model-1", "models")).isPresent());
+        assertTrue(subject.fetch(new GetDocument("model-1", "moved")).isEmpty());
+    }
+
+    @Test
+    void documentMonitorCallbacksRunOutsideTheStoreLock() {
+        subject.registerMonitor((collection, messages) ->
+                CompletableFuture.runAsync(() -> subject.fetchModelDocument(
+                        new GetDocument("model-1", "models"))).join());
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                materialize(10, document("first")));
+    }
+
+    @Test
+    void modelDocumentFenceRejectsOlderAndEqualWritesIncludingAfterDelete() {
+        materialize(10, document("first"));
+        materialize(10, document("conflicting-equal"));
+        materialize(9, null);
+
+        assertEquals(
+                "first",
+                subject.fetch(new GetDocument("model-1", "models"))
+                        .orElseThrow()
+                        .getSummary());
+
+        materialize(11, null);
+        materialize(11, document("late-equal"));
+
+        assertTrue(subject.fetch(
+                new GetDocument("model-1", "models")).isEmpty());
+
+        materialize(12, document("recreated"));
+
+        assertEquals(
+                "recreated",
+                subject.fetch(new GetDocument("model-1", "models"))
+                        .orElseThrow()
+                        .getSummary());
+        var version = subject.fetchModelDocument(
+                new GetDocument("model-1", "models"));
+        assertEquals(12L, version.getModelHead().getStateIndex());
+        assertEquals("TestModel", version.getModelHead().getModelType());
+        assertFalse(version.getModelHead().isDeleted());
+    }
+
+    @Test
+    void acceptedModelDocumentsStillNotifyDocumentTrackers() {
+        AtomicInteger notifications =
+                new AtomicInteger();
+        subject.registerMonitor(
+                "models",
+                messages -> notifications.addAndGet(
+                        messages.size()));
+
+        materialize(10, document("first"));
+        materialize(10, document("ignored"));
+        materialize(9, document("older"));
+        materialize(11, document("second"));
+
+        assertEquals(2, notifications.get());
+    }
+
+    @Test
+    void graphDeletionBeforeMonitorRegistrationRetainsOneTombstone() {
+        InMemorySearchStore subject = new InMemorySearchStore(Duration.ofDays(1), null,
+                (ids, composition) -> List.of(), ids -> Map.of("root-1", "roots"));
+        String rootId = "root-1";
+        var configuration = new ModelGraphProjectionConfiguration(
+                "Root", "roots", "rootGraphs", ModelGraphComposition.builder().build(),
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of());
+        materialize(subject, rootId, 1L,
+                    new ModelDocumentMutation("roots", structuredDocument(rootId, "roots", "root")));
+        subject.materializeModelGraphProjection(configuration, Set.of(rootId), 1L, false);
+        assertEquals(1L, subject.openStream("rootGraphs", null, 10).count());
+
+        materialize(subject, rootId, 2L, new ModelDocumentMutation("roots", null));
+        subject.materializeModelGraphProjection(configuration, Set.of(rootId), 2L, false);
+        var tombstone = subject.openStream("rootGraphs", null, 10, true).toList();
+        assertEquals(1, tombstone.size());
+        assertEquals(rootId, tombstone.getFirst().getMessageId());
+        assertTrue(tombstone.getFirst().getMetadata().containsKey(
+                ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY));
+        assertEquals(0L, subject.openStream("rootGraphs", null, 10).count());
+
+        AtomicInteger notifications = new AtomicInteger();
+        subject.registerMonitor("rootGraphs", messages -> notifications.addAndGet(messages.size()));
+        subject.materializeModelGraphProjection(configuration, Set.of(rootId), 3L, false);
+        assertEquals(0, notifications.get());
+        assertEquals(tombstone, subject.openStream("rootGraphs", null, 10, true).toList());
+    }
+
+    @Test
+    void localGraphProjectionHonorsPathOverridesAndStateFence() {
+        String rootId = "root-1";
+        String childId = "child-1";
+        String childCollection =
+                ModelDocumentMutation.privateModelDocumentCollection(
+                        "Child");
+        Map<String, String> collections =
+                Map.of(
+                        rootId, "roots",
+                        childId, childCollection);
+        InMemorySearchStore graphStore =
+                new InMemorySearchStore(
+                        Duration.ofDays(1), null,
+                        (ignored, composition) ->
+                                List.of(
+                                        new ModelGraphEdge(
+                                                childId, rootId,
+                                                "Root", "children",
+                                                1L, null, false)),
+                        modelIds -> collections.entrySet()
+                                .stream()
+                                .filter(entry ->
+                                                modelIds.contains(
+                                                        entry.getKey()))
+                                .collect(
+                                        java.util.stream.Collectors
+                                                .toUnmodifiableMap(
+                                                        Map.Entry::getKey,
+                                                        Map.Entry::getValue)));
+        materialize(graphStore, rootId, 1L,
+                    new ModelDocumentMutation("roots",
+                                              structuredDocument(rootId, "roots", "root")));
+        materialize(graphStore, childId, 2L,
+                    new ModelDocumentMutation(childCollection,
+                                              structuredDocument(childId, childCollection, "first")));
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "Root", "roots",
+                        "rootGraphs",
+                        ModelGraphComposition.builder()
+                                .build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "Root", 0)),
+                        List.of(
+                                new ModelGraphPathOverride(
+                                        "children",
+                                        "components")));
+
+        graphStore.materializeModelGraphProjection(
+                configuration,
+                Set.of(rootId), 10L, false);
+        assertEquals(
+                "first",
+                graphStore.fetch(
+                                new GetDocument(
+                                        rootId,
+                                        "rootGraphs"))
+                        .orElseThrow()
+                        .deserializeDocument()
+                        .getEntryAtPath(
+                                "components/0/name")
+                        .orElseThrow()
+                        .getValue());
+
+        materialize(
+                graphStore, childId, 11L,
+                new ModelDocumentMutation(
+                        childCollection,
+                        structuredDocument(
+                                childId,
+                                childCollection,
+                                "second")));
+        graphStore.materializeModelGraphProjection(
+                configuration,
+                Set.of(rootId), 10L, false);
+        assertEquals(
+                "first",
+                graphStore.fetch(
+                                new GetDocument(
+                                        rootId,
+                                        "rootGraphs"))
+                        .orElseThrow()
+                        .deserializeDocument()
+                        .getEntryAtPath(
+                                "components/0/name")
+                        .orElseThrow()
+                        .getValue());
+
+        graphStore.materializeModelGraphProjection(
+                configuration,
+                Set.of(rootId), 11L, false);
+        assertEquals(
+                "second",
+                graphStore.fetch(
+                                new GetDocument(
+                                        rootId,
+                                        "rootGraphs"))
+                        .orElseThrow()
+                        .deserializeDocument()
+                        .getEntryAtPath(
+                                "components/0/name")
+                        .orElseThrow()
+                        .getValue());
+    }
+
+    @Test
+    void adoptedLegacyDocumentUsesNormalizedModelSourceForGraphComposition() {
+        String rootId = "legacy-root";
+        String childId = "model-child";
+        String childCollection =
+                ModelDocumentMutation.privateModelDocumentCollection(
+                        "Child");
+        Map<String, String> collections = Map.of(
+                rootId, "roots", childId,
+                childCollection);
+        InMemorySearchStore graphStore = new InMemorySearchStore(
+                Duration.ofDays(1), null,
+                (ignored, composition) -> List.of(new ModelGraphEdge(
+                        childId, rootId, "Root", "children",
+                        1L, null, false)),
+                modelIds -> collections.entrySet().stream()
+                        .filter(entry -> modelIds.contains(entry.getKey()))
+                        .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                                Map.Entry::getKey, Map.Entry::getValue)));
+        SerializedDocument legacy = new SerializedDocument(
+                Document.builder()
+                        .id(rootId).type("Root").revision(0)
+                        .collection("roots")
+                        .entries(Map.of(
+                                new Document.Entry(TEXT, "legacy child"),
+                                List.of(new Document.Path("children/0/name"))))
+                        .summary(() -> "legacy root")
+                        .build());
+        graphStore.index(List.of(legacy), STORED, false).join();
+        SerializedDocument normalized = structuredDocument(
+                rootId, "roots", "normalized root");
+        materialize(graphStore, rootId, 10L,
+                    new ModelDocumentMutation("roots", normalized), true);
+        materialize(graphStore, childId, 11L,
+                    new ModelDocumentMutation(
+                            childCollection,
+                            structuredDocument(
+                                    childId,
+                                    childCollection,
+                                    "current child")));
+        var inspection = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        graphStore.adoptModelMigration(new AdoptModelMigration(
+                rootId, "roots", inspection.getProductionDocumentIndex(),
+                10L, STORED)).join();
+
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "Root", "roots", "rootGraphs",
+                        ModelGraphComposition.builder().build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "Root", 0)), List.of());
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, true);
+
+        SerializedDocument graph = graphStore.fetch(
+                new GetDocument(rootId, "rootGraphs")).orElseThrow();
+        assertEquals("normalized root", graph.deserializeDocument()
+                .getEntryAtPath("name").orElseThrow().getValue());
+        assertEquals("current child", graph.deserializeDocument()
+                .getEntryAtPath("children/0/name").orElseThrow().getValue());
+        assertEquals("legacy child", graphStore.fetch(
+                        new GetDocument(rootId, "roots")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("children/0/name")
+                .orElseThrow().getValue());
+
+        SerializedDocument current = structuredDocument(
+                rootId, "roots", "current root");
+        materialize(graphStore, rootId, 12L,
+                    new ModelDocumentMutation("roots", current));
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 12L, false);
+
+        assertEquals("current root", graphStore.fetch(
+                        new GetDocument(rootId, "roots")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("name")
+                .orElseThrow().getValue());
+        assertEquals("current root", graphStore.fetch(
+                        new GetDocument(rootId, "rootGraphs")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("name")
+                .orElseThrow().getValue());
+    }
+
+    @Test
+    void rollbackMigrationCanBeReadoptedWithoutExposingNewStaging() {
+        String rootId = "rollback-root";
+        InMemorySearchStore graphStore = new InMemorySearchStore(
+                Duration.ofDays(1), null,
+                (ignored, composition) -> List.of(),
+                ignored -> Map.of(rootId, "roots"));
+        graphStore.index(List.of(structuredDocument(
+                rootId, "roots", "legacy one")), STORED, false).join();
+        materialize(graphStore, rootId, 10L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "normalized one")), true);
+        var first = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        graphStore.adoptModelMigration(new AdoptModelMigration(
+                rootId, "roots", first.getProductionDocumentIndex(),
+                10L, STORED)).join();
+
+        materialize(graphStore, rootId, 11L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "normalized two")), true);
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "Root", "roots", "rollbackGraphs",
+                        ModelGraphComposition.builder().build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "Root", 0)), List.of());
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, true);
+        assertEquals("normalized one", graphStore.fetch(
+                        new GetDocument(rootId, "rollbackGraphs"))
+                .orElseThrow().deserializeDocument()
+                .getEntryAtPath("name").orElseThrow().getValue());
+
+        graphStore.index(List.of(structuredDocument(
+                rootId, "roots", "legacy two")), STORED, false).join();
+        var second = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        graphStore.adoptModelMigration(new AdoptModelMigration(
+                rootId, "roots", second.getProductionDocumentIndex(),
+                11L, STORED)).join();
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, true);
+        assertEquals("normalized two", graphStore.fetch(
+                        new GetDocument(rootId, "rollbackGraphs"))
+                .orElseThrow().deserializeDocument()
+                .getEntryAtPath("name").orElseThrow().getValue());
+
+        materialize(graphStore, rootId, 12L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "ordinary Model write")));
+        materialize(graphStore, rootId, 13L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "unsupported rollback")), true);
+        var unsupported = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        CompletionException failure = assertThrows(CompletionException.class, () ->
+                graphStore.adoptModelMigration(new AdoptModelMigration(
+                        rootId, "roots",
+                        unsupported.getProductionDocumentIndex(),
+                        13L, STORED)).join());
+        assertEquals(IllegalStateException.class, failure.getCause().getClass());
+        assertEquals("Production Model head has ordinary writes for " + rootId,
+                     failure.getCause().getMessage());
+    }
+
+    @Test
+    void splitAdoptionPublishesAndUsesTheReindexedInternalSource() {
+        String id = "adopted-source";
+        String sourceCollection = ModelDocumentMutation.privateModelDocumentCollection("Root");
+        var store = new InMemorySearchStore(Duration.ofDays(1), null, (ids, composition) -> List.of(),
+                ids -> Map.of(id, sourceCollection));
+        var legacy = structuredDocument(id, "roots", "legacy");
+        store.index(List.of(legacy), STORED, false).join();
+        materialize(store, id, 10L, new ModelDocumentMutation(sourceCollection,
+                structuredDocument(id, sourceCollection, "current")), true);
+        var inspection = store.getModelMigration(new GetModelMigration(id, "roots"));
+        store.registerMonitor(sourceCollection, messages -> {});
+        store.adoptModelMigration(new io.fluxzero.common.api.search.AdoptModelMigrationWithSource(
+                id, "roots", inspection.getProductionDocumentIndex(), 10L, STORED, sourceCollection)).join();
+        assertEquals(1, store.openStream(sourceCollection, null, 10).count());
+        var current = store.fetchModelDocument(new GetDocument(id, sourceCollection, true, true));
+        var rewritten = new SerializedDocument(current.getDocument().deserializeDocument().toBuilder().revision(1)
+                .entries(Map.of(new Document.Entry(TEXT, "current"), List.of(new Document.Path("details/name")))).build());
+        store.rewriteModelSourceDocument(new io.fluxzero.common.api.search.RewriteModelSourceDocument(
+                rewritten, current.getModelHead(), io.fluxzero.common.modeling.ModelDocumentProof.of(
+                current.getDocument(), current.getModelHead()), STORED)).join();
+        var configuration = new ModelGraphProjectionConfiguration("Root", sourceCollection, "rootGraphs",
+                ModelGraphComposition.builder().build(),
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 1)), List.of());
+        store.materializeModelGraphProjection(configuration, Set.of(id), 10L, true);
+        assertEquals("current", store.fetch(new GetDocument(id, "rootGraphs")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("details/name").orElseThrow().getValue());
+        assertEquals("legacy", store.fetch(new GetDocument(id, "roots")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("name").orElseThrow().getValue());
+        assertEquals(current.getModelHead(), store.fetchModelDocument(new GetDocument(id, sourceCollection, true, true)).getModelHead());
+    }
+
+    @Test
+    void localGraphMigrationUsesTheHandledManifestAsCompareAndSetBoundary() {
+        String rootId = "root-cas";
+        InMemorySearchStore graphStore = new InMemorySearchStore(
+                Duration.ofDays(1), null,
+                (ignored, composition) -> List.of(),
+                ignored -> Map.of(rootId, "roots"));
+        materialize(graphStore, rootId, 1L,
+                    new ModelDocumentMutation("roots",
+                                              structuredDocument(rootId, "roots", "original")));
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "TestModel", "roots", "rootGraphs",
+                        ModelGraphComposition.builder().build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "TestModel", 0)), List.of());
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 10L, false);
+        SerializedDocument original = graphStore.fetch(
+                new GetDocument(rootId, "rootGraphs")).orElseThrow();
+        String expectedManifest = original.getMetadata().get(
+                ModelGraphDocumentManifest.METADATA_KEY);
+        SerializedDocument migrated = graphProjectionDocument(
+                rootId, "rootGraphs", "CurrentModel", 1, 10L,
+                "migrated");
+
+        graphStore.rewriteModelGraphDocument(
+                migrated, expectedManifest, STORED).join();
+        graphStore.rewriteModelGraphDocument(
+                graphProjectionDocument(
+                        rootId, "rootGraphs", "CompetingModel", 2, 10L,
+                        "competing"),
+                expectedManifest, STORED).join();
+
+        assertEquals(1, graphStore.fetch(
+                        new GetDocument(rootId, "rootGraphs"))
+                             .orElseThrow().getDocument().getRevision());
+
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, false);
+        graphStore.rewriteModelGraphDocument(
+                migrated, expectedManifest, STORED).join();
+        SerializedDocument current = graphStore.fetch(
+                new GetDocument(rootId, "rootGraphs")).orElseThrow();
+        assertEquals(0, current.getDocument().getRevision());
+        assertEquals(11L, ModelGraphDocumentManifest.from(current)
+                .orElseThrow().stateIndex());
+    }
+
+    private void materialize(
+            long stateIndex, SerializedDocument document) {
+        materialize(
+                subject, "model-1", stateIndex,
+                new ModelDocumentMutation(
+                        "models", document));
+    }
+
+    private static void materialize(
+            InMemorySearchStore store,
+            String modelId,
+            long stateIndex,
+            ModelDocumentMutation mutation) {
+        materialize(store, modelId, stateIndex, mutation, false);
+    }
+
+    private static void materialize(
+            InMemorySearchStore store,
+            String modelId,
+            long stateIndex,
+            ModelDocumentMutation mutation,
+            boolean migration) {
+        ModelCommitTarget target =
+                ModelCommitTarget.builder()
+                        .modelId(modelId)
+                        .modelType("TestModel")
+                        .updateState(true)
+                        .delete(mutation.getDocument() == null)
+                        .document(mutation)
+                        .relationships(List.of())
+                        .build();
+        CommitModels commit =
+                new CommitModels(
+                        "commit-" + stateIndex,
+                        stateIndex - 1L,
+                        List.of(modelId),
+                        List.of(
+                                ModelCommitStep.builder()
+                                        .targets(
+                                                List.of(target))
+                                        .build()),
+                        ModelConflictPolicy.ACCEPT,
+                        STORED, true, migration);
+        store.materializeModelCommit(
+                commit,
+                List.of(
+                        new ModelUpdate(
+                                ModelUpdateKind.COMMIT, commit.getCommitId(), 0,
+                                stateIndex, null,
+                                List.of(
+                                        new ModelCommitTargetResult(
+                                                modelId, -1L,
+                                                true)))),
+                Set.of());
+    }
+
+    private static SerializedDocument document(String summary) {
+        return new SerializedDocument(
+                Document.builder()
+                        .id("model-1")
+                        .type("TestModel")
+                        .revision(0)
+                        .collection("models")
+                        .entries(Map.of())
+                        .summary(() -> summary)
+                        .build());
+    }
+
+    private static SerializedDocument structuredDocument(
+            String id, String collection,
+            String value) {
+        return new SerializedDocument(
+                Document.builder()
+                        .id(id)
+                        .type("TestModel")
+                        .revision(0)
+                        .collection(collection)
+                        .entries(
+                                Map.of(
+                                        new Document.Entry(
+                                                TEXT, value),
+                                        List.of(
+                                                new Document.Path(
+                                                        "name"))))
+                        .summary(() -> value)
+                        .build());
+    }
+
+    private static SerializedDocument graphProjectionDocument(
+            String id,
+            String collection,
+            String type,
+            int revision,
+            long stateIndex,
+            String value) {
+        SerializedDocument direct = new SerializedDocument(
+                Document.builder()
+                        .id(id).type(type).revision(revision)
+                        .collection(collection)
+                        .entries(Map.of(
+                                new Document.Entry(TEXT, value),
+                                List.of(new Document.Path("name"))))
+                        .summary(() -> value)
+                        .build());
+        return ModelGraphDocumentStitcher.stitch(
+                List.of(direct), List.of(), Map.of(id, direct),
+                Map.of(id, type.substring(type.lastIndexOf('.') + 1)),
+                ModelGraphComposition.builder().build(), stateIndex)
+                .getFirst();
+    }
+}

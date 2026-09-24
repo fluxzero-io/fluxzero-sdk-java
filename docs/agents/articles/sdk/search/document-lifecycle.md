@@ -34,6 +34,8 @@ timestamp and collection; use supported operational observation for actual pruni
 `@HandleDocument` follows one collection and is last-state oriented. When several versions of one document accumulate
 before a lagging consumer reads them, intermediate versions may be skipped. Use document handling for current-state
 projection/migration, not for a workflow that requires every transition.
+A retained pending-work document is a different case: reconciliation may skip intermediate versions only if the
+latest state still retains all unacknowledged actions. See `/docs/sdk/sagas` for the effect and failure boundaries.
 
 Returning a higher-revision document can rewrite it in place during a controlled rebuild. Use a new consumer name and
 replay boundary, then verify final documents and public queries. Adding `@Facet`, `@Sortable`, `@SearchExclude`, or an

@@ -1,5 +1,8 @@
 Use this for Java source layout after `fz init --template flux-basic-java` has generated the project, or when validating an existing Java build. Treat the starter packages and handlers as replaceable scaffolding.
 
+Before creating application files, read `/docs/sdk/project-setup/package-structure` for the domain-first rules,
+a two-domain example tree and the final layout check. `<domain>` below is a business area, not a literal global package.
+
 Recommended folders:
 
 ```text
@@ -58,10 +61,14 @@ Notes:
 
 Annotation processing must be enabled in the build. In Maven use `maven-compiler-plugin` with `io.fluxzero:sdk` in `annotationProcessorPaths`. In Gradle add both `annotationProcessor(platform("io.fluxzero:fluxzero-bom:$fluxzeroVersion"))` and `annotationProcessor("io.fluxzero:sdk")`; without the annotation-processor BOM or an explicit version, plain Gradle projects can fail to resolve the SDK processor.
 
-Add `src/main/resources/fluxzero.properties`:
+For a new SDK v2 application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
 
 ```properties
-fluxzero.defaults.version=2026.06.20
+fluxzero.defaults.version=2026.09.10
 ```
 
 Continue with the create-app recipe once the source layout compiles.
+
+Preserve an existing application's defaults marker and explicit feature overrides unless changing them is part of
+the requested migration. This marker enables automatic Model routing (2026.09.10); Model RETRY is unconditional;
+the Model conflicts article explains their dedicated overrides and unchanged create-if-absent semantics.

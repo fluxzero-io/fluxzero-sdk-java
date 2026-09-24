@@ -66,19 +66,6 @@ public interface Entity<T> {
 
     ThreadLocal<Boolean> loading = ThreadLocal.withInitial(() -> false);
     ThreadLocal<Boolean> applying = ThreadLocal.withInitial(() -> false);
-    ClassValue<Boolean> selfReferentialMemberCache = new ClassValue<>() {
-        @Override
-        protected Boolean computeValue(Class<?> entityType) {
-            for (var location : ReflectionUtils.getAnnotatedProperties(entityType, Member.class)) {
-                Class<?> childType = ReflectionUtils.getCollectionElementType(location)
-                        .orElse(ReflectionUtils.getPropertyType(location));
-                if (Objects.equals(entityType, childType)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    };
 
     /**
      * A constant key used for identifying the aggregate ID in metadata of events. The value associated with this key
@@ -282,12 +269,12 @@ public interface Entity<T> {
     }
 
     /**
-     * Applies the specified action to this entity if it is present, returning the result of the action. If this entity
+     * Applies the specified action to this entity if it is present, returning the result of the commit. If this entity
      * is not present (i.e., its value is null), the entity itself is returned unchanged.
      *
-     * @param action the action to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts
+     * @param action the commit to apply to this entity if it is present; must be a {@link UnaryOperator} that accepts
      *               and returns an {@code Entity<T>}
-     * @return the result of applying the action to this entity if it is present, or this entity itself if it is not
+     * @return the result of applying the commit to this entity if it is present, or this entity itself if it is not
      * present
      */
     default Entity<T> ifPresent(UnaryOperator<Entity<T>> action) {
@@ -513,6 +500,14 @@ public interface Entity<T> {
     }
 
     /**
+     * Returns the persistence and revision settings of this root, independently of whether it is declared as an
+     * {@link Aggregate} or {@link Model}.
+     */
+    default EntityMetadata.RootConfiguration rootConfiguration() {
+        return DefaultEntityHelper.getRootConfiguration(root().type());
+    }
+
+    /**
      * Retrieves the previous version of this entity.
      *
      * @return the previous state of the entity, or null if this is the first known version
@@ -613,6 +608,34 @@ public interface Entity<T> {
     }
 
     /**
+     * Retrieves an entity by functional ID and expected type.
+     * <p>
+     * The expected type makes {@link EntityId} affixes available during lookup while the entity value itself keeps
+     * carrying its unmodified functional ID.
+     */
+    @SuppressWarnings("unchecked")
+    default <C> Optional<Entity<C>> getEntity(Object entityId, Class<C> entityType) {
+        if (entityId == null) {
+            return Optional.empty();
+        }
+        Objects.requireNonNull(entityType, "entityType");
+        String functionalId = entityId.toString();
+        String repositoryId = EntityMetadata.of(entityType).repositoryId(entityId);
+        List<Entity<?>> entities = allEntities()
+                .filter(entity -> entity.type() != null && entityType.isAssignableFrom(entity.type()))
+                .toList();
+        return entities.stream()
+                .filter(entity -> entity.aliases().stream()
+                        .anyMatch(alias -> alias != null && functionalId.equals(alias.toString())))
+                .findFirst()
+                .or(() -> entities.stream()
+                        .filter(entity -> entity.id() != null
+                                && repositoryId.equals(repositoryIdentity(entity)))
+                        .findFirst())
+                .map(entity -> (Entity<C>) entity);
+    }
+
+    /**
      * Retrieves the set of relationships between the aggregate root and all its entities.
      * <p>
      * If the current entity is not a root entity, this method delegates to the root entity's relationships. If the root
@@ -631,10 +654,18 @@ public interface Entity<T> {
         String id = id().toString();
         String type = type().getName();
         return allEntities().filter(e -> e.id() != null)
-                .flatMap(e -> Stream.concat(Stream.of(e.id()), e.aliases().stream()))
+                .flatMap(e -> Stream.concat(
+                        Stream.of(repositoryIdentity(e)),
+                        e.aliases().stream().filter(Objects::nonNull).map(Object::toString)))
                 .map(entityId -> Relationship.builder()
-                        .entityId(entityId.toString()).aggregateType(type).aggregateId(id).build())
+                        .entityId(entityId).aggregateType(type).aggregateId(id).build())
                 .collect(Collectors.toSet());
+    }
+
+    private static String repositoryIdentity(Entity<?> entity) {
+        return entity.type().isAnnotationPresent(Model.class)
+                ? entity.id().toString()
+                : EntityMetadata.of(entity.type()).repositoryId(entity.id());
     }
 
     /**
@@ -905,7 +936,7 @@ public interface Entity<T> {
     }
 
     private boolean hasSelfReferentialMember(Class<?> entityType) {
-        return entityType != null && selfReferentialMemberCache.get(entityType);
+        return entityType != null && EntityMetadata.of(entityType).hasSelfReferentialMember();
     }
 
     private boolean matchesRoute(Entity<?> entity, Object routeValue) {

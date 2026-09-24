@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -114,7 +115,7 @@ class InMemorySearchStoreTest {
 
     private SerializedDocument document(String id, String value) {
         return new SerializedDocument(id, 0L, null, "documents",
-                new Data<>(value.getBytes(UTF_8), String.class.getName(), 0, "text/plain"), null, null, null);
+                new Data<>(value.getBytes(UTF_8), String.class.getName(), 0, "text/plain"), null, Set.of(), Set.of());
     }
 
     private static List<String> values(List<SerializedMessage> messages) {

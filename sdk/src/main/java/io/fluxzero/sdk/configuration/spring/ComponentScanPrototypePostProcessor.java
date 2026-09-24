@@ -101,6 +101,13 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
         return new AnnotationTypeFilter(getTargetAnnotation());
     }
 
+    /**
+     * Returns whether an already registered Spring bean should be represented as a Fluxzero prototype instead.
+     */
+    protected boolean isTargetType(Class<?> type) {
+        return AnnotatedElementUtils.hasAnnotation(type, getTargetAnnotation());
+    }
+
     protected Stream<Class<?>> expandCandidateTypes(List<Class<?>> candidates, List<String> basePackages,
                                                      ComponentScan componentScan,
                                                      BeanDefinitionRegistry registry,
@@ -127,7 +134,7 @@ abstract class ComponentScanPrototypePostProcessor implements BeanDefinitionRegi
                                  && entry.getValue().getFactoryMethodName() == null)
                 .map(entry -> Map.entry(entry.getKey(), beanFactory.getType(entry.getKey())))
                 .filter(entry -> entry.getValue() != null
-                                 && AnnotatedElementUtils.hasAnnotation(entry.getValue(), getTargetAnnotation()))
+                                 && isTargetType(entry.getValue()))
                 .forEach(entry -> {
                     removedTypes.add(entry.getValue());
                     registry.removeBeanDefinition(entry.getKey());

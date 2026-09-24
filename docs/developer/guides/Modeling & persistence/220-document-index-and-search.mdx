@@ -61,18 +61,23 @@ You can also specify the collection in which the object should be stored directl
 
 ---
 
-## Searchable domain models
+## Model documents and searchable values
 
-Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically indexable:
+Start ordinary domain state at `@Model`. The examples below add a public direct document specifically for a list of
+user accounts across the application. Relationship-scoped search can instead use internal component documents from
+explicit composition paths; it does not always need `DOCUMENT`. See the central
+[Model and Graph query matrix](../model-query-guide) for required configuration, available predicates and actual state.
 
-- `@Aggregate(searchable = true)`
+Other values use the document-store annotations that own automatic indexing:
+
+- `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Aggregate(searchable = true)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     public record UserAccount(@EntityId UserId userId,
                               UserProfile profile,
                               boolean accountClosed) {
@@ -81,7 +86,7 @@ Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Aggregate(searchable = true)
+    @Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
     data class UserAccount(
         @EntityId val userId: UserId,
         val profile: UserProfile,
@@ -91,22 +96,69 @@ Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically
   </TabItem>
 </Tabs>
 
-By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden via an annotation like `@Aggregate`, `@Stateful` or `@Searchable` or in the search/index
-call:
+For Models, the default collection is the resolved logical Model name (simple class name unless `@Model.name` or
+`fluxzero.model.namePrefix` changes it). Other document types default to their simple class name. Configure
+a Model's direct document through its `document`; `@Stateful` and directly searchable values expose the `@Searchable`
+settings themselves:
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Aggregate(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+    @Model(
+        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
+        document = @DocumentProjection(
+            collection = "users",
+            timestampPath = "profile/createdAt"))
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Aggregate(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+    @Model(
+        persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT],
+        document = DocumentProjection(
+            collection = "users",
+            timestampPath = "profile/createdAt"
+        )
+    )
     ```
   </TabItem>
 </Tabs>
+
+The document uses the resolved Model collection and is exposed to unrestricted typed Model search by default. A
+document-authoritative Model that only needs identity-, alias-, relationship- and Graph-based lookup can keep it
+reference-only:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @Model(
+        persistence = ModelPersistence.DOCUMENT,
+        document = @DocumentProjection(searchable = false))
+    public record UserPreferences(@EntityId UserId userId,
+                                  Preferences preferences) {
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @Model(
+        persistence = [ModelPersistence.DOCUMENT],
+        document = DocumentProjection(searchable = false)
+    )
+    data class UserPreferences(
+        @EntityId val userId: UserId,
+        val preferences: Preferences
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+Fluxzero stores this document in its normal resolved collection, which defaults to `UserPreferences` and can be
+overridden with `DocumentProjection.collection`. This keeps existing collection names usable during migration.
+Exact parent/ancestor queries can still retrieve this public projection, while unrestricted
+`Fluxzero.search(UserPreferences.class)` does not expose it. The public projection has no summary/reversary, facets
+or sortables, even with a Graph role. Model loads and Graph composition use a separate internal source;
+that source retains indexes when composition needs them. Public projection rewrites cannot alter it.
 
 ---
 
@@ -118,7 +170,7 @@ Use the fluent `search(...)` API:
   <TabItem label="Java">
     ```java
     List<UserAccount> admins = Fluxzero
-            .search("users")
+            .search(UserAccount.class)
             .match("admin", "profile/role")
             .inLast(Duration.ofDays(30))
             .sortBy("profile/lastLogin", true)
@@ -128,7 +180,7 @@ Use the fluent `search(...)` API:
   <TabItem label="Kotlin">
     ```kotlin
     val admins: List<UserAccount> = Fluxzero
-        .search("users")
+        .search(UserAccount::class.java)
         .match("admin", "profile/role")
         .inLast(Duration.ofDays(30))
         .sortBy("profile/lastLogin", true)
@@ -139,14 +191,15 @@ Use the fluent `search(...)` API:
 
 ### Consistency after commands
 
-Search is optimized for current state, but indexing still follows the commit path. When a command directly updates a
-searchable aggregate, Fluxzero waits for asynchronous after-handler aggregate commits before publishing the command
-result by default. In many cases, calling `sendCommandAndWait(...)` and then querying the aggregate's document can read
-the just-committed state.
+Search is optimized for current state, but indexing still follows the commit path. A Model whose persistence set
+contains `DOCUMENT` synchronously maintains its current document with the Model commit. Calling
+`sendCommandAndWait(...)` and then querying that Model's direct collection observes the committed state.
 
-This does not cover downstream projections or side-effect indexing. If a document is indexed by an event handler or
-projection handler, treat it as eventually consistent and wait for that projection's own completion signal when immediate
-read-after-write behavior matters.
+This does not automatically wait for a materialized whole-root graph projection. Select
+`GraphProjectionCompletion.AWAIT` for the operation or consumer when an immediate root query must include all affected
+children. Application-level `configureGraphProjectionCompletion(AWAIT)` is inherited by roots whose annotation keeps
+`DEFAULT`. `LocalClient`, the test server and synchronous fixtures materialize the same projection before releasing
+the result. Documents indexed by unrelated event handlers remain eventually consistent.
 
 You can also query by class:
 
@@ -168,6 +221,59 @@ You can also query by class:
     ```
   </TabItem>
 </Tabs>
+
+### Selecting Models by parent or ancestor
+
+When the related identity is already known, pass its typed ID directly. Fluxzero starts from the durable relationship
+index, so the parent or ancestor does not need a searchable or private current-state document:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    List<Task> projectTasks = Fluxzero.search(Task.class)
+            .whereParent(projectId)
+            .fetch(100);
+
+    List<Task> organisationTasks = Fluxzero.search(Task.class)
+            .whereAncestor(organisationId)
+            .fetch(100);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val projectTasks = Fluxzero.search(Task::class.java)
+        .whereParent(projectId)
+        .fetch(100)
+
+    val organisationTasks = Fluxzero.search(Task::class.java)
+        .whereAncestor(organisationId)
+        .fetch(100)
+    ```
+  </TabItem>
+</Tabs>
+
+Use `whereAncestor(organisationId, 2, 2)` to require exactly a grandparent. Typed `Id<T>` values supply their Model
+type. For another functional-ID type, use `whereAncestor(id, Organisation.class)` in Java or
+`whereAncestor(id, Organisation::class.java)` in Kotlin. When the related Model has a parent-scoped primary identity,
+pass its already loaded `Graph` so Fluxzero can use the exact persisted identity.
+
+When the related identity must instead be discovered from its current content, pass the Model type and constraints:
+
+```java
+List<Task> activeProjectTasks = Fluxzero.search(Task.class)
+        .whereParent(Project.class, MatchConstraint.match("ACTIVE", "status"))
+        .fetch(100);
+```
+
+This form requires the related Model's internal current source. `DOCUMENT`, an explicit
+`@Parent(pathInParent = "...")` or `materializeGraph = true` maintains that source. It is separate from a public
+DOCUMENT projection and never reads an independently rewritten public document. The
+predicate applies to that Model's own fields, not to fields nested only in a materialized whole-Graph projection.
+
+The returned target also needs a current document. A public `DOCUMENT` projection works, and a private Graph-component
+document becomes available only because the query is explicitly relation-bounded; ordinary typed search still does not
+expose it. A standalone event-sourced target without a direct document, explicit composition path or materialized root
+has no document-search representation. Use `loadModel(...)` or `loadGraph(...)` when its identity is already known.
 
 <Aside type="note">
 You can choose to split path segments with either <code>.</code> or <code>/</code>. Both styles are equivalent.
@@ -215,7 +321,8 @@ Search execution also has asynchronous variants for request handlers and web end
 `CompletableFuture`. Return the future directly instead of calling `.join()` inside the handler; this lets Fluxzero keep
 processing other work while the search request is in flight.
 
-- `fetchAsync(maxSize)` / `fetchAsync(maxSize, type)` fetch matching documents asynchronously.
+- `fetchAsync(maxSize)` fetches the search's configured result type asynchronously. Pass an explicit result class only
+  at a raw collection, JSON or document boundary.
 - `countAsync()` returns the matching document count asynchronously.
 - `aggregateAsync(fields...)` and `groupBy(paths...).aggregateAsync(fields...)` return search statistics
   asynchronously.
@@ -228,7 +335,7 @@ processing other work while the search request is in flight.
     CompletableFuture<List<UserAccount>> handle(SearchUsers query) {
         return Fluxzero.search(UserAccount.class)
                 .lookAhead(query.term(), "profile.name", "email")
-                .fetchAsync(50, UserAccount.class);
+                .fetchAsync(50);
     }
     ```
   </TabItem>
@@ -238,7 +345,7 @@ processing other work while the search request is in flight.
     fun handle(query: SearchUsers): CompletableFuture<List<UserAccount>> =
         Fluxzero.search(UserAccount::class.java)
             .lookAhead(query.term, "profile.name", "email")
-            .fetchAsync(50, UserAccount::class.java)
+            .fetchAsync(50)
     ```
   </TabItem>
 </Tabs>
@@ -661,6 +768,6 @@ To remove documents from the index:
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Aggregate(searchable = true)` or `@Stateful` for automatic indexing.
+- Use `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 - Use `fetchAsync(...)`, `countAsync()`, `aggregateAsync(...)`, and `facetStatsAsync()` in asynchronous handlers.

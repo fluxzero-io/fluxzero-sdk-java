@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.scheduling.ScheduledCommand;
+import io.fluxzero.sdk.scheduling.client.LocalSchedulingClient;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.*;
@@ -197,6 +198,16 @@ public class ResultValidator<R> implements Then<R> {
     @Override
     public Then<R> expectOnlyScheduledCommands(Object... commands) {
         return expectOnlyScheduledCommandMessages(asMessages(commands), scheduledCommands(this.newSchedules));
+    }
+
+    @Override
+    public Then<R> expectOnlyActiveScheduledCommands(Object... commands) {
+        if (!(fluxzero.client().getSchedulingClient() instanceof LocalSchedulingClient)) {
+            throw new UnsupportedOperationException(
+                    "Active scheduled-command assertions require a local scheduling client; "
+                    + "observed remote writes do not describe the complete active set");
+        }
+        return expectOnlyScheduledCommandMessages(asMessages(commands), scheduledCommands(this.allSchedules));
     }
 
     @Override

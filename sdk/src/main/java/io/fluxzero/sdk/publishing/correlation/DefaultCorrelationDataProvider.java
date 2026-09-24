@@ -14,12 +14,21 @@
 
 package io.fluxzero.sdk.publishing.correlation;
 
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.handling.Invocation;
+import jakarta.annotation.Nullable;
 import lombok.Getter;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+
+import static io.fluxzero.sdk.Fluxzero.currentClock;
+import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 
 /**
  * Default implementation of the {@link CorrelationDataProvider} interface.
@@ -49,4 +58,61 @@ import lombok.Getter;
 @Getter
 public enum DefaultCorrelationDataProvider implements CorrelationDataProvider {
     INSTANCE;
+
+    /**
+     * Returns the default correlation data directly in its compact metadata representation.
+     *
+     * @param currentMessage the message currently being handled, or {@code null}
+     * @return compact correlation metadata equivalent to {@link #getCorrelationData(DeserializingMessage)}
+     */
+    public Metadata getCorrelationMetadata(@Nullable DeserializingMessage currentMessage) {
+        Metadata.Builder result = Metadata.builder(16);
+        Client applicationClient = Fluxzero.getOptionally().map(Fluxzero::client).orElse(null);
+        if (applicationClient != null) {
+            String applicationId = applicationClient.applicationId();
+            if (applicationId != null) {
+                result.put(getApplicationIdKey(), applicationId);
+            }
+            result.put(getClientIdKey(), applicationClient.id());
+            result.put(getClientNameKey(), applicationClient.name());
+        }
+        Tracker tracker = Tracker.current.get();
+        if (tracker != null) {
+            result.put(getConsumerKey(), tracker.getName());
+            result.put(getTrackerKey(), tracker.getTrackerId());
+        }
+        Invocation invocation = Invocation.getCurrent();
+        if (invocation != null) {
+            result.put(getInvocationKey(), invocation.getId());
+            String handler = invocation.getHandler();
+            if (handler != null) {
+                result.put(getHandlerKey(), handler);
+            }
+        }
+        if (currentMessage != null) {
+            Long index = currentMessage.getIndex();
+            String correlationId = index == null ? currentMessage.getMessageId() : index.toString();
+            Metadata currentMetadata = currentMessage.getMetadata();
+            result.put(getCorrelationIdKey(), correlationId);
+            result.put(getTraceIdKey(), currentMetadata.getOrDefault(getTraceIdKey(), correlationId));
+            result.put(getTriggerKey(), currentMessage.getType());
+            result.put(getTriggerTypeKey(), currentMessage.getMessageType().name());
+            String consumerNamespace = getConsumerNamespace(currentMessage);
+            String triggerNamespace = consumerNamespace == null && applicationClient != null
+                    ? applicationClient.namespace() : consumerNamespace;
+            if (triggerNamespace != null) {
+                result.put(getTriggerNamespaceKey(), triggerNamespace);
+            }
+            result.putTraceEntries(currentMetadata);
+            Clock clock = currentClock();
+            Instant timestamp = currentMessage.getTimestamp();
+            long currentMillis = clock.millis();
+            long timestampMillis = timestamp.toEpochMilli();
+            long delay = timestamp.getNano() % 1_000_000 == 0 && currentMillis >= timestampMillis
+                    ? currentMillis - timestampMillis
+                    : Duration.between(timestamp, clock.instant()).toMillis();
+            result.put(getDelayKey(), Long.toString(delay));
+        }
+        return result.build();
+    }
 }

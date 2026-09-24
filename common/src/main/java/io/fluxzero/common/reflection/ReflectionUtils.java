@@ -147,13 +147,21 @@ public class ReflectionUtils {
     private static final Function<String, Optional<Class<?>>> classForFqnCache
             = memoize(ReflectionUtils::computeClassForFqn);
     private static final Supplier<TypeRegistry> typeRegistrySupplier = memoize(() -> new DefaultTypeRegistry());
-    private static final Function<String, Optional<Class<?>>> classForNameCache
-            = memoize(ReflectionUtils::computeClassForName);
+    private static final Supplier<List<Class<?>>> registeredTypesSupplier = memoize(() ->
+            typeRegistrySupplier.get().getTypeNames().stream()
+                    .map(classForFqnCache)
+                    .flatMap(Optional::stream)
+                    .toList());
+    private static final ConcurrentHashMap<String, ClassLookup> classForNameCache = new ConcurrentHashMap<>();
     private static final BiFunction<Package, Boolean, Collection<? extends Annotation>> packageAnnotationsCache =
             memoize(ReflectionUtils::computePackageAnnotations);
     private static final Function<Parameter, Boolean> isNullableCache = memoize(
             parameter -> getParameterOverrideHierarchy(parameter).anyMatch(p -> {
-                if (isKotlinReflectionSupported()) {
+                // Java declarations have no Kotlin nullability metadata. Resolving them through kotlin-reflect
+                // needlessly initializes its compiler infrastructure on the first ordinary Java invocation.
+                if (getAnnotations(p.getDeclaringExecutable().getDeclaringClass()).stream()
+                        .anyMatch(a -> a.annotationType().getName().equals("kotlin.Metadata"))
+                    && isKotlinReflectionSupported()) {
                     var kotlinParameter = KotlinReflectionUtils.asKotlinParameter(p);
                     if (kotlinParameter != null && kotlinParameter.getType().isMarkedNullable()) {
                         return true;
@@ -240,6 +248,16 @@ public class ReflectionUtils {
 
     public static boolean isKotlinReflectionSupported() {
         return ReflectionUtils.classExists("kotlin.reflect.full.KClasses");
+    }
+
+    /**
+     * Whether a no-argument method is a compiler-generated Kotlin data-class component accessor.
+     * These duplicate constructor properties and should not be inferred as additional domain properties.
+     * Handwritten component methods and ordinary Java methods are not excluded.
+     */
+    public static boolean isKotlinDataClassComponent(Method method) {
+        return method.getName().startsWith("component") && method.getParameterCount() == 0
+               && isKotlinReflectionSupported() && KotlinReflectionUtils.isDataClassComponent(method);
     }
 
     /**
@@ -445,7 +463,28 @@ public class ReflectionUtils {
     }
 
     public static Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
-        return getAnnotatedProperty(target, annotation).map(m -> getValue(m, target, false));
+        return Optional.ofNullable(getAnnotatedPropertyValueOrNull(target, annotation));
+    }
+
+    /**
+     * Returns the value of the first property carrying the given annotation, or {@code null} when the target,
+     * annotated property, or property value is absent.
+     *
+     * <p>This is the allocation-free counterpart of {@link #getAnnotatedPropertyValue(Object, Class)} for callers
+     * that already use {@code null} as their absence sentinel. It uses the same centrally cached
+     * {@link TypeMetadata} and compiled {@link MemberInvoker}.</p>
+     *
+     * @param target target object, or {@code null}
+     * @param annotation annotation that identifies the property
+     * @return the property value, or {@code null} when absent
+     */
+    public static Object getAnnotatedPropertyValueOrNull(
+            Object target, Class<? extends Annotation> annotation) {
+        if (target == null) {
+            return null;
+        }
+        Optional<MemberInvoker> invoker = getAnnotatedPropertyInvoker(asClass(target), annotation);
+        return invoker.isEmpty() ? null : invoker.get().invoke(target);
     }
 
     public static Collection<Object> getAnnotatedPropertyValues(Object target, Class<? extends Annotation> annotation) {
@@ -1088,8 +1127,27 @@ public class ReflectionUtils {
             return annotatedMethods.computeIfAbsent(annotation, this::computeAnnotatedMethods);
         }
 
+        /**
+         * Returns annotated methods, including inherited methods, followed by annotated constructors declared by this
+         * type.
+         */
+        public List<Executable> annotatedExecutables(Class<? extends Annotation> annotation) {
+            return Stream.concat(
+                    annotatedMethods(annotation).stream(),
+                    Stream.of(type.getDeclaredConstructors())
+                            .filter(constructor -> methodAnnotation(constructor, annotation).isPresent()))
+                    .map(Executable.class::cast)
+                    .toList();
+        }
+
         public List<? extends AccessibleObject> annotatedProperties(Class<? extends Annotation> annotation) {
-            return annotatedProperties.computeIfAbsent(annotation, this::computeAnnotatedProperties);
+            List<? extends AccessibleObject> cached = annotatedProperties.get(annotation);
+            if (cached != null) {
+                return cached;
+            }
+            List<? extends AccessibleObject> computed = computeAnnotatedProperties(annotation);
+            List<? extends AccessibleObject> existing = annotatedProperties.putIfAbsent(annotation, computed);
+            return existing == null ? computed : existing;
         }
 
         public Optional<? extends AccessibleObject> annotatedProperty(Class<? extends Annotation> annotation) {
@@ -1097,10 +1155,16 @@ public class ReflectionUtils {
         }
 
         public Optional<MemberInvoker> annotatedPropertyInvoker(Class<? extends Annotation> annotation) {
-            return annotatedPropertyInvokers.computeIfAbsent(annotation, a -> annotatedProperty(a)
+            Optional<MemberInvoker> cached = annotatedPropertyInvokers.get(annotation);
+            if (cached != null) {
+                return cached;
+            }
+            Optional<MemberInvoker> computed = annotatedProperty(annotation)
                     .filter(Member.class::isInstance)
                     .map(Member.class::cast)
-                    .map(DefaultMemberInvoker::asInvoker));
+                    .map(DefaultMemberInvoker::asInvoker);
+            Optional<MemberInvoker> existing = annotatedPropertyInvokers.putIfAbsent(annotation, computed);
+            return existing == null ? computed : existing;
         }
 
         public Function<Object, Object> getter(String propertyPath) {
@@ -1770,19 +1834,60 @@ public class ReflectionUtils {
 
     @SneakyThrows
     public static Class<?> classForName(String type) {
-        Optional<Class<?>> result = classForNameCache.apply(type);
-        if (result.isPresent()) {
-            return result.get();
+        Class<?> result = classLookup(type).type();
+        if (result != null) {
+            return result;
         }
         throw new ClassNotFoundException(type);
     }
 
     public static Class<?> classForName(String type, Class<?> defaultClass) {
-        return classForNameCache.apply(type).orElse(defaultClass);
+        Class<?> result = classLookup(type).type();
+        return result == null ? defaultClass : result;
     }
 
     public static boolean classExists(String className) {
-        return classForNameCache.apply(className).isPresent();
+        return classLookup(className).type() != null;
+    }
+
+    /**
+     * Resolves a unique registered simple or partial name to its class name. Canonical names, unknown identifiers,
+     * {@code null} and generic signatures are returned unchanged. Generic signatures do not initiate class loading.
+     * Name normalization shares the class-lookup cache; it never caches application-specific serialization aliases.
+     *
+     * @param name the serialized type identifier
+     * @return its uniquely registered class name, or the original identifier if no normalization is needed
+     */
+    public static String resolveRegisteredTypeName(String name) {
+        if (name == null) {
+            return null;
+        }
+        ClassLookup lookup = classForNameCache.get(name);
+        if (lookup == null) {
+            if (name.contains("<")) {
+                return name;
+            }
+            lookup = classForNameCache.computeIfAbsent(name, ReflectionUtils::computeClassLookup);
+        }
+        return lookup.normalizedName() == null ? name : lookup.normalizedName();
+    }
+
+    private static ClassLookup classLookup(String name) {
+        ClassLookup result = classForNameCache.get(name);
+        return result == null ? classForNameCache.computeIfAbsent(name, ReflectionUtils::computeClassLookup) : result;
+    }
+
+    private static ClassLookup computeClassLookup(String name) {
+        Class<?> type = computeClassForName(name).orElse(null);
+        if (type == null) {
+            return ClassLookup.unknown;
+        }
+        String resolvedName = type.getName();
+        return new ClassLookup(type, name.equals(resolvedName) || name.contains("<") ? null : resolvedName);
+    }
+
+    private record ClassLookup(Class<?> type, String normalizedName) {
+        private static final ClassLookup unknown = new ClassLookup(null, null);
     }
 
     public static String getSimpleName(Class<?> c) {
@@ -1799,6 +1904,27 @@ public class ReflectionUtils {
         }
         int lastSeparatorIndex = Math.max(fullyQualifiedName.lastIndexOf('.'), fullyQualifiedName.lastIndexOf('$'));
         return (lastSeparatorIndex == -1) ? fullyQualifiedName : fullyQualifiedName.substring(lastSeparatorIndex + 1);
+    }
+
+    /**
+     * Returns the loadable types from the generated application type registry.
+     * <p>
+     * The result is resolved once and uses the same class cache as {@link #classForName(String)}.
+     */
+    public static List<Class<?>> getRegisteredTypes() {
+        return registeredTypesSupplier.get();
+    }
+
+    /**
+     * Loads an exact binary class name without executing its static initializer or resolving serialization aliases.
+     * Uses the supplied index-owning classloader. Intended for generated structural indexes;
+     * the JVM owns class identity and {@link #getTypeMetadata(Class)} owns subsequent structural reflection.
+     *
+     * @throws ClassNotFoundException when the named class is unavailable
+     */
+    public static Class<?> loadClassWithoutInitialization(String binaryName, ClassLoader classLoader)
+            throws ClassNotFoundException {
+        return Class.forName(binaryName, false, classLoader);
     }
 
     @SneakyThrows

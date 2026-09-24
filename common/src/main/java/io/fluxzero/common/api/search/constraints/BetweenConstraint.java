@@ -16,8 +16,10 @@
 package io.fluxzero.common.api.search.constraints;
 
 import io.fluxzero.common.api.search.Constraint;
+import io.fluxzero.common.api.search.SortableEntry;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.common.search.Document.EntryType;
+import io.fluxzero.common.search.Document.Path;
 import io.fluxzero.common.search.Sortable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -134,6 +136,22 @@ public class BetweenConstraint extends PathConstraint {
     }
 
     @Override
+    public boolean matches(Document document) {
+        Predicate<Path> pathPredicate = getPaths().stream()
+                .map(Path::pathPredicate)
+                .reduce(Predicate::or)
+                .orElseGet(() -> ignored -> true);
+        List<SortableEntry> matchingSortables = document
+                .getSortableEntries(pathPredicate)
+                .toList();
+        return matchingSortables.isEmpty()
+                ? super.matches(document)
+                : matchingSortables.stream()
+                        .map(SortableEntry::getValue)
+                        .anyMatch(sortableMatcher());
+    }
+
+    @Override
     protected boolean checkPathBeforeEntry() {
         return true;
     }
@@ -148,6 +166,27 @@ public class BetweenConstraint extends PathConstraint {
         var maxEntry = asEntry(max);
         return min == null ? max == null ? s -> true : s -> s.compareTo(maxEntry) < 0 : max == null
                 ? s -> s.compareTo(minEntry) >= 0 : s -> s.compareTo(minEntry) >= 0 && s.compareTo(maxEntry) < 0;
+    }
+
+    private Predicate<String> sortableMatcher() {
+        String sortableMin = sortableValue(min);
+        String sortableMax = sortableValue(max);
+        return sortableMin == null
+                ? sortableMax == null
+                        ? ignored -> true
+                        : value -> value.compareTo(sortableMax) < 0
+                : sortableMax == null
+                        ? value -> value.compareTo(sortableMin) >= 0
+                        : value -> value.compareTo(sortableMin) >= 0
+                                   && value.compareTo(sortableMax) < 0;
+    }
+
+    private static String sortableValue(Object value) {
+        return switch (value) {
+            case null -> null;
+            case Number number -> SortableEntry.toSortableString(number);
+            default -> value.toString();
+        };
     }
 
     static Document.Entry asEntry(Object input) {

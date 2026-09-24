@@ -9,7 +9,9 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero supports both asynchronous and local (synchronous) message handling. **Local handlers** process messages in the same thread that published them, bypassing the message dispatch infrastructure entirely. This typically results in faster response times and is ideal for simple or time-sensitive use cases.
+Fluxzero supports both tracked and local message handling. **Local handlers** process messages in the publishing
+thread, without persisting them or waiting for a tracker by default. Calls still go through the Fluxzero dispatch and
+handler APIs; local handling does not mean calling the handler method directly.
 
 To define a local handler, annotate the handler method, class, or its enclosing package with `@LocalHandler`:
 
@@ -55,7 +57,12 @@ fallback for a more specific package or payload type.
 
 ## Self-handling messages
 
-Instead of defining message handlers externally, you can embed handler logic directly in the message payload. This is often useful for queries or simple commands.
+Instead of defining message handlers externally, you can embed handler logic directly in the message payload. This
+is the default pattern for reusable command/query operations, including external API interactions. Put the
+`WebRequestGateway` call in `@HandleCommand` or `@HandleQuery` and dispatch the payload through Fluxzero. These local
+self-handlers need no bean injection, explicit registration, `@LocalHandler`, `@TrackSelf` or `@Consumer`.
+The nested HTTP request retains the gateway's audit and configured retry behavior. See
+[Sending web requests](/docs/guides/messaging/sending-web-requests) for complete Java/Kotlin examples and tests.
 
 <Tabs>
 <TabItem value="Java" label="Java">
@@ -87,7 +94,10 @@ class GetUserProfile(val userId: String) {
 </TabItem>
 </Tabs>
 
-By default, such handlers are treated as local. To process them asynchronously (i.e., as part of a consumer), annotate the class with `@TrackSelf`:
+By default, such handlers are local in both synchronous and asynchronous fixtures. Use `@TrackSelf` only when the
+command/query itself needs persisted delivery through the Runtime, its own consumer position or independent
+replay/retry. Calling an external API, waiting for its response or wanting HTTP audit logs does not require it.
+`@Consumer` configures that tracked handler when a custom configuration is needed:
 
 <Tabs>
 <TabItem value="Java" label="Java">

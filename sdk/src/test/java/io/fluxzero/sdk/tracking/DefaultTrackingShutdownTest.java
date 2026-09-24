@@ -16,14 +16,15 @@ package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -49,18 +50,16 @@ class DefaultTrackingShutdownTest {
                 .suppressPendingConsumerWarning();
         Registration registration = testFixture.getFluxzero().registerHandlers(handler);
 
-        try {
-            CompletableFuture<Void> processBatch = CompletableFuture.runAsync(() ->
-                    testFixture.whenEventsAreApplied("aggregate", Object.class, 1, 2).expectNoErrors());
-
+        try (var processBatch = new TestTask(() ->
+                testFixture.whenEventsAreApplied("aggregate", Object.class, 1, 2).expectNoErrors(),
+                handler::releaseFirstEvent)) {
             handler.awaitFirstEventStarted();
-            CompletableFuture<Void> unregister = CompletableFuture.runAsync(registration::cancel);
-            // Give deregistration time to enter tracker cancellation while the first message is still handled.
-            TimeUnit.MILLISECONDS.sleep(100L);
-
-            handler.releaseFirstEvent();
-            unregister.get(2, TimeUnit.SECONDS);
-            processBatch.get(2, TimeUnit.SECONDS);
+            try (var unregister = new TestTask(registration::cancel, handler::releaseFirstEvent)) {
+                unregister.awaitBlockedIn(DefaultTracker.class, "awaitCancellation", Duration.ofSeconds(1));
+                handler.releaseFirstEvent();
+                unregister.awaitCompletion(Duration.ofSeconds(2));
+            }
+            processBatch.awaitCompletion(Duration.ofSeconds(2));
 
             assertEquals(List.of(1, 2), handler.handledEvents);
         } finally {

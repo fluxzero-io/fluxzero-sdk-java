@@ -47,11 +47,11 @@ Annotate your handler class or `package-info.java` with `@Consumer` to define pr
 > threads and be processed in strict order if they share segments.
 
 Handlers without an explicit `@Consumer` or matching builder-level `ConsumerConfiguration` use the
-unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class
-its own generated default consumer. `defaultAppConsumer` assigns those handlers to the shared application default
-consumer. When the mode is absent, `perHandler` is the default behavior for
-`fluxzero.defaults.version >= 2026.05.20`; older or missing defaults versions keep `defaultAppConsumer` for
-compatibility.
+unconfigured-handler fallback. `perPackage` shares a generated consumer per exact handler package and message type,
+`perHandler` isolates every handler class, and `defaultAppConsumer` uses the shared application consumer. When the mode
+is absent, `perPackage` is the default for `fluxzero.defaults.version >= 2026.07.27`, `perHandler` for versions from
+`2026.05.20` through `2026.07.26`, and `defaultAppConsumer` for older or missing defaults versions. Automatic model
+commands use the consumer selected for their payload package, including a root-package `@Consumer`.
 
 [//]: # (@formatter:off)
 ```java
@@ -67,6 +67,15 @@ class OrderTracker {
 ---
 
 <a name="batch-interceptor"></a>
+
+### External HTTP stubs and registration
+
+An absolute URL does not create a separate consumer. Under `perPackage`, an endpoint and same-package stub can
+share a single-threaded consumer and deadlock if one waits for the other. Give the test stub its own explicit
+`@Consumer`; keep application consumer settings unchanged. See [HTTP tests](testing.md#mocking-external-backends-real-web-handlers).
+Same-name conflicting configurations report handler types from that registration without rerunning filters or
+inspecting instance state. Identical configurations can accept handlers after startup; this is neither live
+reconfiguration nor a rewind for previously consumed messages.
 
 ## Batch Interceptor
 
@@ -193,6 +202,23 @@ public class OrderRebuilder {
     }
 }
 ```
+
+Materialized Model Graphs use a distinct projection-only rebuild contract. Every node is lazily upcast through its own
+type and revision. If that evolved JSON must be made durable for search, return the complete typed Graph:
+
+```java
+@Consumer(name = "rematerialize-project-graphs-v2", minIndex = 0)
+public class ProjectGraphRebuilder {
+    @HandleDocument(modelGraph = Project.class)
+    Graph<Project> onProject(Graph<Project> graph) {
+        return graph;
+    }
+}
+```
+
+The Graph must preserve its root, state boundary, nodes and placements. This does not update direct Models, events,
+snapshots, relationships or projection progress. An unchanged Graph is a no-op, and the Runtime atomically prevents a
+delayed handler from replacing a newer projection.
 
 ---
 

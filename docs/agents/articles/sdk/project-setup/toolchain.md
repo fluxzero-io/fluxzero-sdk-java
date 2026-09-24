@@ -8,7 +8,7 @@ Inspect the authoritative build and toolchain files before installing anything:
 - Maven projects normally pin `java.version`, the compiler `release`, and sometimes an enforcer range in `pom.xml`.
 - Gradle projects normally pin `JavaLanguageVersion` or `jvmToolchain` in `build.gradle.kts`.
 
-These declarations should agree. For a generated starter, keep them as generated. For an existing Fluxzero project, preserve a supported Java 21-or-newer choice unless the user requested an upgrade. Do not lower a generated project's toolchain merely because `java` is missing or older on the host.
+These declarations should agree. For a generated starter, keep them as generated. For an existing Fluxzero project, preserve a supported Java 25-or-newer choice unless the user requested an upgrade. Do not lower a generated project's toolchain merely because `java` is missing or older on the host.
 
 ## Install only what is missing
 

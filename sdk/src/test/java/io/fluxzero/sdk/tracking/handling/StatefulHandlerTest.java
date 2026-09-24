@@ -656,7 +656,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(TriggerAssociationHandler.class)
-                            .<TriggerAssociationHandler>fetchFirst())
+                            .fetchFirst())
                     .expectResult(r -> r.map(TriggerAssociationHandler::retryCount).orElse(0) == 1);
         }
 
@@ -668,7 +668,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(TriggerAssociationHandler.class)
-                            .<TriggerAssociationHandler>fetchFirst())
+                            .fetchFirst())
                     .expectResult(r -> r.map(TriggerAssociationHandler::retryCount).orElse(0) == 0);
         }
 
@@ -704,7 +704,7 @@ public class StatefulHandlerTest {
                     .expectOnlyCommands("created:customer-1:payment-1")
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.payments().size() == 1)
                             .filter(c -> c.payments().getFirst().paymentId().equals("payment-1"))
@@ -719,7 +719,7 @@ public class StatefulHandlerTest {
                     .expectOnlyCommands("updated:customer-1:payment-1:2")
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.payments().size() == 1)
                             .filter(c -> c.payments().getFirst().eventCount() == 2)
@@ -733,7 +733,7 @@ public class StatefulHandlerTest {
                     .expectNoCommands()
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).fetchFirst())
                     .expectResult(customer -> customer.filter(c -> c.payments().isEmpty()).isPresent());
         }
 
@@ -744,7 +744,7 @@ public class StatefulHandlerTest {
                     .expectNoCommands()
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(Customer.class).<Customer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(Customer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.payments().size() == 1)
                             .filter(c -> c.payments().getFirst().eventCount() == 1)
@@ -790,7 +790,7 @@ public class StatefulHandlerTest {
                     .expectOnlyCommands("attempt:customer-1:payment-1:attempt-1:1")
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(NestedCustomer.class).<NestedCustomer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(NestedCustomer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .map(c -> c.payments().getFirst().attempts().getFirst().eventCount())
                             .filter(count -> count == 1)
@@ -811,7 +811,7 @@ public class StatefulHandlerTest {
                     .expectOnlyCommands("structured:customer-1:secondary:11")
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(StructuredCustomer.class).<StructuredCustomer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(StructuredCustomer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.primaryPayment().eventCount() == 1)
                             .filter(c -> c.paymentsById().get("secondary").eventCount() == 11)
@@ -832,7 +832,7 @@ public class StatefulHandlerTest {
                     })
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(BatchedCustomer.class).<BatchedCustomer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(BatchedCustomer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .map(c -> c.payments().getFirst().eventCount())
                             .filter(count -> count == 2)
@@ -850,7 +850,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(ParameterAssociationCustomer.class)
-                            .<ParameterAssociationCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer
                             .map(c -> c.payments().getFirst().eventCount())
                             .filter(count -> count == 1)
@@ -866,7 +866,7 @@ public class StatefulHandlerTest {
                     .expectOnlyCommands("parent:1", "child:1")
                     .expectNoErrors()
                     .andThen()
-                    .whenApplying(fc -> Fluxzero.search(CombinedCustomer.class).<CombinedCustomer>fetchFirst())
+                    .whenApplying(fc -> Fluxzero.search(CombinedCustomer.class).fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.parentEventCount() == 1)
                             .map(c -> c.payments().getFirst())
@@ -911,7 +911,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(UnroutableCreateCustomer.class)
-                            .<UnroutableCreateCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer.filter(c -> c.payments().isEmpty()).isPresent());
         }
 
@@ -943,7 +943,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(BulkCreateCustomer.class)
-                            .<BulkCreateCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.listPayments().stream().map(BulkListPayment::paymentId)
                                     .sorted().toList().equals(List.of("list-1", "list-2")))
@@ -965,7 +965,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(RenamedPaymentCustomer.class)
-                            .<RenamedPaymentCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.listPayments().size() == 1)
                             .filter(c -> c.listPayments().getFirst().paymentId().equals("new-payment"))
@@ -985,7 +985,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(SplitPaymentCustomer.class)
-                            .<SplitPaymentCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.payments().stream().map(SplitPayment::paymentId)
                                     .sorted().toList().equals(List.of("payment-1-a", "payment-1-b")))
@@ -1001,7 +1001,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(ParentCreatesChildCustomer.class)
-                            .<ParentCreatesChildCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.payments().size() == 1)
                             .filter(c -> c.payments().getFirst().handledCount() == 1)
@@ -1017,7 +1017,7 @@ public class StatefulHandlerTest {
                     .expectNoErrors()
                     .andThen()
                     .whenApplying(fc -> Fluxzero.search(ConstructorBackedCustomer.class)
-                            .<ConstructorBackedCustomer>fetchFirst())
+                            .fetchFirst())
                     .expectResult(customer -> customer
                             .filter(c -> c.payments().getFirst().captureCount() == 1)
                             .isPresent());
@@ -1371,6 +1371,21 @@ public class StatefulHandlerTest {
         }
 
         @Test
+        void entityIdAffixWrapsTypedIdForStatefulStorage() {
+            CountingRepository repository = new CountingRepository();
+            StatefulId id = new StatefulId("one");
+
+            statefulHandler(AffixedStateful.class, repository)
+                    .getInvoker(message(new CreateAffixedStateful(id)))
+                    .orElseThrow()
+                    .invoke();
+
+            assertEquals(new AffixedStateful(id), repository.get("state-handler-one-snapshot"));
+            assertEquals("one", id.getFunctionalId());
+            assertEquals("handler-one", id.toString());
+        }
+
+        @Test
         void multipleListMemberMutationsInOneRootAreStoredOnce() {
             CountingRepository repository = new CountingRepository()
                     .add("customer-1", new ListCountingCustomer("customer-1", List.of(
@@ -1528,6 +1543,24 @@ public class StatefulHandlerTest {
             PlainCountingCustomer handle(PlainCountingCustomerChanged event) {
                 return new PlainCountingCustomer(customerId, handledCount + 1);
             }
+        }
+
+        @Stateful
+        record AffixedStateful(
+                @EntityId(prefix = "state-", postfix = "-snapshot") StatefulId id) {
+            @HandleEvent
+            AffixedStateful(CreateAffixedStateful event) {
+                this(event.id());
+            }
+        }
+
+        private static final class StatefulId extends Id<AffixedStateful> {
+            private StatefulId(String id) {
+                super(id, "handler-");
+            }
+        }
+
+        record CreateAffixedStateful(StatefulId id) {
         }
 
         @Stateful

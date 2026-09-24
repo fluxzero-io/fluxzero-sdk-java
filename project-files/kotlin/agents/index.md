@@ -9,6 +9,9 @@ source of truth for its evolving commands and dev-server configuration; see [Loc
 The Guidelines manual contains a **Task Decision Tree** to help you find specific implementation details in the other
 manuals as you need them.
 
+Before adding application files, read [Project Structure Rules](rules/guidelines.md#project-structure-rules),
+choose concrete domain/package paths and apply its final layout check after implementation.
+
 ## Recommended Reading Strategy
 
 1. **[Guidelines](rules/guidelines.md)**: **Read this first.** It covers the philosophy, core principles, and how to use
@@ -24,7 +27,8 @@ Check the folder `{project-root}/.fluxzero/agents/rules` for:
 - **[Handling](rules/handling.md)**: Incoming messages (Commands, Queries, Events, Web), including automatic HTTP
   result and exception mapping by `DefaultWebResponseMapper`.
 - **[Sending](rules/sending.md)**: Dispatching messages and scheduling.
-- **[Entities](rules/entities.md)**: Aggregates, state transitions, and business invariants.
+- **[Entities](rules/entities.md)**: Models, state transitions, relations, and business invariants.
+- **[Model queries](rules/model-queries.md)**: Storage/query capability matrix, Graph search and result freshness.
 - **[Sagas](rules/sagas.md)**: Stateful handlers and long-running workflows.
 - **[Tracking](rules/tracking.md)**: Async consumption, replays, and reliability.
 - **[Metrics](rules/metrics.md)**: Publishing, handling, and interpreting observability signals.

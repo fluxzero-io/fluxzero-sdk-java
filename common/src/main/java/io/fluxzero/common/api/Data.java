@@ -39,6 +39,20 @@ import java.util.function.Supplier;
 public class Data<T> implements SerializedObject<T> {
 
     /**
+     * Read-only view of a byte-array range for serializers that can consume a slice directly.
+     *
+     * <p>The backing array must not be modified. Calling {@link #get()} retains the ordinary {@code byte[]} contract
+     * and may materialize an independent array.</p>
+     */
+    public interface ByteArrayView extends Supplier<byte[]> {
+        byte[] array();
+
+        int offset();
+
+        int length();
+    }
+
+    /**
      * Standard media type for JSON data.
      */
     public static final String JSON_FORMAT = "application/json";
@@ -111,6 +125,15 @@ public class Data<T> implements SerializedObject<T> {
      */
     public T getValue() {
         return value.get();
+    }
+
+    /**
+     * Returns a read-only byte range when the value supplier can expose one without materializing a new array.
+     *
+     * @return the byte range, or {@code null} for ordinary values and suppliers
+     */
+    public ByteArrayView byteArrayView() {
+        return value instanceof ByteArrayView view ? view : null;
     }
 
     /**

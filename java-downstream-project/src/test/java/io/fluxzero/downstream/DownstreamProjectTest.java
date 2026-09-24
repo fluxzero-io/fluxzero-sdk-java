@@ -17,6 +17,10 @@ package io.fluxzero.downstream;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.ModelTypes;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.OpenApiProcessor;
 import io.fluxzero.testserver.TestServer;
@@ -25,11 +29,23 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DownstreamProjectTest {
+
+    @Test
+    void downstreamUserRequiresOnlyStableIdentityAndRoles() {
+        var user = new io.fluxzero.sdk.tracking.handling.authentication.User() {
+            public String id() { return "downstream-user"; }
+            public boolean hasRole(String role) { return false; }
+        };
+        java.security.Principal principal = user;
+        assertEquals("downstream-user", user.id());
+        assertEquals(user.id(), principal.getName());
+    }
 
     @Test
     void bomManagedMainAndTestArtifactsAreUsableWithoutInheritedParentDependencies() {
@@ -47,11 +63,32 @@ class DownstreamProjectTest {
         String registry = readResource(TypeRegistryProcessor.TYPES_FILE);
         assertTrue(registry.contains(DownstreamCommand.class.getName()));
         assertTrue(registry.contains(DownstreamResult.class.getName()));
+        assertNotNull(DownstreamProjectTest.class.getClassLoader().getResource(ModelTypes.INDEX));
+        assertTrue(ModelTypes.discover().contains(DownstreamModel.class));
+        assertTrue(ModelTypes.discover().contains(DownstreamModel.Child.class));
 
         var openApi = JsonUtils.readTree(resourceBytes(OpenApiProcessor.DEFAULT_OUTPUT));
         assertEquals("Downstream Project API", openApi.path("info").path("title").asText());
         assertEquals("getDownstreamCommand",
                      openApi.path("paths").path("/downstream/{id}").path("get").path("operationId").asText());
+    }
+
+    @Test
+    void modelAnnotationIsAvailableToDownstreamProjects() throws NoSuchMethodException {
+        Model model = DownstreamModel.class.getAnnotation(Model.class);
+        Parent typedParent = DownstreamModel.Child.class.getDeclaredMethod("parentId").getAnnotation(Parent.class);
+        Parent untypedParent =
+                DownstreamModel.Child.class.getDeclaredMethod("externalParentId").getAnnotation(Parent.class);
+
+        assertNotNull(model);
+        assertArrayEquals(new ModelPersistence[]{ModelPersistence.DOCUMENT}, model.persistence());
+        assertEquals("downstream-models", model.document().collection());
+        assertNotNull(typedParent);
+        assertNotNull(untypedParent);
+        assertEquals("children", typedParent.pathInParent());
+        assertEquals(void.class, typedParent.value());
+        assertEquals(DownstreamModel.Parent.class, untypedParent.value());
+        assertEquals("externalChildren", untypedParent.pathInParent());
     }
 
     private static String readResource(String name) throws IOException {

@@ -26,10 +26,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a class as the root of an aggregate in the domain model.
+ * Marks a class as the root of a legacy aggregate in the domain model.
  * <p>
- * Aggregates are the primary consistency boundaries in Fluxzero. They may consist of a root entity (the annotated class)
- * and any number of nested child entities, which are registered using the {@link Member @Member} annotation.
+ * New applications should use {@link Model @Model}. A model can own embedded {@link Member @Member} entities when one
+ * stream, document, cache and inseparable lifecycle are deliberately desired, while independently living models are
+ * connected through {@link Parent @Parent}. This aggregate annotation remains supported throughout Fluxzero 1.x so
+ * existing streams and applications do not require a forced persistence migration; it is scheduled for deprecation in
+ * Fluxzero 2.0.
+ * <p>
+ * Legacy aggregates consist of a root entity (the annotated class) and any number of nested child entities registered
+ * using {@link Member @Member}.
  * <p>
  * This annotation also allows fine-grained configuration of event sourcing, caching, snapshotting, and automatic
  * indexing in Fluxzero's document store.
@@ -69,10 +75,12 @@ public @interface Aggregate {
     /**
      * Whether the aggregate should use event sourcing (enabled by default).
      * <p>
-     * When enabled, applied updates are stored in the event store and used to reconstruct the aggregate state.
+     * When enabled, the aggregate is reconstructed from its stored event stream, optionally starting at a snapshot.
      * <p>
-     * Disabling event sourcing may be useful for read-heavy aggregates or reference data that seldom changes.
-     * {@link Apply} methods still work even when event sourcing is disabled, but updates will not be stored.
+     * Disabling event sourcing changes the normal load path to current stored state (the searchable document when the
+     * aggregate is searchable, otherwise its snapshot). It does not by itself suppress storing or publishing events
+     * produced by {@link Apply} methods. Event storage and publication remain controlled by
+     * {@link #eventPublication()}, {@link #publicationStrategy()}, and per-apply overrides.
      */
     boolean eventSourced() default true;
 

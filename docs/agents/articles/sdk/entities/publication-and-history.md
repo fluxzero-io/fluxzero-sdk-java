@@ -1,3 +1,6 @@
+This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
+and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+
 Use these controls when an applied update needs non-default publication or when a handler/query must compare current
 aggregate state with a reconstructed previous version. Keep ordinary aggregate updates on the default stored-and-
 published path.

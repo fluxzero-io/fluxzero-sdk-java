@@ -8,7 +8,7 @@ A query record with an `@HandleQuery` method and no `@TrackSelf` is discovered f
 public record GetProject(ProjectId projectId) implements Request<Project> {
     @HandleQuery
     Project handle() {
-        return Fluxzero.loadAggregate(projectId).get();
+        return Fluxzero.loadModel(projectId).get();
     }
 }
 
@@ -18,6 +18,11 @@ TestFixture.create()
 ```
 
 Do not register `GetProject.class` merely to make `whenQuery(...)` work. The local registry inspects the query payload itself.
+
+Use the same pattern for external reads: put the `WebRequestGateway` call and response mapping in `@HandleQuery`,
+then invoke the operation through `Fluxzero.queryAndWait(...)`. No injected API-service bean, `@Consumer` or
+`@TrackSelf` is needed. Local query dispatch leaves the nested HTTP request's audit and configured retries intact.
+See `/docs/sdk/web/outbound-requests` and `/docs/sdk/testing/external-backends` for Java/Kotlin examples.
 
 ## Tracked self-handling queries
 
@@ -78,3 +83,6 @@ final class UserQueries {
 ```
 
 Test two different zero-component queries in the same fixture configuration and assert each typed result. This catches a broad handler answering the wrong query and causing a late `ClassCastException`. In fixture setup, explicitly register external handler components and annotation-driven class handlers that need registration; do not collect every ordinary local self-handling payload class into the handler list.
+
+These examples assume `@Model` state. For existing persisted aggregates, keep their aggregate loading API until a
+deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.

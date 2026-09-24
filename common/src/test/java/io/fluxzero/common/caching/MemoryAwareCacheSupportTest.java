@@ -19,6 +19,9 @@ import io.fluxzero.common.application.SimplePropertySource;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -30,6 +33,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.entryTooLarge;
 import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.expiry;
@@ -42,6 +46,8 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class MemoryAwareCacheSupportTest {
     private static final Duration EVENTUALLY_TIMEOUT = Duration.ofSeconds(2);
@@ -75,6 +81,28 @@ class MemoryAwareCacheSupportTest {
         assertEquals("C", cache.get("c"));
         assertEquals(List.of("b"), evictions.stream().map(MemoryAwareCacheSupportEviction::key).toList());
         assertEquals(size, evictions.getFirst().reason());
+    }
+
+    @Test
+    void bulkSupplyPreservesLookupOrderAndExactLruAccess() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                3, 1, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put("a", "A");
+        cache.put("b", "B");
+        cache.put("c", "C");
+        List<String> supplied = new ArrayList<>();
+
+        cache.supplyAll(
+                List.of("a", "missing", "b"),
+                Function.identity(),
+                (lookup, value) -> supplied.add(lookup + value));
+        cache.put("d", "D");
+
+        assertEquals(List.of("aA", "bB"), supplied);
+        assertNull(cache.get("c"));
+        assertEquals("A", cache.get("a"));
+        assertEquals("B", cache.get("b"));
+        assertEquals("D", cache.get("d"));
     }
 
     @Test
@@ -140,6 +168,25 @@ class MemoryAwareCacheSupportTest {
     }
 
     @Test
+    void clearingAllowsEvictionListenersToReenterTheCache() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> value.length(), null, MemoryPressureController.none(), null);
+        List<String> evicted = new ArrayList<>();
+        cache.put("a", "A");
+        cache.put("b", "B");
+        cache.registerEvictionListener(event -> {
+            evicted.add(event.key());
+            cache.remove("b");
+        });
+
+        cache.clear();
+
+        assertEquals(0, cache.size());
+        assertEquals(0L, cache.weight());
+        assertEquals(List.of("a", "b"), evicted);
+    }
+
+    @Test
     void putAllUsesIterationOrderAndMaintainsWeight() {
         MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
                 2, 1, (key, value) -> 1, Comparator.naturalOrder(), MemoryPressureController.none(), null);
@@ -170,6 +217,162 @@ class MemoryAwareCacheSupportTest {
 
         assertEquals(1L, pressureChecks.get());
         assertEquals(3, cache.size());
+    }
+
+    @Test
+    void updateAllKeepsPerKeySemanticsAndChecksMemoryPressureOnce() {
+        AtomicLong pressureChecks = new AtomicLong();
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, (currentWeight, maxWeight) -> {
+            pressureChecks.incrementAndGet();
+            return false;
+        }, null);
+        cache.putAll(Map.of("replace", "old", "remove", "old"));
+        pressureChecks.set(0L);
+        Map<String, Function<String, String>> updates = new LinkedHashMap<>();
+        updates.put("replace", current -> current + "-new");
+        updates.put("add", current -> "added");
+        updates.put("remove", current -> null);
+
+        cache.updateAll(updates, Function::apply);
+
+        assertEquals("old-new", cache.get("replace"));
+        assertEquals("added", cache.get("add"));
+        assertNull(cache.get("remove"));
+        assertEquals(1L, pressureChecks.get());
+    }
+
+    @Test
+    void orderedUpdateAllAppliesDuplicateKeysAndChecksMemoryPressureOnce() {
+        AtomicLong pressureChecks = new AtomicLong();
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, (currentWeight, maxWeight) -> {
+            pressureChecks.incrementAndGet();
+            return false;
+        }, null);
+        List<Map.Entry<String, Function<String, String>>> updates = List.of(
+                Map.entry("same", current -> current == null ? "a" : current + "a"),
+                Map.entry("same", current -> current + "b"),
+                Map.entry("other", current -> "value"));
+
+        cache.updateAll(
+                updates,
+                Map.Entry::getKey,
+                (update, current) -> update.getValue().apply(current));
+
+        assertEquals("ab", cache.get("same"));
+        assertEquals("value", cache.get("other"));
+        assertEquals(1L, pressureChecks.get());
+    }
+
+    @Test
+    void orderedUpdateAllDerivesEachStableKeyOnce() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put("same", "old");
+        AtomicLong keyCalls = new AtomicLong();
+
+        cache.updateAll(
+                List.of("same", "added"),
+                key -> {
+                    keyCalls.incrementAndGet();
+                    return key;
+                },
+                (key, current) -> key);
+
+        assertEquals(2L, keyCalls.get());
+        assertEquals("same", cache.get("same"));
+        assertEquals("added", cache.get("added"));
+    }
+
+    @Test
+    void orderedUpdateAllRetainsExactReplacementLruOrder() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                3, 1, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put("a", "A");
+        cache.put("b", "B");
+        cache.put("c", "C");
+
+        cache.updateAll(
+                List.of("a", "b"),
+                Function.identity(),
+                (key, current) -> current.toLowerCase());
+        cache.put("d", "D");
+
+        assertNull(cache.get("c"));
+        assertEquals("a", cache.get("a"));
+        assertEquals("b", cache.get("b"));
+        assertEquals("D", cache.get("d"));
+    }
+
+    @Test
+    void orderedUpdateAllPreservesReentrantReplacementSemantics() {
+        MemoryAwareCacheSupport<String, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> value.length(), null, MemoryPressureController.none(), null);
+        cache.put("same", "old");
+
+        cache.updateAll(
+                List.of("same"),
+                Function.identity(),
+                (key, current) -> {
+                    cache.put(key, "intermediate");
+                    return current + "-final";
+                });
+
+        assertEquals("old-final", cache.get("same"));
+        assertEquals(9L, cache.weight());
+    }
+
+    @Test
+    void orderedUpdateAllNeverRetainsTransientLookupKeys() {
+        MemoryAwareCacheSupport<ReusableKey, String> cache = new MemoryAwareCacheSupport<>(
+                100, 100, (key, value) -> 1, null, MemoryPressureController.none(), null);
+        cache.put(new ReusableKey("replace"), "old");
+        cache.put(new ReusableKey("remove"), "old");
+        ReusableKey lookup = new ReusableKey(null);
+        List<ReusableKey> removedKeys = new ArrayList<>();
+        cache.registerEvictionListener(event -> {
+            if (event.reason() == manual) {
+                removedKeys.add(event.key());
+            }
+        });
+
+        cache.updateAll(
+                List.of("replace", "add", "remove"),
+                lookup::use,
+                ReusableKey::new,
+                (id, current) -> switch (id) {
+                    case "replace" -> current + "-new";
+                    case "add" -> "added";
+                    default -> null;
+                });
+        lookup.use("mutated-after-batch");
+
+        assertEquals("old-new", cache.get(new ReusableKey("replace")));
+        assertEquals("added", cache.get(new ReusableKey("add")));
+        assertNull(cache.get(new ReusableKey("remove")));
+        assertEquals(List.of(new ReusableKey("remove")), removedKeys);
+    }
+
+    @Test
+    void rejectedTransientUpdatePublishesAStableKey() {
+        MemoryAwareCacheSupport<ReusableKey, String> cache = new MemoryAwareCacheSupport<>(
+                100, 3, (key, value) -> value.length(), null, MemoryPressureController.none(), null);
+        cache.put(new ReusableKey("reject"), "old");
+        ReusableKey lookup = new ReusableKey(null);
+        List<MemoryAwareCacheSupportEviction<ReusableKey, String>> evictions = new ArrayList<>();
+        cache.registerEvictionListener(evictions::add);
+
+        cache.updateAll(
+                List.of("reject"),
+                lookup::use,
+                ReusableKey::new,
+                (id, current) -> "too-large");
+        lookup.use("mutated-after-batch");
+
+        assertNull(cache.get(new ReusableKey("reject")));
+        assertEquals(new ReusableKey("reject"), evictions.getFirst().key());
+        assertEquals(entryTooLarge, evictions.getFirst().reason());
     }
 
     @Test
@@ -403,7 +606,7 @@ class MemoryAwareCacheSupportTest {
     void jvmMemoryPressureTrimIsCappedByConfiguredMaximumWeight() {
         AtomicLong usedMemory = new AtomicLong(1L);
         MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
-                () -> 0L, () -> 100L, usedMemory::get, () -> 0L, 85, 20, 50, 30);
+                () -> 0L, () -> 100L, usedMemory::get, () -> 0L, 85, 20, 50, 50, 30);
         MemoryAwareCacheSupport<String, String> cache1 = new MemoryAwareCacheSupport<>(
                 1_000, 1_000, (key, value) -> 10, null, controller, null);
         MemoryAwareCacheSupport<String, String> cache2 = new MemoryAwareCacheSupport<>(
@@ -515,6 +718,31 @@ class MemoryAwareCacheSupportTest {
     }
 
     @Test
+    void jvmMemoryPressureDoesNotCombineIncompatibleWeightUnits() {
+        AtomicLong usedMemory = new AtomicLong(1L);
+        MemoryPressureController controller = jvmController(usedMemory);
+        MemoryAwareCacheSupport<String, String> entries = new MemoryAwareCacheSupport<>(
+                1_000, 1_000, (key, value) -> 1, null, controller, null,
+                MemoryAwareCacheSupport.WeightUnit.ENTRIES);
+        MemoryAwareCacheSupport<String, String> bytes = new MemoryAwareCacheSupport<>(
+                1_000, 1_000, (key, value) -> 100, null, controller, null,
+                MemoryAwareCacheSupport.WeightUnit.BYTES);
+        try {
+            fill(entries, "entry", 10);
+            fill(bytes, "byte", 5);
+            usedMemory.set(85L);
+
+            assertTrue(entries.trimForMemoryPressure());
+
+            assertEquals(8L, entries.weight());
+            assertEquals(500L, bytes.weight());
+        } finally {
+            entries.close();
+            bytes.close();
+        }
+    }
+
+    @Test
     void backgroundJvmPressureMonitorTrimsSiblingCachesWithoutWrites() throws Throwable {
         AtomicLong usedMemory = new AtomicLong(1L);
         try (MemoryAwareCacheSupport<String, String> cache1 = new MemoryAwareCacheSupport<>(
@@ -617,6 +845,45 @@ class MemoryAwareCacheSupportTest {
     }
 
     @Test
+    void jvmMemoryPressureControllerMeasuresPostCollectionHeapUsage() {
+        MemoryPoolMXBean eden = mock(MemoryPoolMXBean.class);
+        MemoryPoolMXBean old = mock(MemoryPoolMXBean.class);
+        MemoryPoolMXBean nonHeap = mock(MemoryPoolMXBean.class);
+        when(eden.getType()).thenReturn(MemoryType.HEAP);
+        when(old.getType()).thenReturn(MemoryType.HEAP);
+        when(nonHeap.getType()).thenReturn(MemoryType.NON_HEAP);
+        when(eden.getCollectionUsage()).thenReturn(
+                new MemoryUsage(-1L, 5L, 10L, -1L));
+        when(old.getCollectionUsage()).thenReturn(
+                new MemoryUsage(-1L, 80L, 90L, 100L));
+        when(nonHeap.getCollectionUsage()).thenReturn(
+                new MemoryUsage(-1L, 1_000L, 1_000L, -1L));
+
+        java.util.function.LongSupplier supplier =
+                MemoryPressureController.JvmMemoryPressureController
+                        .postCollectionUsedMemorySupplier(
+                                List.of(eden, old, nonHeap),
+                                () -> 99L);
+
+        assertEquals(85L, supplier.getAsLong());
+    }
+
+    @Test
+    void jvmMemoryPressureControllerFallsBackWhenPostCollectionUsageIsUnsupported() {
+        MemoryPoolMXBean heap = mock(MemoryPoolMXBean.class);
+        when(heap.getType()).thenReturn(MemoryType.HEAP);
+        when(heap.getCollectionUsage()).thenReturn(null);
+
+        java.util.function.LongSupplier supplier =
+                MemoryPressureController.JvmMemoryPressureController
+                        .postCollectionUsedMemorySupplier(
+                                List.of(heap),
+                                () -> 73L);
+
+        assertEquals(73L, supplier.getAsLong());
+    }
+
+    @Test
     void jvmMemoryPressureControllerCanBeConfiguredByProperties() {
         AtomicLong nanos = new AtomicLong();
         AtomicLong collectionMillis = new AtomicLong();
@@ -659,10 +926,65 @@ class MemoryAwareCacheSupportTest {
         AtomicLong collectionMillis = new AtomicLong();
         MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
                 nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
-        nanos.addAndGet(TimeUnit.MILLISECONDS.toNanos(100));
-        collectionMillis.addAndGet(20L);
+        nanos.addAndGet(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.addAndGet(1_000L);
 
-        assertTrue(controller.shouldEvict(1, 100));
+        assertTrue(controller.shouldEvict(50, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerKeepsSparseHotCacheUnderGcLoad() {
+        AtomicLong nanos = new AtomicLong();
+        AtomicLong collectionMillis = new AtomicLong();
+        MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
+                nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
+        nanos.set(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.set(1_000L);
+
+        assertFalse(controller.shouldEvict(49, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerIgnoresTransientGcPressureWithoutResettingItsSample() {
+        AtomicLong nanos = new AtomicLong();
+        AtomicLong collectionMillis = new AtomicLong();
+        MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
+                nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
+
+        nanos.set(TimeUnit.MILLISECONDS.toNanos(250));
+        collectionMillis.set(200L);
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(1));
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(4));
+        collectionMillis.set(800L);
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.set(1_000L);
+        assertTrue(controller.shouldEvict(50, 100));
+    }
+
+    @Test
+    void jvmMemoryPressureControllerStartsANewWindowAfterSampling() {
+        AtomicLong nanos = new AtomicLong();
+        AtomicLong collectionMillis = new AtomicLong();
+        MemoryPressureController controller = new MemoryPressureController.JvmMemoryPressureController(
+                nanos::get, () -> 100L, () -> 1L, collectionMillis::get);
+
+        nanos.set(TimeUnit.SECONDS.toNanos(5));
+        collectionMillis.set(1_000L);
+        assertTrue(controller.shouldEvict(50, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(6));
+        collectionMillis.set(1_200L);
+        assertFalse(controller.shouldEvict(1, 100));
+
+        nanos.set(TimeUnit.SECONDS.toNanos(10));
+        collectionMillis.set(1_200L);
+        assertFalse(controller.shouldEvict(1, 100));
     }
 
     private static void assertEventually(Executable assertion) throws Throwable {
@@ -688,12 +1010,37 @@ class MemoryAwareCacheSupportTest {
     private static MemoryPressureController jvmController(AtomicLong usedMemory, int trimRatioPercent,
                                                           long maxTrimWeight) {
         return new MemoryPressureController.JvmMemoryPressureController(
-                () -> 0L, () -> 100L, usedMemory::get, () -> 0L, 85, 20, trimRatioPercent, maxTrimWeight);
+                () -> 0L, () -> 100L, usedMemory::get, () -> 0L,
+                85, 20, 50, trimRatioPercent, maxTrimWeight);
     }
 
     private static void fill(MemoryAwareCacheSupport<String, String> cache, String prefix, int count) {
         for (int i = 0; i < count; i++) {
             assertTrue(cache.put(prefix + i, "value"));
+        }
+    }
+
+    private static final class ReusableKey {
+        private String value;
+
+        private ReusableKey(String value) {
+            this.value = value;
+        }
+
+        private ReusableKey use(String value) {
+            this.value = value;
+            return this;
+        }
+
+        @Override
+        public boolean equals(Object candidate) {
+            return candidate instanceof ReusableKey other
+                   && java.util.Objects.equals(value, other.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Objects.hashCode(value);
         }
     }
 }

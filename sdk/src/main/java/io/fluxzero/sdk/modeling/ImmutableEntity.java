@@ -47,6 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -111,6 +112,12 @@ import static java.util.Collections.emptyList;
 @Accessors(fluent = true)
 @Slf4j
 public class ImmutableEntity<T> implements Entity<T> {
+    /** Source-visible superclass for Lombok's generated persisted-root builders. */
+    public abstract static class ImmutableEntityBuilder<
+            T, C extends ImmutableEntity<T>,
+            B extends ImmutableEntityBuilder<T, C, B>> {
+    }
+
     private static final ThreadLocal<Map<RouteCacheKey, String>> loadingRouteCache = ThreadLocal.withInitial(HashMap::new);
     private static final Map<RoutingKeyOverlapCacheKey, Boolean> routingKeyOverlapsCurrentIdCache =
             new ConcurrentHashMap<>();
@@ -147,21 +154,37 @@ public class ImmutableEntity<T> implements Entity<T> {
     @JsonIgnore
     transient Serializer serializer;
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Getter(lazy = true)
-    Collection<? extends Entity<?>> entities = computeEntities();
+    private transient volatile LazyState $lazyState;
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Getter(lazy = true)
-    Collection<?> aliases = computeAliases();
+    /** Returns the lazily discovered direct child entities. */
+    public Collection<? extends Entity<?>> entities() {
+        return lazyState().entities(this);
+    }
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Getter(lazy = true)
+    /** Returns the lazily discovered aliases. */
+    public Collection<?> aliases() {
+        return lazyState().aliases(this);
+    }
+
+    /** Returns the lazily discovered descendant routing metadata. */
     @JsonIgnore
-    DescendantTargetMetadata descendantTargetMetadata = computeDescendantTargetMetadata();
+    public DescendantTargetMetadata descendantTargetMetadata() {
+        return lazyState().descendantTargetMetadata(this);
+    }
+
+    private LazyState lazyState() {
+        LazyState result = $lazyState;
+        if (result == null) {
+            synchronized (this) {
+                result = $lazyState;
+                if (result == null) {
+                    result = new LazyState();
+                    $lazyState = result;
+                }
+            }
+        }
+        return result;
+    }
 
     @SuppressWarnings("unchecked")
     public Class<T> type() {
@@ -215,11 +238,22 @@ public class ImmutableEntity<T> implements Entity<T> {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public Entity<T> apply(DeserializingMessage message) {
+        return applyTracked(message, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<T> applyTracked(DeserializingMessage message, Consumer<HandlerInvoker> invoked) {
+        return applyTracked(message, invoked, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<T> applyTracked(DeserializingMessage message, Consumer<HandlerInvoker> invoked,
+                                    MemberInvocation invocation) {
         Optional<HandlerInvoker> directInvoker = entityHelper.applyInvoker(message, this);
         if (directInvoker.isPresent() && explicitlyTargetsCurrent(message.getPayload())) {
+            if (invoked != null) { invoked.accept(directInvoker.get()); }
             T updatedValue = (T) directInvoker.get().invoke();
             Entity<T> selfMemberAddition = updatedValue == get() ? null : applyAsSelfMemberAddition(updatedValue);
             if (selfMemberAddition != null) {
@@ -227,20 +261,13 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
             return updatedValue == get() ? this : toBuilder().value(updatedValue).build();
         }
-        ImmutableEntity<T> result = this;
-        for (Entity<?> entity : result.resolvePossibleTargets(message.getPayload())) {
-            ImmutableEntity<?> immutableEntity = (ImmutableEntity<?>) entity;
-            Entity<?> updated = immutableEntity.apply(message);
-            if (updated != immutableEntity) {
-                result = result.toBuilder().value((T) immutableEntity
-                        .holder().updateOwner(result.get(), entity, updated)).build();
-            }
-        }
+        ImmutableEntity<T> result = applyMembers(message, invoked, invocation);
         boolean explicitlyTargetsOther = directInvoker.isPresent() && result == this
                 && explicitTarget(message.getPayload()) == ExplicitTarget.OTHER;
         Optional<HandlerInvoker> invoker = directInvoker.isPresent() && result == this && !explicitlyTargetsOther ? directInvoker
                 : entityHelper.applyInvoker(message, result);
         if (invoker.isPresent()) {
+            if (invoked != null) { invoked.accept(invoker.get()); }
             T updatedValue = (T) invoker.get().invoke();
             Entity<T> selfMemberAddition = updatedValue == result.get() ? null : result.applyAsSelfMemberAddition(updatedValue);
             if (selfMemberAddition != null) {
@@ -255,10 +282,37 @@ public class ImmutableEntity<T> implements Entity<T> {
         return result;
     }
 
+    /** Applies only embedded entities, retaining this root's identity and immutable container semantics. */
+    @SuppressWarnings("unchecked")
+    ImmutableEntity<T> applyMembers(DeserializingMessage message, Consumer<HandlerInvoker> invoked) {
+        return applyMembers(message, invoked, null);
+    }
+
+    @FunctionalInterface
+    interface MemberInvocation {
+        Entity<?> apply(Entity<?> member, java.util.function.Supplier<Entity<?>> operation);
+    }
+
+    @SuppressWarnings("unchecked")
+    ImmutableEntity<T> applyMembers(DeserializingMessage message, Consumer<HandlerInvoker> invoked,
+                                     MemberInvocation invocation) {
+        ImmutableEntity<T> result = this;
+        for (Entity<?> entity : resolvePossibleTargets(message.getPayload())) {
+            ImmutableEntity<?> member = (ImmutableEntity<?>) entity;
+            Entity<?> updated = invocation != null
+                    ? invocation.apply(member, () -> member.applyTracked(message, invoked, invocation))
+                    : invoked == null ? member.apply(message) : member.applyTracked(message, invoked);
+            if (updated != member) {
+                result = result.toBuilder().value((T) member.holder().updateOwner(result.get(), entity, updated)).build();
+            }
+        }
+        return result;
+    }
+
     @SuppressWarnings("unchecked")
     private Entity<T> applyAsSelfMemberAddition(T updatedValue) {
         if (updatedValue == null || get() == null || type() == null
-            || !Entity.selfReferentialMemberCache.get(type())) {
+            || !EntityMetadata.of(type()).hasSelfReferentialMember()) {
             return null;
         }
         Object updatedId = getAnnotatedPropertyValue(updatedValue, EntityId.class).orElse(null);
@@ -708,5 +762,89 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
         }
         return results;
+    }
+
+    protected ImmutableEntity(
+            Object id,
+            Class<T> type,
+            T value,
+            String idProperty,
+            Entity<?> parent,
+            AnnotatedEntityHolder holder,
+            EntityHelper entityHelper,
+            Serializer serializer) {
+        this.id = id;
+        this.type = type;
+        this.value = value;
+        this.idProperty = idProperty;
+        this.parent = parent;
+        this.holder = holder;
+        this.entityHelper = entityHelper;
+        this.serializer = serializer;
+    }
+
+    /**
+     * Copies the persistent and runtime entity fields without copying lazily derived state.
+     */
+    protected ImmutableEntity(ImmutableEntity<T> source) {
+        this.id = source.id;
+        this.type = source.type;
+        this.value = source.value;
+        this.idProperty = source.idProperty;
+        this.parent = source.parent;
+        this.holder = source.holder;
+        this.entityHelper = source.entityHelper;
+        this.serializer = source.serializer;
+    }
+
+    private static final class LazyState {
+        private volatile Collection<? extends Entity<?>> entities;
+        private volatile Collection<?> aliases;
+        private volatile DescendantTargetMetadata descendantTargetMetadata;
+
+        private Collection<? extends Entity<?>> entities(
+                ImmutableEntity<?> owner) {
+            Collection<? extends Entity<?>> result = entities;
+            if (result == null) {
+                synchronized (this) {
+                    result = entities;
+                    if (result == null) {
+                        result = owner.computeEntities();
+                        entities = result;
+                    }
+                }
+            }
+            return result;
+        }
+
+        private Collection<?> aliases(ImmutableEntity<?> owner) {
+            Collection<?> result = aliases;
+            if (result == null) {
+                synchronized (this) {
+                    result = aliases;
+                    if (result == null) {
+                        result = owner.computeAliases();
+                        aliases = result;
+                    }
+                }
+            }
+            return result;
+        }
+
+        private DescendantTargetMetadata descendantTargetMetadata(
+                ImmutableEntity<?> owner) {
+            DescendantTargetMetadata result =
+                    descendantTargetMetadata;
+            if (result == null) {
+                synchronized (this) {
+                    result = descendantTargetMetadata;
+                    if (result == null) {
+                        result = owner.computeDescendantTargetMetadata();
+                        descendantTargetMetadata = result;
+                    }
+                }
+            }
+            return result;
+        }
     }
 }

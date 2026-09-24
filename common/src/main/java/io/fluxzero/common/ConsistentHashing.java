@@ -40,19 +40,13 @@ import java.util.function.Function;
 public class ConsistentHashing {
 
     /**
-     * Default hash function used to compute segment index from a routing key. Uses Murmur3 32-bit hash for fast and
-     * stable hashing.
-     */
-    private static final Function<String, Integer> defaultHashFunction = Murmur3::murmurhash3_x86_32;
-
-    /**
      * Computes the segment for a given routing key using the default hash function and the default maximum segment size.
      *
      * @param routingKey the routing key to hash
      * @return the segment index
      */
     public static int computeSegment(String routingKey) {
-        return computeSegment(routingKey, defaultHashFunction, SegmentRange.MAX_SEGMENT);
+        return computeSegment(Murmur3.murmurhash3_x86_32(routingKey), SegmentRange.MAX_SEGMENT);
     }
 
     /**
@@ -63,7 +57,7 @@ public class ConsistentHashing {
      * @return the segment index
      */
     public static int computeSegment(String routingKey, int maxSegments) {
-        return computeSegment(routingKey, defaultHashFunction, maxSegments);
+        return computeSegment(Murmur3.murmurhash3_x86_32(routingKey), maxSegments);
     }
 
     /**
@@ -75,7 +69,11 @@ public class ConsistentHashing {
      * @return the segment index
      */
     public static int computeSegment(String routingKey, Function<String, Integer> hashFunction, int maxSegments) {
-        return (int) (Math.abs((long) hashFunction.apply(routingKey)) % maxSegments);
+        return computeSegment(hashFunction.apply(routingKey), maxSegments);
+    }
+
+    private static int computeSegment(int hash, int maxSegments) {
+        return (int) (Math.abs((long) hash) % maxSegments);
     }
 
     /**

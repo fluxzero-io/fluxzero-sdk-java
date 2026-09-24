@@ -23,14 +23,21 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation used on properties of an entity value that provide an alternative identifier to find the entity.
+ * Marks a property whose current value is an alternative identifier for an entity or independently stored model.
  * <p>
- * Finding an entity by alias is used both when looking for a child entity via {@link Entity#getEntity}, and when
- * loading an entity (or aggregate) by entity id, e.g. using {@link Fluxzero#loadAggregateFor}.
+ * Aliases are used when looking for an embedded entity via {@link Entity#getEntity}, when resolving a legacy aggregate
+ * through {@link Fluxzero#loadAggregateFor}, and when loading an independent model through
+ * {@link Fluxzero#loadModel(Object)}.
  * <p>
  * You can annotate fields and property methods. If a property value is a collection the members of the collection are
  * all added as aliases of the entity. If the property value is {@code null} or an empty collection the alias is
  * ignored.
+ * <p>
+ * On an independently stored {@link Model}, the complete current alias set is replaced atomically with each model
+ * transition. A changed or deleted alias therefore stops resolving after that commit. Such aliases identify a model
+ * globally and must be unique across independently stored models. A primary model ID takes precedence over an equal
+ * alias. Aliases which are intentionally local to one aggregate tree should not be exposed as independent-model
+ * aliases.
  */
 @Documented
 @Target({ElementType.FIELD, ElementType.METHOD})

@@ -51,6 +51,55 @@ public class ConsumerConfigurationTest {
     private static final List<String> invocationOrder = new CopyOnWriteArrayList<>();
 
     @Test
+    void conflictingConsumerNamesIdentifyRegisteredHandlerTypesWithoutInspectingInstances() {
+        for (boolean async : List.of(false, true)) {
+            var failure = assertThrows(TrackingException.class, () -> {
+                if (async) {
+                    TestFixture.createAsync(new ConflictingFirstHandler(), new ConflictingSecondHandler());
+                } else {
+                    TestFixture.create(new ConflictingFirstHandler(), new ConflictingSecondHandler());
+                }
+            });
+            assertTrue(failure.getMessage().contains("conflicting-handlers"));
+            assertTrue(failure.getMessage().contains(ConflictingFirstHandler.class.getName()));
+            assertTrue(failure.getMessage().contains(ConflictingSecondHandler.class.getName()));
+            assertTrue(failure.getMessage().contains("Use unique consumer names"));
+        }
+    }
+
+    @Test
+    void conflictDiagnosticsDoNotReevaluateCustomHandlerFilters() {
+        for (boolean async : List.of(false, true)) {
+            Predicate<Object> filter = handler -> {
+                throw new AssertionError("A configuration conflict must not invoke handler filters");
+            };
+            var builder = DefaultFluxzero.builder().addConsumerConfiguration(
+                    ConsumerConfiguration.builder().name("conflicting-handlers").threads(2).handlerFilter(filter).build(),
+                    COMMAND);
+            var failure = assertThrows(TrackingException.class, () -> {
+                if (async) {
+                    TestFixture.createAsync(builder, new ConflictingFirstHandler());
+                } else {
+                    TestFixture.create(builder, new ConflictingFirstHandler());
+                }
+            });
+            assertTrue(failure.getMessage().contains("conflicting-handlers"));
+            assertTrue(failure.getMessage().contains(ConflictingFirstHandler.class.getName()));
+        }
+    }
+
+    @Consumer(name = "conflicting-handlers", threads = 1)
+    private static class ConflictingFirstHandler {
+        @HandleCommand void handle(Command ignored) { }
+        @Override public String toString() { throw new AssertionError("Do not inspect handler state"); }
+    }
+
+    @Consumer(name = "conflicting-handlers", threads = 2)
+    private static class ConflictingSecondHandler {
+        @HandleCommand void handle(Command ignored) { }
+    }
+
+    @Test
     void builderDefaultsMaxFetchBytesToHealthyLimit() {
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("default").build();
 
@@ -261,6 +310,38 @@ public class ConsumerConfigurationTest {
                 .expectEvents(
                         (Predicate<String>) consumerName -> consumerName.endsWith("_Handler"),
                         (Predicate<String>) consumerName -> consumerName.endsWith("_OtherHandler"));
+    }
+
+    @Test
+    void unconfiguredHandlersShareConsumerPerPackageWhenConfigured() {
+        Predicate<String> packageConsumer =
+                consumerName -> consumerName.endsWith(
+                        "_package_io_fluxzero_sdk_tracking");
+
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                                                ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE)).andThen(existing)),
+                                new Handler(), new OtherHandler())
+
+                .whenExecuting(fc -> Fluxzero.sendAndForgetCommand(new Command()))
+                .expectEvents(packageConsumer, packageConsumer);
+    }
+
+    @Test
+    void unconfiguredHandlersUsePackageConsumersWithLatestDefaultsVersion() {
+        Predicate<String> packageConsumer =
+                consumerName -> consumerName.endsWith(
+                        "_package_io_fluxzero_sdk_tracking");
+
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                "2026.07.27")).andThen(existing)),
+                                new Handler(), new OtherHandler())
+
+                .whenExecuting(fc -> Fluxzero.sendAndForgetCommand(new Command()))
+                .expectEvents(packageConsumer, packageConsumer);
     }
 
     @Test

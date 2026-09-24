@@ -1,0 +1,45 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.modeling;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Adds a property derived from relationship context when a {@link Graph} is serialized.
+ *
+ * <p>The annotated instance method must return a value and accept one or more {@code Graph<T>} parameters. A parameter
+ * may select the current model graph or one of its typed ancestors. The method is not invoked when the model value is
+ * serialized by itself, and resolving its parameters reuses the graph that is already being serialized. Response-wide
+ * values attached through {@link Graph#withContext(Object...)} are available through
+ * {@link Graph#context(Class)} and never become persisted model state.</p>
+ * <p>For example, store a selected child ID once on a parent and derive a child's {@code primary} flag from the
+ * injected ancestor Graph. Use that pinned Graph, not {@link Graph#current()}, to avoid mixing revisions. This
+ * annotation adds a serialized view; it does not enforce selection integrity or clear references on move/deletion.
+ * Express those rules with {@link AssertLegal} and the normal atomic Model actions.</p>
+ */
+@Documented
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface GraphProperty {
+
+    /** Property name. By default the annotated method's bean property name is used. */
+    String value() default "";
+}

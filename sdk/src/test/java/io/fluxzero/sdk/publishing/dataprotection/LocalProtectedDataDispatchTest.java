@@ -17,12 +17,20 @@ package io.fluxzero.sdk.publishing.dataprotection;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.keyvalue.client.InMemoryKeyValueStore;
 import io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.publishing.LocalOnly;
 import io.fluxzero.sdk.publishing.LocalOnlyDispatchException;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -36,11 +44,15 @@ import org.junit.jupiter.api.parallel.Isolated;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.EVENT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -50,6 +62,192 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @Isolated
 class LocalProtectedDataDispatchTest {
+
+    @Test
+    void parallelLocalCommandsAvoidKeyValueIo() {
+        CountingLocalClient client = new CountingLocalClient();
+        LocalCommandHandler handler = new LocalCommandHandler();
+        Object[] commands = IntStream.range(0, 512).mapToObj(i -> new ProtectedCommand("value-" + i)).toArray();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+            fluxzero.commandGateway().registerHandler(handler);
+            var results = fluxzero.commandGateway().<String>send(commands);
+            assertEquals(IntStream.range(0, 512).mapToObj(i -> "value-" + i).toList(),
+                         results.stream().map(CompletableFuture::join).toList());
+            fluxzero.commandGateway().sendAndForget(Guarantee.STORED, commands).join();
+            assertEquals(1024, handler.invocations.get());
+            client.assertKeyValueCalls(0, 0, 0);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void parallelExternalCommandsKeepEveryProtectedReferenceDurable() throws Exception {
+        for (boolean requests : List.of(false, true)) {
+            CountingLocalClient client = new CountingLocalClient();
+            Object[] commands = IntStream.range(0, 512)
+                    .mapToObj(i -> new ExternallyHandledCommand("secret-" + i)).toArray();
+            try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+                List<CompletableFuture<Integer>> results = List.of();
+                if (requests) {
+                    results = fluxzero.commandGateway().send(commands);
+                    assertEquals(512, results.size());
+                } else {
+                    fluxzero.commandGateway().sendAndForget(Guarantee.STORED, commands).join();
+                }
+                client.assertKeyValueCalls(512, 0, 0);
+                var messages = client.getTrackingClient(COMMAND).readFromIndex(0, 1024);
+                assertEquals(512, messages.size());
+                for (int i = 0; i < messages.size(); i++) {
+                    var message = messages.get(i);
+                    ExternallyHandledCommand payload = fluxzero.serializer().deserialize(message.getData());
+                    assertNull(payload.value());
+                    Map<String, String> references = message.getMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class);
+                    assertEquals("secret-" + i, fluxzero.keyValueStore().get(references.get("value")));
+                    if (requests) {
+                        // This test checks durable dispatch, not abandoned-request shutdown. Settle every request
+                        // over the real result path instead of leaving two shutdown grace periods to expire.
+                        fluxzero.resultGateway().respond(i, message.getSource(), message.getRequestId()).join();
+                    }
+                }
+                for (int i = 0; i < results.size(); i++) {
+                    assertEquals(i, results.get(i).get(5, TimeUnit.SECONDS));
+                }
+            }
+        }
+    }
+
+    @Test
+    void automaticModelCommandsRetainDurableProtectionBeforeCommit() {
+        CountingLocalClient client = new CountingLocalClient();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+            fluxzero.commandGateway().registerHandler(ProtectedModel.class);
+            fluxzero.commandGateway().setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+            fluxzero.apply(fc -> fc.commandGateway().sendAndWait(new ProtectedModelCommand("protected-model", "model-secret")));
+            assertEquals(12, fluxzero.modelRepository().load("protected-model", ProtectedModel.class).get().length());
+            client.assertKeyValueCalls(1, 1, 0);
+            var events = client.getEventStoreClient().getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest("protected-model", -1, 10)), ModelReadBoundary.current(), 0));
+            assertEquals(1, events.getPayloads().size());
+            ProtectedModelCommand modelEvent = fluxzero.serializer().deserialize(events.getPayloads().getFirst().getEvent().getData());
+            assertNull(modelEvent.value(), "Stored Model event must not contain the protected value");
+            var published = client.getTrackingClient(EVENT).readFromIndex(0, 10);
+            assertEquals(1, published.size());
+            ProtectedModelCommand publicEvent = fluxzero.serializer().deserialize(published.getFirst().getData());
+            assertNull(publicEvent.value(), "Published Model event must not contain the protected value");
+        }
+    }
+
+    @Model
+    private record ProtectedModel(@EntityId String id, int length) {
+    }
+
+    @Test
+    void protectedModelEventsCanReconstructWithoutTheWriterCache() {
+        CountingLocalClient client = new CountingLocalClient();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+            fluxzero.commandGateway().registerHandler(ProtectedModel.class);
+            fluxzero.commandGateway().setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+            fluxzero.apply(fc -> fc.commandGateway().sendAndWait(
+                    new ProtectedModelCommand("reloaded-model", "model-secret")));
+            try (Fluxzero reader = DefaultFluxzero.builder().build(client)) {
+                assertEquals(12, (int) reader.apply(fc -> fc.modelRepository()
+                        .load("reloaded-model", ProtectedModel.class).get().length()));
+            }
+        }
+    }
+
+    @Test
+    void failedVaultReadDoesNotCacheAnIncompleteModel() {
+        CountingLocalClient client = new CountingLocalClient();
+        try (Fluxzero writer = DefaultFluxzero.builder().build(client)) {
+            writer.commandGateway().registerHandler(ProtectedModel.class);
+            writer.commandGateway().setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+            writer.apply(fc -> fc.commandGateway().sendAndWait(new ProtectedModelCommand("read-failure", "secret")));
+            try (Fluxzero reader = DefaultFluxzero.builder().build(client)) {
+                ((CountingKeyValueClient) client.getKeyValueClient()).failedGets.set(1);
+                assertThrows(RuntimeException.class, () -> reader.apply(
+                        fc -> fc.modelRepository().load("read-failure", ProtectedModel.class)));
+                assertEquals(6, (int) reader.apply(fc -> fc.modelRepository()
+                        .load("read-failure", ProtectedModel.class).get().length()));
+            }
+        }
+    }
+
+    @Test
+    void failedVaultWriteCannotCommitAnUnprotectedModelEvent() {
+        CountingLocalClient client = new CountingLocalClient();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+            fluxzero.commandGateway().registerHandler(ProtectedModel.class);
+            fluxzero.commandGateway().setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+            ((CountingKeyValueClient) client.getKeyValueClient()).failedPuts.set(1);
+            assertThrows(RuntimeException.class, () -> fluxzero.apply(fc -> fc.commandGateway().sendAndWait(
+                    new ProtectedModelCommand("write-failure", "secret"))));
+            var events = client.getEventStoreClient().getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest("write-failure", -1, 10)), ModelReadBoundary.current(), 0));
+            assertEquals(0, events.getPayloads().size());
+            assertEquals(0, client.getTrackingClient(EVENT).readFromIndex(0, 10).size());
+            fluxzero.apply(fc -> fc.commandGateway().sendAndWait(new ProtectedModelCommand("write-failure", "secret")));
+            assertEquals(6, fluxzero.modelRepository().load("write-failure", ProtectedModel.class).get().length());
+            client.assertKeyValueCalls(2, 1, 0);
+        }
+    }
+
+    private record ProtectedModelCommand(String id, @ProtectData String value) {
+        @Apply
+        ProtectedModel apply() {
+            return new ProtectedModel(id, value == null ? -1 : value.length());
+        }
+    }
+
+    @Test
+    void localTrackedAndExplicitUpdatesKeepProtectedCopiesReplayable() throws Exception {
+        for (String mode : List.of("local", "tracked", "explicit")) {
+            for (boolean changed : List.of(false, true)) {
+                CountingLocalClient client = new CountingLocalClient();
+                String id = mode + "-" + changed;
+                try (Fluxzero fluxzero = DefaultFluxzero.builder().build(client)) {
+                    fluxzero.registerHandlers(ProtectedModel.class, InterceptedProtectedCommand.class);
+                    if (mode.equals("local")) {
+                        fluxzero.commandGateway().setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+                    }
+                    InterceptedProtectedCommand command = new InterceptedProtectedCommand(id, "secret", changed);
+                    if (mode.equals("explicit")) {
+                        fluxzero.apply(fc -> {
+                            Fluxzero.assertAndApply(command);
+                            return null;
+                        });
+                    } else {
+                        fluxzero.commandGateway().send(command).get(5, TimeUnit.SECONDS);
+                    }
+                    var events = client.getEventStoreClient().getModelEvents(new GetModelEvents(
+                            List.of(new ModelEventStreamRequest(id, -1, 10)), ModelReadBoundary.current(), 0));
+                    assertEquals(1, events.getPayloads().size());
+                    var event = events.getPayloads().getFirst().getEvent();
+                    InterceptedProtectedCommand payload = fluxzero.serializer().deserialize(event.getData());
+                    assertNull(payload.value());
+                    assertFalse(payload.change());
+                    Map<?, ?> refs = event.getMetadata().get(DataProtectionInterceptor.METADATA_KEY, Map.class);
+                    assertEquals(changed ? "secret!" : "secret", fluxzero.keyValueStore().get(refs.get("value").toString()));
+                    try (Fluxzero reader = DefaultFluxzero.builder().build(client)) {
+                        assertEquals(changed ? 7 : 6, (int) reader.apply(fc -> fc.modelRepository()
+                                .load(id, ProtectedModel.class).get().length()));
+                    }
+                }
+            }
+        }
+    }
+
+    private record InterceptedProtectedCommand(String id, @ProtectData String value, boolean change) {
+        @InterceptApply
+        InterceptedProtectedCommand intercept() {
+            return new InterceptedProtectedCommand(id, change ? value + "!" : value, false);
+        }
+
+        @Apply
+        ProtectedModel apply() {
+            return new ProtectedModel(id, value == null ? -1 : value.length());
+        }
+    }
 
     @Test
     void localCommandsAvoidKeyValueIoForSyncAsyncBulkAndFireAndForget() {
@@ -366,16 +564,24 @@ class LocalProtectedDataDispatchTest {
         private final AtomicInteger puts = new AtomicInteger();
         private final AtomicInteger gets = new AtomicInteger();
         private final AtomicInteger deletes = new AtomicInteger();
+        private final AtomicInteger failedGets = new AtomicInteger();
+        private final AtomicInteger failedPuts = new AtomicInteger();
 
         @Override
         public CompletableFuture<Void> putValue(String key, Data<byte[]> value, Guarantee guarantee) {
             puts.incrementAndGet();
+            if (failedPuts.getAndSet(0) > 0) {
+                return CompletableFuture.failedFuture(new IllegalStateException("Vault temporarily unavailable"));
+            }
             return super.putValue(key, value, guarantee);
         }
 
         @Override
         public Data<byte[]> getValue(String key) {
             gets.incrementAndGet();
+            if (failedGets.getAndSet(0) > 0) {
+                throw new IllegalStateException("Vault temporarily unavailable");
+            }
             return super.getValue(key);
         }
 

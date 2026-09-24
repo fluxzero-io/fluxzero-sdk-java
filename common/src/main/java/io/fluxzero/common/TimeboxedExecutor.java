@@ -33,18 +33,14 @@ import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.newVirtualThreadFactory;
 import static io.fluxzero.common.ObjectUtils.rethrow;
-import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 
 /**
  * Utility for running tasks with a maximum execution duration.
  * <p>
  * If a task does not complete within the configured duration, it is cancelled using interruption.
  * <p>
- * By default, the executor depends on the runtime version:
- * <ul>
- *     <li>Java 25 or newer: virtual thread-per-task executor</li>
- *     <li>Older Java versions: cached thread pool</li>
- * </ul>
+ * By default, each task runs on its own named virtual thread. A caller-supplied executor retains its execution policy.
+ * Closing this utility shuts down its executor without waiting for active tasks to finish.
  */
 @AllArgsConstructor
 @Slf4j
@@ -53,7 +49,7 @@ public final class TimeboxedExecutor implements AutoCloseable {
     private final ExecutorService executor;
 
     public TimeboxedExecutor() {
-        this(defaultExecutor());
+        this(Executors.newThreadPerTaskExecutor(newVirtualThreadFactory("timeboxed-")));
     }
 
     /**
@@ -163,18 +159,6 @@ public final class TimeboxedExecutor implements AutoCloseable {
         FutureManagedBlocker<T> blocker = new FutureManagedBlocker<>(future, System.nanoTime() + timeoutNanos);
         ForkJoinPool.managedBlock(blocker);
         return blocker.getResult();
-    }
-
-    private static ExecutorService defaultExecutor() {
-        if (supportsVirtualThreadWorkers()) {
-            return Executors.newThreadPerTaskExecutor(newVirtualThreadFactory("timeboxed-"));
-        }
-        return Executors.newCachedThreadPool(r -> {
-            Thread t = new Thread(r);
-            t.setName("timeboxed-" + t.threadId());
-            t.setDaemon(true);
-            return t;
-        });
     }
 
     @Override

@@ -17,6 +17,11 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - `docs/agents`: canonical, namespace-aware documentation graph for agents building applications with the SDK.
 - `project-files`: legacy Java/Kotlin manual trees retained for existing project-ZIP consumers during migration.
 
+Keep durable product documentation, API guidance, and release-relevant decisions in this repository. Store feature
+plans, progress notes, experiment journals, measurements, checkpoint history, and other backlog work records in the
+owning todo dossier under `../work-backlog/docs/`; link to that dossier from commits or pull requests when useful rather
+than copying those records into this repository.
+
 ## Regression Safety
 
 Observable behavior and operational characteristics are compatibility contracts, even when Java API signatures do not
@@ -101,8 +106,8 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.
+- SDK v2 requires Java 25 or newer and compiles with `maven.compiler.release=25`; CI and Docker images use Java 25.
 - Packaging the agent documentation ZIP also requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
-- The project compiles with `maven.compiler.release=21`; CI and Docker images currently run on Temurin/Distroless Java 25.
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.
 - Apply the Regression Safety workflow for code changes and run checks proportionate to the affected modules, execution paths, and downstream projects.
@@ -121,10 +126,17 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - For every new or changed feature, review and update all relevant documentation surfaces together: the root `README.md`, human documentation under `docs/developer/`, and the graph under `docs/agents/`. Preserve both Java and Kotlin guidance and keep graph links/symbols discoverable. While legacy project-ZIP consumers remain supported, also review the relevant `project-files/` compatibility manuals. If a surface needs no change, verify that deliberately rather than overlooking it. Run `python3 .github/scripts/validate-agent-docs.py` after graph changes.
 - Never create a feature-specific property utility or resolve configuration by reading environment variables, system properties, or property files directly. Always use the `ApplicationProperties` infrastructure; at builder or configuration boundaries, read from that component's configured `PropertySource` so application-local overrides and tests remain isolated. This shared path owns source precedence, conventional environment-variable normalization, placeholders, and decryption. Document the property key and conventional environment-variable name prominently, with builder methods presented as programmatic overrides or alternatives.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
+- Choose `@Model` versus `@Member` by domain lifecycle before storage or object shape. State with independent creation,
+  changes, history, retention, or deletion is a separate Model connected with `@Parent`, even when it appears in a
+  parent collection; a parent-scoped identity is sufficient. Use `@Member` only when all of those concerns deliberately
+  belong to the root. Searchability, update frequency, storage strategy, and convenient embedding are not boundaries.
 - Always use `ReflectionUtils` and its central `TypeMetadata` as the owner of class-scoped reflection caches. Extend that metadata instead of adding parallel `ClassValue` or class-keyed caches for methods, fields, annotations, or other structural reflection results. Keep computed values that capture runtime or instance state in a lifecycle-bound local cache; never place such values in the central class cache.
 - Avoid adding dependencies casually. If a dependency is needed, manage versions from the root POM or the relevant BOM/module pattern.
 - When changing message handling, tracking, scheduling, websocket, persistence, serialization, or reflection behavior, add focused tests in the owning module and consider both synchronous and asynchronous `TestFixture` paths.
 - Do not commit build outputs from `target/`, generated local artifacts, or release-only zips.
+- Keep this repository customer-neutral. Do not add customer or downstream-application names, captured production data,
+  fixtures, logs, or application-specific diagnostics. Preserve generally applicable SDK evidence here and keep
+  downstream-specific proof in the repository that owns that application.
 
 ## Commit Messages
 

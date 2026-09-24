@@ -65,4 +65,11 @@ public class ClaimSegment extends Read {
         this(read.getMessageType(), read.getConsumer(), read.getTrackerId(), read.getMaxTimeout(), read.isClientControlledIndex(),
              read.getTypeFilter(), read.isFilterMessageTarget(), read.getLastIndex(), read.getPurgeTimeout());
     }
+
+    ClaimSegment(long requestId, MessageType messageType, String consumer, String trackerId, long maxTimeout,
+                 boolean clientControlledIndex, String typeFilter, boolean filterMessageTarget,
+                 Long lastIndex, Long purgeTimeout) {
+        super(requestId, messageType, consumer, trackerId, 0, 0L, maxTimeout, typeFilter, filterMessageTarget,
+              false, false, clientControlledIndex, lastIndex, purgeTimeout);
+    }
 }

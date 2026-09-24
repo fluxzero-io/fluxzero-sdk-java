@@ -33,6 +33,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TestServerScheduleStoreTest {
 
     @Test
+    void boundSchedulesAlsoWakeDeadlineTracking() {
+        var delegate = new InMemoryScheduleStore() {
+            @Override public java.util.concurrent.CompletableFuture<Void> scheduleBoundToParents(
+                    Guarantee guarantee, java.util.Map<String, Long> parents, SerializedSchedule... schedules) {
+                return super.schedule(guarantee, schedules);
+            }
+        };
+        AtomicLong next = new AtomicLong(-1);
+        var subject = new TestServerScheduleStore(delegate) {
+            @Override protected void rescheduleNextDeadline(long index) { next.set(index); }
+        };
+        var schedule = new SerializedSchedule("owned", Instant.now().plusSeconds(60).toEpochMilli(),
+                new SerializedMessage(new Data<>(new byte[0], "test", 0), Metadata.empty(), "message",
+                                      System.currentTimeMillis()), false);
+        subject.scheduleBoundToParents(Guarantee.STORED, java.util.Map.of("owner", -1L), schedule).join();
+        assertEquals(io.fluxzero.sdk.tracking.IndexUtils.indexFromMillis(schedule.getTimestamp()), next.get());
+    }
+
+    @Test
     void getBatchReschedulesWhenTheHiddenFutureScheduleIsTheImmediateNextIndex() throws Exception {
         InMemoryScheduleStore delegate = new InMemoryScheduleStore();
         delegate.setRetentionTime(null);

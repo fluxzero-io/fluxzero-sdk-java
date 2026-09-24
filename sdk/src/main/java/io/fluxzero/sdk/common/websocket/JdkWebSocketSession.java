@@ -63,6 +63,11 @@ class JdkWebSocketSession implements WebsocketSession {
     static final int DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES = 128;
     static final long DEFAULT_MAX_RETAINED_RUNTIME_BYTES = 64L * 1024 * 1024;
 
+    // The JDK can invoke onOpen inline from handshake completion on its common pool. Opening must not wait for
+    // capacity on the data callback executor, which may itself be waiting for this connection to open.
+    private static final Executor OPEN_EXECUTOR =
+            io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-websocket-open-");
+
     private final JdkWebsocketConnector connector;
     private final WebsocketEndpoint endpoint;
     private final JdkWebsocketConnector.CapturedHandshakeResponse handshakeResponse;
@@ -950,11 +955,13 @@ class JdkWebSocketSession implements WebsocketSession {
     private class Listener implements WebSocket.Listener {
         @Override
         public void onOpen(WebSocket webSocket) {
-            try {
-                notifyOpen(webSocket);
-            } catch (Throwable e) {
-                handleOpenDispatchFailure(webSocket, e);
-            }
+            CompletableFuture.runAsync(io.fluxzero.sdk.common.ThreadLocalContext.capture().wrap(() -> {
+                try {
+                    notifyOpen(webSocket);
+                } catch (Throwable e) {
+                    handleOpenDispatchFailure(webSocket, e);
+                }
+            }), OPEN_EXECUTOR).join();
         }
 
         @Override

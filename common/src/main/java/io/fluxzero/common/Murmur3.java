@@ -61,6 +61,26 @@ public class Murmur3 {
         int bits = 0;
         int nBytes = 0;   // length in UTF8 bytes
 
+        while (pos <= end - Integer.BYTES) {
+            int first = data.charAt(pos);
+            int second = data.charAt(pos + 1);
+            int third = data.charAt(pos + 2);
+            int fourth = data.charAt(pos + 3);
+            if ((first | second | third | fourth) >= 0x80) {
+                break;
+            }
+            k1 = first | second << 8 | third << 16 | fourth << 24;
+            k1 *= c1;
+            k1 = (k1 << 15) | (k1 >>> 17);
+            k1 *= c2;
+
+            h1 ^= k1;
+            h1 = (h1 << 13) | (h1 >>> 19);
+            h1 = h1 * 5 + 0xe6546b64;
+            pos += Integer.BYTES;
+            nBytes += Integer.BYTES;
+            k1 = 0;
+        }
 
         while (pos < end) {
             int code = data.charAt(pos++);

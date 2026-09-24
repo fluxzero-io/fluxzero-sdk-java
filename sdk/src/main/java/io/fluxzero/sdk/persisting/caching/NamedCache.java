@@ -20,6 +20,8 @@ import io.fluxzero.common.caching.CacheEviction;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -60,6 +62,25 @@ public class NamedCache implements Cache {
     @Override
     public <T> T compute(Object id, BiFunction<? super Object, ? super T, ? extends T> mappingFunction) {
         return delegate.compute(idFunction.apply(id), mappingFunction);
+    }
+
+    @Override
+    public <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        LinkedHashMap<Object, T> named =
+                new LinkedHashMap<>(
+                        (int) Math.min(
+                                Integer.MAX_VALUE,
+                                (long) values.size()
+                                * 4L / 3L + 1L));
+        values.forEach(
+                (id, value) ->
+                        named.put(
+                                idFunction.apply(id), value));
+        delegate.mergeAll(
+                named,
+                mergeFunction);
     }
 
     @Override

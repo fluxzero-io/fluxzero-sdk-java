@@ -56,15 +56,25 @@ public interface User extends Principal {
     /**
      * Returns the stable identifier of this user.
      * <p>
-     * The default delegates to {@link #getName()} so existing {@code User} implementations remain source-, binary-,
-     * and behavior-compatible. Implementations should override this method when the principal name is not a stable
-     * application user identifier. Fluxzero uses this value for user metadata, provider lookups, and diagnostics that
-     * identify the acting user.
+     * Every implementation must supply this identity explicitly. There is no fallback to {@link #getName()}; a
+     * principal or display name is not an identity contract. Fluxzero uses this value for ID-based user metadata,
+     * provider lookups, and diagnostics that identify the acting user. Implementations should return a non-null,
+     * stable identifier that their {@link UserProvider} can resolve.
      *
      * @return the stable user identifier
      */
-    default String id() {
-        return getName();
+    String id();
+
+    /**
+     * Returns this user's principal name, using the explicit identity when no separate name is supplied.
+     * Override this method for a distinct principal or display name; identity-dependent behavior still uses
+     * {@link #id()}. This one-way default does not infer an identity from a name.
+     *
+     * @return the principal name
+     */
+    @Override
+    default String getName() {
+        return id();
     }
 
     /**

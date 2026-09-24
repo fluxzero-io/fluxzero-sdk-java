@@ -128,6 +128,14 @@ class WebsocketEndpointTest {
     }
 
     @Test
+    void compressionDefaultsToLegacyLz4WithoutCapabilitiesOrParameter() {
+        ServerWebsocketSession session = mock(ServerWebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
+        when(session.getRequestParameterMap()).thenReturn(Map.of());
+        assertEquals(CompressionAlgorithm.LZ4, new TestEndpoint().getCompressionAlgorithmForTest(session));
+    }
+
+    @Test
     void legacyCompressionParameterRemainsFallbackWhenNoCapabilitiesAreSent() {
         ServerWebsocketSession session = mock(ServerWebsocketSession.class);
         when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());

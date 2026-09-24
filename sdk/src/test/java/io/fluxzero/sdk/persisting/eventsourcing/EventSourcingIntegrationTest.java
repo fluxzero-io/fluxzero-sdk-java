@@ -35,7 +35,8 @@ import static org.mockito.Mockito.verify;
 
 @Slf4j
 class EventSourcingIntegrationTest {
-    private final TestFixture testFixture = TestFixture.createAsync(new CommandHandler(), new EventHandler()).spy();
+    private final CommandHandler commandHandler = new CommandHandler();
+    private final TestFixture testFixture = TestFixture.createAsync(commandHandler, new EventHandler()).spy();
 
     @Test
     void testHandleBatch() {
@@ -53,11 +54,22 @@ class EventSourcingIntegrationTest {
 
     @Test
     void testHandleUpdateAfterDelete() {
-        testFixture.givenCommands(new UpsertCommand("test", "0"), new DeleteCommand("test"))
-                .whenCommand(new UpsertCommand("test", "1"))
-                .expectOnlyEvents(new UpsertCommand("test", "1"))
-                .expectOnlyCommands(new SecondOrderCommand())
-                .expectThat(fc -> assertEquals("create", loadAggregate("test", AggregateRoot.class).get().event));
+        try {
+            testFixture.givenCommands(new UpsertCommand("test", "0"), new DeleteCommand("test"))
+                    .whenCommand(new UpsertCommand("test", "1"))
+                    .expectOnlyEvents(new UpsertCommand("test", "1"))
+                    .expectOnlyCommands(new SecondOrderCommand())
+                    .expectThat(fc -> assertEquals("create", loadAggregate("test", AggregateRoot.class).get().event));
+        } catch (RuntimeException e) {
+            Thread active = commandHandler.active;
+            if (active != null) {
+                System.err.println("Aggregate handler at fixture failure: " + active + " " + active.getState());
+                for (StackTraceElement frame : active.getStackTrace()) {
+                    System.err.println("    at " + frame);
+                }
+            }
+            throw e;
+        }
     }
 
     @Test
@@ -69,6 +81,23 @@ class EventSourcingIntegrationTest {
                 .whenExecuting(fc -> fc.aggregateRepository().deleteAggregate("test"))
                 .expectTrue(fc -> fc.cache().isEmpty())
                 .expectTrue(fc -> fc.eventStore().getEvents("test").toList().isEmpty())
+                .expectTrue(fc -> fc.snapshotStore().getSnapshot("test").isEmpty())
+                .expectTrue(fc -> fc.documentStore().search(AggregateRoot.class).fetchAll().isEmpty())
+                .expectTrue(fc -> fc.aggregateRepository().getAggregatesFor("test").isEmpty())
+                .andThen()
+                .whenApplying(fc -> Fluxzero.loadAggregate("test", AggregateRoot.class))
+                .expectResult(Entity::isEmpty);
+    }
+
+    @Test
+    void testLogicalDeleteRetainsEventHistoryButRemovesCurrentProjections() {
+        testFixture.givenCommands(new UpsertCommand("test", "0"))
+                .whenCommand(new DeleteCommand("test"))
+                .expectOnlyEvents(new DeleteCommand("test"))
+                .expectThat(fc -> assertEquals(2, fc.eventStore().getEvents("test").count()))
+                .expectTrue(fc -> fc.cache().containsKey("$Aggregate:test"))
+                .expectTrue(fc -> fc.cache().<Entity<?>>get("$Aggregate:test").isEmpty())
+                .expectTrue(fc -> fc.documentStore().search(AggregateRoot.class).fetchAll().isEmpty())
                 .expectTrue(fc -> fc.aggregateRepository().getAggregatesFor("test").isEmpty())
                 .andThen()
                 .whenApplying(fc -> Fluxzero.loadAggregate("test", AggregateRoot.class))
@@ -76,9 +105,16 @@ class EventSourcingIntegrationTest {
     }
 
     static class CommandHandler {
+        volatile Thread active;
+
         @HandleCommand
         void handle(AggregateCommand command) {
-            loadAggregate(command.getId(), AggregateRoot.class).apply(command);
+            active = Thread.currentThread();
+            try {
+                loadAggregate(command.getId(), AggregateRoot.class).apply(command);
+            } finally {
+                active = null;
+            }
         }
     }
 

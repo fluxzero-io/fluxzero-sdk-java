@@ -35,6 +35,21 @@ import java.util.Optional;
 public interface HandlerFactory {
 
     /**
+     * Expands a registered target into the targets that should participate in tracking and consumer selection.
+     * <p>
+     * Most handlers track the registered target itself. Handler vocabularies whose receiver differs from the incoming
+     * payload can expose the payload type here, ensuring that package- and class-scoped consumer configuration is
+     * resolved from the message being consumed.
+     *
+     * @param target registered handler target
+     * @param handlerFilter filter used for this tracking message type
+     * @return targets to assign to consumers
+     */
+    default List<?> trackingTargets(Object target, HandlerFilter handlerFilter) {
+        return List.of(target);
+    }
+
+    /**
      * Attempts to create a message handler for the given {@code target} object.
      * <p>
      * This method analyzes the given object (or class) to discover message-handling methods (e.g.

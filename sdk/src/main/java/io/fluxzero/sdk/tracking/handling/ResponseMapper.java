@@ -71,4 +71,17 @@ public interface ResponseMapper {
      * @return a {@link Message} representing the response and metadata
      */
     Message map(Object response, Metadata metadata);
+
+    /**
+     * Maps a response using a caller-provided technical message identifier. Implementations that can construct the
+     * message directly should override this method; the default preserves existing custom mapper behavior.
+     *
+     * @param response  response value
+     * @param metadata  response metadata
+     * @param messageId technical identifier reserved by the response publisher
+     * @return mapped response message
+     */
+    default Message map(Object response, Metadata metadata, String messageId) {
+        return map(response, metadata);
+    }
 }

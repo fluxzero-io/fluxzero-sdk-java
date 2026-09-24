@@ -31,6 +31,7 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -153,13 +154,77 @@ public class RequestAnnotationProcessor extends AbstractProcessor {
                 }
             }
 
-            if (!getTypeUtils().isAssignable(handlerReturnType, expectedReturnType)) {
+            if (!getTypeUtils().isAssignable(handlerReturnType, expectedReturnType)
+                && !isGraphJsonCompatible(
+                        handlerReturnType,
+                        expectedReturnType)) {
                 processingEnv.getMessager().printMessage(
                         Diagnostic.Kind.ERROR,
                         "Return type of request handler is invalid. Should be " + expectedReturnType,
                         method);
             }
         }
+    }
+
+    /**
+     * A Graph is an intentional JSON response representation: the central serializer emits its recursively composed
+     * model document. Permit that representation behind an explicitly JSON-typed request contract while retaining the
+     * ordinary exact request return-type validation for every non-JSON response.
+     */
+    private boolean isGraphJsonCompatible(
+            TypeMirror handlerType,
+            TypeMirror expectedType) {
+        if (!(handlerType instanceof DeclaredType handler)
+            || !(expectedType instanceof DeclaredType expected)) {
+            return false;
+        }
+        var types = getTypeUtils();
+        TypeMirror graphType = getElementUtils()
+                .getTypeElement(
+                        io.fluxzero.sdk.modeling.Graph.class
+                                .getCanonicalName())
+                .asType();
+        TypeMirror jsonNodeType = getElementUtils()
+                .getTypeElement(
+                        com.fasterxml.jackson.databind.JsonNode.class
+                                .getCanonicalName())
+                .asType();
+        if (types.isAssignable(
+                    types.erasure(handler),
+                    types.erasure(graphType))
+            && types.isAssignable(
+                    types.erasure(expected),
+                    types.erasure(jsonNodeType))) {
+            return true;
+        }
+        List<? extends TypeMirror> handlerArguments =
+                handler.getTypeArguments();
+        List<? extends TypeMirror> expectedArguments =
+                expected.getTypeArguments();
+        TypeMirror collectionType = getElementUtils()
+                .getTypeElement(Collection.class.getCanonicalName())
+                .asType();
+        return !handlerArguments.isEmpty()
+               && handlerArguments.size()
+                  == expectedArguments.size()
+               && types.isAssignable(
+                       types.erasure(handler),
+                       types.erasure(collectionType))
+               && types.isAssignable(
+                       types.erasure(expected),
+                       types.erasure(collectionType))
+               && types.isAssignable(
+                       types.erasure(handler),
+                       types.erasure(expected))
+               && java.util.stream.IntStream
+                       .range(0, handlerArguments.size())
+                       .allMatch(index ->
+                               types.isAssignable(
+                                       handlerArguments.get(index),
+                                       expectedArguments.get(index))
+                               || isGraphJsonCompatible(
+                                       handlerArguments.get(index),
+                                       expectedArguments.get(index)));
     }
 
     private TypeMirror findSuperType(TypeMirror type, TypeMirror target) {

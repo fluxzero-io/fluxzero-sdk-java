@@ -8,14 +8,52 @@ sidebar:
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 
-All minor versions are backward compatible, meaning that you can upgrade to a newer minor version without breaking your code.
+Released minor versions preserve supported SDK behavior and persisted/wire contracts so applications can upgrade
+without rewriting their domain code.
 
 However, you should always check the [changelog](/docs/changelog) for any breaking changes.
 
+## SDK and Runtime upgrades
+
+- A newer Runtime accepts released workflows from older SDK versions.
+- A newer SDK works with an older Runtime while the application uses only protocol operations that Runtime supports.
+- A new SDK capability that needs a new Runtime operation fails explicitly as unsupported at its first request. It does
+  not silently write a partial or legacy representation.
+
+Upgrade the Runtime first before enabling a newly introduced Model protocol capability. Applications that do not use
+that capability remain compatible and can upgrade the two components independently within their supported release
+ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
+
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
+outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
+supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
+GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+`fluxzero.defaults.version`.
+
+`CompressionAlgorithm.LZ4` remains available in Java and Kotlin, with the same historical size-prefixed wire format.
+Fluxzero compression IDs remain NONE=0, LZ4=1 and ZSTD=2. The document MessagePack content and format identifier are
+unchanged. Direct reads of historical LZ4 blobs therefore remain supported. The LZ4 dependency remains included.
+
+Clients without document capabilities or historical ZSTD support receive size-prefixed LZ4. Explicitly advertised codecs
+include support for their Fluxzero-framed envelopes; NONE documents use that envelope to identify uncompressed content.
+For unsupported stored codecs, Runtime selects ZSTD, then LZ4, then NONE from the client's supported set. Transport
+compression preferences do not force document conversion. Custom document formats stay opaque.
+
+For a mixed fleet, upgrade Runtime before introducing ZSTD document writes if any connected SDK cannot read ZSTD.
+Such an SDK needs the new Runtime conversion when reading documents written by SDK 2.0. An older Runtime cannot
+supply this new negotiation behavior merely because a newer producer is connected. Explicit document capabilities take precedence. Without them, advertised or selected ZSTD transport identifies older
+Java SDKs that already read Fluxzero-framed LZ4, ZSTD and NONE documents. Only without this support information does
+Runtime fall back to size-prefixed LZ4. Document writers retain the established size-prefixed LZ4 or Fluxzero-framed
+formats; ZSTD documents use the Fluxzero envelope.
+
 ## Java Version
 
-Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 25** and remains
-compatible with recent versions.
+Fluxzero SDK **2.x requires JDK 25 or higher** to compile and run, including its common, test-server and proxy artifacts.
+Java and Kotlin projects must target JVM 25 or newer. SDK v2 artifacts are compiled for Java 25, and the SDK build
+rejects older JDKs before compilation. CI and container images use Java 25; no preview features are required.
+This requirement does not change the Java baseline of the SDK 1.x release line.
 
 ---
 
@@ -29,7 +67,8 @@ compatible with recent versions.
 | `com.fasterxml.jackson.datatype:jackson-datatype-jsr310` | runtime |
 | `com.fasterxml.jackson.datatype:jackson-datatype-jdk8`   | runtime |
 | `org.msgpack:msgpack-core`                               | runtime |
-| `org.lz4:lz4-java`                                       | runtime |
+| `at.yawk.lz4:lz4-java`                                          | runtime |
+| `com.github.luben:zstd-jni`                                       | runtime |
 
 ### Payload Validation
 

@@ -27,6 +27,7 @@ import org.eclipse.jetty.util.component.LifeCycle;
 import org.eclipse.jetty.websocket.server.ServerWebSocketContainer;
 import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
 
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -69,10 +70,20 @@ public class JettyWebsocketRouter {
      * @return the started Jetty server, owned by the caller
      */
     public Server start(int port) throws Exception {
+        return start(new InetSocketAddress("0.0.0.0", port));
+    }
+
+    /**
+     * Starts a caller-owned server on an explicit interface and port.
+     *
+     * @param address interface and port to bind; port {@code 0} selects an available port
+     * @return the started Jetty server
+     */
+    public Server start(InetSocketAddress address) throws Exception {
         Server server = new Server();
         ServerConnector connector = new ServerConnector(server);
-        connector.setHost("0.0.0.0");
-        connector.setPort(port);
+        connector.setHost(address.isUnresolved() ? address.getHostString() : address.getAddress().getHostAddress());
+        connector.setPort(address.getPort());
         server.addConnector(connector);
         server.setStopAtShutdown(false);
         server.setStopTimeout(1000);
@@ -83,7 +94,16 @@ public class JettyWebsocketRouter {
             }
         });
         server.setHandler(createHandler(server));
-        server.start();
+        try {
+            server.start();
+        } catch (Exception failure) {
+            try {
+                server.stop();
+            } catch (Exception stopFailure) {
+                failure.addSuppressed(stopFailure);
+            }
+            throw failure;
+        }
         return server;
     }
 

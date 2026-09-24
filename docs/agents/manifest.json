@@ -4,6 +4,240 @@
   "root": "/docs",
   "articles": [
     {
+      "path": "/docs/sdk/models/recipes-java",
+      "title": "Model recipes (Java)",
+      "summary": "One-to-one companions, Graph preferences, atomic CAS and retryable updates, consume-once, and external-effect orchestration.",
+      "source": "articles/sdk/models/recipes-java.md",
+      "symbols": [
+        "Graph.current()",
+        "Graph.compareAndSet",
+        "Graph.updateAndGet",
+        "Graph.getAndUpdate",
+        "maxRetries",
+        "consume-once",
+        "current()",
+        "@EntityId",
+        "@Parent",
+        "one-to-one companion",
+        "upsert",
+        "@GraphProperty",
+        "primaryLightId",
+        "assertLegal",
+        "assertAndApply",
+        "sendCommandAndWait",
+        "FunctionalException"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Start with independent Model lifecycle"
+        },
+        {
+          "path": "/docs/sdk/models/state-java",
+          "description": "Choose state and value objects"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Navigate pinned relationships and history"
+        },
+        {
+          "path": "/docs/sdk/models/actions-java",
+          "description": "Apply actions and preserve atomicity"
+        },
+        {
+          "path": "/docs/sdk/entities/ids",
+          "description": "Keep functional and repository IDs distinct"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/recipes-kotlin",
+      "title": "Model recipes (Kotlin)",
+      "summary": "One-to-one companions, Graph preferences, atomic CAS and retryable updates, consume-once, and external-effect orchestration.",
+      "source": "articles/sdk/models/recipes-kotlin.md",
+      "symbols": [
+        "Graph.current()",
+        "Graph.compareAndSet",
+        "Graph.updateAndGet",
+        "Graph.getAndUpdate",
+        "maxRetries",
+        "consume-once",
+        "current()",
+        "@EntityId",
+        "@Parent",
+        "one-to-one companion",
+        "upsert",
+        "@GraphProperty",
+        "primaryLightId",
+        "assertLegal",
+        "assertAndApply",
+        "sendCommandAndWait",
+        "FunctionalException"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Start with independent Model lifecycle"
+        },
+        {
+          "path": "/docs/sdk/models/state-kotlin",
+          "description": "Choose state and value objects"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Navigate pinned relationships and history"
+        },
+        {
+          "path": "/docs/sdk/models/actions-kotlin",
+          "description": "Apply actions and preserve atomicity"
+        },
+        {
+          "path": "/docs/sdk/entities/ids",
+          "description": "Keep functional and repository IDs distinct"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/state-boundaries",
+      "title": "Model state and protection boundaries",
+      "summary": "Choose atomic state, eventless DOCUMENT, search visibility and erasure without treating storage options as secret protection.",
+      "source": "articles/sdk/models/state-boundaries.md",
+      "symbols": [
+        "protected state",
+        "DOCUMENT",
+        "EventPublication.NEVER",
+        "searchable = false",
+        "deleteModel",
+        "@ProtectData",
+        "erasure fences",
+        "backup"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model state and lifecycle"
+        },
+        {
+          "path": "/docs/sdk/models/migration",
+          "description": "Qualify storage changes and compatible writers"
+        },
+        {
+          "path": "/docs/sdk/validation/protected-data",
+          "description": "Protect message fields and handle missing protected data"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Test retained state and independent source/projection migration"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/testing/http-stubs",
+      "title": "External HTTP stubs and consumers",
+      "summary": "Configure independent HTTP test doubles without changing consumer defaults; verify sync/async, late registration, namespaces and authorization.",
+      "source": "articles/sdk/testing/http-stubs.md",
+      "symbols": [
+        "@HandleGet",
+        "@HandlePost",
+        "@Consumer",
+        "ConsumerConfiguration",
+        "perPackage",
+        "perHandler",
+        "defaultAppConsumer",
+        "registerHandlers",
+        "sendAndWait",
+        "HTTP stub"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/testing/http",
+          "description": "Test endpoint routing and response mapping"
+        },
+        {
+          "path": "/docs/sdk/tracking",
+          "description": "Choose consumers and versioned fallback defaults"
+        },
+        {
+          "path": "/docs/sdk/testing/http-authentication",
+          "description": "Separate fixture identities from credential establishment"
+        },
+        {
+          "path": "/docs/sdk/messages/envelopes",
+          "description": "Distinguish fixture delivery from real transport envelopes"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/messages/envelopes",
+      "title": "Logical messages and transport envelopes",
+      "summary": "Distinguish messageId from transport source, logical replacements from envelope mutation and local delivery from blocking gateway calls.",
+      "source": "articles/sdk/messages/envelopes.md",
+      "symbols": [
+        "Message",
+        "SerializedMessage",
+        "DeserializingMessage",
+        "messageId",
+        "source",
+        "withMessageId",
+        "withMessage",
+        "interceptDispatch",
+        "modifySerializedMessage"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/messages",
+          "description": "Choose gateways and logical message APIs"
+        },
+        {
+          "path": "/docs/sdk/testing/http-stubs",
+          "description": "Configure independent HTTP stub consumers"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/migration-testing",
+      "title": "Testing Model migrations and retained storage",
+      "summary": "Preserve old fields while moving name into details; distinguish caster tests, givenModelEvents and an old writer/new reader, then verify search paths before and after Graph rematerialization.",
+      "source": "articles/sdk/models/migration-testing.md",
+      "symbols": [
+        "givenModelEvents",
+        "registerCasters",
+        "whenUpcasting",
+        "Model migration",
+        "old SDK writer",
+        "retained storage",
+        "name to details.name",
+        "reindexing",
+        "previous()",
+        "searchGraph",
+        "loadCurrentModelState",
+        "Model document proof",
+        "modelState",
+        "@HandleDocument(modelState)",
+        "internal Model source",
+        "independent DOCUMENT projection",
+        "schema reindexing"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model lifecycle, state and Graph APIs"
+        },
+        {
+          "path": "/docs/sdk/testing/reconstruction",
+          "description": "Run complete givenModelEvents reconstruction examples"
+        },
+        {
+          "path": "/docs/sdk/serialization",
+          "description": "Register value-preserving casters with matching source revisions"
+        },
+        {
+          "path": "/docs/sdk/reference/test-fixture-signatures",
+          "description": "Check synthetic setup and complete active schedule assertions"
+        }
+      ]
+    },
+    {
       "path": "/docs",
       "title": "Fluxzero Agent Docs",
       "summary": "Start here when a coding agent needs compact Fluxzero SDK, testing, and cloud deployment guidance.",
@@ -15,6 +249,10 @@
       ],
       "links": [
         {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
+        {
           "description": "SDK concepts and Java implementation rules",
           "path": "/docs/sdk"
         },
@@ -25,6 +263,10 @@
         {
           "description": "Cloud packaging and demo deployment orientation",
           "path": "/docs/cloud"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -39,6 +281,10 @@
         "Spring Boot"
       ],
       "links": [
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Start over with the SDK, task-recipe, and cloud documentation choices",
           "path": "/docs"
@@ -134,13 +380,17 @@
         {
           "description": "Look up curated application-facing SDK symbols and exact packages",
           "path": "/docs/sdk/reference"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
     {
       "path": "/docs/sdk/principles",
       "title": "SDK Principles",
-      "summary": "The defaults that keep Fluxzero applications deterministic, testable, and easy for agents to extend.",
+      "summary": "Core SDK principles, including domain-first package structure and cohesive details versus identity, status and execution state.",
       "source": "articles/sdk/principles.md",
       "symbols": [
         "@Apply",
@@ -148,9 +398,15 @@
         "Fluxzero.currentTime()",
         "Fluxzero.search(...)",
         "Request<T>",
-        "Fluxzero.publishEvent(...)"
+        "Fluxzero.publishEvent(...)",
+        "details value object",
+        "RenameProject"
       ],
       "links": [
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Choose the relevant SDK implementation topic",
           "path": "/docs/sdk"
@@ -162,13 +418,29 @@
         {
           "description": "create a first app",
           "path": "/docs/recipes/create-app"
+        },
+        {
+          "description": "Choose details and state fields, with validated Java creation and rename",
+          "path": "/docs/sdk/models/state-java"
+        },
+        {
+          "description": "Choose details and state fields, with validated Kotlin creation and rename",
+          "path": "/docs/sdk/models/state-kotlin"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
     {
       "path": "/docs/sdk/project-setup",
       "title": "Project Setup",
-      "summary": "Generate a Java/Kotlin starter with the Fluxzero CLI, align its SDK version with these manuals, and adapt it to the product requirements.",
+      "summary": "Generate a Java/Kotlin starter, choose domain-first package paths before creating files, and align the build with its SDK version.",
       "source": "articles/sdk/project-setup/index.md",
       "symbols": [
         "fz init",
@@ -179,7 +451,6 @@
         ".java-version",
         ".tool-versions",
         "JAVA_HOME",
-        "Java 21",
         "Java 25",
         "Fluxzero BOM",
         "sdkVersion",
@@ -237,6 +508,10 @@
         {
           "description": "Observe edits without duplicating builds, tests, apps, or watchers",
           "path": "/docs/sdk/development/agent-loop"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -291,6 +566,10 @@
         {
           "description": "Use the generated dev configuration and agent-owned feedback loop",
           "path": "/docs/sdk/development"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -312,7 +591,6 @@
         "gradlew",
         "gradlew.bat",
         "JDK",
-        "Java 21",
         "Java 25"
       ],
       "links": [
@@ -507,6 +785,50 @@
       ]
     },
     {
+      "path": "/docs/sdk/project-setup/package-structure",
+      "title": "Application Package Structure",
+      "summary": "Choose domain-first Java/Kotlin packages before creating files; place messages and IDs in api, state in api.model, and verify the example tree before finishing.",
+      "source": "articles/sdk/project-setup/package-structure.md",
+      "symbols": [
+        "package structure",
+        "package layout",
+        "package organization",
+        "package organisation",
+        "folder structure",
+        "directory layout",
+        "domain-first",
+        "package by feature",
+        "api",
+        "api.model",
+        "commands",
+        "queries",
+        "typed IDs",
+        "package-info.java"
+      ],
+      "links": [
+        {
+          "description": "Configure a Java or Kotlin Fluxzero project",
+          "path": "/docs/sdk/project-setup"
+        },
+        {
+          "description": "Java source roots and package annotations",
+          "path": "/docs/sdk/project-setup/java"
+        },
+        {
+          "description": "Kotlin source roots and package annotations",
+          "path": "/docs/sdk/project-setup/kotlin"
+        },
+        {
+          "description": "Build the first application slice",
+          "path": "/docs/recipes/create-app"
+        },
+        {
+          "description": "Preserve registered type names and aliases when moving existing classes",
+          "path": "/docs/sdk/serialization/registered-type-names"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/project-setup/java",
       "title": "Java Project Shape",
       "summary": "Java-specific source layout, package annotations, annotation processing, and the Spring Boot entry point.",
@@ -561,6 +883,10 @@
         {
           "description": "Resolve unique simple names and suffixes and preserve generated module indexes.",
           "path": "/docs/sdk/serialization/registered-type-names"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -653,6 +979,10 @@
         {
           "description": "Resolve unique simple names and suffixes and preserve generated module indexes.",
           "path": "/docs/sdk/serialization/registered-type-names"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -1301,6 +1631,10 @@
         {
           "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
           "path": "/docs/sdk/messages/local-only"
+        },
+        {
+          "path": "/docs/sdk/messages/envelopes",
+          "description": "Preserve logical identity without confusing it with transport source"
         }
       ]
     },
@@ -1324,6 +1658,10 @@
         "User.getCurrent()"
       ],
       "links": [
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Choose command query event web or schedule semantics",
           "path": "/docs/sdk/messages"
@@ -1398,6 +1736,10 @@
         {
           "description": "synchronous and asynchronous fixture behavior",
           "path": "/docs/sdk/testing"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
         }
       ]
     },
@@ -1420,6 +1762,10 @@
         "Fluxzero.queryAndWait(...)"
       ],
       "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Load v2 Models or lazy Graphs; retain aggregates only for existing state"
+        },
         {
           "description": "Choose command query event web or schedule semantics",
           "path": "/docs/sdk/messages"
@@ -1469,6 +1815,10 @@
       ],
       "links": [
         {
+          "path": "/docs/sdk/models",
+          "description": "Load v2 Models or lazy Graphs; retain aggregates only for existing state"
+        },
+        {
           "description": "Model typed read-only requests and deliberate handler placement",
           "path": "/docs/sdk/messages/queries"
         },
@@ -1483,6 +1833,14 @@
         {
           "description": "Add a typed read-only query and test it",
           "path": "/docs/recipes/add-query"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
+        },
+        {
+          "description": "Test actual local queries with a remote endpoint stub",
+          "path": "/docs/sdk/testing/external-backends"
         }
       ]
     },
@@ -1501,6 +1859,10 @@
         "Return type of request handler is invalid. Should be java.util.Optional<...>"
       ],
       "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Load v2 Models or lazy Graphs; retain aggregates only for existing state"
+        },
         {
           "description": "Model typed read-only requests and deliberate handler placement",
           "path": "/docs/sdk/messages/queries"
@@ -1605,8 +1967,8 @@
     },
     {
       "path": "/docs/sdk/entities",
-      "title": "Entities And Aggregates",
-      "summary": "Aggregates and member entities hold immutable state; commands define transitions.",
+      "title": "Legacy aggregates and entities",
+      "summary": "Maintain already persisted aggregate state; use Models for new v2 state and deliberate migration for existing data.",
       "source": "articles/sdk/entities/index.md",
       "symbols": [
         "@Aggregate",
@@ -1618,6 +1980,14 @@
         "storeOnly"
       ],
       "links": [
+        {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Choose the relevant SDK implementation topic",
           "path": "/docs/sdk"
@@ -1707,6 +2077,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
@@ -1754,6 +2128,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
@@ -1797,6 +2175,10 @@
         "ifAbsent = true"
       ],
       "links": [
+        {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
         {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
@@ -1855,6 +2237,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
@@ -1891,6 +2277,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
@@ -1921,6 +2311,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
@@ -1939,6 +2333,14 @@
         {
           "description": "Add state-changing intent legal checks and tests",
           "path": "/docs/recipes/add-command"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
         }
       ]
     },
@@ -1962,6 +2364,10 @@
         "routing lookup alias persistence trust boundary"
       ],
       "links": [
+        {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
         {
           "description": "Model aggregate state identities and legal transitions",
           "path": "/docs/sdk/entities"
@@ -2059,6 +2465,10 @@
         {
           "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
           "path": "/docs/sdk/messages/local-only"
+        },
+        {
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
+          "path": "/docs/sdk/web/outbound-requests"
         }
       ]
     },
@@ -2354,6 +2764,10 @@
       ],
       "links": [
         {
+          "description": "Automatically cancel schedules on committed Model parent deletion",
+          "path": "/docs/sdk/scheduling/parent-owned-schedules"
+        },
+        {
           "description": "Choose the relevant SDK implementation topic",
           "path": "/docs/sdk"
         },
@@ -2386,7 +2800,7 @@
           "path": "/docs/sdk/testing/verification-boundaries"
         },
         {
-          "description": "reconcile tracked scheduled effects from current aggregate state during replay",
+          "description": "reconcile tracked scheduled effects from current Model intent during replay",
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
         },
         {
@@ -2400,9 +2814,32 @@
       ]
     },
     {
+      "path": "/docs/sdk/scheduling/parent-owned-schedules",
+      "title": "Parent-Owned Schedules",
+      "summary": "Bind delayed work to committed Model lifetimes, cancel on direct or cascade deletion, and understand retries, in-flight execution and metrics.",
+      "source": "articles/sdk/scheduling/parent-owned-schedules.md",
+      "symbols": [
+        "@Parent",
+        "Schedule.withParents(...)",
+        "ScheduleAutoCancelled",
+        "parent-owned schedules",
+        "Apply null cancels schedules"
+      ],
+      "links": [
+        {
+          "description": "Scheduling overview",
+          "path": "/docs/sdk/scheduling"
+        },
+        {
+          "description": "Reconcile status and deadline changes",
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
       "title": "Replay-Safe Tracked Schedule Reconciliation",
-      "summary": "Treat historical events as reconciliation triggers, derive the complete desired active-schedule set from current aggregate state, and prove replay cannot resurrect cancelled work.",
+      "summary": "Reconcile delayed work from current Model intent, guard stale commands, and clean up cascaded children without restoring obsolete schedules during replay.",
       "source": "articles/sdk/scheduling/tracked-effect-reconciliation.md",
       "symbols": [
         "replay safe schedule",
@@ -2414,7 +2851,19 @@
         "redelivery terminal no schedules",
         "duplicate timer delivery",
         "schedule cancellation stale delivery",
-        "replay rebuild deadline reconciliation"
+        "replay rebuild deadline reconciliation",
+        "loadCurrentGraph",
+        "Graph<Reminder>",
+        "@Parent",
+        "cascade deletion",
+        "singleTracker",
+        "expectedDeadline",
+        "previous()",
+        "EVENT_SOURCED",
+        "expectOnlyActiveScheduledCommands",
+        "Predicate<Schedule>",
+        "all active scheduled commands",
+        "schedule ID deadline payload"
       ],
       "links": [
         {
@@ -2444,6 +2893,10 @@
         {
           "description": "Use exact schedule constructors and active-set assertions",
           "path": "/docs/sdk/reference/test-fixture-signatures"
+        },
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model lifecycle, history and Graph reads"
         }
       ]
     },
@@ -2499,7 +2952,7 @@
           "path": "/docs/sdk/workflows/business-compensation"
         },
         {
-          "description": "one-way outbound requests and guarantees",
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
@@ -2567,6 +3020,10 @@
         {
           "description": "Choose consumer skip retry or stop behavior after failures",
           "path": "/docs/sdk/tracking/error-policy"
+        },
+        {
+          "path": "/docs/sdk/testing/http-stubs",
+          "description": "Configure HTTP stubs with production-consistent consumer defaults"
         }
       ]
     },
@@ -3033,7 +3490,7 @@
           "path": "/docs/recipes/add-authenticated-frontend"
         },
         {
-          "description": "One-way absolute HTTP requests through WebRequestGateway",
+          "description": "Outbound APIs with auditable requests, masked credentials, retries and native transport",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
@@ -3056,8 +3513,8 @@
     },
     {
       "path": "/docs/sdk/web/outbound-requests",
-      "title": "One-Way Outbound HTTP Requests",
-      "summary": "Publish an absolute JSON HTTP POST for a processor integration with WebRequest.post and WebRequestGateway.sendAndForget, choose SENT or STORED, and assert the exact request without treating its HTTP response as a business decision.",
+      "title": "Outbound HTTP Integrations",
+      "summary": "Give each external API interaction a local command/query with its WebRequestGateway call in the handler; avoid unnecessary bean injection and tracking while preserving HTTP audit, configured retries and endpoint-stub tests.",
       "source": "articles/sdk/web/outbound-requests.md",
       "symbols": [
         "HTTP request web client one-way endpoint",
@@ -3071,7 +3528,26 @@
         "Guarantee.SENT",
         "Guarantee.STORED",
         "application/json",
-        "expectWebRequest"
+        "expectWebRequest",
+        "WebRequestGateway",
+        "WebRequestSettings",
+        "Fluxzero.sendWebRequestAndWait",
+        "sendWebRequestAndWait",
+        "useNativeHttpClient",
+        "maxRetries",
+        "retryDelay",
+        "retryableStatusCodes",
+        "Authorization",
+        "X-Api-Key",
+        "API key bearer token visible audit logs credentials masking",
+        "local self-handling external API integration",
+        "@HandleCommand",
+        "@HandleQuery",
+        "@TrackSelf",
+        "@Consumer",
+        "bean injection API service",
+        "Fluxzero.queryAndWait",
+        "Fluxzero.sendCommandAndWait"
       ],
       "links": [
         {
@@ -3101,6 +3577,22 @@
         {
           "description": "exact outbound requests in a coordinated workflow",
           "path": "/docs/sdk/testing/durable-coordinated-workflow"
+        },
+        {
+          "description": "Test local integration commands/queries by stubbing only the remote endpoint",
+          "path": "/docs/sdk/testing/external-backends"
+        },
+        {
+          "description": "Choose explicit consumers for independent remote test handlers",
+          "path": "/docs/sdk/tracking"
+        },
+        {
+          "description": "Choose immediate local self-handling or a deliberately tracked operation",
+          "path": "/docs/sdk/messages/commands/self-handling"
+        },
+        {
+          "description": "Choose immediate local self-handling or a deliberately tracked operation",
+          "path": "/docs/sdk/messages/queries/self-handling"
         }
       ]
     },
@@ -3319,7 +3811,9 @@
         "whenUpcasting",
         "createAsync",
         "@class",
-        "@extends"
+        "@extends",
+        "givenModelEvents",
+        "registerCasters"
       ],
       "links": [
         {
@@ -3413,6 +3907,14 @@
         {
           "description": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
           "path": "/docs/sdk/testing/revisioned-json"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/messages/envelopes",
+          "description": "Distinguish in-process, tracked and native HTTP envelope behavior"
         }
       ]
     },
@@ -3573,7 +4075,9 @@
         "durable scheduling fixture reconstruction",
         "active schedules after fresh application restart",
         "restore retained store without reseeding",
-        "supplied events documents schedules do not prove persistence"
+        "supplied events documents schedules do not prove persistence",
+        "givenModelEvents",
+        "registerCasters"
       ],
       "links": [
         {
@@ -3627,6 +4131,10 @@
         {
           "description": "symmetric correlated workflow scenarios",
           "path": "/docs/sdk/testing/correlated-workflows"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -3945,6 +4453,10 @@
         {
           "description": "Write TestFixture scenarios for domain behavior and adapters",
           "path": "/docs/recipes/test-behavior"
+        },
+        {
+          "path": "/docs/sdk/testing/http-stubs",
+          "description": "Keep external stubs on deliberately configured consumers"
         }
       ]
     },
@@ -4178,6 +4690,10 @@
         {
           "description": "state-dependent invariants after protected restoration",
           "path": "/docs/sdk/entities/assert-legal"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Distinguish message redaction from persistent Model-state protection"
         }
       ]
     },
@@ -4238,6 +4754,10 @@
         {
           "description": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
           "path": "/docs/sdk/testing/revisioned-json"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -4297,7 +4817,8 @@
         "legacy event envelope",
         "Data.JSON_FORMAT",
         "registerCasters",
-        "whenUpcasting narrower"
+        "whenUpcasting narrower",
+        "givenModelEvents"
       ],
       "links": [
         {
@@ -4319,6 +4840,10 @@
         {
           "description": "Test behavior across fixture message and HTTP flows",
           "path": "/docs/sdk/testing"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
         }
       ]
     },
@@ -4353,6 +4878,10 @@
         "@HandleDocument"
       ],
       "links": [
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Choose the relevant SDK implementation topic",
           "path": "/docs/sdk"
@@ -4734,7 +5263,7 @@
           "path": "/docs/sdk/testing"
         },
         {
-          "description": "absolute processor URL validation and outbound request publishing",
+          "description": "Use local command/query handlers for external API interactions without service-bean injection or unnecessary tracking",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
@@ -5057,6 +5586,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Model aggregates entities identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
@@ -5153,15 +5686,20 @@
     {
       "path": "/docs/sdk/testing/external-backends",
       "title": "Testing Outbound Backend Integrations",
-      "summary": "Test one-way outbound publication or request-response backend calls through the observable web gateway boundary.",
+      "summary": "Exercise actual local integration commands/queries without injected service mocks; register remote endpoint stubs and assert exact outbound requests and mapped responses.",
       "source": "articles/sdk/testing/external-backends.md",
       "symbols": [
         "expectWebRequest",
         "WebRequestGateway",
         "WebRequest",
         "WebResponse",
-        "registerWebResponse",
-        "whenWebRequest"
+        "whenWebRequest",
+        "expectOnlyWebRequests",
+        "whenCommand",
+        "whenQuery",
+        "@HandleGet",
+        "@HandlePost",
+        "local integration endpoint stub no bean injection"
       ],
       "links": [
         {
@@ -5169,16 +5707,24 @@
           "path": "/docs/sdk/testing"
         },
         {
-          "description": "Publish one-way absolute outbound HTTP requests",
+          "description": "Choose gateway transport, credential masking and retry settings",
           "path": "/docs/sdk/web/outbound-requests"
         },
         {
-          "description": "Choose advanced HTTP transport and forwarding behavior",
-          "path": "/docs/sdk/web/advanced-transport"
+          "description": "Choose explicit consumers for independent remote test handlers",
+          "path": "/docs/sdk/tracking"
         },
         {
           "description": "Assert exact effects and isolate one action",
           "path": "/docs/sdk/testing/scenario-phases"
+        },
+        {
+          "description": "Dispatch ordinary local payloads without explicit handler registration",
+          "path": "/docs/sdk/messages/commands/self-handling"
+        },
+        {
+          "description": "Dispatch ordinary local payloads without explicit handler registration",
+          "path": "/docs/sdk/messages/queries/self-handling"
         }
       ]
     },
@@ -5394,6 +5940,10 @@
       ],
       "links": [
         {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
+        {
           "description": "Route reference needs before loading symbol details",
           "path": "/docs/sdk/reference"
         },
@@ -5438,7 +5988,11 @@
         "expectWebResult getPayloadAs Type explicit method witness",
         "response getPayloadAs class domain accessor Object",
         "WebRequest WebResponse getPayloadAs Type",
-        "fixture generic result compile error"
+        "fixture generic result compile error",
+        "expectOnlyActiveScheduledCommands",
+        "Predicate<Schedule>",
+        "all active scheduled commands",
+        "schedule ID deadline payload"
       ],
       "links": [
         {
@@ -5525,6 +6079,10 @@
         "playBackToCondition"
       ],
       "links": [
+        {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
         {
           "description": "Model aggregates entities identities and legal transitions",
           "path": "/docs/sdk/entities"
@@ -5694,6 +6252,10 @@
       ],
       "links": [
         {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
+        {
           "description": "Choose SDK recipes or cloud handoff guidance",
           "path": "/docs"
         },
@@ -5730,17 +6292,21 @@
     {
       "path": "/docs/recipes/create-app",
       "title": "Recipe: Create An App",
-      "summary": "Start from an empty or existing project with package layout, one aggregate, one command, and a focused TestFixture test.",
+      "summary": "Choose domain packages before creating files, then build one Model, one command and a focused TestFixture test; review the final tree.",
       "source": "articles/recipes/create-app.md",
       "symbols": [
         "SpringApplication",
         "FluxzeroSpringConfig",
-        "@Aggregate",
+        "@Model",
         "pom.xml",
         "mvn wrapper:wrapper",
         "build.gradle.kts"
       ],
       "links": [
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Follow task-focused application building recipes",
           "path": "/docs/recipes"
@@ -5764,6 +6330,10 @@
         {
           "description": "Resolve application properties namespaces and runtime URLs",
           "path": "/docs/sdk/configuration"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -5779,6 +6349,10 @@
         "Id<T>"
       ],
       "links": [
+        {
+          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "path": "/docs/sdk/models"
+        },
         {
           "description": "Follow task-focused application building recipes",
           "path": "/docs/recipes"
@@ -5802,6 +6376,10 @@
         {
           "description": "Define typed entity IDs and routing keys",
           "path": "/docs/sdk/entities/ids"
+        },
+        {
+          "description": "Choose domain-first application packages before creating files and check the final tree",
+          "path": "/docs/sdk/project-setup/package-structure"
         }
       ]
     },
@@ -6378,6 +6956,10 @@
       ],
       "links": [
         {
+          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
           "description": "Event Publication And Entity History",
           "path": "/docs/sdk/entities/publication-and-history"
         },
@@ -6388,6 +6970,694 @@
         {
           "description": "Low-Level Runtime Clients",
           "path": "/docs/sdk/operations/low-level-clients"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models",
+      "title": "Models and Graphs in SDK v2",
+      "summary": "Start new Java/Kotlin state with Models: details and status, lifecycle, validated commands, atomic commits and lazy Graphs.",
+      "source": "articles/sdk/models/index.md",
+      "symbols": [
+        "@Model",
+        "Graph",
+        "@Parent",
+        "ModelPersistence",
+        "atomic multi-model commit",
+        "@Stateful"
+      ],
+      "links": [
+        {
+          "description": "SDK overview",
+          "path": "/docs/sdk"
+        },
+        {
+          "description": "Model state and lifecycle (Java)",
+          "path": "/docs/sdk/models/state-java"
+        },
+        {
+          "description": "Model commands and atomic commits (Java)",
+          "path": "/docs/sdk/models/actions-java"
+        },
+        {
+          "description": "Model relationships and lazy Graphs (Java)",
+          "path": "/docs/sdk/models/graphs-java"
+        },
+        {
+          "description": "Model and Graph read conflicts",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model deletion and aggregate migration",
+          "path": "/docs/sdk/models/migration"
+        },
+        {
+          "description": "Model state and lifecycle (Kotlin)",
+          "path": "/docs/sdk/models/state-kotlin"
+        },
+        {
+          "description": "Model commands and atomic commits (Kotlin)",
+          "path": "/docs/sdk/models/actions-kotlin"
+        },
+        {
+          "description": "Model relationships and lazy Graphs (Kotlin)",
+          "path": "/docs/sdk/models/graphs-kotlin"
+        },
+        {
+          "description": "Maintain legacy aggregate state without an implicit migration",
+          "path": "/docs/sdk/entities"
+        },
+        {
+          "path": "/docs/sdk/entities/relationships",
+          "description": "Independent Model Relationships — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/graphs",
+          "description": "Loading Models And Temporal Graphs — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-events",
+          "description": "Graph Change Subscriptions — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/entities/legacy-migration",
+          "description": "Legacy Aggregate Migration — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/testing/model-transitions",
+          "description": "Testing Model Transitions — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/search/model-relationships",
+          "description": "Search Through Model Relationships — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/kotlin-models",
+          "description": "Kotlin Models And Updates — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Choose durable workflow memory for integration execution before applying Model lifecycle rules"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Separate storage and search visibility from protection and erasure guarantees"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/state-java",
+      "title": "Model state and lifecycle (Java)",
+      "summary": "Choose cohesive details and settings versus identity, relationships, status and execution bookkeeping; validate creation and targeted changes without a separate Model or Member.",
+      "source": "articles/sdk/models/state-java.md",
+      "symbols": [
+        "@Model",
+        "ModelPersistence",
+        "@Member",
+        "@EntityId",
+        "@DocumentProjection",
+        "parentScoped",
+        "java",
+        "ProjectDetails",
+        "RenameProject",
+        "@Valid",
+        "details value object",
+        "configuration",
+        "execution bookkeeping",
+        "@Stateful"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "description": "Protect Model and relationship reads under concurrency",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model commands and atomic commits",
+          "path": "/docs/sdk/models/actions-java"
+        },
+        {
+          "description": "Model relationships and lazy Graphs",
+          "path": "/docs/sdk/models/graphs-java"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Choose durable workflow memory for integration execution before applying Model lifecycle rules"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Choose eventless current state with explicit privacy and erasure boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/actions-java",
+      "title": "Model commands and atomic commits (Java)",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for SDK v2 java applications.",
+      "source": "articles/sdk/models/actions-java.md",
+      "symbols": [
+        "@Apply",
+        "@AssertLegal",
+        "@InterceptApply",
+        "Fluxzero.assertAndApply",
+        "Fluxzero.commit",
+        "automaticHandling",
+        "java",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "description": "Protect Model and relationship reads under concurrency",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model state and lifecycle",
+          "path": "/docs/sdk/models/state-java"
+        },
+        {
+          "description": "Model relationships and lazy Graphs",
+          "path": "/docs/sdk/models/graphs-java"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/graphs-java",
+      "title": "Model relationships and lazy Graphs (Java)",
+      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Java.",
+      "source": "articles/sdk/models/graphs-java.md",
+      "symbols": [
+        "@Parent",
+        "@Association",
+        "Graph",
+        "Fluxzero.loadGraph",
+        "Fluxzero.loadModel",
+        "Fluxzero.searchGraph",
+        "@GraphProperty",
+        "@GraphProjection",
+        "GraphProjectionCompletion",
+        "whereAncestor",
+        "whereParent",
+        "loadCurrentGraph",
+        "java",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion",
+        "deleteOnParentDeletion",
+        "non-owning relationships",
+        "multiple parents",
+        "Graph cycles",
+        "Graph.current()",
+        "current()"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "description": "Protect Model and relationship reads under concurrency",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model state and lifecycle",
+          "path": "/docs/sdk/models/state-java"
+        },
+        {
+          "description": "Model commands and atomic commits",
+          "path": "/docs/sdk/models/actions-java"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-java",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/conflicts",
+      "title": "Model and Graph read conflicts",
+      "summary": "Pinned read sets, lazy membership tracking, empty collections, RETRY/FAIL/ACCEPT, mixed Runtime versions and conditional validation costs.",
+      "source": "articles/sdk/models/conflicts.md",
+      "symbols": [
+        "ModelConflictPolicy",
+        "RETRY",
+        "ACCEPT",
+        "FAIL",
+        "fluxzero.model.conflictPolicy",
+        "Graph<Ancestor>",
+        "relationship read dependencies",
+        "empty child collection",
+        "lazy loading",
+        "fluxzero.model.automaticRouting",
+        "2026.09.09",
+        "2026.09.10"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/migration",
+      "title": "Model deletion and aggregate migration",
+      "summary": "Logical deletion, parent cascade, physical erasure and deliberate migration of existing aggregate state.",
+      "source": "articles/sdk/models/migration.md",
+      "symbols": [
+        "PublishedEventModelMigration",
+        "deleteModel",
+        "planDeletion",
+        "deleteOnParentDeletion",
+        "followPublishedEventMigration"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/state-kotlin",
+      "title": "Model state and lifecycle (Kotlin)",
+      "summary": "Choose cohesive details and settings versus identity, relationships, status and execution bookkeeping; validate creation and targeted changes without a separate Model or Member.",
+      "source": "articles/sdk/models/state-kotlin.md",
+      "symbols": [
+        "@Model",
+        "ModelPersistence",
+        "@Member",
+        "@EntityId",
+        "@DocumentProjection",
+        "parentScoped",
+        "kotlin",
+        "ProjectDetails",
+        "RenameProject",
+        "@Valid",
+        "details value object",
+        "configuration",
+        "execution bookkeeping",
+        "@Stateful"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "description": "Protect Model and relationship reads under concurrency",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model commands and atomic commits",
+          "path": "/docs/sdk/models/actions-kotlin"
+        },
+        {
+          "description": "Model relationships and lazy Graphs",
+          "path": "/docs/sdk/models/graphs-kotlin"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/sagas",
+          "description": "Choose durable workflow memory for integration execution before applying Model lifecycle rules"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Choose eventless current state with explicit privacy and erasure boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/actions-kotlin",
+      "title": "Model commands and atomic commits (Kotlin)",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for SDK v2 kotlin applications.",
+      "source": "articles/sdk/models/actions-kotlin.md",
+      "symbols": [
+        "@Apply",
+        "@AssertLegal",
+        "@InterceptApply",
+        "Fluxzero.assertAndApply",
+        "Fluxzero.commit",
+        "automaticHandling",
+        "kotlin",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "description": "Protect Model and relationship reads under concurrency",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model state and lifecycle",
+          "path": "/docs/sdk/models/state-kotlin"
+        },
+        {
+          "description": "Model relationships and lazy Graphs",
+          "path": "/docs/sdk/models/graphs-kotlin"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/graphs-kotlin",
+      "title": "Model relationships and lazy Graphs (Kotlin)",
+      "summary": "Choose plain references, owning or non-owning Graph relations and per-edge deletion policy; load lazy Graphs and observe changes in Kotlin.",
+      "source": "articles/sdk/models/graphs-kotlin.md",
+      "symbols": [
+        "@Parent",
+        "@Association",
+        "Graph",
+        "Fluxzero.loadGraph",
+        "Fluxzero.loadModel",
+        "Fluxzero.searchGraph",
+        "@GraphProperty",
+        "@GraphProjection",
+        "GraphProjectionCompletion",
+        "whereAncestor",
+        "whereParent",
+        "loadCurrentGraph",
+        "kotlin",
+        "previous()",
+        "EVENT_SOURCED",
+        "dynamic write targets",
+        "cascade deletion",
+        "deleteOnParentDeletion",
+        "non-owning relationships",
+        "multiple parents",
+        "Graph cycles",
+        "Graph.current()",
+        "current()"
+      ],
+      "links": [
+        {
+          "description": "Choose a Model topic and language",
+          "path": "/docs/sdk/models"
+        },
+        {
+          "description": "Protect Model and relationship reads under concurrency",
+          "path": "/docs/sdk/models/conflicts"
+        },
+        {
+          "description": "Model state and lifecycle",
+          "path": "/docs/sdk/models/state-kotlin"
+        },
+        {
+          "description": "Model commands and atomic commits",
+          "path": "/docs/sdk/models/actions-kotlin"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
+        },
+        {
+          "path": "/docs/sdk/scheduling/tracked-effect-reconciliation",
+          "description": "Reconcile current Model schedules and cascade cleanup"
+        },
+        {
+          "path": "/docs/sdk/models/recipes-kotlin",
+          "description": "Use companions, derived preferences and explicit execution boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/entities/relationships",
+      "source": "articles/sdk/entities/relationships.md",
+      "symbols": [
+        "Parent",
+        "Member",
+        "io.fluxzero.sdk.modeling.Parent"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/state-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Independent Model Relationships",
+      "summary": "Independent Model Relationships for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/graphs",
+      "source": "articles/sdk/entities/graphs.md",
+      "symbols": [
+        "Graph",
+        "Fluxzero.loadModel",
+        "Fluxzero.loadGraph"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Loading Models And Temporal Graphs",
+      "summary": "Loading Models And Temporal Graphs for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/graph-events",
+      "source": "articles/sdk/entities/graph-events.md",
+      "symbols": [
+        "Graph",
+        "HandleEvent"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Graph Change Subscriptions",
+      "summary": "Graph Change Subscriptions for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/graph-search",
+      "source": "articles/sdk/entities/graph-search.md",
+      "symbols": [
+        "@Model",
+        "ModelPersistence",
+        "DocumentProjection.searchable",
+        "Parent.pathInParent",
+        "whereParent",
+        "whereAncestor",
+        "whereChild",
+        "whereDescendant",
+        "Search.count",
+        "loadCurrentModelState",
+        "loadCurrentGraph",
+        "capability matrix",
+        "current versus event-bound Graph",
+        "GraphProjection",
+        "Fluxzero.searchGraph"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Kotlin relationships, lazy Graphs and temporal reads"
+        }
+      ],
+      "title": "Choosing Model and Graph queries",
+      "summary": "Central Java/Kotlin decision guide: default @Model, document/index requirements, direct and relationship queries, live/materialized Graphs, count limits and result freshness."
+    },
+    {
+      "path": "/docs/sdk/entities/legacy-migration",
+      "source": "articles/sdk/entities/legacy-migration.md",
+      "symbols": [
+        "PublishedEventModelMigration"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/migration",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Legacy Aggregate Migration",
+      "summary": "Legacy Aggregate Migration for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/testing/model-transitions",
+      "source": "articles/sdk/testing/model-transitions.md",
+      "symbols": [
+        "TestFixture",
+        "Fluxzero.loadModel"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/actions-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Testing Model Transitions",
+      "summary": "Testing Model Transitions for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/search/model-relationships",
+      "source": "articles/sdk/search/model-relationships.md",
+      "symbols": [
+        "Search.whereParent",
+        "Search.whereAncestor",
+        "Search.whereDescendant"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose Model storage and queries from the capability and freshness matrix"
+        }
+      ],
+      "title": "Search Through Model Relationships",
+      "summary": "Search Through Model Relationships for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/kotlin-models",
+      "title": "Kotlin Models And Updates",
+      "summary": "Define immutable Kotlin Models and pure command applies with the current persistence-set syntax, nullable deletion and typed Graph access.",
+      "source": "articles/sdk/entities/kotlin-models.md",
+      "symbols": [
+        "Kotlin Model",
+        "data class",
+        "copy",
+        "ModelPersistence",
+        "Graph",
+        "Apply"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model lifecycle, persistence and relationship rules"
+        },
+        {
+          "path": "/docs/sdk/models/actions-kotlin",
+          "description": "Automatic handling, apply phases and commit behavior"
+        },
+        {
+          "path": "/docs/sdk/entities/graphs",
+          "description": "Load typed Models and temporal Graphs"
+        },
+        {
+          "path": "/docs/sdk/project-setup/kotlin",
+          "description": "Kotlin annotation processing and project setup"
+        },
+        {
+          "path": "/docs/sdk/models/state-kotlin",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
         }
       ]
     }

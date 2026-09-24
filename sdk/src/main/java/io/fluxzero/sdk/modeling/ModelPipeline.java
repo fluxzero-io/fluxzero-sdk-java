@@ -1,0 +1,1569 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.modeling;
+
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.modeling.ModelRelationshipQueries;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
+import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
+import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.search.DocumentSerializer;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.handling.Invocation;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+/**
+ * The single lifecycle owner for independent-model evaluation and commits.
+ *
+ * <p>Every automatic, explicit, graph, collection and retry request enters this pipeline. Payload-specific behavior is
+ * supplied by immutable {@link MutationPlan model definitions}; batch-local ordering is delegated exclusively to
+ * {@link ModelBatchScope}; and the repository owns wire preparation and authoritative commit completion.</p>
+ */
+@Slf4j
+final class ModelPipeline {
+    static final Executor ASYNC_EXECUTOR = io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-model-async-");
+    private static final CompletableFuture<Void> COMPLETED_VOID =
+            CompletableFuture.completedFuture(null);
+
+    private final DefaultModelRepository repository;
+    private final Commit repositoryCommit;
+    private final ModelConflictPolicy conflictPolicy;
+    private final ModelConflictResolver conflictResolver;
+    private final int maxConflictRetries;
+    private final ModelBatchScope.BatchLifecycle batchLifecycle;
+    private final boolean awaitAfterHandlerCommitsBeforeResults;
+    private final Serializer serializer;
+    private final BiFunction<Class<?>, Class<?>, MutationPlan> definitions;
+    private final java.util.function.BooleanSupplier localHandlingEnabled;
+    private final ModelCommitAdmission commitAdmission = new ModelCommitAdmission();
+
+    ModelPipeline(
+            DefaultModelRepository repository,
+            EventStoreClient eventStoreClient,
+            Serializer serializer,
+            Serializer snapshotSerializer,
+            DocumentSerializer documentSerializer,
+            DispatchInterceptor eventDispatchInterceptor,
+            String source,
+            ModelConflictPolicy conflictPolicy,
+            ModelConflictResolver conflictResolver,
+            int maxConflictRetries,
+            GraphProjectionCompletion graphProjectionCompletion,
+            BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
+            java.util.function.BooleanSupplier localHandlingEnabled) {
+        this.repository = Objects.requireNonNull(repository, "repository");
+        this.serializer = Objects.requireNonNull(serializer, "serializer");
+        Objects.requireNonNull(eventStoreClient, "eventStoreClient");
+        this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
+        this.conflictResolver = Objects.requireNonNull(conflictResolver, "conflictResolver");
+        if (maxConflictRetries < 0) {
+            throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
+        }
+        this.maxConflictRetries = maxConflictRetries;
+        this.definitions = Objects.requireNonNull(definitions, "definitions");
+        this.localHandlingEnabled = Objects.requireNonNull(localHandlingEnabled, "localHandlingEnabled");
+        this.awaitAfterHandlerCommitsBeforeResults =
+                io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty(
+                        ModelCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, true);
+        this.repositoryCommit = repository.new Commit(
+                eventStoreClient, serializer, documentSerializer,
+                eventDispatchInterceptor, source, snapshotSerializer,
+                graphProjectionCompletion);
+        this.batchLifecycle = new ModelBatchScope.BatchLifecycle(
+                repositoryCommit::beginReadyBatch, repositoryCommit::beginBatch);
+    }
+
+    Handler<DeserializingMessage> handler(Class<?> trackingTarget) {
+        return new CommitHandler(trackingTarget);
+    }
+
+    private boolean canAutomaticallyHandle(DeserializingMessage message) {
+        return message.getMessageType() == MessageType.COMMAND
+               && definitionFor(message.getPayloadClass()).automatic();
+    }
+
+    private ModelCommitPolicy commitPolicyFor(Class<?> payloadType) {
+        return definitionFor(payloadType).commitPolicy();
+    }
+
+    private boolean hasModelApplies(Class<?> payloadType) {
+        return definitionFor(payloadType).commit();
+    }
+
+    private MutationPlan definitionFor(Class<?> payloadType) {
+        return definitions.apply(payloadType, null);
+    }
+
+    private MutationPlan definitionFor(DeserializingMessage message) {
+        return definitions.apply(message.getPayloadClass(), message.getContext(ExplicitModelTarget.class)
+                .map(ExplicitModelTarget::modelType).orElse(null));
+    }
+
+    public CompletableFuture<Void> assertAndApply(Message update) {
+        requireNoAtomicCallback();
+        if (update.getPayload() instanceof AtomicGraphUpdate<?> operation) {
+            return atomicGraphUpdate(operation, update);
+        }
+        return assertAndApply(update, null, -1);
+    }
+
+    private <T> CompletableFuture<Void> atomicGraphUpdate(AtomicGraphUpdate<T> operation, Message update) {
+        DeserializingMessage message = new DeserializingMessage(update, MessageType.COMMAND, serializer);
+        try {
+            if (!repository.sharesReadContext(operation.repository)) {
+                throw new UnsupportedOperationException(
+                        "Atomic Graph updates require the application's configured Model namespace; "
+                        + "a consumer namespace override is not supported");
+            }
+            CommitLoader loader = new CommitLoader(null);
+            loader.durableOnly = true;
+            loader.requiresStorageBoundary = true;
+            CommitAttempt context = loader.resolveGraph(operation.modelId, operation.modelType, null, Map.of()).context();
+            CommitAttempt evaluation;
+            try {
+                evaluation = expandCascadeDeletes(operation.evaluate(context, loader, message), message);
+            } catch (Exception failure) {
+                Exception translated = repository.preparationFailure(
+                        message.getMessageId(), context.readStateIndex(), failure);
+                if (translated != failure && translated instanceof ModelCommitConflictException conflict) {
+                    operation.preparationConflict = conflict;
+                }
+                throw translated;
+            }
+            Commit.Outcome prepared = repositoryCommit.prepare(
+                    message.getMessageId(), evaluation, ModelConflictPolicy.FAIL);
+            return repositoryCommit.trackLocalCommit(evaluation, message, false,
+                    () -> repositoryCommit.commitPrepared(prepared, null, -1)).thenAccept(result -> {
+                CommitModelsResult committed = result.orElseThrow(() ->
+                        new IllegalStateException("An atomic Graph update must submit a checked revision"));
+                if (!committed.isAccepted()) {
+                    repository.invalidateModels(evaluation.readModelIds());
+                    operation.rejected = new ModelCommitConflictException(committed);
+                    throw operation.rejected;
+                }
+                operation.after = repository.committedGraph(
+                        prepared, committed, operation.modelId, operation.previous);
+            });
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    private void requireNoAtomicCallback() {
+        CommitAttempt.requireNoAtomicCallback(repository);
+    }
+
+    /** Executes an update against one explicitly selected persisted model. */
+    public CompletableFuture<Void> assertAndApply(
+            Message update, String modelId, Class<?> modelType) {
+        requireNoAtomicCallback();
+        Objects.requireNonNull(modelId, "modelId");
+        Objects.requireNonNull(modelType, "modelType");
+        DeserializingMessage message = new DeserializingMessage(
+                Objects.requireNonNull(update, "update"), MessageType.COMMAND, serializer)
+                .putContext(ExplicitModelTarget.class,
+                            new ExplicitModelTarget(modelId, modelType));
+        return assertAndApply(message, null, -1);
+    }
+
+    /**
+     * Executes independent updates concurrently and batches only the transport of commits that become ready together.
+     * Each update keeps its own commit, conflict handling, and durability completion.
+     */
+    public CompletableFuture<Void> assertAndApplyAll(List<Message> updates) {
+        requireNoAtomicCallback();
+        Objects.requireNonNull(updates, "updates");
+        List<Message> messages = updates.stream()
+                .map(update -> Objects.requireNonNull(update, "update"))
+                .toList();
+        if (messages.isEmpty()) {
+            return COMPLETED_VOID;
+        }
+        ModelCommitBatchingClient.ModelCommitBatch transportBatch =
+                repositoryCommit.beginReadyBatch();
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
+        List<CompletableFuture<CompletableFuture<Void>>> starts =
+                new ArrayList<>(messages.size());
+        for (int index = 0; index < messages.size(); index++) {
+            Message update = messages.get(index);
+            int slot = index;
+            starts.add(CompletableFuture.supplyAsync(
+                    context.wrap(() -> assertAndApply(
+                            update, transportBatch, slot)),
+                    task -> Thread.ofVirtual()
+                            .name("Fluxzero-model-commit").start(task)));
+        }
+        return CompletableFuture.allOf(starts.toArray(CompletableFuture[]::new)).thenCompose(ignored -> {
+            if (transportBatch != null) {
+                transportBatch.flush();
+            }
+            return CompletableFuture.allOf(starts.stream()
+                    .map(CompletableFuture::join)
+                    .toArray(CompletableFuture[]::new));
+        });
+    }
+
+    private CompletableFuture<Void> assertAndApply(
+            Message update,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
+            int transportSlot) {
+        return assertAndApply(new DeserializingMessage(
+                Objects.requireNonNull(update, "update"),
+                MessageType.COMMAND, serializer), transportBatch, transportSlot);
+    }
+
+    private CompletableFuture<Void> assertAndApply(
+            DeserializingMessage message,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
+            int transportSlot) {
+        try {
+            return execute(
+                    new ExecutionRequest(message, transportBatch, transportSlot, Mode.LIVE), null)
+                    .thenApply(ignored -> null);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    /**
+     * Runs apply interceptors and immediate model assertions without invoking applies or committing model changes.
+     * Regular command handlers and command handler decorators are deliberately bypassed.
+     *
+     * @param update model assertion message
+     * @return completion of the validation-only evaluation
+     */
+    public CompletableFuture<Void> assertLegal(Message update) {
+        try {
+            Objects.requireNonNull(update, "update");
+            DeserializingMessage message =
+                    new DeserializingMessage(update, MessageType.COMMAND, serializer);
+            CommitAttempt parent = CommitAttempt.currentReadContext(repository);
+            if (parent != null) {
+                ModelReducer.assertWithin(message, parent);
+                return COMPLETED_VOID;
+            }
+            return execute(new ExecutionRequest(message, null, -1, Mode.ASSERT), null)
+                    .thenApply(ignored -> null);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    /**
+     * Applies an already accepted event without re-running command assertions or apply interceptors.
+     */
+    public CompletableFuture<Void> applyStoredEvent(Message event) {
+        try {
+            requireNoAtomicCallback();
+            Objects.requireNonNull(event, "event");
+            DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
+            return execute(new ExecutionRequest(message, null, -1, Mode.REPLAY), null)
+                    .thenApply(ignored -> null);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    /** Applies one existing global event through the replay phase and retains its durable event index. */
+    public CompletableFuture<Void> migratePublishedEvent(
+            Message event, long eventIndex) {
+        try {
+            requireNoAtomicCallback();
+            Objects.requireNonNull(event, "event");
+            if (eventIndex < 0L) {
+                throw new IllegalArgumentException(
+                        "Published event index must not be negative");
+            }
+            io.fluxzero.common.api.SerializedMessage serialized = event.serialize(serializer);
+            serialized.setIndex(eventIndex);
+            DeserializingMessage message = serializer.deserializeMessage(
+                    serialized, MessageType.EVENT);
+            return execute(new ExecutionRequest(message, null, -1, Mode.MIGRATE), null)
+                    .thenApply(ignored -> null);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    private CompletableFuture<Object> execute(
+            ExecutionRequest request,
+            ModelCommitPolicy policy) {
+        return execute(request, policy, null);
+    }
+
+    private CompletableFuture<Object> execute(
+            ExecutionRequest request,
+            ModelCommitPolicy policy,
+            ModelBatchScope.CommitCoordination preparedEntry) {
+        ModelBatchScope.CommitCoordination entry = preparedEntry == null
+                ? ModelBatchScope.register(this, request.message(), policy, batchLifecycle)
+                : preparedEntry;
+        CommitAttempt attempt = entry.attempt();
+        ThreadLocalContext.Snapshot context = request.message().captureContext();
+        boolean asynchronousReevaluation = !localHandlingEnabled.getAsBoolean();
+        boolean evaluated = false;
+        try {
+            CommitAttempt initial = context.supply(() -> ModelBatchScope.withDependency(
+                    entry, () -> evaluateInitial(request, attempt, entry.batched())));
+            if (initial != attempt) {
+                throw new IllegalStateException("Model evaluation replaced its commit attempt");
+            }
+            evaluated = true;
+        } catch (Throwable failure) {
+            if (!entry.hasDependencies() || !ModelBatchScope.canReevaluate(failure)) {
+                entry.fail(failure);
+                return attempt.completion();
+            }
+            // Validation against a pending predecessor is provisional too. Never stage partial
+            // changes; the dependent path below reevaluates once those predecessors settle.
+        }
+        try {
+            entry.repositoryOwner = repository.modelDefinitionCompiler();
+            if (evaluated) {
+                warnEmptyExplicitApply(request, attempt);
+                ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
+            }
+            entry.initialize(attempt.orderingModelIds());
+            entry.submit(dependent -> {
+                CompletableFuture<CommitAttempt> ready = dependent
+                        ? entry.afterDependencies(
+                                () -> context.supply(() -> ModelBatchScope.withDependency(
+                                        entry, () -> evaluate(
+                                                request, attempt, true, entry.batched()))),
+                                entry.batched() && asynchronousReevaluation)
+                        : CompletableFuture.completedFuture(attempt);
+                return ready.thenCompose(context.wrap(evaluation -> {
+                    if (request.mode().skipEmpty && evaluation.transitions().isEmpty()) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                    ModelCommitBatchingClient.ModelCommitBatch batch =
+                            entry.transport;
+                    return executeEvaluation(
+                            entry, request.message(), evaluation,
+                            batch == null ? request.transport() : batch,
+                            batch == null ? request.transportSlot() : entry.slot,
+                            request.mode() == Mode.MIGRATE,
+                            request.mode() == Mode.REPLAY || request.mode() == Mode.MIGRATE);
+                }));
+            });
+        } catch (Throwable failure) {
+            entry.fail(failure);
+        }
+        return attempt.completion();
+    }
+
+    private CommitAttempt evaluateInitial(ExecutionRequest request, CommitAttempt attempt, boolean batched) {
+        CommitAttempt original = request.message().getContext(CommitAttempt.class).orElse(null);
+        try {
+            CommitAttempt result = evaluate(request, attempt, false, batched);
+            // No more mutation reads can join after evaluation/cascade expansion. A begin-state context retained
+            // by an extension must not initiate a new verification after this attempt's own write has committed.
+            result.finishReadBoundary();
+            return result;
+        } catch (Throwable failure) {
+            CommitAttempt.ReadBoundaryConflict conflict = attempt.readBoundaryConflict();
+            if (conflict == null) { throw failure; }
+            // Only the built-in RETRY path may speculate. The failed attempt has not been staged or submitted.
+            if (conflictResolver != DefaultModelConflictResolver.INSTANCE || maxConflictRetries == 0) { throw conflict; }
+            repository.invalidateModels(List.of(conflict.conflict().getModelId()));
+            if (original == null) { request.message().withoutContext(CommitAttempt.class); }
+            else { original.attachTo(request.message()); }
+            request.message().putContext(EagerDocumentBoundary.class, EagerDocumentBoundary.INSTANCE);
+            try {
+                CommitAttempt result = evaluate(request, attempt, true, batched);
+                result.preparationRetries(1);
+                return result;
+            } finally {
+                request.message().withoutContext(EagerDocumentBoundary.class);
+            }
+        }
+    }
+
+    private enum EagerDocumentBoundary { INSTANCE }
+
+    private CommitAttempt evaluate(
+            ExecutionRequest request,
+            CommitAttempt attempt,
+            boolean retry,
+            boolean batched) {
+        return switch (request.mode()) {
+            case ASSERT -> ModelReducer.assertLegal(
+                    attempt, request.message(), new CommitLoader(null));
+            case REPLAY, MIGRATE -> ModelReducer.reapply(
+                    attempt, List.of(request.message()),
+                    new CommitLoader(null, true, request.mode() == Mode.MIGRATE));
+            case LIVE, AUTOMATIC -> {
+                boolean direct = request.mode() == Mode.AUTOMATIC
+                        ? !retry || batched
+                        : DeserializingMessage.getMessageBatchIndex() < 0;
+                yield direct ? evaluate(attempt, request.message())
+                        : evaluate(attempt, request.message(), null);
+            }
+        };
+    }
+
+    private void warnEmptyExplicitApply(
+            ExecutionRequest request,
+            CommitAttempt evaluation) {
+        if (request.mode().warnMissingApply
+            && !hasModelApplies(request.message().getPayloadClass())
+            && evaluation.transitions().isEmpty()
+            && !evaluation.steps().isEmpty()) {
+            log.warn(
+                    "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has no "
+                    + "locally reachable model @Apply handler. No model changes were committed.",
+                    request.message().getPayloadClass().getName());
+        }
+    }
+
+    private record ExecutionRequest(
+            DeserializingMessage message,
+            ModelCommitBatchingClient.ModelCommitBatch transport,
+            int transportSlot,
+            Mode mode) {
+    }
+
+    private enum Mode {
+        LIVE(true, true), ASSERT(true, false), REPLAY(false, false),
+        MIGRATE(false, false), AUTOMATIC(false, false);
+
+        private final boolean skipEmpty;
+        private final boolean warnMissingApply;
+
+        Mode(boolean skipEmpty, boolean warnMissingApply) {
+            this.skipEmpty = skipEmpty;
+            this.warnMissingApply = warnMissingApply;
+        }
+    }
+
+    record Retry(
+            ModelConflictResolver resolver,
+            int maxAttempts,
+            RetryEvaluator evaluator) {
+        static Retry accepting(RetryEvaluator evaluator) {
+            return new Retry(
+                    null, 10,
+                    Objects.requireNonNull(evaluator));
+        }
+
+        static Retry conflicts(
+                ModelConflictResolver resolver,
+                int maxAttempts,
+                RetryEvaluator evaluator) {
+            if (maxAttempts < 0) {
+                throw new IllegalArgumentException(
+                        "Maximum model conflict retries must not be negative");
+            }
+            return new Retry(
+                    Objects.requireNonNull(resolver),
+                    maxAttempts,
+                    Objects.requireNonNull(evaluator));
+        }
+
+        boolean accepting() {
+            return resolver == null;
+        }
+    }
+
+    @FunctionalInterface
+    interface RetryEvaluator {
+        CompletableFuture<CommitAttempt> reevaluate(
+                CommitModelsResult result,
+                CommitAttempt current);
+    }
+
+    private CompletableFuture<Object> executeEvaluation(
+            ModelBatchScope.CommitCoordination entry,
+            DeserializingMessage message,
+            CommitAttempt evaluation,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
+            int transportSlot,
+            boolean migration,
+            boolean existingEvent) {
+        ModelConflictPolicy effectiveConflictPolicy =
+                evaluation.conflictPolicy(conflictPolicy);
+        Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
+                ? Retry.accepting((result, current) -> {
+                    try {
+                        return CompletableFuture.completedFuture(
+                                rebase(entry, message, current, result.getRebaseStateIndex(), migration));
+                    } catch (Throwable failure) {
+                        return CompletableFuture.failedFuture(failure);
+                    }
+                })
+                : Retry.conflicts(
+                        conflictResolver, maxConflictRetries,
+                        (conflict, current) -> reload(entry, message, current, conflict));
+        ModelCommitAdmission.Session admissionSession =
+                effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
+                        ? commitAdmission.open() : null;
+        CompletableFuture<Optional<CommitModelsResult>> committed;
+        try {
+            committed = Objects.requireNonNull(
+                    repositoryCommit.trackLocalCommit(
+                            evaluation,
+                            message,
+                            migration,
+                            () -> commit(
+                                    repositoryCommit, message.getMessageId(), evaluation,
+                                    effectiveConflictPolicy, retry,
+                                    migration, existingEvent, transportBatch, transportSlot,
+                                    !localHandlingEnabled.getAsBoolean(),
+                                    admissionSession,
+                                    ModelBatchScope.namespace(message)),
+                            () -> commitAdmission.release(admissionSession)),
+                    "Tracked model commit returned null");
+        } catch (Throwable failure) {
+            commitAdmission.release(admissionSession);
+            committed = CompletableFuture.failedFuture(failure);
+        }
+        return committed.handle((commitResult, failure) ->
+                finishEvaluation(evaluation, effectiveConflictPolicy, failure));
+    }
+
+    static CompletableFuture<Optional<CommitModelsResult>> commit(
+            Commit repositoryCommit,
+            String commitId,
+            CommitAttempt evaluation,
+            ModelConflictPolicy conflictPolicy,
+            Retry retry,
+            ModelCommitBatchingClient.ModelCommitBatch batch,
+            int batchSlot,
+            boolean asynchronousReevaluation) {
+        return commit(
+                repositoryCommit, commitId, evaluation, conflictPolicy,
+                retry, false, false, batch, batchSlot,
+                asynchronousReevaluation, null, null);
+    }
+
+    private static CompletableFuture<Optional<CommitModelsResult>> commit(
+            Commit repositoryCommit,
+            String commitId,
+            CommitAttempt evaluation,
+            ModelConflictPolicy conflictPolicy,
+            Retry retry,
+            boolean migration,
+            boolean existingEvent,
+            ModelCommitBatchingClient.ModelCommitBatch batch,
+            int batchSlot,
+            boolean asynchronousReevaluation,
+            ModelCommitAdmission.Session admissionSession,
+            String namespace) {
+        Objects.requireNonNull(retry, "retry");
+        Commit.Outcome original = repositoryCommit.prepare(
+                commitId, evaluation, conflictPolicy, migration, existingEvent);
+        return commit(
+                repositoryCommit, commitId, evaluation, conflictPolicy,
+                original, original, retry,
+                ThreadLocalContext.capture(), evaluation.preparationRetries(), batch, batchSlot,
+                asynchronousReevaluation, admissionSession, namespace);
+    }
+
+    private static CompletableFuture<Optional<CommitModelsResult>> commit(
+            Commit repositoryCommit,
+            String commitId,
+            CommitAttempt evaluation,
+            ModelConflictPolicy conflictPolicy,
+            Commit.Outcome original,
+            Commit.Outcome prepared,
+            Retry retry,
+            ThreadLocalContext.Snapshot context,
+            int attempts,
+            ModelCommitBatchingClient.ModelCommitBatch batch,
+            int batchSlot,
+            boolean asynchronousReevaluation,
+            ModelCommitAdmission.Session admissionSession,
+            String namespace) {
+        CompletableFuture<Optional<CommitModelsResult>> submission = admissionSession == null
+                ? repositoryCommit.commitPrepared(prepared, batch, batchSlot)
+                : admissionSession.submit(
+                        () -> admissionScope(namespace, evaluation, prepared),
+                        batch, batchSlot,
+                        (effectiveBatch, effectiveSlot) -> context.supply(() -> repositoryCommit.commitPrepared(
+                                prepared, effectiveBatch, effectiveSlot)));
+        return submission
+                .thenCompose(optional -> {
+                    if (optional.isEmpty()) {
+                        return CompletableFuture.completedFuture(optional);
+                    }
+                    CommitModelsResult result = optional.get();
+                    if (retry.accepting()) {
+                        if (!result.isRebaseRequired()) {
+                            return CompletableFuture.completedFuture(optional);
+                        }
+                        if (attempts >= retry.maxAttempts()) {
+                            return CompletableFuture.failedFuture(new IllegalStateException(
+                                    "Model commit '%s' remained stale after %d apply-only rebases"
+                                            .formatted(commitId, retry.maxAttempts())));
+                        }
+                    } else if (result.isAccepted()) {
+                        return CompletableFuture.completedFuture(optional);
+                    }
+                    return retryDecision(result, attempts, retry, context, asynchronousReevaluation)
+                            .thenCompose(ignored -> invoke(
+                                    context,
+                                    () -> retry.evaluator().reevaluate(
+                                            result, evaluation),
+                                    "Model commit reevaluation returned null",
+                                    asynchronousReevaluation))
+                            .thenCompose(context.wrap(next -> {
+                                if (retry.accepting()
+                                    && !validRebaseBoundary(
+                                            evaluation, result.getRebaseStateIndex(),
+                                            next.readStateIndex())) {
+                                    return CompletableFuture.failedFuture(new IllegalStateException(
+                                            "Model commit '%s' rebase loaded state index %d instead of requested %d"
+                                                    .formatted(
+                                                            commitId, next.readStateIndex(),
+                                                            result.getRebaseStateIndex())));
+                                }
+                                Commit.Outcome nextPrepared =
+                                        retry.accepting()
+                                        && !original.hasCascadedDeletion()
+                                        && evaluation.cascadeRootIds().isEmpty()
+                                                ? repositoryCommit.prepareRebased(commitId, original, next)
+                                                : repositoryCommit.prepare(
+                                                        commitId, next, conflictPolicy,
+                                                        original.commit().isMigration());
+                                return commit(
+                                        repositoryCommit, commitId, next, conflictPolicy,
+                                        original, nextPrepared, retry,
+                                        context, attempts + 1, null, -1,
+                                        asynchronousReevaluation,
+                                        admissionSession, namespace);
+                            }));
+                });
+    }
+
+    private static ModelCommitAdmission.Scope admissionScope(
+            String namespace,
+            CommitAttempt evaluation,
+            Commit.Outcome prepared) {
+        ModelCommitAdmission.Scope.Builder accesses = ModelCommitAdmission.Scope.builder();
+        evaluation.readModelIds(ModelConflictPolicy.ACCEPT).forEach(modelId -> accesses.add(
+                new ModelCommitAdmission.Key(namespace, modelId, false), false));
+        if (prepared.commit() != null) {
+            prepared.commit().getSubsteps().forEach(step -> step.getTargets().forEach(target -> {
+                accesses.add(new ModelCommitAdmission.Key(namespace, target.getModelId(), false), true);
+                if (target.isDelete() || target.isCascadeDelete()) {
+                    accesses.add(new ModelCommitAdmission.Key(namespace, target.getModelId(), true), true);
+                }
+            }));
+        }
+        prepared.changes().forEach(change -> {
+            if (change.metadata().parentReferences().isEmpty()) {
+                return;
+            }
+            LinkedHashSet<String> before = parentIds(change, change.before());
+            LinkedHashSet<String> after = parentIds(change, change.after());
+            if (!before.equals(after)) {
+                before.forEach(parent -> markRelationshipWrite(accesses, namespace, parent));
+                after.forEach(parent -> markRelationshipWrite(accesses, namespace, parent));
+            }
+        });
+        evaluation.cascadeRootIds().forEach(modelId -> accesses.add(
+                new ModelCommitAdmission.Key(namespace, modelId, true), true));
+        return accesses.build();
+    }
+
+    private static LinkedHashSet<String> parentIds(Change change, Object value) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        change.metadata().parentRelationships(change.modelId(), value)
+                .forEach(relationship -> result.add(relationship.parentId()));
+        return result;
+    }
+
+    private static void markRelationshipWrite(
+            ModelCommitAdmission.Scope.Builder accesses,
+            String namespace,
+            String parentId) {
+        accesses.add(new ModelCommitAdmission.Key(namespace, parentId, false), true);
+        accesses.add(new ModelCommitAdmission.Key(namespace, parentId, true), true);
+    }
+
+    void close() {
+        commitAdmission.close();
+    }
+
+    private static boolean validRebaseBoundary(
+            CommitAttempt evaluation,
+            long requestedStateIndex,
+            long loadedStateIndex) {
+        return loadedStateIndex == requestedStateIndex
+               || loadedStateIndex > requestedStateIndex
+                  && readsDocumentModel(evaluation);
+    }
+
+    private static boolean readsDocumentModel(
+            CommitAttempt evaluation) {
+        return evaluation.readModelTypes().values().stream()
+                .anyMatch(modelType -> !EntityMetadata.validate(modelType)
+                        .rootConfiguration().orElseThrow().eventSourced());
+    }
+
+    private static <T> CompletableFuture<T> invoke(
+            ThreadLocalContext.Snapshot context,
+            Supplier<CompletableFuture<T>> operation,
+            String nullMessage,
+            boolean asynchronous) {
+        if (asynchronous) {
+            return invokeAsync(context, operation, nullMessage);
+        }
+        try {
+            return context.supply(() ->
+                    Objects.requireNonNull(operation.get(), nullMessage));
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    private static CompletableFuture<Void> retryDecision(
+            CommitModelsResult result,
+            int attempts,
+            Retry retry,
+            ThreadLocalContext.Snapshot context,
+            boolean asynchronous) {
+        if (retry.accepting()) {
+            return COMPLETED_VOID;
+        }
+        // Use the same execution mode as reevaluation: a local synchronous commit must not return
+        // before its retry decision, while transport callbacks must keep user code off their thread.
+        return invoke(context, () -> {
+            ModelConflictResolver.Resolution resolution = Objects.requireNonNull(
+                    retry.resolver().resolve(new ModelConflictResolver.Context(result, attempts, retry.maxAttempts())),
+                    "Model conflict resolver returned null");
+            return resolution == ModelConflictResolver.Resolution.RETRY
+                   && result.isRetryAllowed()
+                   && attempts < retry.maxAttempts()
+                    ? COMPLETED_VOID
+                    : CompletableFuture.failedFuture(new ModelCommitConflictException(result));
+        }, "Model conflict decision returned null", asynchronous);
+    }
+
+    private static <T> CompletableFuture<T> invokeAsync(
+            ThreadLocalContext.Snapshot context,
+            Supplier<CompletableFuture<T>> operation,
+            String nullMessage) {
+        return CompletableFuture.supplyAsync(context.wrap(() ->
+                        Objects.requireNonNull(operation.get(), nullMessage)), ASYNC_EXECUTOR)
+                .thenCompose(Function.identity());
+    }
+
+    private Object finishEvaluation(
+            CommitAttempt evaluation,
+            ModelConflictPolicy effectiveConflictPolicy,
+            Throwable failure) {
+        if (failure == null) {
+            return null;
+        }
+        if (effectiveConflictPolicy
+            != ModelConflictPolicy.ACCEPT) {
+            repository.invalidateModels(
+                    evaluation.readModelIds());
+        }
+        if (failure
+            instanceof java.util.concurrent.CompletionException completion
+            && completion.getCause() != null) {
+            throw completion;
+        }
+        throw new java.util.concurrent.CompletionException(
+                failure);
+    }
+
+    private CompletableFuture<CommitAttempt> reload(
+            ModelBatchScope.CommitCoordination entry,
+            DeserializingMessage message,
+            CommitAttempt staleEvaluation,
+            CommitModelsResult conflict) {
+        repository.invalidateModels(
+                staleEvaluation.readModelIds());
+        long retryStateIndex =
+                retryStateIndex(
+                        staleEvaluation,
+                        conflict);
+        return reevaluate(entry, message, () -> expandCascadeDeletes(
+                ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict), message));
+    }
+
+    private static long retryStateIndex(
+            CommitAttempt evaluation,
+            CommitModelsResult conflict) {
+        long result = evaluation.readStateIndex();
+        for (var current : conflict.getConflicts()) {
+            result = Math.max(
+                    result,
+                    Math.max(
+                            current.getCurrentStateIndex(),
+                            current.getCurrentRelationStateIndex()));
+        }
+        return result;
+    }
+
+    private CommitAttempt evaluate(
+            CommitAttempt attempt,
+            DeserializingMessage initialMessage) {
+        PrefetchSlot cached = initialMessage.getContext(ExplicitModelTarget.class).isPresent()
+                ? null : prefetch(initialMessage);
+        if (cached != null) {
+            if (repository.supplyCurrentModel(
+                    cached.target.modelId(), cached.target.modelType(), cached)) {
+                return evaluate(attempt, initialMessage, cached);
+            }
+        }
+        return evaluate(attempt, initialMessage, null);
+    }
+
+    private CommitAttempt evaluate(
+            CommitAttempt attempt,
+            DeserializingMessage initialMessage,
+            PrefetchSlot prefetched) {
+        return expandCascadeDeletes(
+                ModelReducer.apply(
+                        attempt, List.of(initialMessage),
+                        new CommitLoader(
+                                null, false, false, false,
+                                initialMessage, prefetched)), initialMessage);
+    }
+
+    private CommitAttempt rebase(
+            ModelBatchScope.CommitCoordination entry,
+            DeserializingMessage message,
+            CommitAttempt evaluation,
+            long stateIndex,
+            boolean migration) {
+        List<CommitAttempt.Step> steps = evaluation.steps();
+        // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
+        // Keep this existing apply-only path free of waits on speculative producers.
+        return ModelBatchScope.withDependency(entry,
+                () -> expandCascadeDeletes(ModelReducer.reapplySteps(
+                        new CommitAttempt(),
+                        steps.stream()
+                                .filter(step -> !(step.message().getPayload()
+                                        instanceof CascadedModelDeletion))
+                                .toList(),
+                        new CommitLoader(
+                                stateIndex, true, migration,
+                                readsDocumentModel(evaluation))), message));
+    }
+
+    private CompletableFuture<CommitAttempt> reevaluate(
+            ModelBatchScope.CommitCoordination entry, DeserializingMessage message, Supplier<CommitAttempt> action) {
+        ThreadLocalContext.Snapshot context = message.captureContext();
+        Supplier<CommitAttempt> evaluation = () -> context.supply(() -> ModelBatchScope.withDependency(entry, action));
+        try {
+            return entry.afterDependencies(evaluation, false);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    /**
+     * Adds internal, non-published delete substeps grouped by the ordinary change that caused each cascade.
+     * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
+     * actual logical deletions.
+     */
+    @lombok.SneakyThrows
+    private CommitAttempt expandCascadeDeletes(
+            CommitAttempt evaluation, DeserializingMessage message) {
+        try {
+            return expandCascadeDeletes(evaluation);
+        } catch (Exception failure) {
+            throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
+        }
+    }
+
+    private CommitAttempt expandCascadeDeletes(
+            CommitAttempt evaluation) {
+        LinkedHashMap<String, Change> latestTransitions =
+                new LinkedHashMap<>();
+        LinkedHashSet<String> explicitlyDeleted = new LinkedHashSet<>();
+        for (CommitAttempt.Step step : evaluation.steps()) {
+            for (Change transition : step.changes()) {
+                latestTransitions.put(transition.modelId(), transition);
+                if (transition.before() != null && transition.after() == null) {
+                    explicitlyDeleted.add(transition.modelId());
+                }
+            }
+        }
+        explicitlyDeleted.removeIf(modelId -> latestTransitions.get(modelId).after() != null);
+        if (explicitlyDeleted.isEmpty()) {
+            return evaluation;
+        }
+        evaluation.ensureReadBoundary();
+        LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
+        LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>();
+
+        for (String rootId : explicitlyDeleted) {
+            Class<?> rootType = modelType(
+                    rootId, evaluation, latestTransitions);
+            if (rootType == null) {
+                continue;
+            }
+            Graph<?> graph = repository.loadGraph(
+                    rootId, rootType,
+                    io.fluxzero.common.api.modeling.ModelReadBoundary.state(
+                            evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
+                    Graph.Options.DEFAULT);
+            addCascadeGraph(nodes, edges, graph);
+        }
+
+        for (Change transition : latestTransitions.values()) {
+            if (transition.before() != null && transition.after() != null
+                && !nodes.containsKey(transition.modelId())) {
+                addCascadeGraph(
+                        nodes, edges,
+                        repository.loadGraph(
+                                transition.modelId(), transition.modelType(),
+                                io.fluxzero.common.api.modeling.ModelReadBoundary.state(
+                                        evaluation.readStateIndex(), !evaluation.readsDurableStateOnly()),
+                                Graph.Options.DEFAULT));
+            }
+        }
+        overlayFinalValues(latestTransitions, nodes, edges);
+        LinkedHashSet<String> cascaded = new LinkedHashSet<>(
+                ModelRelationshipQueries.ownedDescendants(explicitlyDeleted, edges));
+        cascaded.removeAll(explicitlyDeleted);
+        if (cascaded.isEmpty()) {
+            evaluation.cascadeRoots(explicitlyDeleted);
+            return evaluation;
+        }
+
+        List<Change> transitions = cascaded.stream()
+                .map(nodes::get)
+                .filter(Objects::nonNull)
+                .map(node -> Change.applied(
+                        node.modelId(), node.modelType(),
+                        node.sequenceNumber(), node.lastEventIndex(),
+                        node.value(), null, null, null, true))
+                .toList();
+        List<CommitAttempt.Step> steps =
+                new ArrayList<>(evaluation.steps());
+        Map<String, Integer> causes = new LinkedHashMap<>();
+        for (int index = 0; index < steps.size(); index++) {
+            for (Change change : steps.get(index).changes()) {
+                if (explicitlyDeleted.contains(change.modelId()) && change.after() == null) {
+                    causes.put(change.modelId(), index);
+                }
+            }
+        }
+        Map<String, List<String>> children = new LinkedHashMap<>();
+        edges.stream().filter(ModelGraphEdge::isDeleteOnParentDeletion)
+                .forEach(edge -> children.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>())
+                .add(edge.getChildId()));
+        // The last owning deletion wins. Visit later causes first so a shared subtree is claimed
+        // once instead of repeatedly relabelling it for every longer path through a DAG.
+        for (String root : explicitlyDeleted.stream().sorted(java.util.Comparator.comparingInt(causes::get).reversed()).toList()) {
+            java.util.ArrayDeque<String> frontier = new java.util.ArrayDeque<>(List.of(root));
+            while (!frontier.isEmpty()) {
+                String parent = frontier.removeFirst();
+                int cause = causes.get(parent);
+                for (String child : children.getOrDefault(parent, List.of())) {
+                    if (cascaded.contains(child) && !causes.containsKey(child)) {
+                        causes.put(child, cause);
+                        frontier.addLast(child);
+                    }
+                }
+            }
+        }
+        Map<Integer, List<Change>> groups = new java.util.TreeMap<>();
+        Map<Integer, List<String>> rootsByCause = new LinkedHashMap<>();
+        explicitlyDeleted.forEach(id -> rootsByCause.computeIfAbsent(causes.get(id), ignored -> new ArrayList<>()).add(id));
+        transitions.forEach(change -> groups.computeIfAbsent(
+                Objects.requireNonNull(causes.get(change.modelId()), "Cascade cause"), ignored -> new ArrayList<>()).add(change));
+        groups.forEach((cause, changes) -> {
+            DeserializingMessage source = evaluation.steps().get(cause).message();
+            List<String> roots = List.copyOf(rootsByCause.get(cause));
+            DeserializingMessage cascadeMessage = source.withMessage(new Message(
+                    new CascadedModelDeletion(roots), source.getMetadata(), null, source.getTimestamp()));
+            steps.add(new CommitAttempt.Step(cascadeMessage, List.copyOf(changes)));
+        });
+        LinkedHashSet<String> readModelIds =
+                new LinkedHashSet<>(evaluation.readModelIds());
+        LinkedHashSet<String> applyReadModelIds =
+                new LinkedHashSet<>(evaluation.readModelIds(ModelConflictPolicy.ACCEPT));
+        Map<String, Class<?>> readModelTypes =
+                new LinkedHashMap<>(evaluation.readModelTypes());
+        transitions.forEach(transition -> {
+            readModelIds.add(transition.modelId());
+            applyReadModelIds.add(transition.modelId());
+            readModelTypes.putIfAbsent(
+                    transition.modelId(), transition.modelType());
+        });
+        evaluation.evaluated(
+                evaluation.readStateIndex(), readModelIds, applyReadModelIds,
+                readModelTypes, steps);
+        evaluation.cascadeRoots(explicitlyDeleted);
+        return evaluation;
+    }
+
+    private static void addCascadeGraph(
+            Map<String, CascadeNode> nodes,
+            Set<ModelGraphEdge> edges,
+            Graph<?> graph) {
+        List<Graph<?>> members = new ArrayList<>();
+        members.add(graph);
+        members.addAll(graph.descendants(Object.class));
+        for (Graph<?> member : members) {
+            String modelId = member.id().toString();
+            nodes.putIfAbsent(
+                    modelId,
+                    new CascadeNode(
+                            modelId, member.type(), member.get(),
+                            member.sequenceNumber(), member.lastEventIndex()));
+            if (member.get() != null) {
+                Graphs.addParentEdges(
+                        modelId, member.type(), member.get(), edges);
+            }
+        }
+    }
+
+    private static void overlayFinalValues(
+            Map<String, Change> latestTransitions,
+            Map<String, CascadeNode> nodes,
+            Set<ModelGraphEdge> edges) {
+        edges.removeIf(edge -> latestTransitions.containsKey(edge.getChildId()));
+        latestTransitions.forEach((modelId, transition) -> {
+            Object value = transition.after();
+            if (value == null) {
+                return;
+            }
+            Graphs.addParentEdges(
+                    modelId, transition.modelType(), value, edges);
+            CascadeNode known = nodes.get(modelId);
+            Class<?> type = transition.modelType();
+            if (type == null) {
+                type = value.getClass();
+            }
+            nodes.put(
+                    modelId,
+                    new CascadeNode(
+                            modelId, type, value,
+                            known != null ? known.sequenceNumber()
+                                    : transition.beforeSequenceNumber(),
+                            known != null ? known.lastEventIndex()
+                                    : transition.beforeLastEventIndex()));
+        });
+    }
+
+    private static Class<?> modelType(
+            String modelId,
+            CommitAttempt evaluation,
+            Map<String, Change> transitions) {
+        Change transition =
+                transitions.get(modelId);
+        return transition == null
+                ? evaluation.readModelTypes().get(modelId)
+                : transition.modelType();
+    }
+
+    private record CascadeNode(
+            String modelId,
+            Class<?> modelType,
+            Object value,
+            long sequenceNumber,
+            Long lastEventIndex) {
+    }
+
+    record ExplicitModelTarget(String modelId, Class<?> modelType) {
+    }
+
+    enum AutomaticExecution { INSTANCE }
+
+    private final class CommitLoader implements ModelReducer.SubstepResolver {
+        @Override
+        public DefaultModelRepository repository() { return repository; }
+
+        private Long pinnedStateIndex;
+        private final boolean applyOnly;
+        private final boolean migration;
+        private final boolean advanceIncompleteDocumentBoundary;
+        private final DeserializingMessage directMessage;
+        private final PrefetchSlot prefetched;
+        private boolean requiresStorageBoundary;
+        private boolean durableOnly;
+        private boolean permitsDeferredBoundary;
+        private CommitAttempt deferredContext;
+        private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
+        private Map<String, String> aliasResolutions = Map.of();
+        private final Map<AncestorPlanKey, AncestorPlan> ancestorPlans =
+                new LinkedHashMap<>();
+
+        private record AncestorPlan(List<MutationPlan.ResolvedModel> targets,
+                                    ModelAncestorResolver.AncestorReads reads) {
+        }
+
+        private CommitLoader(Long pinnedStateIndex) {
+            this(pinnedStateIndex, false, false, false, null, null);
+        }
+
+        private CommitLoader(Long pinnedStateIndex, boolean applyOnly) {
+            this(pinnedStateIndex, applyOnly, false, false, null, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                boolean migration) {
+            this(pinnedStateIndex, applyOnly, migration, false, null, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                boolean migration,
+                boolean advanceIncompleteDocumentBoundary) {
+            this(
+                    pinnedStateIndex, applyOnly, migration,
+                    advanceIncompleteDocumentBoundary, null, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                boolean migration,
+                boolean advanceIncompleteDocumentBoundary,
+                DeserializingMessage directMessage,
+                PrefetchSlot prefetched) {
+            this.pinnedStateIndex = pinnedStateIndex;
+            this.applyOnly = applyOnly;
+            this.migration = migration;
+            this.advanceIncompleteDocumentBoundary =
+                    advanceIncompleteDocumentBoundary;
+            this.directMessage = directMessage;
+            this.prefetched = prefetched;
+        }
+
+        @Override
+        public ModelReducer.ResolvedSubstep resolve(
+                DeserializingMessage substep,
+                Long requestedStateIndex,
+                Map<String, Object> stagedValues) {
+            Long boundary = requestedStateIndex == null ? pinnedStateIndex : requestedStateIndex;
+            if (pinnedStateIndex != null && !pinnedStateIndex.equals(boundary)) {
+                throw new IllegalStateException(
+                        "Pinned model evaluation moved from state index %d to %d"
+                                .formatted(pinnedStateIndex, boundary));
+            }
+            MutationPlan definition = definitionFor(substep);
+            requiresStorageBoundary |= definition.reducer().requiresStorageBoundary();
+            permitsDeferredBoundary = substep == directMessage && definition.reducer().permitsDeferredBoundary()
+                    && substep.getContext(EagerDocumentBoundary.class).isEmpty();
+            if (substep == directMessage
+                && prefetched != null
+                && prefetched.entity != null
+                && requestedStateIndex == null
+                && stagedValues.isEmpty()) {
+                MutationPlan.ResolvedModel target = prefetched.target;
+                CommitAttempt context = CommitAttempt.createSingle(
+                        prefetched.stateIndex, target.modelId(), target.modelType(), target.access(),
+                        target.sourceProperties(), prefetched.entity);
+                if (DeserializingMessage.getMessageBatchIndex() >= 0) {
+                    context = repository.overlayPendingContext(context);
+                }
+                commitEntities.put(target.modelId(), context.entity(target.modelId()));
+                return new ModelReducer.ResolvedSubstep(context, definition.reducer());
+            }
+            ExplicitModelTarget explicitTarget = substep.getContext(
+                    ExplicitModelTarget.class).orElse(null);
+            MutationPlan.Resolution resolution =
+                    definition.targets().resolve(
+                            substep,
+                            explicitTarget == null ? null : explicitTarget.modelId(),
+                            explicitTarget == null ? null : explicitTarget.modelType(),
+                            applyOnly);
+            return new ModelReducer.ResolvedSubstep(
+                    resolve(resolution, boundary, stagedValues), definition.reducer());
+        }
+
+        @Override
+        public ModelReducer.ResolvedSubstep resolveAssertion(
+                DeserializingMessage message, CommitAttempt context, Map<String, Object> values) {
+            MutationPlan definition = definitionFor(message);
+            if (definition.reducer().requiresStorageBoundary()) { context.ensureReadBoundary(); }
+            MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
+            return new ModelReducer.ResolvedSubstep(
+                    resolve(resolution, context.readStateIndex(), values), definition.reducer());
+        }
+
+        @Override
+        public CommitAttempt resolveAssertion(
+                DeserializingMessage message, MutationPlan.AssertionScope scope,
+                EntityMetadata.ExecutableParameters parameters,
+                CommitAttempt context, Map<String, Object> stagedValues) {
+            MutationPlan.Resolution resolution = MutationPlan.bind(message, parameters, scope, context);
+            Map<String, Object> values = new LinkedHashMap<>(stagedValues);
+            context.entities().forEach((id, entity) -> values.put(id, entity.get()));
+            return resolve(resolution, context.readStateIndex(), values).withValues(values);
+        }
+
+        private CommitAttempt resolve(
+                MutationPlan.Resolution resolution, Long boundary, Map<String, Object> stagedValues) {
+            if (deferredContext != null) {
+                if (resolution.hasAncestorDependencies() || resolution.models().stream()
+                        .anyMatch(target -> !commitEntities.containsKey(target.modelId()))) {
+                    deferredContext.ensureReadBoundary();
+                }
+                boundary = deferredContext.readStateIndex();
+            }
+            AncestorPlanKey planKey = resolution.hasAncestorDependencies()
+                    ? ancestorPlanKey(resolution, stagedValues) : null;
+            AncestorPlan ancestorPlan = ancestorPlans.get(planKey);
+            List<MutationPlan.ResolvedModel> effectiveTargets = planKey == null
+                    ? canonicalTargets(resolution.models()) : ancestorPlan == null ? null : ancestorPlan.targets();
+            List<MutationPlan.ResolvedModel> missing = effectiveTargets == null ? List.of()
+                    : effectiveTargets.stream()
+                            .filter(target -> !commitEntities.containsKey(target.modelId()))
+                            .toList();
+            long stateIndex = boundary == null ? -1L : boundary;
+            if (effectiveTargets == null) {
+                CommitAttempt loaded = load(resolution, boundary, stagedValues);
+                stateIndex = loaded.readStateIndex();
+                effectiveTargets = targets(loaded);
+                ancestorPlan = new AncestorPlan(effectiveTargets, loaded.ancestorReads());
+                ancestorPlans.put(planKey, ancestorPlan);
+            } else if (boundary == null
+                       || !missing.isEmpty()) {
+                MutationPlan.Resolution loadResolution =
+                        boundary == null
+                                ? planKey == null ? resolution
+                                        : resolution.withResolvedModels(effectiveTargets)
+                                : new MutationPlan.Resolution(missing, List.of());
+                stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
+                effectiveTargets = canonicalTargets(effectiveTargets);
+            }
+            MutationPlan.Resolution effectiveResolution = planKey == null && effectiveTargets == resolution.models()
+                    ? resolution : resolution.withResolvedModels(effectiveTargets);
+            LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
+            effectiveTargets.forEach(target -> selected.put(
+                    target.modelId(), Objects.requireNonNull(
+                            commitEntities.get(target.modelId()),
+                            "Missing commit-scoped model " + target.modelId())));
+            return CommitAttempt.create(stateIndex, effectiveResolution, selected)
+                    .shareBoundary(deferredContext)
+                    .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads())
+                    .withAliasResolutions(aliasResolutionsFor(resolution.models()));
+        }
+
+        private Map<String, String> aliasResolutionsFor(List<MutationPlan.ResolvedModel> targets) {
+            if (aliasResolutions.isEmpty()) { return Map.of(); }
+            Map<String, String> selected = new LinkedHashMap<>();
+            for (MutationPlan.ResolvedModel target : targets) {
+                String owner = aliasResolutions.get(target.modelId());
+                if (owner != null) { selected.put(target.modelId(), owner); }
+            }
+            return selected;
+        }
+
+        private List<MutationPlan.ResolvedModel> canonicalTargets(List<MutationPlan.ResolvedModel> targets) {
+            if (aliasResolutions.isEmpty()) { return targets; }
+            return targets.stream().map(target -> {
+                String resolved = aliasResolutions.get(target.modelId());
+                if (resolved == null || resolved.equals(target.modelId())) { return target; }
+                if (target.access().writes()) {
+                    throw new EventSourcingException("Writable model target '%s' resolved through alias to '%s'"
+                            .formatted(target.modelId(), resolved));
+                }
+                return new MutationPlan.ResolvedModel(resolved, target.modelType(), target.access(), target.sourceProperties());
+            }).toList();
+        }
+
+        @Override
+        public void prefetch(
+                List<DeserializingMessage> messages,
+                long readStateIndex,
+                Map<String, Object> stagedValues) {
+            LinkedHashMap<String, MutationPlan.ResolvedModel> targets =
+                    new LinkedHashMap<>();
+            for (DeserializingMessage message : messages) {
+                if (message.getContext(ExplicitModelTarget.class).isPresent()) {
+                    continue;
+                }
+                MutationPlan.Resolution resolution = definitionFor(
+                                message.getPayloadClass())
+                        .targets().resolve(message, null, applyOnly);
+                if (resolution.hasAncestorDependencies()) {
+                    continue;
+                }
+                resolution.models().stream()
+                        .filter(target -> !commitEntities.containsKey(target.modelId()))
+                        .forEach(target -> MutationPlan.merge(targets, target));
+            }
+            if (!targets.isEmpty()) {
+                load(new MutationPlan.Resolution(
+                                List.copyOf(targets.values()), List.of()),
+                     readStateIndex, stagedValues);
+            }
+        }
+
+        @Override
+        public ModelReducer.ResolvedSubstep resolveGraph(
+                String modelId,
+                Class<?> modelType,
+                Long requestedStateIndex,
+                Map<String, Object> stagedValues) {
+            Objects.requireNonNull(modelId, "modelId");
+            Objects.requireNonNull(modelType, "modelType");
+            MutationPlan.Resolution resolution =
+                    new MutationPlan.Resolution(
+                            List.of(new MutationPlan.ResolvedModel(
+                                    modelId, modelType,
+                                    MutationPlan.Access.READ_WRITE,
+                                    List.of())),
+                            List.of());
+            CommitAttempt loaded = load(
+                    resolution,
+                    requestedStateIndex == null
+                            ? pinnedStateIndex : requestedStateIndex,
+                    stagedValues);
+            return new ModelReducer.ResolvedSubstep(
+                    loaded, ModelReducer.EMPTY);
+        }
+
+        private CommitAttempt load(
+                MutationPlan.Resolution resolution,
+                Long boundary,
+                Map<String, Object> stagedValues) {
+            if (durableOnly) {
+                // Callbacks can discover typed assertion dependencies that were not in their initial target plan.
+                // Register those explicit types before a document head needs the local logical-name catalog.
+                resolution.models().forEach(target -> repository.modelName(target.modelType()));
+                resolution.ancestorDependencies().forEach(target -> repository.modelName(target.modelType()));
+            }
+            // A simple document write needs only its own revision. Acquire namespace proof lazily when it
+            // discovers another dependency; complex preparation retains the eager coherent snapshot.
+            boolean documentOnly = boundary == null && !requiresStorageBoundary && !migration
+                    && !resolution.hasAncestorDependencies() && !resolution.models().isEmpty()
+                    && resolution.models().stream().noneMatch(
+                    target -> EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced());
+            boolean deferred = documentOnly && permitsDeferredBoundary && !applyOnly && stagedValues.isEmpty()
+                    && DeserializingMessage.getMessageBatchIndex() < 0 && resolution.models().size() == 1
+                    && conflictPolicy == ModelConflictPolicy.RETRY && maxConflictRetries > 0
+                    && conflictResolver == DefaultModelConflictResolver.INSTANCE
+                    && resolution.models().stream().allMatch(target -> {
+                        EntityMetadata metadata = EntityMetadata.validate(target.modelType());
+                        ModelConflictPolicy policy = metadata.rootConfiguration().orElseThrow().conflictPolicy();
+                        return target.access().writes() && java.lang.reflect.Modifier.isFinal(target.modelType().getModifiers())
+                               && !metadata.hasAliases() && metadata.parentReferences().isEmpty()
+                               && (policy == ModelConflictPolicy.DEFAULT || policy == ModelConflictPolicy.RETRY);
+                    });
+            CommitAttempt loaded = deferred ? repository.loadDeferredDocumentContext(resolution)
+                    : boundary == null && (requiresStorageBoundary || documentOnly) && !migration
+                    ? repository.loadCurrentContext(resolution, stagedValues, !durableOnly)
+                    : advanceIncompleteDocumentBoundary
+                    ? repository.loadRebaseContext(
+                            resolution, boundary, stagedValues, true, migration)
+                    : migration
+                            ? repository.loadContext(
+                                    resolution, boundary, stagedValues, true, true)
+                            : repository.loadContext(
+                                    resolution, boundary, stagedValues, !durableOnly);
+            if (durableOnly) { loaded.durableReadsOnly(); }
+            if (deferred) { deferredContext = loaded; }
+            if (boundary != null && loaded.readStateIndex() != boundary) {
+                if (!advanceIncompleteDocumentBoundary
+                    || loaded.readStateIndex() < boundary) {
+                    throw new IllegalStateException(
+                            "Model commit requested state index %d but loaded %d"
+                                    .formatted(boundary, loaded.readStateIndex()));
+                }
+                pinnedStateIndex = loaded.readStateIndex();
+            }
+            for (String modelId : loaded.modelIds()) {
+                commitEntities.put(modelId, loaded.entity(modelId));
+            }
+            if (!loaded.aliasResolutions().isEmpty()) {
+                Map<String, String> combined = new LinkedHashMap<>(aliasResolutions);
+                combined.putAll(loaded.aliasResolutions());
+                aliasResolutions = Map.copyOf(combined);
+            }
+            return loaded;
+        }
+
+        private static List<MutationPlan.ResolvedModel> targets(
+                CommitAttempt context) {
+            return context.targets();
+        }
+    }
+
+    private final class CommitHandler
+            implements Handler<DeserializingMessage> {
+        private final Class<?> trackingTarget;
+
+        private CommitHandler(Class<?> trackingTarget) {
+            this.trackingTarget = trackingTarget;
+        }
+
+        @Override
+        public Class<?> getTargetClass() {
+            return trackingTarget == null
+                    ? ModelPipeline.class : trackingTarget;
+        }
+
+        @Override
+        public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+            return Optional.ofNullable(getInvokerOrNull(message));
+        }
+
+        @Override
+        public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+            boolean selected = trackingTarget == null
+                    || trackingTarget.isAssignableFrom(
+                               message.getPayloadClass());
+            if (!selected || !canAutomaticallyHandle(message)) {
+                return null;
+            }
+            ModelCommitPolicy commitPolicy =
+                    commitPolicyFor(message.getPayloadClass());
+            return new HandlerInvoker.DelegatingHandlerInvoker(
+                    HandlerInvoker.noOp()) {
+                private ModelBatchScope.CommitCoordination preparedEntry;
+
+                @Override
+                public boolean requiresBatchSegmentOrder() {
+                    /*
+                     * The generic tracker segment is deliberately coarse and may collide for unrelated models. Exact
+                     * read-set coordination in the shared model batch scope owns automatic model ordering.
+                     */
+                    return false;
+                }
+
+                @Override
+                public Registration prepareAsyncInvocation() {
+                    return preparedEntry = ModelBatchScope.registerAsync(
+                            ModelPipeline.this, message, commitPolicy, batchLifecycle);
+                }
+
+                @Override
+                public Object invoke(
+                        java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
+                    ModelBatchScope.CommitCoordination entry = preparedEntry;
+                    preparedEntry = null;
+                    return executeAutomatic(message, commitPolicy, entry);
+                }
+            };
+        }
+    }
+
+    private Object executeAutomatic(
+            DeserializingMessage message,
+            ModelCommitPolicy commitPolicy,
+            ModelBatchScope.CommitCoordination preparedEntry) {
+        message.putContext(AutomaticExecution.class, AutomaticExecution.INSTANCE);
+        ExecutionRequest request = new ExecutionRequest(
+                message, null, -1, Mode.AUTOMATIC);
+        ModelBatchScope.CommitCoordination entry = preparedEntry == null
+                ? ModelBatchScope.register(this, message, commitPolicy, batchLifecycle) : preparedEntry;
+        if (commitPolicy.awaitAfterBatch() && awaitAfterHandlerCommitsBeforeResults) {
+            entry.handledCompletion = Invocation.observeDeferredResult(entry.attempt().completion(), entry::commitCurrent);
+        }
+        CompletableFuture<Object> completion = execute(request, commitPolicy, entry);
+        if (commitPolicy.awaitAfterBatch()) {
+            if (awaitAfterHandlerCommitsBeforeResults && entry.handledCompletion == null) {
+                Invocation.awaitBeforeResultPublication(message, completion);
+            }
+            return null;
+        }
+        /*
+         * One automatic model handler produces one atomic commit. There are therefore no independent roots inside this
+         * handler to run concurrently; both handler-completion policies must finish this commit before the handler
+         * completion phase can finish.
+         */
+        return completion.join();
+    }
+
+    private PrefetchSlot prefetch(DeserializingMessage message) {
+        MutationPlan definition = definitionFor(message.getPayloadClass());
+        MutationPlan.TargetPlan targets = definition.targets();
+        if (!targets.isDirectSingleTarget() || definition.reducer().requiresStorageBoundary()) {
+            return null;
+        }
+        MutationPlan.ResolvedModel target = targets.resolveSingle(message);
+        // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
+        return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
+                ? new PrefetchSlot(target) : null;
+    }
+
+    private static final class PrefetchSlot
+            implements DefaultModelRepository.CurrentModelSink {
+        private final MutationPlan.ResolvedModel target;
+        private Entity<?> entity;
+        private long stateIndex;
+
+        private PrefetchSlot(MutationPlan.ResolvedModel target) {
+            this.target = target;
+        }
+
+        @Override
+        public void accept(
+                Entity<?> entity,
+                long validThrough,
+                long modelStateIndex) {
+            this.entity = entity;
+            this.stateIndex = validThrough;
+        }
+    }
+
+    private static AncestorPlanKey ancestorPlanKey(
+            MutationPlan.Resolution resolution,
+            Map<String, Object> stagedValues) {
+        List<StagedRelationships> relationships = new ArrayList<>(stagedValues.size());
+        stagedValues.forEach((modelId, value) -> {
+            List<EntityMetadata.ParentRelationship> parents = value == null ? List.of()
+                    : EntityMetadata.validate(value.getClass())
+                            .parentRelationships(modelId, value);
+            relationships.add(new StagedRelationships(modelId, parents));
+        });
+        return new AncestorPlanKey(resolution, List.copyOf(relationships));
+    }
+
+    private record AncestorPlanKey(
+            MutationPlan.Resolution resolution,
+            List<StagedRelationships> stagedRelationships) {
+    }
+
+    private record StagedRelationships(
+            String modelId,
+            List<EntityMetadata.ParentRelationship> parents) {
+    }
+}

@@ -122,10 +122,23 @@ Any effects introduced during this phase are **ignored** by the `Then` phase ass
 |:------------------------------|:---------------------------------------------------|
 | `givenCommands(...)`          | Issues commands before the test triggers.          |
 | `givenEvents(...)`            | Publishes events into the stream.                  |
-| `givenAppliedEvents(id, ...)` | Replays events into a specific aggregate instance. |
+| `givenModelEvents(id, ...)` / `givenModelEvents(rawId, type, ...)` | Reconstructs a Model from supplied historical events using current code. |
 | `givenDocument(...)`          | Pre-populates the search index with documents.     |
 | `givenStateful(saga)`         | Pre-registers a stateful handler instance.         |
 | `givenExpiredSchedules(...)`  | Simulates timers that have already triggered.      |
+
+For serialized Model history, call `.registerCasters(...)` **before** `givenModelEvents(...)`. Supply the event
+payload, not a Model document. JSON resources with matching `@class`/`@revision` exercise deserialization/upcasting
+and the current `@Apply`; Given creates fresh commits/documents/relations and can notify observers.
+Use `Fluxzero.loadModel`/`loadGraph` in When and assert the reconstructed values and relationships. Keep event
+sourcing enabled for historical `previous()` values. A Model-state caster does not replace a caster on a changed
+historical creation event. See [serialization](serialization.md#testing-upcasters).
+
+This is synthetic reconstruction, not a byte-preserving old-store import. To qualify an actual migration, run the
+old application's ordinary Model writes with its pinned SDK, close its client, then connect a fresh candidate
+application to the same retained test store/namespace without any Given reseeding. Use separate application
+classpaths, register casters before reads, and verify old values, relations, indexes and historical reads. A fresh
+default fixture has fresh stores; an in-memory test server does not prove a database upgrade.
 
 <a name="when-phase"></a>
 
@@ -154,6 +167,16 @@ fixture.whenQuery(GetProject(projectId))
 <a name="then-phase"></a>
 
 ### Then Phase (Assertion)
+
+Schedule assertions have two independent dimensions: dispatch attempts versus active state, and ordinary schedules versus
+scheduled commands. `expectOnlyScheduledCommands(...)` unwraps commands **dispatched during When only**.
+`expectOnlyActiveScheduledCommands(...)` unwraps **all active commands**, including Given/earlier phases, and checks
+that none are left over. No arguments assert zero active commands; `expectNoSchedules()` checks both schedule kinds.
+For ID/deadline/payload together, pass a `java.util.function.Predicate<Schedule>`; a plain Schedule expectation
+does not compare its ID. The complete-active command helper requires a local scheduling client and explicitly
+rejects remote clients rather than asserting an unknown inventory is empty.
+The asynchronous local fixture waits for accepted schedule work, not rejected old-lifetime attempts or ignored
+`ifAbsent` requests. Those attempts remain observable in dispatch assertions but cannot replace accepted pending work.
 
 Assert and validate the outcomes of the `When` phase. Use **Error Interfaces** for clean exception assertions.
 
@@ -429,6 +452,7 @@ You can mock external backends (like Stripe or GitHub) by registering a componen
 [//]: # (@formatter:off)
 ```kotlin
 @Component
+@Consumer(name = "external-stripe-stub")
 class StripeMock {
     @HandlePost("https://api.stripe.com/v1/charges")
     fun mockCharge(request: ChargeRequest): WebResponse {
@@ -436,12 +460,24 @@ class StripeMock {
     }
 }
 
-TestFixture fixture = TestFixture.create(MyPaymentHandler::class, StripeMock::class);
+val fixture = TestFixture.create(MyPaymentHandler::class.java, StripeMock::class.java)
 
 @Test
 fun testStripeIntegration() {
     fixture.whenCommand(ProcessPayment(amount))
-           .expectEvents(PaymentSucceeded::class)
+           .expectEvents(PaymentSucceeded::class.java)
 }
 ```
 [//]: # (@formatter:on)
+
+An absolute URL only selects the route: stubs use normal consumer selection. Give an external blocking stub
+its own consumer, as above, especially with `perPackage`; do not alter application settings only in the fixture.
+See [consumer defaults](tracking.md#configuration-consumer). Repeat with `createAsync` to qualify tracking.
+Identical consumer configurations support late handler registration, but do not rewind its position; register
+a stub before its first request. Namespaces, interceptors and authorization still apply.
+
+Configure a UserProvider for identities passed with `...ByUser`; this does not establish real cookie/bearer
+authentication. In async HTTP tests, a denied downstream stub can return an error WebResponse to the caller;
+the sync fixture may expose its exception directly. Assert the boundary you intend to test.
+Native-HTTP settings are also routed to fixture handlers, with retry count/status policy but without real
+delays. Use separate real HTTP tests for headers, sockets, TLS and failures; use transport tests for envelopes.

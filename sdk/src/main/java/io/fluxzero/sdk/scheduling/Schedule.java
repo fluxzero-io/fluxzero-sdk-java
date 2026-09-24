@@ -66,6 +66,22 @@ public class Schedule extends Message {
     @NonNull Instant deadline;
 
     /**
+     * Returns a schedule owned by the current committed lifetime of each supplied Model parent.
+     * Deletion of any parent asynchronously cancels it, including cascades. Parents must already exist
+     * in the schedule's namespace. Typed IDs use their Model's identity mapping; strings are canonical IDs.
+     * Nulls are ignored. An empty argument list explicitly disables payload {@code @Parent} declarations.
+     * This explicit selection replaces (does not supplement) ownership inferred from the payload.
+     * Already delivered messages cannot be recalled, so execution guards remain necessary.
+     *
+     * @param parentIds owning Model identities
+     * @return a copy with explicit ownership metadata
+     */
+    public Schedule withParents(Object... parentIds) {
+        return withMetadata(getMetadata().without(ScheduleParents.BINDINGS_KEY).without(ScheduleParents.NAMESPACE_KEY)
+                                    .with(ScheduleParents.METADATA_KEY, ScheduleParents.explicit(parentIds)));
+    }
+
+    /**
      * Creates a new schedule using the current identity provider for the {@code scheduleId} and a future deadline.
      *
      * @param payload  the message payload

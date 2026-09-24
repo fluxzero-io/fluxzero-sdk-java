@@ -50,6 +50,21 @@ import java.lang.annotation.Target;
  * well.
  * </p>
  *
+ * <h2>Data result</h2>
+ * <p>
+ * Return {@code Data<T>} when the serialized value, type name or revision must evolve together. In particular, a
+ * class rename can be expressed by returning {@code Data.withType(...)} from the ordinary upcaster; registering a
+ * separate typecaster is not required. The caster chain continues from the resulting type and revision.
+ * </p>
+ * <pre>{@code
+ * @Upcast(type = "com.example.LegacyUser", revision = 0)
+ * Data<ObjectNode> rename(Data<ObjectNode> data) {
+ *     ObjectNode json = data.getValue();
+ *     json.set("userId", json.remove("id"));
+ *     return data.withType("com.example.User");
+ * }
+ * }</pre>
+ *
  * <h2>Metadata result</h2>
  * <p>
  * Returning {@link Metadata} replaces the complete message metadata while leaving the payload unchanged and
@@ -87,7 +102,8 @@ import java.lang.annotation.Target;
 public @interface Upcast {
 
     /**
-     * The fully qualified type name this upcaster applies to (e.g., the original serialized class name).
+     * The fully qualified serialized source type this upcaster applies to (e.g., the original class name before a
+     * rename).
      */
     String type();
 

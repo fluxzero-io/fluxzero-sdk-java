@@ -3,6 +3,65 @@
 Use `@Stateful` when you need a long-lived workflow or process manager that must remember its progress between messages
 and be directly addressable via `@Association` keys.
 
+
+## Choose business state or process memory first
+
+Keep business facts and invariants in Models: an order, payment capture, refund obligation or invoice has meaning
+independently of the system used to execute it. Use `@Stateful` for durable execution progress: provider correlation,
+operation keys, pending effects, retries and compensation. An attempt having its own identity or lifecycle does not
+by itself make it business state. Do not add provider attempts to the business graph solely to retain their progress.
+A provider-specific workflow invokes provider-independent domain commands when verified observations justify them.
+
+For webhooks, verify the boundary input and durably publish an internal notification before acknowledging receipt.
+Let the associated workflow interpret it; receipt alone does not complete the business transaction. Keep each external
+HTTP interaction in a specific local command/query handler using the Fluxzero webrequest API. A consumer is appropriate
+for the durable workflow, not as a substitute for calling one local integration operation.
+
+Persist execution intent before issuing the effect. A later `@HandleDocument` observer can reload that intent and call
+the local operation. Configure its starting position to include retained pending documents when recovery requires it.
+Keep a stable idempotency key through retries, and acknowledge completion only after the domain command is durable.
+Stateful storage, external HTTP and domain persistence are separate failure boundaries; test restart and both sides of
+each acknowledgement. Partition independent workflows by their correlation identity; do not serialize all business
+transactions behind one global consumer or put unbounded related-state scans in the core transaction.
+
+## Choose the trigger and preserve pending work
+
+`@HandleDocument` observes current documents; a consumer can miss intermediate versions. Use `@HandleEvent` for
+business transitions that must each cause a reaction. Prefer document handlers for projection or transformation.
+A document observer is suitable for **reconciliation** only
+when the latest stored state still describes every unfinished effect. A newer observation may supersede an older one only
+when it preserves or fully subsumes that unfinished work. Do not delete intent before its effect is acknowledged. Reload current intent before execution;
+an old document delivery is a wake-up signal, not permission to execute its obsolete action.
+
+A small explicit workflow can follow these boundaries:
+
+1. An event handler validates correlation and returns state retaining the next action and its stable identity.
+2. A later dispatcher reloads that state and selects the action once. Execution and error correlation use that same
+   decision, including when another notification arrives during execution.
+3. A specific local command/query performs external HTTP. Its provider idempotency key survives uncertain responses
+   and retries. A domain command records verified business facts and reaches its durable commit boundary.
+4. The dispatcher durably publishes the corresponding acknowledgement. Publication failure must remain retryable;
+   do not turn a failed acknowledgement into a completed action or swallow it in provider-error handling.
+5. The workflow accepts the matching acknowledgement or retains a problem associated with that action. Stale results
+   and failures cannot complete or pause newer work.
+
+Expected conflicting provider facts are explicit reconciliation outcomes: retain the accepted financial fact and
+persist the problem. Throwing from the later state-transition handler does not reach an earlier dispatcher's catch
+block. `@HandleError` with `@Trigger` is useful for unexpected tracked failures, but correlate its correction with the
+actual failed action and consumer; the trigger document may predate the state reloaded by the dispatcher. Do not
+correct the same failure at both the local request and outer workflow boundary. A default error policy is not a
+guarantee that expected domain failures will be retried.
+
+Bound handler execution as well as individual transactions. For large fan-out, commit a bounded page, then store a
+continuation before the consumer advances. Reprocessing either the original trigger or a continuation must be
+idempotent. Search may discover candidates, but each command rechecks authoritative state. Define when discovery is
+complete; an eventually consistent projection returning no matches alone cannot prove completion. A retryable
+consumer and durable continuation do not provide atomic external execution or exactly-once effects.
+
+Keep these rules explicit and domain-sized. Share small wire/failure helpers where useful; do not build an application
+workflow engine, duplicate next-action selection, or mistake an in-memory after-save callback for crash recovery.
+
+
 ---
 
 ## Quick Navigation
@@ -22,8 +81,8 @@ and be directly addressable via `@Association` keys.
 
 - Use **@Stateful** when you need a workflow that remembers progress between messages and requires independent
   addressing (e.g., a Stripe payment process).
-- Use a **stateless @Component** when the process can derive its state from existing aggregates or queries each time.
-- **Rule of Thumb**: If you need explicit correlation keys, timers, or a lifecycle not tied to a single aggregate,
+- Use a **stateless @Component** when the process can derive its state from existing models or queries each time.
+- **Rule of Thumb**: If you need explicit correlation keys, timers, or a lifecycle not tied to one model,
   prefer `@Stateful`.
 
 ---
@@ -97,33 +156,30 @@ Collection<StripeTransaction> split(PaymentSplitRequested event) {
 @Consumer(name = "stripe")
 @Builder(toBuilder = true)
 public record StripeTransaction(
-    @Association TransactionId transactionId, 
-    @Association String stripeId, 
-    int retries
+    @EntityId @Association TransactionId transactionId,
+    String operationKey,
+    @Association String stripeId,
+    Phase phase
 ) {
+    enum Phase { REQUESTED, RECORD_CAPTURE, COMPLETE }
+
     @HandleEvent
     static StripeTransaction handle(MakePayment event) {
-        String stripeId = makePayment(event);
-        // Create: Automatically stores the handler
-        return new StripeTransaction(event.transactionId(), stripeId, 0);
+        // A document observer executes this committed intent using the retained key.
+        return new StripeTransaction(event.transactionId(), event.operationKey(), null, Phase.REQUESTED);
     }
 
     @HandleEvent
     StripeTransaction handle(StripeApproval event) {
-        // Update: Handled if it has a matching `stripeId` property
-        Fluxzero.publishEvent(new PaymentCompleted(transactionId));
-        // Complete: Returns null to delete the saga
-        return null; 
+        // Verified observation also carries transactionId, so it can bind the first provider ID.
+        if (phase == Phase.COMPLETE) return this;
+        return toBuilder().stripeId(event.stripeId()).phase(Phase.RECORD_CAPTURE).build();
     }
 
     @HandleEvent
-    StripeTransaction handle(StripeFailure event) {
-        if (retries > 3) {
-            Fluxzero.publishEvent(new PaymentRejected(transactionId, "failed repeatedly"));
-            return null;
-        }
-        // Update: Return a modified copy
-        return toBuilder().stripeId(makePayment(event)).retries(retries + 1).build();
+    StripeTransaction handle(PaymentRecorded event) {
+        // The observer emits this acknowledgement only after the idempotent core command is durable.
+        return toBuilder().phase(Phase.COMPLETE).build();
     }
 }
 ```
@@ -225,10 +281,10 @@ public record Payment(@Association String paymentId, int captureCount) {
 
 ## Stateless Orchestration Alternative
 
-You can also implement a stateless `@Component` that loads/queries aggregates to drive orchestration.
+You can also implement a stateless `@Component` that loads/queries models to drive orchestration.
 
-- **Pros**: Leverages aggregate caching and natural event synchronization.
-- **Cons**: Progress is implicit in aggregate state; correlation may be less explicit than with `@Stateful`; `@Stateful`
+- **Pros**: Leverages model caching and exact event-boundary loading.
+- **Cons**: Progress is implicit in model state; correlation may be less explicit than with `@Stateful`; `@Stateful`
   documents are searchable.
-- **Recommendation**: If the workflow is naturally expressed as state transitions on one aggregate, stateless is often
+- **Recommendation**: If the workflow is naturally expressed as model state transitions, stateless is often
   simpler.

@@ -17,12 +17,13 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.reflection.ReflectionUtils;
-import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Objects;
+
+import static io.fluxzero.common.search.ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY;
 
 /**
  * A {@link MessageFilter} that routes {@link DeserializingMessage} instances to methods annotated with
@@ -32,20 +33,22 @@ import java.util.Objects;
  * whether the resolved topic from the annotation matches the topic of the incoming message. If both conditions are met,
  * the message will be considered eligible for handling by the method.
  *
- * <p>The resolved topic is derived using {@link ClientUtils#getTopic(HandleDocument, Executable)},
+ * <p>The resolved topic is derived using {@link DocumentHandlerTopics#resolve(HandleDocument, Executable)},
  * which supports dynamic resolution based on annotation configuration and handler context.
  *
  * @see HandleDocument
  * @see DeserializingMessage
- * @see ClientUtils#getTopic(HandleDocument, Executable)
+ * @see DocumentHandlerTopics#resolve(HandleDocument, Executable)
  */
 public class HandleDocumentFilter implements MessageFilter<DeserializingMessage> {
 
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return ReflectionUtils.getAnnotation(executable, HandleDocument.class).map(
-                        handleDocument -> ClientUtils.getTopic(handleDocument, executable))
+        return ReflectionUtils.getAnnotation(executable, HandleDocument.class)
+                .filter(handleDocument -> message.getMetadata().get(TOMBSTONE_METADATA_KEY) == null
+                        || handleDocument.modelGraph() != Void.class)
+                .map(handleDocument -> DocumentHandlerTopics.resolve(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);
     }

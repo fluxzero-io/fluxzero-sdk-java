@@ -35,6 +35,7 @@ import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -44,6 +45,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static io.fluxzero.common.ObjectUtils.newWorkerExecutor;
 import static io.fluxzero.sdk.web.NativeWebRequestMetric.ErrorCategory.CANCELLED;
 import static io.fluxzero.sdk.web.NativeWebRequestMetric.ErrorCategory.CONNECTION;
 import static io.fluxzero.sdk.web.NativeWebRequestMetric.ErrorCategory.INVALID_REQUEST;
@@ -57,6 +59,9 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 final class NativeWebRequestClient implements AutoCloseable {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final int MAX_REDIRECTS = 5;
+    private static final Executor HTTP_EXECUTOR = newWorkerExecutor("fluxzero-native-http-");
+    private static final Executor CONTINUATION_EXECUTOR = task ->
+            HTTP_EXECUTOR.execute(io.fluxzero.sdk.common.ThreadLocalContext.capture().wrap(task));
 
     private final MemoizingSupplier<HttpClient> redirectingHttpClient;
     private final MemoizingSupplier<HttpClient> nonRedirectingHttpClient;
@@ -94,7 +99,8 @@ final class NativeWebRequestClient implements AutoCloseable {
     }
 
     private static HttpClient newHttpClient(HttpClient.Redirect redirectPolicy) {
-        return HttpClient.newBuilder().followRedirects(redirectPolicy).connectTimeout(CONNECT_TIMEOUT).build();
+        return HttpClient.newBuilder().executor(HTTP_EXECUTOR)
+                .followRedirects(redirectPolicy).connectTimeout(CONNECT_TIMEOUT).build();
     }
 
     CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
@@ -206,6 +212,9 @@ final class NativeWebRequestClient implements AutoCloseable {
             HttpRequest request, URI origin, Instant deadline, CancellableRequestFuture requestFuture,
             MetricState metricState, int redirects) {
         return sendOnce(nonRedirectingHttpClient.get(), request, requestFuture).thenCompose(outcome -> {
+            if (requestFuture.isCancelled()) {
+                return CompletableFuture.failedFuture(new CancellationException());
+            }
             if (outcome.response() == null || !hasRedirectLocation(outcome.response())) {
                 return CompletableFuture.completedFuture(outcome);
             }
@@ -234,6 +243,9 @@ final class NativeWebRequestClient implements AutoCloseable {
 
     private CompletableFuture<RawOutcome> sendOnce(
             HttpClient httpClient, HttpRequest request, CancellableRequestFuture requestFuture) {
+        if (requestFuture.isCancelled()) {
+            return CompletableFuture.failedFuture(new CancellationException());
+        }
         CompletableFuture<HttpResponse<byte[]>> attempt;
         try {
             attempt = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
@@ -241,8 +253,10 @@ final class NativeWebRequestClient implements AutoCloseable {
             return CompletableFuture.completedFuture(new RawOutcome(null, e));
         }
         requestFuture.track(attempt);
-        return attempt.handle((response, error) -> new RawOutcome(
-                response, error == null ? null : unwrap(error)));
+        return attempt.isDone()
+                ? attempt.handle((response, error) -> new RawOutcome(response, error == null ? null : unwrap(error)))
+                : attempt.handleAsync((response, error) -> new RawOutcome(response, error == null ? null : unwrap(error)),
+                                      CONTINUATION_EXECUTOR);
     }
 
     private boolean shouldRetry(Integer status, WebRequestSettings settings,
@@ -278,7 +292,7 @@ final class NativeWebRequestClient implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.runAsync(
-                () -> {}, CompletableFuture.delayedExecutor(duration.toNanos(), NANOSECONDS));
+                () -> {}, CompletableFuture.delayedExecutor(duration.toNanos(), NANOSECONDS, HTTP_EXECUTOR));
     }
 
     private HttpRequest asHttpRequest(WebRequest request, SerializedMessage serializedRequest,

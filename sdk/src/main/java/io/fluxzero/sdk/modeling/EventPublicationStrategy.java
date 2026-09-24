@@ -18,48 +18,49 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
 /**
  * Strategy for controlling how applied updates (typically from {@link Apply @Apply} methods)
- * are handled in terms of event storage, event publication, and aggregate state updates.
+ * are handled in terms of event storage, event publication, and model or aggregate state updates.
  * <p>
- * This strategy determines whether an update is published to the global event log, stored in the aggregate event store,
- * and whether its apply result should advance the aggregate state in cache, snapshots, relationships, and search
- * indexing.
- * It can be configured at the aggregate level, or overridden per update.
+ * This strategy determines whether an update is published to the global event log, linked to the target model streams
+ * or legacy aggregate event store, and whether its apply result may advance document-backed state. It can be
+ * configured on a {@link Model}, a legacy {@link Aggregate}, or an individual update.
  *
  * @see Apply
+ * @see Model
  * @see Aggregate
  * @see EventPublication
  */
 public enum EventPublicationStrategy {
 
     /**
-     * Inherit the strategy from the enclosing aggregate or global default.
+     * Inherit the strategy from the enclosing model, legacy aggregate, or global default.
      * <p>
      * If not configured anywhere, the fallback is {@link #STORE_AND_PUBLISH}.
      */
     DEFAULT,
 
     /**
-     * Store the applied update in the aggregate event store, publish it to the global event log, and update aggregate
-     * state.
+     * Store the applied update in every targeted model stream or the legacy aggregate event store, publish it to the
+     * global event log, and advance the resulting state.
      * <p>
-     * This is the default behavior used for event-sourced aggregates.
+     * This is the default behavior used for event-sourced models and aggregates.
      */
     STORE_AND_PUBLISH,
 
     /**
-     * Store the applied update in the aggregate event store and update aggregate state, but do not publish it to the
-     * global event log.
+     * Store the applied update in every targeted model stream or the legacy aggregate event store and advance state,
+     * but do not publish it to the global event log.
      * <p>
      * Useful when updates must be persisted but should not trigger side effects or listeners.
      */
     STORE_ONLY,
 
     /**
-     * Publish the update to the global event log but do not store it in the aggregate event store.
+     * Publish the update to the global event log but do not store it in the target model stream or legacy aggregate
+     * event store.
      * <p>
-     * This disables event sourcing for the update. On event-sourced aggregates, the apply result does not advance
-     * aggregate state in cache, snapshots, or search indexing because replay would not be able to reconstruct it. On
-     * non-event-sourced, document-backed aggregates, the apply result still updates aggregate/search state.
+     * A state-changing event-sourced Model rejects this strategy before commit because its next reconstruction could
+     * not reproduce the state. A publish-only no-op remains valid. Document-backed Models and non-event-sourced legacy
+     * aggregates may still advance their directly stored current state.
      */
     PUBLISH_ONLY
 }

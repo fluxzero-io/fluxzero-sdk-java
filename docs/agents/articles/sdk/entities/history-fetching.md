@@ -1,3 +1,6 @@
+This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
+and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+
 Aggregate reconstruction fetches historical events in pages. Use a payload-byte bound when large events would make a
 count-only page too large; this changes transport page size, not the aggregate's event ordering or logical history.
 

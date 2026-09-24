@@ -3,6 +3,10 @@
 Setting up and tuning your Fluxzero application is straightforward. Most configuration is handled automatically, but
 you can fine-tune your application using properties, environment variables, or programmatic builders.
 
+A builder initializes its default task scheduler only on `taskScheduler()` access or `build(...)`.
+Installing `replaceTaskScheduler(...)` first avoids starting an unused default scheduler; the built Fluxzero instance
+shuts down the selected scheduler when it closes.
+
 This manual covers application and SDK configuration. For local environment orchestration and `.fluxzero/dev.yaml`,
 use [Local Development](development.md) and obtain the current schema with `fz dev config`.
 
@@ -125,6 +129,14 @@ val fluxzero = DefaultFluxzero.builder()
 ### Connecting to Runtime (WebSocketClient)
 
 Used for production and shared environments. It connects to a remote Fluxzero Runtime via WebSockets.
+
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
+outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
+supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
+GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+`fluxzero.defaults.version`.
 
 ```kotlin
 val config = WebSocketClient.ClientConfig.builder()

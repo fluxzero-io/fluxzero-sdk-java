@@ -14,13 +14,22 @@
 
 package io.fluxzero.sdk.common.serialization.jackson;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFilter;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.util.JsonParserDelegate;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
+import com.fasterxml.jackson.databind.ser.BeanSerializer;
+import com.fasterxml.jackson.databind.ser.impl.UnwrappingBeanPropertyWriter;
+import com.fasterxml.jackson.databind.ser.impl.UnwrappingBeanSerializer;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedObject;
@@ -40,10 +49,17 @@ import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Type;
+import java.nio.ByteOrder;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -69,7 +85,10 @@ import static java.lang.String.format;
  */
 @Slf4j
 public class JacksonSerializer extends AbstractSerializer<JsonNode> implements DocumentSerializer {
+    private static final byte[] NULL_BYTES = new byte[]{'n', 'u', 'l', 'l'};
     private static final String CLASS_PROPERTY = "@class";
+    private static final VarHandle BYTE_WORDS =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     /**
      * Default {@link JsonMapper} instance used for JSON serialization and deserialization.
      * <p>
@@ -87,6 +106,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
 
     @Getter
     private final ObjectMapper objectMapper;
+    private final boolean singlePassLargePayloads;
     @Delegate
     private final ContentFilter contentFilter;
     private final Function<String, JavaType> typeCache = memoize(this::getJavaType);
@@ -127,6 +147,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     public JacksonSerializer(JsonMapper objectMapper, Collection<?> casterCandidates, JacksonInverter inverter) {
         super(casterCandidates, inverter, Data.JSON_FORMAT);
         this.objectMapper = objectMapper;
+        this.singlePassLargePayloads = objectMapper.getClass() == JsonMapper.class;
         this.contentFilter = new JacksonContentFilter(objectMapper);
         this.inverter = inverter;
     }
@@ -140,11 +161,111 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     }
 
     /**
+     * Maps standard bean properties using this mapper's naming, alias and unwrapping configuration. Custom codecs,
+     * dynamic output and type/root wrappers require an explicit mapping override; unsupported mappings fail closed.
+     */
+    @Override
+    public List<String> serializedPropertyPaths(Object payload, String propertyPath) {
+        if (objectMapper.isEnabled(SerializationFeature.WRAP_ROOT_VALUE)) {
+            throw unsupportedPropertyMapping(payload.getClass(), propertyPath);
+        }
+        return serializedPropertyPaths(payload, payload.getClass(), propertyPath);
+    }
+
+    @SneakyThrows
+    private List<String> serializedPropertyPaths(Object payload, Class<?> type, String path) {
+        int separator = path.indexOf('/');
+        String name = separator < 0 ? path : path.substring(0, separator);
+        var description = objectMapper.getSerializationConfig().introspect(objectMapper.constructType(type));
+        // Bean introspection alone cannot prove the wire shape of a custom codec or a type wrapper.
+        var codec = objectMapper.getSerializerProviderInstance().findValueSerializer(type);
+        var typeSerializer = objectMapper.getSerializerFactory().createTypeSerializer(
+                objectMapper.getSerializationConfig(), objectMapper.constructType(type));
+        if (description.findAnyGetter() != null
+            || objectMapper.getSerializationConfig().getAnnotationIntrospector()
+                       .findFilterId(description.getClassInfo()) != null
+            || codec.getClass() != BeanSerializer.class
+            || typeSerializer != null && !usesPropertyTypeId(typeSerializer.getTypeInclusion())) {
+            throw unsupportedPropertyMapping(type, path);
+        }
+        var writers = new ArrayList<BeanPropertyWriter>();
+        var writerNames = new HashSet<String>();
+        codec.properties().forEachRemaining(writer -> {
+            if (writer.getClass() != BeanPropertyWriter.class
+                && writer.getClass() != UnwrappingBeanPropertyWriter.class
+                || !writerNames.add(writer.getName())
+                || description.findProperties().stream().noneMatch(property ->
+                    property.getName().equals(writer.getName())
+                    && property.getPrimaryMember() != null
+                    && property.getPrimaryMember().equals(writer.getMember()))) {
+                throw unsupportedPropertyMapping(type, path);
+            }
+            writers.add((BeanPropertyWriter) writer);
+        });
+        for (var property : description.findProperties()) {
+            if (!property.getInternalName().equals(name) || !property.couldSerialize()) {
+                continue;
+            }
+            var member = property.getPrimaryMember();
+            var writer = writers.stream().filter(candidate -> candidate.getName().equals(property.getName()))
+                    .findFirst().orElseThrow(() -> unsupportedPropertyMapping(type, path));
+            if (separator >= 0 && (member != null && member.getAnnotation(JsonFilter.class) != null
+                                   || writer.getSerializer() != null
+                                      && writer.getSerializer().getClass() != BeanSerializer.class
+                                      && writer.getSerializer().getClass() != UnwrappingBeanSerializer.class
+                                   || writer.getTypeSerializer() != null
+                                      && !usesPropertyTypeId(writer.getTypeSerializer().getTypeInclusion()))) {
+                throw unsupportedPropertyMapping(type, path);
+            }
+            JsonUnwrapped unwrapped = member == null ? null : member.getAnnotation(JsonUnwrapped.class);
+            List<String> names = new ArrayList<>(List.of(escapeProperty(property.getName())));
+            JsonAlias aliases = member == null ? null : member.getAnnotation(JsonAlias.class);
+            if (aliases != null) {
+                Arrays.stream(aliases.value()).map(JacksonSerializer::escapeProperty).forEach(names::add);
+            }
+            if (separator < 0) {
+                if (unwrapped != null && unwrapped.enabled()) {
+                    throw new IllegalArgumentException("An unwrapped value cannot be protected as a single property: " + path);
+                }
+                return names;
+            }
+            Object nested = payload == null ? null : ReflectionUtils.readProperty(name, payload).orElse(null);
+            List<String> children = serializedPropertyPaths(nested,
+                    nested == null ? property.getPrimaryType().getRawClass() : nested.getClass(),
+                    path.substring(separator + 1));
+            if (unwrapped != null && unwrapped.enabled()) {
+                return children.stream().map(child -> {
+                    int slash = child.indexOf('/');
+                    return escapeProperty(unwrapped.prefix()) + (slash < 0 ? child : child.substring(0, slash))
+                           + escapeProperty(unwrapped.suffix()) + (slash < 0 ? "" : child.substring(slash));
+                }).toList();
+            }
+            return names.stream().flatMap(parent -> children.stream().map(child -> parent + "/" + child)).toList();
+        }
+        throw unsupportedPropertyMapping(type, path);
+    }
+
+    private static boolean usesPropertyTypeId(JsonTypeInfo.As inclusion) {
+        return inclusion == JsonTypeInfo.As.PROPERTY || inclusion == JsonTypeInfo.As.EXISTING_PROPERTY;
+    }
+
+    private static UnsupportedOperationException unsupportedPropertyMapping(Class<?> type, String path) {
+        return new UnsupportedOperationException(
+                "Cannot safely map protected property %s on %s with this Jackson configuration. "
+                .formatted(path, type.getName())
+                + "Provide an explicit serializedPropertyPaths implementation for the custom wire format.");
+    }
+
+    private static String escapeProperty(String name) {
+        return name.replace("~", "~0").replace("/", "~1");
+    }
+
+    /**
      * Serializes the object to a JSON byte array.
      */
     @Override
     protected byte[] doSerialize(Object object) throws Exception {
-        return objectMapper.writeValueAsBytes(object);
+        return object == null ? NULL_BYTES.clone() : objectMapper.writeValueAsBytes(object);
     }
 
     /**
@@ -153,6 +274,23 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
      */
     @Override
     protected Object doDeserialize(Data<?> data, String type) throws Exception {
+        Data.ByteArrayView byteArrayView = data.byteArrayView();
+        if (byteArrayView != null) {
+            byte[] bytes = byteArrayView.array();
+            int offset = byteArrayView.offset();
+            int length = byteArrayView.length();
+            if (Void.class.getName().equals(type)
+                    && length == NULL_BYTES.length
+                    && Arrays.equals(bytes, offset, offset + length,
+                                     NULL_BYTES, 0, NULL_BYTES.length)) {
+                return null;
+            }
+            if (mayContainClassProperty(bytes, offset, length)) {
+                return deserializeWithTypeResolution(objectMapper.createParser(bytes, offset, length),
+                                                     typeCache.apply(type));
+            }
+            return objectMapper.readValue(bytes, offset, length, typeCache.apply(type));
+        }
         Object value = data.getValue();
         if (mayContainClassProperty(value)) {
             JavaType javaType = typeCache.apply(type);
@@ -167,6 +305,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
         }
         return switch (value) {
             case JsonNode v -> objectMapper.convertValue(v, typeCache.apply(type));
+            case byte[] v when Void.class.getName().equals(type) && Arrays.equals(v, NULL_BYTES) -> null;
             case byte[] v -> objectMapper.readValue(v, typeCache.apply(type));
             case String v -> objectMapper.readValue(v, typeCache.apply(type));
             case null -> null;
@@ -178,20 +317,35 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     private boolean mayContainClassProperty(Object value) {
         return switch (value) {
             case JsonNode ignored -> true;
-            case byte[] bytes -> mayContainClassProperty(bytes);
+            case byte[] bytes -> mayContainClassProperty(bytes, 0, bytes.length);
             case String string -> string.contains(CLASS_PROPERTY) || string.contains("\\u");
             case null -> false;
             default -> true;
         };
     }
 
-    private boolean mayContainClassProperty(byte[] input) {
-        for (int i = 0; i < input.length; i++) {
+    private boolean mayContainClassProperty(byte[] input, int offset, int length) {
+        // Large payloads are cheaper to parse once with type resolution than to scan before parsing.
+        // Keep custom JsonMapper subclasses on their existing byte-array readValue overload for marker-free input.
+        if (length >= 64 && singlePassLargePayloads) {
+            return true;
+        }
+        int end = offset + length;
+        int i = offset;
+        // Skip eight ordinary bytes at once. Endianness is irrelevant: the masks test every byte equally.
+        // A possible '@' or escape falls back to the exact scan, including candidates spanning two words.
+        for (; i <= end - Long.BYTES; i += Long.BYTES) {
+            long word = (long) BYTE_WORDS.get(input, i);
+            if (hasZeroByte(word ^ 0x4040404040404040L) || hasZeroByte(word ^ 0x5c5c5c5c5c5c5c5cL)) {
+                break;
+            }
+        }
+        for (; i < end; i++) {
             byte current = input[i];
-            if (current == '\\' && i + 1 < input.length && input[i + 1] == 'u') {
+            if (current == '\\' && i + 1 < end && input[i + 1] == 'u') {
                 return true;
             }
-            if (current == '@' && i + CLASS_PROPERTY.length() <= input.length) {
+            if (current == '@' && i <= end - CLASS_PROPERTY.length()) {
                 int j = 1;
                 while (j < CLASS_PROPERTY.length() && input[i + j] == CLASS_PROPERTY.charAt(j)) {
                     j++;
@@ -202,6 +356,10 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
             }
         }
         return false;
+    }
+
+    private static boolean hasZeroByte(long value) {
+        return ((value - 0x0101010101010101L) & ~value & 0x8080808080808080L) != 0;
     }
 
     private Object deserializeWithTypeResolution(JsonParser parser, JavaType type) throws IOException {
@@ -309,6 +467,11 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     @Override
     public <T> T fromDocument(SerializedDocument document) {
         return deserialize(document.getDocument());
+    }
+
+    @Override
+    public Object modelStateSnapshot(Object value) {
+        return objectMapper.valueToTree(value).deepCopy();
     }
 
     @Override

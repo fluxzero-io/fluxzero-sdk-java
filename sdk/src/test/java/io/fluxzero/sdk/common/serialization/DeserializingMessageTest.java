@@ -31,6 +31,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -39,11 +40,39 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeserializingMessageTest {
+
+    @Test
+    void restoredPayloadViewKeepsEnvelopeContextAndAliasesUntilARealReplacement() {
+        Serializer serializer = new JacksonSerializer();
+        SerializedMessage raw = new SerializedMessage(serializer.serialize("redacted").withType("custom-alias")
+                .withRevision(3), Metadata.of("original", "value"), "id", 42L);
+        raw.setIndex(123L);
+        DeserializingMessage source = new DeserializingMessage(raw, ignored -> "redacted", MessageType.EVENT,
+                                                               "topic", serializer);
+        source.putContext(AtomicInteger.class, new AtomicInteger(7));
+        DeserializingMessage restored = source.withRestoredPayload("restored");
+        DeserializingMessage enriched = restored.withMetadata(restored.getMetadata().with("extra", "metadata"));
+        assertEquals("restored", enriched.getPayload());
+        assertEquals("restored", enriched.getPayloadAs(String.class));
+        assertEquals(String.class, enriched.getPayloadClass());
+        assertEquals("custom-alias", enriched.getType());
+        assertEquals(123L, enriched.getIndex());
+        assertEquals("topic", enriched.getTopic());
+        assertSame(raw.getData(), enriched.getSerializedObject().getData());
+        assertEquals(3, enriched.getSerializedObject().getRevision());
+        assertEquals(42L, enriched.getSerializedObject().getTimestamp());
+        assertSame(source.getContext(AtomicInteger.class).orElseThrow(),
+                   enriched.getContext(AtomicInteger.class).orElseThrow());
+        assertEquals(String.class, new DeserializingMessage(enriched).getPayloadClass());
+        assertEquals("changed", serializer.deserialize(enriched.withPayload("changed").getSerializedObject().getData()));
+        assertEquals("redacted", source.getPayload());
+    }
 
     @Test
     void returnsVoidPayloadClassWhenDelegatePayloadClassIsUnknown() {
@@ -335,6 +364,70 @@ class DeserializingMessageTest {
                 case STREAM -> DeserializingMessage.handleBatch(Stream.of(message)).forEach(action);
             }
         }
+    }
+
+    @Test
+    void messageBatchResourcesAreSharedWithAsyncWorkersAndIsolatedBetweenBatches() {
+        Object key = new Object();
+        Object firstResource = new Object();
+        List<Integer> positions = new ArrayList<>();
+        DeserializingMessage first = message("first");
+        DeserializingMessage second = message("second");
+        first.getSerializedObject().setSegment(11);
+        second.getSerializedObject().setSegment(12);
+
+        DeserializingMessage.forEachInBatch(
+                List.of(first, second), current -> {
+                    Object resource = DeserializingMessage.computeForMessageBatchIfAbsent(
+                            key, ignored -> firstResource);
+                    assertSame(firstResource, resource);
+                    int expectedPosition = positions.size();
+                    assertEquals(expectedPosition, DeserializingMessage.getMessageBatchIndex());
+                    var context = current.captureContext();
+                    positions.add(CompletableFuture.supplyAsync(context.wrap(() -> {
+                        assertSame(firstResource,
+                                   DeserializingMessage.getMessageBatchResource(key));
+                        assertEquals(
+                                11 + expectedPosition,
+                                DeserializingMessage.getMessageBatchSegment());
+                        return DeserializingMessage.getMessageBatchIndex();
+                    })).join());
+                });
+
+        assertEquals(List.of(0, 1), positions);
+        assertEquals(-1, DeserializingMessage.getMessageBatchIndex());
+        assertEquals(-1, DeserializingMessage.getMessageBatchSegment());
+        assertNull(DeserializingMessage.getMessageBatchResource(key));
+
+        Object secondResource = new Object();
+        DeserializingMessage.forEachInBatch(
+                List.of(message("third")), ignored -> {
+                    Object resource = DeserializingMessage.computeForMessageBatchIfAbsent(
+                            key, unused -> secondResource);
+                    assertSame(secondResource, resource);
+                    assertNotSame(firstResource, resource);
+                    assertEquals(0, DeserializingMessage.getMessageBatchIndex());
+                });
+    }
+
+    @Test
+    void nestedMessageHandlingRetainsTheOuterBatchResourceAndPosition() {
+        Object key = new Object();
+        DeserializingMessage outer = message("outer");
+        outer.getSerializedObject().setSegment(27);
+
+        DeserializingMessage.forEachInBatch(List.of(outer), ignored -> {
+            Object resource = DeserializingMessage.computeForMessageBatchIfAbsent(
+                    key, unused -> new Object());
+            message("inner").apply(inner -> {
+                assertSame(resource, DeserializingMessage.getMessageBatchResource(key));
+                assertEquals(0, DeserializingMessage.getMessageBatchIndex());
+                assertEquals(27, DeserializingMessage.getMessageBatchSegment());
+                return null;
+            });
+        });
+
+        assertNull(DeserializingMessage.getMessageBatchResource(key));
     }
 
     @Test

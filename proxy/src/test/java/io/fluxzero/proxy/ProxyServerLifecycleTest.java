@@ -71,19 +71,25 @@ class ProxyServerLifecycleTest {
         String previousFluxBaseUrl = System.getProperty("FLUX_BASE_URL");
         String previousFluxUrl = System.getProperty("FLUX_URL");
         try {
-            runtime = TestServer.startServer(0);
-            String runtimeUrl = "ws://localhost:" + localPort(runtime);
+            runtime = startLocalRuntime();
+            String runtimeUrl = "ws://127.0.0.1:" + localPort(runtime);
             System.clearProperty("FLUXZERO_BASE_URL");
             System.clearProperty("FLUX_BASE_URL");
             System.clearProperty("FLUX_URL");
 
-            proxyServer = ProxyServer.start(ProxyServerConfig.forRuntime(runtimeUrl).withMetricsEnabled(false));
+            proxyServer = ProxyServer.start(ProxyServerConfig.forRuntime(runtimeUrl).withMetricsEnabled(false), "127.0.0.1");
 
             assertTrue(proxyServer.getPort() > 0);
-            assertLocalHealth("http://localhost:" + proxyServer.getPort()
+            try (ServerSocket other = new ServerSocket()) {
+                other.setReuseAddress(true);
+                int listeningPort = proxyServer.getPort();
+                assertThrows(java.net.BindException.class,
+                             () -> other.bind(new InetSocketAddress("127.0.0.1", listeningPort)));
+            }
+            assertLocalHealth("http://127.0.0.1:" + proxyServer.getPort()
                               + ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT);
             assertEventuallyReady(proxyServer,
-                                  "http://localhost:" + proxyServer.getPort()
+                                  "http://127.0.0.1:" + proxyServer.getPort()
                                   + ProxyServer.DEFAULT_READINESS_ENDPOINT);
         } finally {
             if (proxyServer != null) {
@@ -108,12 +114,12 @@ class ProxyServerLifecycleTest {
         String previousProxyCompressionAlgorithms = System.getProperty(ProxyServer.COMPRESSION_ALGORITHMS_PROPERTY);
         String previousDrainDelay = System.getProperty(ProxyServer.DRAIN_DELAY_MILLIS_PROPERTY);
         String previousShutdownTimeout = System.getProperty(ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY);
-        try (ServerSocket occupiedPort = new ServerSocket(0)) {
-            runtime = TestServer.startServer(0);
-            configureProxy("ws://localhost:" + localPort(runtime), 0L, 1_000L);
+        try (ServerSocket occupiedPort = new ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))) {
+            runtime = startLocalRuntime();
+            configureProxy("ws://127.0.0.1:" + localPort(runtime), 0L, 1_000L);
             System.setProperty("FLUXZERO_PROXY_PORT", Integer.toString(occupiedPort.getLocalPort()));
 
-            assertThrows(IllegalStateException.class, ProxyServer::start);
+            assertThrows(IllegalStateException.class, ProxyServerLifecycleTest::startLocalProxy);
 
             assertEventuallyNoThread("forward-proxy-WEBREQUEST-");
         } finally {
@@ -131,7 +137,7 @@ class ProxyServerLifecycleTest {
 
     @Test
     @Timeout(45)
-    void startWithoutArgumentsStartsHttpAndForwardProxyUsingConfiguredProperties() throws Exception {
+    void startsHttpAndForwardProxyUsingConfiguredProperties() throws Exception {
         Server testServer = null;
         ProxyServer proxyServer = null;
         Fluxzero requester = null;
@@ -146,9 +152,9 @@ class ProxyServerLifecycleTest {
         String previousDrainDelay = System.getProperty(ProxyServer.DRAIN_DELAY_MILLIS_PROPERTY);
         String previousShutdownTimeout = System.getProperty(ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY);
         try {
-            testServer = TestServer.startServer(0);
-            String runtimeUrl = "ws://localhost:" + localPort(testServer);
-            occupiedProxyPort = new ServerSocket(0);
+            testServer = startLocalRuntime();
+            String runtimeUrl = "ws://127.0.0.1:" + localPort(testServer);
+            occupiedProxyPort = new ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"));
 
             System.setProperty("FLUXZERO_PROXY_PORT", "0");
             System.setProperty("PROXY_PORT", String.valueOf(occupiedProxyPort.getLocalPort()));
@@ -160,13 +166,13 @@ class ProxyServerLifecycleTest {
             System.clearProperty("FLUX_BASE_URL");
             System.clearProperty("FLUX_URL");
 
-            proxyServer = ProxyServer.start();
+            proxyServer = startLocalProxy();
 
             assertTrue(proxyServer.getPort() > 0);
             assertNotEquals(occupiedProxyPort.getLocalPort(), proxyServer.getPort());
 
-            String healthUrl = "http://localhost:" + proxyServer.getPort() + "/proxy/health";
-            String readinessUrl = "http://localhost:" + proxyServer.getPort() + ProxyServer.DEFAULT_READINESS_ENDPOINT;
+            String healthUrl = "http://127.0.0.1:" + proxyServer.getPort() + "/proxy/health";
+            String readinessUrl = "http://127.0.0.1:" + proxyServer.getPort() + ProxyServer.DEFAULT_READINESS_ENDPOINT;
             assertLocalHealth(healthUrl);
             assertEventuallyReady(proxyServer, readinessUrl);
 
@@ -191,14 +197,14 @@ class ProxyServerLifecycleTest {
             WebResponse response = sendForwardedHealthRequest(requester, healthUrl);
             assertEquals(200, response.getStatus());
             assertEquals("Healthy", new String(response.<byte[]>getPayload(), StandardCharsets.UTF_8));
-            assertEventuallyStatus("http://localhost:" + proxyServer.getPort() + "/during-drain",
+            assertEventuallyStatus("http://127.0.0.1:" + proxyServer.getPort() + "/during-drain",
                                    200, "accepted-during-drain");
 
             CompletableFuture<Void> shutdown = CompletableFuture.runAsync(proxyServer::cancel);
             assertEventuallyStatus(readinessUrl, 503, "Not ready");
             assertFalse(shutdown.isDone(), "Proxy should remain available while the load balancer observes readiness");
             assertLocalHealth(healthUrl);
-            assertEventuallyStatus("http://localhost:" + proxyServer.getPort() + "/during-drain",
+            assertEventuallyStatus("http://127.0.0.1:" + proxyServer.getPort() + "/during-drain",
                                    200, "accepted-during-drain");
             shutdown.get(5, TimeUnit.SECONDS);
             proxyServer.cancel();
@@ -233,7 +239,7 @@ class ProxyServerLifecycleTest {
         CountDownLatch requestReceived = new CountDownLatch(1);
         CountDownLatch releaseResponse = new CountDownLatch(1);
         ExecutorService targetExecutor = Executors.newCachedThreadPool();
-        HttpServer target = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        HttpServer target = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         target.setExecutor(targetExecutor);
         target.createContext("/", exchange -> {
             requestReceived.countDown();
@@ -260,16 +266,16 @@ class ProxyServerLifecycleTest {
         String previousDrainDelay = System.getProperty(ProxyServer.DRAIN_DELAY_MILLIS_PROPERTY);
         String previousShutdownTimeout = System.getProperty(ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY);
         try {
-            runtime = TestServer.startServer(0);
-            String runtimeUrl = "ws://localhost:" + localPort(runtime);
+            runtime = startLocalRuntime();
+            String runtimeUrl = "ws://127.0.0.1:" + localPort(runtime);
             configureProxy(runtimeUrl, 0L, 5_000L);
-            proxyServer = ProxyServer.start();
+            proxyServer = startLocalProxy();
             assertEventuallyReady(proxyServer,
-                                  "http://localhost:" + proxyServer.getPort() + ProxyServer.DEFAULT_READINESS_ENDPOINT);
+                                  "http://127.0.0.1:" + proxyServer.getPort() + ProxyServer.DEFAULT_READINESS_ENDPOINT);
             requester = newRequester(runtimeUrl);
 
             CompletableFuture<WebResponse> response = requester.webRequestGateway().send(
-                    WebRequest.builder().url("http://localhost:" + target.getAddress().getPort()).method(GET).build(),
+                    WebRequest.builder().url("http://127.0.0.1:" + target.getAddress().getPort()).method(GET).build(),
                     WebRequestSettings.builder().timeout(Duration.ofSeconds(5)).build());
             assertTrue(requestReceived.await(2, TimeUnit.SECONDS));
             CompletableFuture<Void> shutdown = CompletableFuture.runAsync(proxyServer::cancel);
@@ -309,7 +315,7 @@ class ProxyServerLifecycleTest {
         CountDownLatch requestReceived = new CountDownLatch(1);
         CountDownLatch neverReleaseDuringShutdown = new CountDownLatch(1);
         ExecutorService targetExecutor = Executors.newCachedThreadPool();
-        HttpServer target = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        HttpServer target = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         target.setExecutor(targetExecutor);
         target.createContext("/", exchange -> {
             requestReceived.countDown();
@@ -336,16 +342,16 @@ class ProxyServerLifecycleTest {
         String previousDrainDelay = System.getProperty(ProxyServer.DRAIN_DELAY_MILLIS_PROPERTY);
         String previousShutdownTimeout = System.getProperty(ProxyServer.SHUTDOWN_TIMEOUT_MILLIS_PROPERTY);
         try {
-            runtime = TestServer.startServer(0);
-            String runtimeUrl = "ws://localhost:" + localPort(runtime);
+            runtime = startLocalRuntime();
+            String runtimeUrl = "ws://127.0.0.1:" + localPort(runtime);
             configureProxy(runtimeUrl, 0L, 200L);
-            proxyServer = ProxyServer.start();
+            proxyServer = startLocalProxy();
             assertEventuallyReady(proxyServer,
-                                  "http://localhost:" + proxyServer.getPort() + ProxyServer.DEFAULT_READINESS_ENDPOINT);
+                                  "http://127.0.0.1:" + proxyServer.getPort() + ProxyServer.DEFAULT_READINESS_ENDPOINT);
             requester = newRequester(runtimeUrl);
 
             CompletableFuture<WebResponse> response = requester.webRequestGateway().send(
-                    WebRequest.builder().url("http://localhost:" + target.getAddress().getPort()).method(GET).build(),
+                    WebRequest.builder().url("http://127.0.0.1:" + target.getAddress().getPort()).method(GET).build(),
                     WebRequestSettings.builder().timeout(Duration.ofSeconds(10)).build());
             assertTrue(requestReceived.await(2, TimeUnit.SECONDS));
             long start = System.nanoTime();
@@ -356,9 +362,9 @@ class ProxyServerLifecycleTest {
                        "Forced proxy shutdown exceeded its hard-stop allowance");
             assertFalse(response.isDone(), "Hard stop should hand off the request instead of publishing a local 502");
             neverReleaseDuringShutdown.countDown();
-            restartedProxy = ProxyServer.start();
+            restartedProxy = startLocalProxy();
             assertEventuallyReady(restartedProxy,
-                                  "http://localhost:" + restartedProxy.getPort()
+                                  "http://127.0.0.1:" + restartedProxy.getPort()
                                   + ProxyServer.DEFAULT_READINESS_ENDPOINT);
             assertEquals(200, response.get(5, TimeUnit.SECONDS).getStatus());
         } finally {
@@ -417,6 +423,14 @@ class ProxyServerLifecycleTest {
         }
         assertTrue(proxyServer.isReady(), "Proxy did not become ready after connecting to the tracking endpoint");
         assertEventuallyStatus(readinessUrl, 200, "Ready");
+    }
+
+    private static Server startLocalRuntime() {
+        return TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
+    }
+
+    private static ProxyServer startLocalProxy() {
+        return ProxyServer.start(ProxyServerConfig.fromProperties(), "127.0.0.1");
     }
 
     private static void assertEventuallyDraining(ProxyServer proxyServer) {

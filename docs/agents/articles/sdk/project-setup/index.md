@@ -4,7 +4,7 @@ Minimum decisions:
 
 - Build tool: Maven or Gradle.
 - Language: Java or Kotlin.
-- Runtime: Spring Boot app using the Java toolchain declared by the project. Existing supported projects may remain on Java 21 or newer; generated starters pin their own requirement.
+- Runtime: Spring Boot app using the Java toolchain declared by the project. Existing supported projects may remain on Java 25 or newer; generated starters pin their own requirement.
 - SDK version: use the project's effective Fluxzero BOM and select matching versioned documentation.
 
 For a generated project, keep the starter's declared Java toolchain and install that JDK when it is missing; do not lower the project just because the host starts without Java. For an existing project, keep its chosen Java version when it is supported. Read the focused toolchain article before invoking a wrapper or starting the development server on a new machine.
@@ -32,6 +32,6 @@ Recommended agent flow:
 1. For a new project, read CLI generation and create the Java or Kotlin starter with the selected build tool.
 2. Ensure the JDK declared by the generated project is available; use its wrappers instead of installing Maven or Gradle globally.
 3. Read either Maven setup or Gradle setup to validate or repair the generated build. For Maven, read reproducible model guidance before changing the parent/BOM shape.
-4. Read Java or Kotlin project shape.
+4. Read `/docs/sdk/project-setup/package-structure` and Java or Kotlin project shape. Identify owning domains and concrete package paths before adding product classes.
 5. Read local runtime and the development loop before starting or observing the development stack.
 6. Continue with the create-app recipe, replace starter behavior, then add product commands, queries, and tests.

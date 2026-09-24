@@ -220,6 +220,20 @@ public interface When {
     Then<?> whenEventsAreApplied(String aggregateId, Class<?> aggregateClass, Object... events);
 
     /**
+     * Applies events to an independently stored model and publishes the resulting model events.
+     */
+    default Then<?> whenModelEventsAreApplied(Id<?> modelId, Object... events) {
+        return whenModelEventsAreApplied(modelId.toString(), modelId.getType(), events);
+    }
+
+    /**
+     * Applies events to an independently stored model and publishes the resulting model events.
+     */
+    default Then<?> whenModelEventsAreApplied(String modelId, Class<?> modelClass, Object... events) {
+        throw new UnsupportedOperationException("This When implementation does not support independent models");
+    }
+
+    /**
      * Executes a search query on the specified collection and returns the expected result.
      *
      * @param collection  the collection to search in

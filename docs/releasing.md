@@ -1,7 +1,8 @@
 # Releasing the SDK
 
 The `Deploy` workflow uploads each release to `https://packages.fluxzero.io/publish/maven`
-first, then starts Maven Central publication. Public downloads remain at
+first, then starts Maven Central publication while its publication window is open. The Central job skips publication
+from 1 October 2026 (Europe/Amsterdam); Fluxzero Packages remains the release destination. Public downloads remain at
 `https://packages.fluxzero.io/maven`. Release versions, GitHub tags and
 container publication retain their existing configuration. Sources, Javadoc and
 GPG signatures remain part of both Maven publications.
@@ -13,8 +14,11 @@ can continue without waiting for Central.
 
 - `mvn -P sign deploy` publishes signed artifacts to Fluxzero Packages using
   `distributionManagement`.
-- `mvn -P sign,central deploy` publishes signed artifacts to Central, retaining
-  automatic publication, completion polling and the existing recovery procedure.
+- `mvn -P sign,central deploy` uploads signed artifacts to Central for automatic publication and returns after
+  upload acceptance (`waitUntil=uploaded`). Central validation and publication continue server-side; a green upload
+  is not confirmation that the artifacts are already downloadable there. Workflow reruns retain
+  `ignorePublishedComponents=true` for already uploaded immutable components. The date cutoff is enforced by the
+  workflow, not by manually invoking this Maven profile.
 
 Sources and Javadoc are attached during packaging. The shared `sign` profile adds
 GPG signatures before deployment; both workflow steps enable it. Ordinary builds

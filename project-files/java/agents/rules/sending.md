@@ -44,6 +44,20 @@ interface.
 
 <a name="internal-messages"></a>
 
+## Logical identity and transport envelopes
+
+`Message` contains payload, metadata, message ID and timestamp. Source/target/request ID/log index belong to
+`SerializedMessage`, not the logical Message. Redispatch preserves logical identity unless explicitly replaced,
+but starts a new request envelope: local handling has no transport source; tracked requests use the sending
+client's ID for response correlation. Blocking versus future-returning methods do not select local versus remote.
+Never use a supplied source or message ID as authentication.
+
+Use `incoming.withMessage(incoming.toMessage().withMessageId("new-logical-id"))` for an intentional identity
+replacement. Complete raw serialized edits before deserializing; the wrapper lazily caches its logical Message
+and does not synchronize later raw mutations. Re-deserialize after edits. Dispatch interceptors should return
+logical replacements; serialized modification only affects serialized publication. Real native HTTP carries
+headers/body, not a Fluxzero command/query envelope. Fixture HTTP stubs do not prove network behavior.
+
 ## Internal Messages
 
 ### Commands
@@ -156,6 +170,16 @@ Fluxzero.publishResult(new CommandResult(commandId, resultPayload));
 
 ## Schedules
 
+For delayed work owned by a Model, annotate the payload ID: `record RunReminder(@Parent ReminderId reminderId) {}`.
+The parent must already be committed in the schedule's namespace. Direct deletion (`@Apply` returning `null`),
+cascade deletion and hard erasure asynchronously cancel the schedule, without an application cleanup handler.
+Use `new Schedule(payload, id, deadline).withParents(parentId)` for explicit ownership; `withParents()` opts out.
+Any parent deletion suffices; null/non-owning references are ignored. A schedule is not a Model or Graph node.
+Automatic periodic continuations preserve the original lifetime and cannot revive work after delete/recreate.
+Explicit `withParents(...)` selects a fresh lifetime. Keep current-intent guards for already delivered work and status
+or deadline changes. `ScheduleAutoCancelled` reports actual removal as best-effort payload-free metrics.
+Assert `expectOnlyActiveScheduledCommands(...)` to check all active work, including schedules from Given.
+
 Use schedules to trigger schedule messages in the future or periodically.
 Prefer `ScheduleId.of(type, id)` when different schedule categories can share a domain ID, and reuse the same typed
 value for scheduling, lookup and cancellation. Fluxzero persists its stable `type:id` representation.
@@ -252,31 +276,105 @@ void onSchedule(RefreshData schedule) {
 
 ## External Web Requests
 
+Use `WebRequest` and `WebRequestGateway` for external HTTP APIs. The default message/proxy route preserves
+auditability and correlation and supports configurable retries and `TestFixture` assertions/stubs. Do not replace
+it with a separate HTTP client for an ordinary integration.
+
 The SDK message gateway decompresses gzip responses before typed deserialization, including in async fixtures.
 Use `response.getPayloadAs(MyReply.class)` normally. Decoded responses omit `Content-Encoding` and update any
 `Content-Length` to the uncompressed byte length; the published wire response is unchanged.
+
+Fluxzero Auditlog masks standard credential headers such as `Authorization` and `X-Api-Key` case-insensitively as
+`<value scrambled>` in visible records and Auditlog downloads. Authenticated requests therefore remain auditable
+without showing these secrets. Resolve credentials through `ApplicationProperties` and use the API's required
+header. This is visible-log masking, not deletion from the HTTP transport or a guarantee for arbitrary secret fields
+or application-written logs.
 
 Streamed responses arrive as bytes, including JSON bodies; use `getPayloadAs(...)` to convert them. Local gzip
 streams decode on body-value conversion. Requesting `InputStream` or `Object` does not consume the stream;
 the caller still owns its one-shot consumption and closure. Empty HEAD/304 bodies are not decompressed.
 
-Use `WebRequest` to interact with external HTTP APIs.
 
-**Example: POST to External API**
+Pass `WebRequestSettings` to `Fluxzero.sendWebRequestAndWait(request, settings)` or the gateway's `send`/`sendAndWait`.
+`timeout` bounds all attempts, `maxRetries` counts additional attempts (default zero), and `retryDelay` plus
+`retryableStatusCodes` select retry behavior. Repeat writes only with appropriate idempotent semantics.
 
-[//]: # (@formatter:off)
+`useNativeHttpClient(true)` is an explicit direct-transport alternative in the same SDK API. It bypasses message
+logging, local handlers, dispatch interceptors and consumer isolation; do not select it merely to hide credentials.
+TestFixture still routes native-configured requests to remote stubs and applies retry counts/statuses without real
+delays. Use fixture web assertions and absolute `@HandleGet`/`@HandlePost` handlers for ordinary integration tests.
+
+### Give each external interaction a local command or query
+
+Use a named command for an external action and a typed query (`Request<T>`) for an external read. Put the actual
+`WebRequestGateway` call in the payload's `@HandleCommand` or `@HandleQuery` method. Other handlers invoke the
+operation through `Fluxzero.sendCommandAndWait(...)` or `Fluxzero.queryAndWait(...)`, just like other application
+behavior. Choose command versus query by the operation's meaning, not only its HTTP verb.
+
+These self-handlers run locally by default. They need no `@TrackSelf`, `@Consumer`, `@Component`, extra
+`@LocalHandler`, injected API-service bean, or explicit handler registration. Dispatch the payload; do not call its
+`handle()` method directly.
+
+The example partner API returns an order as JSON, with HTTP 200 for lookup and 201 for creation:
+
 ```java
-WebResponse response = Fluxzero.sendWebRequestAndWait(
-    WebRequest.post(ApplicationProperties.require("stripe.url"))
-              .payload(paymentDetails)
-              .build()
-);
-
-if (response.isSuccess()) {
-    String stripeId = response.getPayloadAs(String.class);
+public record GetPartnerOrder(@NotNull UUID orderId) implements Request<PartnerOrder> {
+    @HandleQuery
+    PartnerOrder handle() {
+        var request = WebRequest.get("https://partner.example/api/orders/" + orderId)
+                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+                .build();
+        var response = Fluxzero.sendWebRequestAndWait(request);
+        if (response.getStatus() != 200) {
+            throw new IllegalStateException("Order lookup returned HTTP " + response.getStatus());
+        }
+        return response.getPayloadAs(PartnerOrder.class);
+    }
 }
+
+public record PlacePartnerOrder(@NotNull @Valid OrderDetails details) implements Request<PartnerOrder> {
+    @HandleCommand
+    PartnerOrder handle() {
+        var request = WebRequest.post("https://partner.example/api/orders")
+                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
+                .contentType("application/json")
+                .body(details)
+                .build();
+        var response = Fluxzero.sendWebRequestAndWait(request);
+        if (response.getStatus() != 201) {
+            throw new IllegalStateException("Order placement returned HTTP " + response.getStatus());
+        }
+        return response.getPayloadAs(PartnerOrder.class);
+    }
+}
+
+public record OrderDetails(@NotBlank String productCode, @Positive int quantity) {}
+public record PartnerOrder(UUID orderId, String status) {}
 ```
-[//]: # (@formatter:on)
+
+```java
+PartnerOrder existing = Fluxzero.queryAndWait(new GetPartnerOrder(orderId));
+PartnerOrder placed = Fluxzero.sendCommandAndWait(
+        new PlacePartnerOrder(new OrderDetails("book", 2)));
+```
+
+Shared URL construction, headers, settings and response mapping may live in a small helper, interface or base class.
+Keep each operation recognizable as its own command/query; do not replace them with a generic HTTP-command envelope
+or require callers to inject an API service. Resolve configuration through `ApplicationProperties` at this integration
+boundary. If settings need parsing, a typed settings value can be loaded here without making it a bean. The fixed
+example URLs stand in for a configured, validated endpoint; validate the configured endpoint before constructing requests.
+
+A local command/query and its outgoing HTTP request have separate delivery rules. Local self-handling does **not**
+select native HTTP: the nested `WebRequest` still uses the auditable proxy route and configured transport retries.
+The local command/query itself is not a persisted job and has no independent tracker retry. Add `@TrackSelf` only
+when that operation itself must arrive through the Runtime, have a durable consumer position, or be replayed/retried
+independently. Add `@Consumer` only for a required tracking configuration. Neither is needed merely to call an API.
+
+For an external write that depends on committed Model state, a registered post-commit event handler can dispatch the
+local command and wait for its outcome. Let failures reach that caller's error/retry policy. Local dispatch does not
+make HTTP part of the Model transaction: do not perform external I/O in `@Apply` or send the write from a mutation
+handler while its changes are still pending. Read-only external queries may run from ordinary query/orchestration
+handlers; their results are not replayable Model state until explicitly recorded.
 
 ---
 
@@ -294,8 +392,10 @@ the same tracker.
 2. **Routing Key Selection**:
     - **@RoutingKey**: You can annotate a field in your payload with `@RoutingKey`. The value of this field will be used
       to calculate the segment.
-    - **Aggregate ID**: For events applied to an aggregate that do not have an explicit `@RoutingKey`, the **Aggregate
-      ID** is used automatically.
+    - **Model routing**: `fluxzero.model.automaticRouting=true` (default from defaults version `2026.09.10`) adds a
+      canonical Model-ID fallback for single statically unambiguous apply commands and single-Model events. Never
+      choose an arbitrary target for multi-Model updates. Explicit segments and `@RoutingKey` declarations win,
+      including missing values; do not blindly inherit an unknown command segment. Aggregate routing is unchanged.
     - **Default**: If no key is found, a random segment is assigned (no ordering guarantees).
 
 ```java
@@ -332,3 +432,18 @@ public class CorrelationInterceptor implements DispatchInterceptor {
     }
 }
 ```
+
+## Reconcile Model schedules from current intent
+
+A registered tracked post-commit `@HandleEvent` method whose only parameter is `Graph<Reminder>` receives direct and
+cascaded reminder changes. Read `Fluxzero.loadCurrentGraph(change.id(), Reminder.class)` (Kotlin:
+`Reminder::class.java`) to inspect current intent rather than the triggering event's older state. Use one stable
+`ScheduleId.of("reminder", change.id())`: cancel when absent/completed; otherwise replace with the current deadline.
+Use `@Consumer(singleTracker = true, ...)` for this reconciler and keep all writes to those schedule IDs there, so a
+parent-routed cascade and a child-routed update do not race. Let failures reach tracked retry.
+
+`ifAbsent = true` keeps an existing deadline; it does not replace stale work and is not a once-only marker after
+cancellation. Guard the delivered command with the expected deadline/generation and current state as well: cancellation
+cannot recall already delivered work. Use `@InterceptApply` to suppress stale/early work, keep replayed `@Apply`
+deterministic, and use `Fluxzero.currentTime()` for evaluation. Scheduling is an eventual post-commit effect, not part of
+the Model transaction. For historical `previous()` values, event sourcing is required; `DOCUMENT` alone has no versions.

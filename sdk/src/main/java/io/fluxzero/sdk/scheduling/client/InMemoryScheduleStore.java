@@ -20,18 +20,23 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.api.scheduling.ScheduleAutoCancelled;
+import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
 import io.fluxzero.common.tracking.MessageStoreBatch;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +44,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.SCHEDULE;
@@ -62,6 +68,18 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     private final AtomicLong minScheduleIndex = new AtomicLong();
     private final DelegatingClock clock = new DelegatingClock();
     private Registration clockChangeRegistration = Registration.noOp();
+    private InMemoryEventStore modelStore;
+    private Consumer<ScheduleAutoCancelled> cancellationMetrics = ignored -> {};
+    private final Map<String, Map<String, Long>> ownedSchedules = new HashMap<>();
+    private final Map<String, Long> ownedScheduleIndices = new HashMap<>();
+    private final Map<String, Set<String>> schedulesByParent = new HashMap<>();
+
+    /** Links scheduling to the namespace's committed Model store and payload-free metrics sink. */
+    public void configureParents(InMemoryEventStore modelStore, Consumer<ScheduleAutoCancelled> metrics) {
+        this.modelStore = modelStore;
+        this.cancellationMetrics = metrics;
+        modelStore.setScheduleDeletionMonitor(this::cancelDeletedParents);
+    }
 
     public InMemoryScheduleStore() {
         super(SCHEDULE);
@@ -83,29 +101,139 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         throw new UnsupportedOperationException();
     }
 
-    @SneakyThrows
     @Override
-    public synchronized CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
-        List<SerializedSchedule> filtered = Arrays.stream(schedules)
-                .filter(s -> !s.isIfAbsent() || !scheduleIdsByIndex.containsValue(s.getScheduleId())).toList();
-        long now = clock.millis();
-        for (SerializedSchedule schedule : filtered) {
-            cancelSchedule(schedule.getScheduleId());
+    public CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
+        return scheduleBound(Map.of(), schedules);
+    }
 
-            long index = schedule.getTimestamp() > now ? indexFromMillis(schedule.getTimestamp())
-                    : minScheduleIndex.updateAndGet(i -> Math.max(indexFromMillis(now), i + 1));
-            while (scheduleIdsByIndex.putIfAbsent(index, schedule.getScheduleId()) != null) {
-                index++;
-            }
-            schedule.getMessage().setIndex(index);
+    @Override
+    public CompletableFuture<Map<String, Long>> bindScheduleParents(List<String> parentIds) {
+        if (modelStore == null) {
+            return SchedulingClient.super.bindScheduleParents(parentIds);
         }
-        return super.append(filtered.stream().map(SerializedSchedule::getMessage).toList());
+        try {
+            return CompletableFuture.completedFuture(modelStore.bindScheduleParents(parentIds));
+        } catch (Exception e) {
+            return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    @Override
+    public CompletableFuture<Void> scheduleBoundToParents(Guarantee guarantee, Map<String, Long> parents,
+                                                          SerializedSchedule... schedules) {
+        if (modelStore == null || parents.isEmpty()) {
+            return SchedulingClient.super.scheduleBoundToParents(guarantee, parents, schedules);
+        }
+        return scheduleBound(Map.copyOf(parents), schedules);
+    }
+
+    private CompletableFuture<Void> scheduleBound(Map<String, Long> parents, SerializedSchedule... schedules) {
+        List<ScheduleAutoCancelled> cancellations = new ArrayList<>();
+        try {
+            return doScheduleBound(parents, cancellations, schedules);
+        } finally {
+            publishCancellations(cancellations);
+        }
+    }
+
+    private CompletableFuture<Void> doScheduleBound(Map<String, Long> parents,
+                                                     List<ScheduleAutoCancelled> cancellations,
+                                                     SerializedSchedule... schedules) {
+        synchronized (monitorNotificationLock()) {
+            List<SerializedMessage> storedMessages = null;
+            try {
+                synchronized (this) {
+                    if (!parents.isEmpty() && !modelStore.validScheduleParentBindings(parents)) {
+                        throw new IllegalStateException("Schedule parent lifetime has changed; the schedule was not accepted");
+                    }
+                    List<SerializedSchedule> filtered = Arrays.stream(schedules)
+                            .filter(s -> !s.isIfAbsent() || !scheduleIdsByIndex.containsValue(s.getScheduleId()))
+                            .toList();
+                    long now = clock.millis();
+                    for (SerializedSchedule schedule : filtered) {
+                        removeOwnership(schedule.getScheduleId());
+                        scheduleIdsByIndex.values().removeIf(s -> s.equals(schedule.getScheduleId()));
+
+                        long index = schedule.getTimestamp() > now ? indexFromMillis(schedule.getTimestamp())
+                                : minScheduleIndex.updateAndGet(i -> Math.max(indexFromMillis(now), i + 1));
+                        while (scheduleIdsByIndex.putIfAbsent(index, schedule.getScheduleId()) != null) {
+                            index++;
+                        }
+                        schedule.getMessage().setIndex(index);
+                        if (!parents.isEmpty()) {
+                            ownedSchedules.put(schedule.getScheduleId(), parents);
+                            ownedScheduleIndices.put(schedule.getScheduleId(), index);
+                            parents.keySet().forEach(id -> schedulesByParent.computeIfAbsent(id, ignored -> new HashSet<>())
+                                    .add(schedule.getScheduleId()));
+                        }
+                    }
+                    storedMessages = filtered.stream().map(SerializedSchedule::getMessage).toList();
+                    appendMessages(storedMessages);
+                    if (!parents.isEmpty()) {
+                        // Deletion may have completed and its notification drained between binding and insertion.
+                        parents.keySet().forEach(id -> cancelStaleParent(id, modelStore.scheduleParentEpoch(id), cancellations));
+                    }
+                }
+                return CompletableFuture.completedFuture(null);
+            } finally {
+                if (storedMessages != null) {
+                    notifyMonitors(storedMessages);
+                }
+            }
+        }
     }
 
     @Override
     public synchronized CompletableFuture<Void> cancelSchedule(String scheduleId, Guarantee guarantee) {
         scheduleIdsByIndex.values().removeIf(s -> s.equals(scheduleId));
+        removeOwnership(scheduleId);
         return CompletableFuture.completedFuture(null);
+    }
+
+    private void removeOwnership(String scheduleId) {
+        ownedScheduleIndices.remove(scheduleId);
+        var parents = ownedSchedules.remove(scheduleId);
+        if (parents != null) {
+            parents.keySet().forEach(parent -> {
+                var schedules = schedulesByParent.get(parent);
+                schedules.remove(scheduleId);
+                if (schedules.isEmpty()) {
+                    schedulesByParent.remove(parent);
+                }
+            });
+        }
+    }
+
+    private void cancelDeletedParents(Map<String, Long> parents) {
+        List<ScheduleAutoCancelled> cancellations = new ArrayList<>();
+        synchronized (this) {
+            parents.forEach((id, epoch) -> cancelStaleParent(id, epoch, cancellations));
+        }
+        publishCancellations(cancellations);
+    }
+
+    private void cancelStaleParent(String parent, long epoch, List<ScheduleAutoCancelled> cancellations) {
+        for (String id : List.copyOf(schedulesByParent.getOrDefault(parent, Set.of()))) {
+            if (ownedSchedules.get(id).get(parent) < epoch) {
+                long index = ownedScheduleIndices.get(id);
+                var message = getMessage(index);
+                scheduleIdsByIndex.remove(index);
+                removeOwnership(id);
+                if (message != null) {
+                    cancellations.add(new ScheduleAutoCancelled(id, message.getMessageId(), millisFromIndex(index)));
+                }
+            }
+        }
+    }
+
+    private void publishCancellations(List<ScheduleAutoCancelled> cancellations) {
+        cancellations.forEach(metric -> {
+            try {
+                cancellationMetrics.accept(metric);
+            } catch (Exception e) {
+                log.warn("Failed to publish schedule auto-cancellation metric", e);
+            }
+        });
     }
 
     @Override
@@ -166,24 +294,41 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         return MessageStoreBatch.scan(messages, maxSize, maxBytes, filter);
     }
 
-    public synchronized void setClock(@NonNull Clock clock) {
-        clockChangeRegistration.cancel();
-        this.clock.setDelegate(clock);
-        clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
-                ? delegatingClock.onChange(this::clockChanged) : Registration.noOp();
-        clockChanged();
+    public void setClock(@NonNull Clock clock) {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                clockChangeRegistration.cancel();
+                this.clock.setDelegate(clock);
+                clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
+                        ? delegatingClock.onChange(this::clockChanged) : Registration.noOp();
+                this.minScheduleIndex.set(0L);
+            }
+            notifyMonitors();
+        }
     }
 
-    protected synchronized void clockChanged() {
-        this.minScheduleIndex.set(0L);
-        notifyMonitors();
+    protected void clockChanged() {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                this.minScheduleIndex.set(0L);
+            }
+            notifyMonitors();
+        }
     }
 
     @Override
-    public synchronized void truncate() {
-        scheduleIdsByIndex.clear();
-        minScheduleIndex.set(0L);
-        super.truncate();
+    public void truncate() {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                scheduleIdsByIndex.clear();
+                ownedSchedules.clear();
+                ownedScheduleIndices.clear();
+                schedulesByParent.clear();
+                minScheduleIndex.set(0L);
+                truncateMessages();
+            }
+            notifyMonitors();
+        }
     }
 
     public synchronized List<Schedule> getFutureSchedules(Serializer serializer) {
@@ -193,6 +338,7 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     public synchronized List<Schedule> removeExpiredSchedules(Serializer serializer) {
         Map<Long, String> expiredEntries = scheduleIdsByIndex.headMap(maxIndexFromMillis(clock.millis()), true);
         List<Schedule> result = asList(expiredEntries, serializer);
+        List.copyOf(expiredEntries.values()).forEach(this::removeOwnership);
         expiredEntries.clear();
         return result;
     }
@@ -211,8 +357,12 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
 
     @Override
     protected void purgeExpiredMessages(Duration messageExpiration) {
-        scheduleIdsByIndex.headMap(maxIndexFromMillis(
-                clock.millis() - messageExpiration.toMillis()), true).clear();
+        synchronized (this) {
+            var expired = scheduleIdsByIndex.headMap(maxIndexFromMillis(
+                    clock.millis() - messageExpiration.toMillis()), true);
+            List.copyOf(expired.values()).forEach(this::removeOwnership);
+            expired.clear();
+        }
         super.purgeExpiredMessages(messageExpiration);
     }
 
@@ -222,8 +372,12 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     }
 
     @Override
-    public synchronized void close() {
-        clockChangeRegistration.cancel();
-        super.close();
+    public void close() {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                clockChangeRegistration.cancel();
+                super.close();
+            }
+        }
     }
 }

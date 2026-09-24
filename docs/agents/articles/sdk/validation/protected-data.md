@@ -2,6 +2,20 @@ Use `@ProtectData` when a field must stay out of the ordinary serialized payload
 in KV, puts only a field-to-key reference in message metadata, serializes the field as `null`, and restores it for
 handling. Put `@DropProtectedData` only on the trusted handler that should consume the value for the last time.
 
+## Independent Model events
+
+Independent `@Model` updates also redact stored/published events, including local automatic commands, explicit
+`assertAndApply`, and `@InterceptApply` replacements. Durable Model events require vault-backed references.
+Unchanged restored values retain their references without recreating erased values. Reconstruction restores only
+retained values; applies must tolerate erased (`null`) private data, while vault read failures fail reconstruction.
+Protection does not extend to secrets copied into Model state, documents, or snapshots. JSON aliases and configured
+property naming are respected; custom serializers must expose their serialized property paths.
+
+The aggregate example below remains a compatibility example. For new Model state, a trusted explicit handler can
+derive the permitted value and call `Fluxzero.assertAndApply(new TicketOpened(...))` instead. The update's pure
+`@Apply` must persist only that safe derived value. `@LocalOnly` prevents external command dispatch, not durable Model
+writes inside the handler; those events still require protected references.
+
 ## Deletion happens before handler invocation
 
 The interceptor order for a dropping handler is:

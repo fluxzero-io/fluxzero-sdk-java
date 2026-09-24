@@ -18,6 +18,9 @@ import io.fluxzero.common.api.scheduling.CancelSchedule;
 import io.fluxzero.common.api.scheduling.GetSchedule;
 import io.fluxzero.common.api.scheduling.GetScheduleResult;
 import io.fluxzero.common.api.scheduling.Schedule;
+import io.fluxzero.common.api.scheduling.ScheduleWithParents;
+import io.fluxzero.common.api.scheduling.GetScheduleParents;
+import io.fluxzero.common.api.scheduling.GetScheduleParentsResult;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import lombok.AllArgsConstructor;
@@ -37,6 +40,18 @@ public class SchedulingEndpoint extends WebsocketEndpoint {
     @Handle
     CompletableFuture<Void> handle(Schedule schedule) {
         return store.schedule(schedule.getGuarantee(), schedule.getMessages().toArray(SerializedSchedule[]::new));
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(ScheduleWithParents schedule) {
+        return store.scheduleBoundToParents(schedule.getGuarantee(), schedule.getParents(),
+                                         schedule.getMessages().toArray(SerializedSchedule[]::new));
+    }
+
+    @Handle
+    CompletableFuture<GetScheduleParentsResult> handle(GetScheduleParents request) {
+        return store.bindScheduleParents(request.getParentIds())
+                .thenApply(parents -> new GetScheduleParentsResult(request.getRequestId(), parents));
     }
 
     @Handle

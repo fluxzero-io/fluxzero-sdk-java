@@ -18,6 +18,10 @@ package io.fluxzero.testserver.websocket;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Command;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
@@ -29,6 +33,7 @@ import io.fluxzero.common.api.tracking.ReadFromIndexResult;
 import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
+import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
 import io.fluxzero.common.tracking.DefaultTrackingStrategy;
 import io.fluxzero.common.tracking.InMemoryPositionStore;
 import io.fluxzero.common.tracking.MessageLogMaintenance;
@@ -39,6 +44,8 @@ import io.fluxzero.common.tracking.WebSocketTracker;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -54,6 +61,52 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     private final MessageType messageType;
     private final String topic;
     private final Consumer<WebSocketTracker> readRequestObserver;
+
+    @Override
+    protected List<TrackingWebSocketCodec> payloadCodecs() {
+        return List.of(TrackingWebSocketCodec.INSTANCE);
+    }
+
+    @Override
+    protected int estimateRequestResultBytes(RequestResult result) {
+        if (result instanceof ReadResult readResult) {
+            return ESTIMATED_RESULT_OVERHEAD_BYTES + estimateSerializedMessagesBytes(
+                    readResult.getMessageBatch() == null ? null : readResult.getMessageBatch().getMessages());
+        }
+        if (result instanceof ReadFromIndexResult readFromIndexResult) {
+            return ESTIMATED_RESULT_OVERHEAD_BYTES + estimateSerializedMessagesBytes(readFromIndexResult.getMessages());
+        }
+        return super.estimateRequestResultBytes(result);
+    }
+
+    private static int estimateSerializedMessagesBytes(List<SerializedMessage> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return 0;
+        }
+        int result = 0;
+        for (SerializedMessage message : messages) {
+            if (message == null) {
+                continue;
+            }
+            result += 128;
+            Data<byte[]> data = message.getData();
+            if (data != null) {
+                byte[] value = data.getValue();
+                result += value == null ? 0 : value.length;
+                result += estimateStringBytes(data.getType()) + estimateStringBytes(data.getFormat());
+            }
+            Metadata metadata = message.getMetadata();
+            if (metadata != null && metadata.getEntries() != null) {
+                for (Map.Entry<String, String> entry : metadata.getEntries().entrySet()) {
+                    result += estimateStringBytes(entry.getKey()) + estimateStringBytes(entry.getValue());
+                }
+            }
+            result += estimateStringBytes(message.getSource());
+            result += estimateStringBytes(message.getTarget());
+            result += estimateStringBytes(message.getMessageId());
+        }
+        return result;
+    }
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {
         this(newMaintenance(messageStore), messageType, (String) null);

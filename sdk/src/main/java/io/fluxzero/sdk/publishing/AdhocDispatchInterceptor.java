@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import lombok.SneakyThrows;
 
@@ -66,6 +67,15 @@ import java.util.stream.Stream;
 public class AdhocDispatchInterceptor implements DispatchInterceptor {
 
     @Override
+    public SerializedMessage modifySerializedMessage(SerializedMessage serialized, DeserializingMessage source,
+                                                     MessageType messageType, String topic, String namespace) {
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        DispatchInterceptor delegate = current == null ? null : current.get(messageType);
+        return delegate == null ? serialized
+                : delegate.modifySerializedMessage(serialized, source, messageType, topic, namespace);
+    }
+
+    @Override
     public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {
         return new PreparedLocalDispatch() {
             @Override
@@ -84,10 +94,11 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
      * @return An optional interceptor for the specified message type.
      */
     public static Optional<? extends DispatchInterceptor> getAdhocInterceptor(MessageType messageType) {
-        return Optional.ofNullable(delegates.get()).map(map -> map.get(messageType));
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        return Optional.ofNullable(current == null ? null : current.get(messageType));
     }
 
-    private static boolean hasAdhocInterceptor(MessageType messageType) {
+    static boolean hasAdhocInterceptor(MessageType messageType) {
         Map<MessageType, DispatchInterceptor> current = delegates.get();
         return current != null && current.get(messageType) != null;
     }
@@ -215,7 +226,10 @@ public class AdhocDispatchInterceptor implements DispatchInterceptor {
     @Override
     public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                 boolean request) {
-        getAdhocInterceptor(messageType)
-                .ifPresent(i -> i.monitorDispatch(message, messageType, topic, namespace, request));
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        DispatchInterceptor interceptor = current == null ? null : current.get(messageType);
+        if (interceptor != null) {
+            interceptor.monitorDispatch(message, messageType, topic, namespace, request);
+        }
     }
 }

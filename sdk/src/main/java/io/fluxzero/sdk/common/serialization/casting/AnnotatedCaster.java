@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.common.serialization.casting;
 
 import io.fluxzero.common.api.SerializedObject;
+import io.fluxzero.common.api.SerializedMessage;
 import lombok.Getter;
 
 import java.lang.reflect.Method;
@@ -61,7 +62,9 @@ public class AnnotatedCaster<T> {
      */
     @SuppressWarnings("unchecked")
     public <S extends SerializedObject<T>> Stream<S> cast(S input) {
-        return parameters.type().equals(input.data().getType()) && parameters.revision() == input.data().getRevision()
+        boolean matchingType = input instanceof SerializedMessage message
+                ? message.typeEquals(parameters.type()) : parameters.type().equals(input.getType());
+        return matchingType && parameters.revision() == input.getRevision()
                 ? (Stream<S>) castFunction.apply(input) : Stream.of(input);
     }
 

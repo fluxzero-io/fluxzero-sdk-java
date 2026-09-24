@@ -166,6 +166,22 @@ class TestServerTest {
     }
 
     @Test
+    void typedGzipResponseRoundTripsOverWebsocket() {
+        testFixture.registerHandlers(new Object() {
+            @HandleGet("/gzip-reply")
+            CompressedReply handle() {
+                return new CompressedReply("a".repeat(3000));
+            }
+        }).whenWebRequest(WebRequest.get("/gzip-reply").header("Accept-Encoding", "gzip").build())
+                .expectWebResult(r -> r.<CompressedReply>getPayloadAs(CompressedReply.class)
+                        .equals(new CompressedReply("a".repeat(3000))))
+                .expectNoErrors();
+    }
+
+    private record CompressedReply(String text) {
+    }
+
+    @Test
     void pathParameterDecodesOnceOverWebsocket() {
         testFixture.registerHandlers(new Object() {
             @HandleGet("/path-proof/{id}")
@@ -196,22 +212,6 @@ class TestServerTest {
     }
 
     private record DocumentRevision(String id, int revision) {
-    }
-
-    @Test
-    void typedGzipResponseRoundTripsOverWebsocket() {
-        testFixture.registerHandlers(new Object() {
-            @HandleGet("/gzip-reply")
-            CompressedReply handle() {
-                return new CompressedReply("a".repeat(3000));
-            }
-        }).whenWebRequest(WebRequest.get("/gzip-reply").header("Accept-Encoding", "gzip").build())
-                .expectWebResult(r -> r.<CompressedReply>getPayloadAs(CompressedReply.class)
-                        .equals(new CompressedReply("a".repeat(3000))))
-                .expectNoErrors();
-    }
-
-    private record CompressedReply(String text) {
     }
 
     @Test

@@ -4,11 +4,13 @@ Co-locate sortable model paths with the query that uses them:
 
 ```java
 import io.fluxzero.common.search.Sortable;
-import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.EntityId;
 
-@Aggregate(searchable = true)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record Project(
-        ProjectId projectId,
+        @EntityId ProjectId projectId,
         @Sortable String name,
         String description,
         ProjectStatus status) {
@@ -52,7 +54,7 @@ Supported indexing choices:
 
 | Model | How it becomes searchable | Use it for |
 | --- | --- | --- |
-| Aggregate state | Set `@Aggregate(searchable = true)`; aggregate updates then maintain the document | Current domain state that is also a consistency boundary |
+| Model state | Include `ModelPersistence.DOCUMENT`; successful Model commits maintain the public direct document synchronously | Independent current domain state |
 | Stateful projection | `@Stateful` is searchable and maintains its projection document | Event-driven read models with explicit lifecycle/state |
 | Plain read-model record | Add `@Searchable` plus `@EntityId` and call `Fluxzero.index(value)`, or call `Fluxzero.index(value, stableId, collection)` with an explicit ID and collection | Release notes, denormalized views, and durable query projections that do not need aggregate behavior |
 | Transient socket update | Send through `SocketSession`; do not index it unless the product also requires searchable history | Live delivery only |
@@ -63,7 +65,7 @@ Never discard the `CompletableFuture<Void>` returned by `Fluxzero.index(...)` fr
 
 Use the search builder for match/query filters, time windows, logical groups, pagination, sorting, async results, aggregations, facets, histograms, and stats. Keep this logic server-side in a query handler instead of rebuilding it in clients. Read complete lists and pagination before returning a capped `List<T>`: an inaccessible fixed maximum is not pagination and cannot satisfy “all/current” contracts. Read facet filters and counts when a response needs categorical value counts or exact facet filtering; it maps `@Facet`, `matchFacet(...)`, and `facetStats()` with a concrete test.
 
-Fields used for sorting, quantity filters, and existence filters need `@Sortable`. Put it on the field/getter that owns the exact path used by `sortBy(...)`, `between(...)`, or existence constraints; every literal `sortBy("field")` in a query should have a visible matching `@Sortable` model property. Default runtime sort is newest first by timestamp, and sortable paths are indexed for performance. Search is eventually consistent, so command success does not guarantee that a secondary search projection is visible immediately.
+Fields used for sorting, quantity filters, and existence filters need `@Sortable`. Put it on the field/getter that owns the exact path used by `sortBy(...)`, `between(...)`, or existence constraints; every literal `sortBy("field")` in a query should have a visible matching `@Sortable` model property. Default runtime sort is newest first by timestamp, and sortable paths are indexed for performance. Public direct Model documents are synchronous with successful Model commit completion. Separate secondary projections (including default Graph projections) may remain eventually consistent; do not confuse those completion boundaries.
 
 For compound ordering, sort keys are applied from left to right: the first `sortBy(...)` is primary and later calls are
 tie-breakers. Read compound search sorting when a query chains keys, uses a derived technical rank, or must keep that

@@ -23,6 +23,7 @@ import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -51,6 +52,9 @@ import static io.fluxzero.common.search.Document.Path.isLongPath;
  * <p><strong>Path filtering:</strong> The {@link #pathFilters} field lets you restrict which fields are included in
  * each search hit, using glob-like syntax (e.g., {@code details/name}, {@code -private/**} to exclude sensitive paths).
  * Filtering is applied using {@link #computePathFilter()}.
+ * <p><strong>ID filtering:</strong> A non-empty {@link #documentIds} list restricts results to those exact document
+ * IDs. A null or empty list leaves IDs unrestricted for wire compatibility. Graph-search handlers return an empty
+ * result directly when relationship traversal produces no candidates.
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
@@ -65,6 +69,30 @@ public class SearchDocuments extends Request {
     List<String> pathFilters = Collections.emptyList();
     int skip;
     SerializedDocument lastHit;
+    List<String> documentIds;
+
+    /**
+     * Retains the original constructor descriptor for clients compiled before exact document-ID filtering was added.
+     */
+    SearchDocuments(SearchQuery query, List<String> sorting, Integer maxSize,
+                    List<String> pathFilters, int skip, SerializedDocument lastHit) {
+        this(query, sorting, maxSize, pathFilters, skip, lastHit, null);
+    }
+
+    @ConstructorProperties({
+            "query", "sorting", "maxSize", "pathFilters", "skip",
+            "lastHit", "documentIds"})
+    SearchDocuments(SearchQuery query, List<String> sorting, Integer maxSize,
+                    List<String> pathFilters, int skip, SerializedDocument lastHit,
+                    List<String> documentIds) {
+        this.query = query;
+        this.sorting = sorting;
+        this.maxSize = maxSize;
+        this.pathFilters = pathFilters;
+        this.skip = skip;
+        this.lastHit = lastHit;
+        this.documentIds = documentIds;
+    }
 
     /**
      * Computes a path-level filter based on the {@link #pathFilters} list.

@@ -46,7 +46,7 @@ Use `@HandleMetrics` to consume host, SDK, or custom metric payloads.
 ```kotlin
 @HandleMetrics
 fun on(metrics: HostMetrics) {
-    // Forward to monitoring, aggregate dashboards, or log summaries.
+    // Forward to monitoring, dashboards, or log summaries.
 }
 
 @HandleMetrics
@@ -97,15 +97,27 @@ runtime when a client connects or disconnects a WebSocket session.
 
 `HandlerMonitor` and `TrackerMonitor` are the SDK components that publish the standard handler and tracker metrics.
 
-### Events and Relationships
+### Model commits
+
+| Metric | Meaning |
+|:-------|:--------|
+| `CommitModels` | Commits one package of model events, documents, snapshots and relationship deltas. |
+| `CommitModelsResult$Metric` | Reports accepted, duplicate, rebase and conflict outcomes. |
+| `GetModelEvents` | Batch-loads modelstream memberships at one state boundary. |
+| `GetModelEventsResult$Metric` | Reports stream, payload, membership and byte counts. |
+| `GetModelGraph` / `GetModelGraphResult$Metric` | Loads a bounded current or historical model graph. |
+| `GetModelAncestors` | Resolves bounded temporal ancestor dependencies. |
+| `PlanModelDeletion` / `DeleteModel` | Plans or executes model hard deletion. |
+
+### Legacy aggregate events and relationships
 
 | Metric                 | Meaning |
 |:-----------------------|:--------|
-| `AppendEvents`         | Events were appended to an aggregate. |
-| `GetEvents`            | Requests events for an aggregate. |
+| `AppendEvents`         | Legacy aggregate events were appended. |
+| `GetEvents`            | Requests legacy aggregate events. |
 | `GetEventsResult$Metric` | Runtime response metrics for `GetEvents`. |
-| `DeleteEvents`         | Deletes events for an aggregate. |
-| `UpdateRelationships`  | Updates entity-aggregate relationships. |
+| `DeleteEvents`         | Deletes legacy aggregate events. |
+| `UpdateRelationships`  | Updates legacy entity-root relationships. |
 | `RepairRelationships`  | Repairs relationship consistency. |
 | `GetAggregateIds`      | Requests aggregate IDs for an entity. |
 | `GetAggregateIdsResult` | Returns aggregate IDs for an entity. |

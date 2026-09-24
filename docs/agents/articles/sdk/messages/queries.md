@@ -4,7 +4,7 @@ Use a query for read-only work. A query should implement `Request<T>` so the ret
 public record GetProject(ProjectId projectId) implements Request<Project> {
     @HandleQuery
     Project handle() {
-        return Fluxzero.loadAggregate(projectId).get();
+        return Fluxzero.loadModel(projectId).get();
     }
 }
 ```
@@ -15,8 +15,11 @@ Standalone query handlers can be Spring components. Include the typed query payl
 
 `@HandleQuery` defaults `skipExpiredRequests` to `true`. That is usually correct for reads because older indexed requests can be stale by the time a replay reaches them.
 
-Keep query handlers read-only. They may load aggregates, read documents, or search, but they should not apply updates or publish side effects.
+Keep query handlers read-only. They may load Models, read documents, or search, but they should not apply updates or publish side effects.
 
 Prefer dedicated query payloads over static utility methods for reusable reads. A standalone query without `@LocalHandler` still participates in normal tracking and request handling; use `@LocalHandler` only when local synchronous execution is the intended behavior.
 
 For lightweight local caching in self-handling commands or queries, use `Fluxzero.memoize(...)` or `Fluxzero.memoizeIfAbsent(...)` instead of ad hoc static caches.
+
+These examples assume `@Model` state. For existing persisted aggregates, keep their aggregate loading API until a
+deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.

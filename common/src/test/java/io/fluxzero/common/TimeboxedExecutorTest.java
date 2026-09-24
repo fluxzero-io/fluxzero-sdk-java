@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -35,12 +36,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TimeboxedExecutorTest {
 
     @Test
+    void defaultExecutorUsesVirtualThreadsAndClosesOwnedExecutor() throws Exception {
+        TimeboxedExecutor executor = new TimeboxedExecutor();
+        try {
+            Thread worker = executor.callAndWait(Thread::currentThread, Duration.ofSeconds(5));
+            assertTrue(worker.isVirtual());
+            assertTrue(worker.getName().startsWith("timeboxed-"));
+        } finally {
+            executor.close();
+        }
+        assertThrows(RejectedExecutionException.class,
+                     () -> executor.callAndWait(() -> "closed", Duration.ofSeconds(5)));
+    }
+
+    @Test
     void callAndWaitInterruptsAnActiveTaskOnTimeout() throws Exception {
         CountDownLatch taskStarted = new CountDownLatch(1);
         CountDownLatch taskRelease = new CountDownLatch(1);
         CountDownLatch taskInterrupted = new CountDownLatch(1);
         ExecutorService executor = new StartAwaitingExecutor(taskStarted);
-        try (TimeboxedExecutor timeboxedExecutor = new TimeboxedExecutor(executor)) {
+        TimeboxedExecutor timeboxedExecutor = new TimeboxedExecutor(executor);
+        try {
             assertThrows(TimeoutException.class, () -> timeboxedExecutor.callAndWait(() -> {
                 taskStarted.countDown();
                 try {
@@ -53,6 +69,10 @@ class TimeboxedExecutorTest {
             }, Duration.ZERO));
 
             assertTrue(taskInterrupted.await(1, TimeUnit.SECONDS));
+        } finally {
+            taskRelease.countDown();
+            timeboxedExecutor.close();
+            assertTrue(executor.awaitTermination(1, TimeUnit.SECONDS));
         }
     }
 

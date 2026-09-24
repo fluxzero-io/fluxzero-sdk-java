@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HandlerInterceptorTest {
 
@@ -147,12 +148,13 @@ class HandlerInterceptorTest {
     void releasesPreparedHandlerAfterCachingMethodPolicy() throws InterruptedException {
         WeakReference<Handler<DeserializingMessage>> reference = preparedHandlerReference();
 
-        for (int i = 0; i < 20 && reference.get() != null; i++) {
+        // Do not create a temporary strong reference across the collection request itself.
+        for (int i = 0; i < 20 && !reference.refersTo(null); i++) {
             System.gc();
             Thread.sleep(10);
         }
 
-        assertNull(reference.get(), "The prepared policy cache should not retain its owning handler");
+        assertTrue(reference.refersTo(null), "The prepared policy cache should not retain its owning handler");
     }
 
     private static WeakReference<Handler<DeserializingMessage>> preparedHandlerReference() {

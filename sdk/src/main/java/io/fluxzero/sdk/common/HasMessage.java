@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValue;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedPropertyValueOrNull;
 import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.sdk.common.ClientUtils.memoize;
 
@@ -137,8 +137,9 @@ public interface HasMessage extends HasMetadata {
             return getRoutingKey(typeAnnotation.value());
         }
         if (m.getPayload() != null) {
-            routingValue = getAnnotatedPropertyValue(
-                    m.getPayload(), RoutingKey.class).map(Object::toString).orElse(null);
+            Object annotatedValue = getAnnotatedPropertyValueOrNull(
+                    m.getPayload(), RoutingKey.class);
+            routingValue = annotatedValue == null ? null : annotatedValue.toString();
         }
         if (routingValue == null && m instanceof Schedule) {
             routingValue = ((Schedule) m).getScheduleId();

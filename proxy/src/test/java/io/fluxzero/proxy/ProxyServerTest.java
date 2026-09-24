@@ -18,7 +18,6 @@ package io.fluxzero.proxy;
 import com.sun.net.httpserver.HttpServer;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
@@ -27,6 +26,12 @@ import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.FilterContent;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.Parent;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -61,6 +66,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -80,6 +86,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -129,6 +136,50 @@ class ProxyServerTest {
 
     @Nested
     class Basic {
+
+        @Test
+        void composedGraphResponseRetainsFilteredJsonThroughHttpProxy() {
+            testFixture.registerHandlers(new Object() {
+                        @HandleGet("/graph-response") @FilterContent
+                        CompletableFuture<Graph<WebGraphRoot>> get() {
+                            return CompletableFuture.completedFuture(Fluxzero.loadGraph("root", WebGraphRoot.class));
+                        }
+                    }).givenCommands(new CreateWebGraph("root"))
+                    .whenApplying(fc -> httpClient.send(
+                            newBuilder(URI.create(format("http://localhost:%s/graph-response", proxyPort)))
+                                    .header("Accept-Encoding", "gzip").GET().build(), BodyHandlers.ofByteArray()))
+                    .verifyResult(response -> {
+                        assertEquals(200, response.statusCode());
+                        assertEquals("gzip", response.headers().firstValue("Content-Encoding").orElseThrow());
+                        var json = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                                CompressionAlgorithm.GZIP.decompress(response.body()),
+                                com.fasterxml.jackson.databind.JsonNode.class);
+                        assertEquals("root", json.path("id").asText());
+                        assertEquals("x".repeat(3000), json.path("description").asText());
+                        assertEquals(1, json.path("children").size());
+                        assertEquals("visible", json.path("children").get(0).path("id").asText());
+                        assertFalse(json.has("stateIndex"));
+                    }).expectNoErrors();
+        }
+
+        @Test
+        void httpOnlyProxyCannotShareAnOccupiedLoopbackPort() throws Exception {
+            try (ServerSocket occupied = new ServerSocket()) {
+                occupied.setReuseAddress(true);
+                occupied.bind(new InetSocketAddress("127.0.0.1", 0));
+                var unexpected = new java.util.concurrent.atomic.AtomicReference<ProxyServer>();
+                try {
+                    // macOS permits wildcard and specific-address listeners to share a port with SO_REUSEADDR.
+                    // Clients targeting loopback would then reach the unrelated, more specific listener.
+                    Throwable failure = assertThrows(IllegalStateException.class, () -> unexpected.set(ProxyServer.startHttpProxyOnly(
+                            occupied.getLocalPort(), new ProxyRequestHandler(testFixture.getFluxzero().client()))));
+                    while (failure.getCause() != null) { failure = failure.getCause(); }
+                    org.junit.jupiter.api.Assertions.assertInstanceOf(java.net.BindException.class, failure);
+                } finally {
+                    if (unexpected.get() != null) { unexpected.get().cancel(); }
+                }
+            }
+        }
 
         @Test
         void healthCheck() {
@@ -730,8 +781,13 @@ class ProxyServerTest {
                         .whenApplying(fc -> httpClient.send(
                                 newBuilder(URI.create(format(
                                         "http://localhost:%s/configured-timeout", configuredPort)))
-                                        .GET().build(), BodyHandlers.ofString()).body())
-                        .expectResult("configured");
+                                        .GET().build(), BodyHandlers.ofString()))
+                        .<java.net.http.HttpResponse<String>>expectResult(response -> {
+                            assertEquals(200, response.statusCode(), () -> "Unexpected proxy response: "
+                                    + response.version() + " " + response.headers().map() + " " + response.body());
+                            return "configured".equals(response.body());
+                        })
+                        .expectNoErrors();
             } finally {
                 if (configuredProxyServer != null) {
                     configuredProxyServer.cancel();
@@ -857,7 +913,7 @@ class ProxyServerTest {
 
                 assertEquals(37, configuredProxyServer.getMaxThreads());
                 assertEquals(3, configuredProxyServer.getMinThreads());
-                assertEquals(ObjectUtils.supportsVirtualThreadWorkers(), configuredProxyServer.isUsingVirtualThreads());
+                assertTrue(configuredProxyServer.isUsingVirtualThreads());
             } finally {
                 if (configuredProxyServer != null) {
                     configuredProxyServer.cancel();
@@ -1940,22 +1996,27 @@ class ProxyServerTest {
         }
 
         @Test
-        void closeSocketExternally() {
+        void closeSocketExternally() throws Exception {
             CountDownLatch socketClosed = new CountDownLatch(1);
+            CompletableFuture<String> closeResult = new CompletableFuture<>();
+            AtomicInteger handledCloseReason = new AtomicInteger(-1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketClose("/")
                         void close(Integer reason) {
-                            Fluxzero.publishEvent("ws closed with " + reason);
+                            handledCloseReason.set(reason);
                             socketClosed.countDown();
                         }
                     })
-                    .whenApplying(openSocketAnd(ws -> {
+                    .whenApplying(fc -> {
+                        WebSocket ws = openSocket(closeResult);
                         await(ws.sendClose(1000, "bla"));
                         assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
                                    "Timed out waiting for the websocket close handler");
-                    }))
-                    .expectResult("1000")
-                    .expectEvents("ws closed with 1000");
+                        return null;
+                    })
+                    .expectNoErrors();
+            assertEquals(1000, handledCloseReason.get());
+            assertEquals("1000", closeResult.get(5, TimeUnit.SECONDS));
         }
 
         @Test
@@ -2197,7 +2258,9 @@ class ProxyServerTest {
                 testFixture
                         .whenApplying(fc -> httpClient.send(request, BodyHandlers.ofString()))
                         .verifyResult(resp -> {
-                            assertEquals(413, resp.statusCode());
+                            assertEquals(413, resp.statusCode(), () -> "Unexpected proxy response: "
+                                    + resp.version() + " " + resp.headers().map() + " " + resp.body()
+                                    + " handler=" + proxyRequestHandler.diagnostics);
                             assertEquals("Request body is too large", resp.body());
                             assertEquals(List.of("https://app.example.com"),
                                          resp.headers().allValues("Access-Control-Allow-Origin"));
@@ -2206,6 +2269,31 @@ class ProxyServerTest {
                         });
             } finally {
                 proxyRequestHandler.setMaxRequestBodySize(ProxyServer.DEFAULT_MAX_REQUEST_BODY_SIZE);
+            }
+        }
+
+        @Test
+        void oversizedBodyIsRejectedBeforeItArrivesWithOrWithoutUpgradeHeaders() throws Exception {
+            proxyRequestHandler.setMaxRequestBodySize(8);
+            for (boolean upgrade : List.of(false, true)) {
+                try (Socket socket = new Socket("127.0.0.1", proxyPort)) {
+                    socket.setSoTimeout(3000);
+                    String headers = "POST /too-large HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n"
+                            + "Origin: https://app.example.com\r\n"
+                            + (upgrade ? "Connection: Upgrade, HTTP2-Settings\r\nUpgrade: h2c\r\nHTTP2-Settings: AAMAAABk\r\n"
+                                       : "Connection: close\r\n") + "\r\n";
+                    socket.getOutputStream().write(headers.getBytes(StandardCharsets.US_ASCII));
+                    socket.getOutputStream().flush();
+                    // Deliberately do not send the announced body: rejection must not wait for it.
+                    var reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+                    assertEquals("HTTP/1.1 413 Payload Too Large", reader.readLine());
+                    List<String> responseHeaders = new ArrayList<>();
+                    for (String line; (line = reader.readLine()) != null && !line.isEmpty(); ) {
+                        responseHeaders.add(line);
+                    }
+                    assertTrue(responseHeaders.stream().anyMatch(line -> line.equalsIgnoreCase(
+                            "Access-Control-Allow-Origin: https://app.example.com")), responseHeaders::toString);
+                }
             }
         }
 
@@ -2349,44 +2437,95 @@ class ProxyServerTest {
         return payload;
     }
 
+    @Test
+    void smallPartsPublisherPreservesBytesWithReentrantDemand() {
+        byte[] payload = requestPayload(29);
+        var received = new ByteArrayOutputStream();
+        var completed = new AtomicInteger();
+        var publisher = chunkedBodyPublisher(payload, 3);
+        assertEquals(payload.length, publisher.contentLength());
+        publisher.subscribe(new Flow.Subscriber<>() {
+            private Flow.Subscription subscription;
+
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                this.subscription = subscription;
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(ByteBuffer item) {
+                assertTrue(item.remaining() <= 3);
+                byte[] bytes = new byte[item.remaining()];
+                item.get(bytes);
+                received.writeBytes(bytes);
+                // Bound a broken publisher too, so duplication fails without overflowing the stack.
+                if (received.size() < payload.length * 2) {
+                    subscription.request(1);
+                }
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                throw new AssertionError(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                completed.incrementAndGet();
+            }
+        });
+        assertArrayEquals(payload, received.toByteArray());
+        assertEquals(1, completed.get());
+    }
+
     private static HttpRequest.BodyPublisher chunkedBodyPublisher(byte[] payload, int publisherChunkSize) {
-        return new HttpRequest.BodyPublisher() {
-            @Override
-            public long contentLength() {
-                return payload.length;
-            }
+        List<byte[]> parts = new ArrayList<>();
+        for (int offset = 0; offset < payload.length; offset += publisherChunkSize) {
+            parts.add(Arrays.copyOfRange(payload, offset, Math.min(payload.length, offset + publisherChunkSize)));
+        }
+        return BodyPublishers.fromPublisher(BodyPublishers.ofByteArrays(parts), payload.length);
+    }
 
-            @Override
-            public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
-                subscriber.onSubscribe(new Flow.Subscription() {
-                    private int offset;
-                    private boolean completed;
+    @Model
+    record WebGraphRoot(@EntityId String id, String description) {}
 
-                    @Override
-                    public void request(long n) {
-                        long remainingDemand = n;
-                        while (remainingDemand-- > 0 && offset < payload.length && !completed) {
-                            int length = Math.min(publisherChunkSize, payload.length - offset);
-                            subscriber.onNext(ByteBuffer.wrap(Arrays.copyOfRange(payload, offset, offset + length)));
-                            offset += length;
-                        }
-                        if (offset >= payload.length && !completed) {
-                            completed = true;
-                            subscriber.onComplete();
-                        }
-                    }
+    @Model
+    record WebGraphChild(@EntityId String id,
+                         @Parent(types = WebGraphRoot.class, pathInParent = "children") String rootId) {
+        @FilterContent
+        WebGraphChild filter() { return id.equals("visible") ? this : null; }
+    }
 
-                    @Override
-                    public void cancel() {
-                        completed = true;
-                    }
-                });
-            }
-        };
+    record CreateWebGraph(String id) {
+        @Apply WebGraphRoot root() { return new WebGraphRoot(id, "x".repeat(3000)); }
+        @Apply List<WebGraphChild> children() {
+            return List.of(new WebGraphChild("visible", id), new WebGraphChild("hidden", id));
+        }
     }
 
     private static class TestProxyRequestHandler extends ProxyRequestHandler {
         private volatile CountDownLatch responseFailure = new CountDownLatch(0);
+        final List<String> diagnostics = new CopyOnWriteArrayList<>();
+
+        @Override
+        public boolean handle(org.eclipse.jetty.server.Request request, org.eclipse.jetty.server.Response response,
+                              org.eclipse.jetty.util.Callback callback) {
+            diagnostics.add("handle " + request.getMethod() + " " + request.getHttpURI());
+            return super.handle(request, response, new org.eclipse.jetty.util.Callback.Nested(callback) {
+                @Override public void failed(Throwable failure) {
+                    diagnostics.add("failed " + failure);
+                    log.error("Proxy test callback failed", failure);
+                    super.failed(failure);
+                }
+            });
+        }
+
+        @Override
+        protected void sendResponse(JettyExchange exchange, int status, String body) {
+            diagnostics.add("response " + status);
+            super.sendResponse(exchange, status, body);
+        }
 
         TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client) {
             super(client);

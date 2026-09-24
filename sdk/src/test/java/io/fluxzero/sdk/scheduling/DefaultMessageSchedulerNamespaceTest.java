@@ -51,6 +51,7 @@ class DefaultMessageSchedulerNamespaceTest {
                 .thenReturn(CompletableFuture.completedFuture(null));
         DefaultMessageScheduler scheduler = new DefaultMessageScheduler(
                 customClient, new JacksonSerializer(), DispatchInterceptor.noOp, DispatchInterceptor.noOp,
+                java.util.function.UnaryOperator.identity(),
                 taskScheduler, localHandlers);
 
         scheduler.schedule(new Schedule("payload", "schedule", Instant.now().plusSeconds(60)),

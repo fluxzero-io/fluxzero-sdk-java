@@ -14,6 +14,17 @@ cd fluxzero-sdk-java
 ./mvnw -B install
 ```
 
+The full build runs every test, including the Java/Kotlin downstream projects.
+The SDK uses four isolated test JVMs; Test Server and Proxy use two each, and
+smaller modules use one. Each JVM has a 768 MiB heap cap. Use `-Dtest.forks=1`
+on a smaller machine, or override JVM options with `-Dtest.jvmArgs="-Xmx768m ..."`.
+Nested JUnit tests run through their enclosing class, not again as independent
+fork roots. Targeted commands such as `./mvnw -pl sdk -am test` continue to run tests.
+
+Test output and XML reports are kept in each module's `target/surefire-reports`;
+CI preserves them in the `test-reports` artifact even when the build fails.
+Assertion failures and build status remain visible in the Maven console.
+
 ## Open a pull request
 
 Tell us what changed and why. Add or update tests when behavior changes, and update the documentation when people need to use the SDK differently. Keeping a pull request focused usually makes review easier, but related cleanup is fine when it helps explain or complete the change.

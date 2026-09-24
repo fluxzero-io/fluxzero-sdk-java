@@ -73,7 +73,7 @@ public class DefaultIndexOperation implements IndexOperation {
     public static DefaultIndexOperation prepare(DocumentStore documentStore, @NonNull Object object) {
         Class<?> objectType = object instanceof Entity<?> e ? e.type() : object.getClass();
         var searchParams = ofNullable(getSearchParameters(objectType)).orElse(defaultSearchParameters);
-        String collection = ofNullable(searchParams.getCollection()).orElseGet(objectType::getSimpleName);
+        String collection = documentStore.determineCollection(objectType);
         String idPath = object instanceof Entity<?> e ? e.idProperty() : getAnnotatedPropertyName(object, EntityId.class).orElse(null);
         return prepare(documentStore, object, collection, idPath,
                        searchParams.getTimestampPath(), searchParams.getEndPath());

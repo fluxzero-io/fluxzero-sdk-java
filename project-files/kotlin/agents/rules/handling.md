@@ -43,77 +43,57 @@ eliminates infrastructure boilerplate and ensures your logic is consistent, test
 
 Used for messages that intend to change state.
 
-**Example: Self-Handling Command (Interface Pattern)**
+**Automatic model commands**
 
-Recommended for updates to aggregates. Combined with `@TrackSelf` to ensure asynchronous tracking. The `@Consumer`
-annotation creates an isolated named consumer, allowing this command type to be tracked and processed independently.
+Commands that define model `@Apply` methods need no `@HandleCommand`. Fluxzero resolves typed IDs and performs the
+model commit automatically. Use `@Consumer` only for an explicit consumer override.
 
-[//]: # (@formatter:off)
-```kotlin
-@TrackSelf
-@Consumer(name = "user-update")
-interface UserUpdate {
-    @NotNull
-    @RoutingKey
-    fun userId(): UserId
-
-    @HandleCommand
-    fun handle(): UserProfile {
-        return Fluxzero.loadAggregate(userId())
-            .assertAndApply(this)
-            .get()
-    }
-}
-```
-[//]: # (@formatter:on)
-
-**Example: Creating, Updating, and Deleting Aggregates**
+**Example: Creating, Updating, and Deleting Models**
 
 [//]: # (@formatter:off)
 ```kotlin
-// 1. Create Aggregate
-data class CreateProject(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) : ProjectUpdate {
+// 1. Create model
+data class CreateProject(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) {
     @Apply
     fun apply(): Project {
         return Project(projectId = projectId, details = details)
     }
 }
 
-// 2. Update Aggregate
-data class UpdateProjectDetails(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) : ProjectUpdate {
+// 2. Update model
+data class UpdateProjectDetails(val projectId: ProjectId, @field:NotNull @field:Valid val details: ProjectDetails) {
     @Apply
     fun apply(project: Project): Project {
         return project.copy(details = details)
     }
 }
 
-// 3. Delete Aggregate
-data class DeleteProject(val projectId: ProjectId) : ProjectUpdate {
+// 3. Logically delete model
+data class DeleteProject(val projectId: ProjectId) {
     @Apply
     fun apply(project: Project): Project? {
-        return null // Clears the aggregate value (but leaves the stored events)
+        return null // Clears current state but preserves model events
     }
 }
 ```
 [//]: # (@formatter:on)
 
-**Example: Creating, Updating, and Deleting Sub-Entities**
+**Example: Independently stored child model**
 
-Sub-Entities can be added without modifying the parent aggregate directly. Fluxzero will take of updating the parent
-aggregate's state automatically.
+Use `@Parent` on the child model. Creating or updating it does not rewrite the parent.
 
 [//]: # (@formatter:off)
 ```kotlin
-// 1. Create Sub-Entity (Task within Project)
-data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) : ProjectUpdate {
+// Task is @Model and has @Parent(pathInParent = "tasks") ProjectId projectId.
+data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) {
     @Apply
     fun apply(): Task {
-        return Task(taskId = taskId, details = details)
+        return Task(taskId = taskId, projectId = projectId, details = details)
     }
 }
 
 // 2. Update Sub-Entity
-data class UpdateTaskStatus(val projectId: ProjectId, @field:NotNull val taskId: TaskId, val completed: Boolean) : ProjectUpdate {
+data class UpdateTaskStatus(@field:NotNull val taskId: TaskId, val completed: Boolean) {
     @Apply
     fun apply(task: Task): Task {
         return task.copy(completed = completed)
@@ -121,7 +101,7 @@ data class UpdateTaskStatus(val projectId: ProjectId, @field:NotNull val taskId:
 }
 
 // 3. Delete Sub-Entity
-data class RemoveTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId) : ProjectUpdate {
+data class RemoveTask(@field:NotNull val taskId: TaskId) {
     @Apply
     fun apply(task: Task): Task? {
         return null // Deletes the entity
@@ -132,7 +112,8 @@ data class RemoveTask(val projectId: ProjectId, @field:NotNull val taskId: TaskI
 
 **Example: Standalone Command Handler**
 
-Used for actions that don't directly target an aggregate's state (e.g., sending an external notification).
+Used for orchestration or actions that do not define a model transition. An explicit handler that does update models
+should call `Fluxzero.assertAndApply(update)` once.
 
 [//]: # (@formatter:off)
 ```kotlin
@@ -161,7 +142,7 @@ Prefer creating a dedicated query payload (with `@HandleQuery`) for data retriev
 data class GetProjectDetails(@field:NotNull val projectId: ProjectId) : Request<Project> {
     @HandleQuery
     fun handleQuery(): Project {
-        return Fluxzero.loadAggregate(projectId).get()
+        return Fluxzero.loadModel(projectId).get()
     }
 }
 
@@ -177,7 +158,7 @@ val project = Fluxzero.query(GetProjectDetails(myId))
 data class GetUserProfile(@field:NotNull val userId: UserId) : Request<UserProfile> {
     @HandleQuery
     fun handleQuery(): UserProfile {
-        return Fluxzero.loadAggregate(userId).get()
+        return Fluxzero.loadModel(userId).get()
     }
 }
 ```
@@ -200,7 +181,7 @@ in the publication thread. Without `@LocalHandler`, a standalone handler default
 class UserQueryHandler {
     @HandleQuery
     fun handle(query: GetUserProfile): UserProfile {
-        return Fluxzero.loadAggregate(query.userId).get()
+        return Fluxzero.loadModel(query.userId).get()
     }
 }
 ```
@@ -236,12 +217,37 @@ Used for side effects like sending emails or updating secondary projections with
 @Component
 class AnalyticsHandler {
     @HandleEvent
-    fun handle(event: CreateOrder) {
-        // Asynchronous logic
+    fun handle(
+        event: CreateOrder,
+        order: Order,
+        graph: Graph<Order>
+    ) {
+        // Exact state after this model event.
     }
 }
 ```
 [//]: # (@formatter:on)
+
+Directly addressed models and their parents, grandparents or further ancestors can be injected as `T` or `Graph<T>`.
+A singular Model-returning `@Apply` may update an injected parent or further ancestor through the existing `@Parent`
+relation. A directly supplied write-target ID keeps precedence; when none exists, the selected ancestor supplies the
+write identity without duplicating its ID in the command. Merely injecting an ancestor does not update it. Selection
+uses the pinned state before applying the changes, so a command may delete a child and update its parent atomically.
+Ambiguous ancestors must be qualified with `@Association("parentPath")`; replay retains the corresponding dependencies.
+
+For events and notifications carrying a model-commit boundary, Fluxzero loads the exact historical model state and
+relations for that event. Use `@Association("property")` to select another payload or metadata ID or to qualify an
+ancestor path; add `excludeMetadata = true` to require the payload. `Graph<T>` can be empty after logical deletion;
+bare non-null `T` only matches a present model. Ordinary indexed events without a model-commit boundary resolve
+directly addressed Models at one current pinned boundary. If an Aggregate-to-Model migration linked that global event,
+the same parameters resolve its exact historical Model boundary. During live catch-up, configure the owning
+`ModelRepository` with `followPublishedEventMigration(theStableConsumerName)`: only a missing mapping consults the
+durable consumer position, waits while it is behind and retries the exact boundary after catch-up.
+
+The same parameters work in command, query, schedule, result, error, metrics, document, custom and web handlers when
+their payload or metadata addresses at least one model. Those non-event handlers use one current handler load context.
+Event-sourced models share its pinned repository boundary; document-loaded models remain current-only direct-document
+reads.
 
 #### @HandleNotification
 
@@ -317,11 +323,6 @@ annotated with `@Searchable(collection = "...")`, that collection is used; other
 used. Use `@HandleDocument(documentClass = OrderDocument::class)` when the document type cannot be inferred from the
 first parameter, and `@HandleDocument("orders")` when binding directly to a collection name.
 
-### Retroactive Updates
-
-If you need to retroactively update a collection of documents or handle errors in historical data, you can use the
-Replay mechanism. See [Tracking: Replays](tracking.md#replays) for more details.
-
 #### @HandleError
 
 Used for error monitoring or handling.
@@ -392,7 +393,12 @@ The following table summarizes how handlers are categorized and configured:
 |                                 | **Self-Handling**: `@TrackSelf`         | Isolated via `@Consumer`.                           |
 |                                 | **Stateful**: `@Stateful`               | For sagas and long-running processes.               |
 | **Local** (Sync/In-thread)      | **Standalone**: `@LocalHandler`         | Handled in the publication thread.                  |
-|                                 | **Self-Handling**: Plain `@HandleQuery` | Optionally add `@LocalHandler` for settings.        |
+|                                 | **Self-Handling**: Plain `@HandleCommand` or `@HandleQuery` | Optionally add `@LocalHandler` for settings.        |
+
+Use a local self-handling command/query for each external API interaction. Put its web request in the handler;
+callers dispatch the payload through Fluxzero. No injected API-service bean, `@TrackSelf`, `@Consumer` or explicit
+payload registration is required. Local dispatch leaves HTTP audit and configured transport retries intact. See
+[External Web Requests](sending.md#web-sending) for examples and the separate tracked-delivery choice.
 
 ### Handler Parameters
 
@@ -403,10 +409,15 @@ Handlers can inject various context parameters:
   MUST NOT contain user IDs.
 - **Metadata**: Key-value pairs attached to the message.
 - **Instant**: The message timestamp.
-- **Entity<T> or T**: The current state of the entity. In `@HandleEvent`, the entity is automatically played back to
-  reflect its state immediately after the event occurred.
-- **Entity<T> for optional state**: Use `Entity<T>` when the entity may not exist yet. In that case the injected wrapper
-  is present but its value is empty. Useful for upsert-style handlers and idempotent startup/replay flows.
+- **Graph<T> or T for an `@Model`**: Every handler kind can load a directly addressed model from the message payload
+  or metadata. `@HandleEvent` and `@HandleNotification` use the exact persisted model-commit boundary; other handlers
+  use the current repository context.
+- **Ancestor model parameters**: Once a descendant is addressed, its parent, grandparent, or further ancestor can be
+  injected without repeating ancestor IDs. Use parameter-level `@Association("pathOrIdProperty")` to select another
+  payload/metadata ID or to qualify an ambiguous ancestor path; `excludeMetadata = true` limits lookup to payload and
+  graph state.
+- **Graph<T> for context or optional state**: Use `Graph<T>` when the model may not exist or code needs parents,
+  descendants, history or update operations. Resolution is lazy: relationship state is read only when traversed.
 - **WebRequest / WebResponse / Schedule**: These extend `Message` and can be injected directly into handler methods when
   transport/scheduling metadata is needed.
 - **@Autowired**: Standard Spring beans.
@@ -477,7 +488,7 @@ class ProjectsEndpoint {
 class ProjectsEndpoint {
     @HandlePost
     fun createProject(details: ProjectDetails): ProjectId {
-        val id = Fluxzero.generateId(ProjectId::class)
+        val id = Fluxzero.generateId(ProjectId::class.java)
         Fluxzero.sendCommandAndWait(CreateProject(id, details))
         return id
     }
@@ -527,13 +538,23 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   It may also document fields, parameters, record components, and type arguments such as
   `List<@ApiDoc(description = "Connection item") Connection>`; prefer this over OpenAPI-specific array annotations.
   For dependency-free schema metadata, use its optional `type`, `format`, `example`, `defaultValue`, `minimum`,
-  `maximum`, `allowableValues`, `required`, `implementation`, `oneOf`, and `additionalProperties` attributes instead
+  `maximum`, `allowableValues`, `required`, `exclude`, `implementation`, `oneOf`, and `additionalProperties` attributes instead
   of Swagger `@Schema`. Use `additionalProperties = ApiDoc.AdditionalProperties.DENY` only when runtime
   deserialization rejects unknown fields, and close every alternative of a `oneOf` union separately.
 - Use repeatable `@ApiDocResponse` annotations for additional status/error responses, or to describe an inferred
   response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
-- Use `@ApiDocExclude` to exclude package/class/method endpoints or model fields/record components/parameters from
-  generated docs only; it does not disable runtime handling.
+- For a composed independent-model graph returned as `JsonNode`, select its root with
+  `@ApiDocResponse(status = 200, modelGraph = RootModel::class)`. Add
+  `apiDoc = ApiDoc(...)` next to each child model's `@Parent(pathInParent = ...)`; the final path segment is documented as a
+  list of that child model and slash-separated prefixes become nested objects. Array and collection return types remain
+  arrays whose items are complete model graphs. An empty `modelGraphPaths` selection includes every relation except
+  those with `@Parent(apiDoc = ApiDoc(exclude = true))`. Use
+  `modelGraphPaths = ["children/grandchildren"]` only for endpoint-specific subgraphs; ancestors are implicit, siblings
+  and deeper descendants are not. `type` and `modelGraph` are mutually exclusive. Runtime-served docs include registered
+  child models from other modules.
+- Use `@ApiDocExclude` or `@ApiDoc(exclude = true)` to exclude package/class/method endpoints or model
+  fields/record components/parameters from generated docs only. The `exclude` attribute also works in nested
+  `@Parent.apiDoc`; neither form changes runtime handling or returned graph data.
 - Use `@ApiDocInfo` on a package or handler type for document-level metadata such as title, version, description,
   contact, logo, servers, top-level security requirements, shared components via `@ApiDocComponent`, and top-level
   vendor extensions. Prefer this over external Swagger configuration files.
@@ -830,7 +851,7 @@ class ProjectId(id: String) : Id<Project>(id)
 ```
 [//]: # (@formatter:on)
 
-**Important**: Always use `Fluxzero.generateId(ProjectId::class)` to create new IDs.
+**Important**: Always use `Fluxzero.generateId(ProjectId::class.java)` to create new IDs.
 
 ---
 
@@ -839,4 +860,5 @@ class ProjectId(id: String) : Id<Project>(id)
 ## Common Pitfalls
 
 - **Infrastructure in Handlers**: Don't build 'services' or use SQL. Use queries or load entities directly.
-- **Aggregates Handling Messages**: Aggregates should be kept as "dumb" immutable state holders.
+- **Models Handling Messages**: Models should be kept as "dumb" immutable state holders; put transitions on update
+  payloads.

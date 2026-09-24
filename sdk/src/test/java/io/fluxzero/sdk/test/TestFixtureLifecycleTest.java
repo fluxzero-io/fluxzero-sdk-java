@@ -16,68 +16,156 @@
 
 package io.fluxzero.sdk.test;
 
+import io.fluxzero.common.TestTask;
 import io.fluxzero.sdk.Fluxzero;
 import org.junit.jupiter.api.Test;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.launcher.TestIdentifier;
+import org.junit.platform.launcher.TestPlan;
+import org.junit.platform.launcher.core.LauncherConfig;
+import org.junit.platform.launcher.core.LauncherDiscoveryRequestBuilder;
+import org.junit.platform.launcher.core.LauncherFactory;
+import org.junit.platform.launcher.listeners.SummaryGeneratingListener;
 
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.platform.engine.discovery.DiscoverySelectors.selectClass;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 
 class TestFixtureLifecycleTest {
 
     private final TestFixtureExecutionListener listener = new TestFixtureExecutionListener();
 
     @Test
-    void finishingNestedExecutionOnlyClosesNestedFixtures() throws InterruptedException {
+    void cleanupFailureFailsTheOwningJupiterTestAndStillClosesItsOtherFixtures() {
+        CleanupFailureProbe.siblingClosed.set(false);
+        var launcher = LauncherFactory.create(LauncherConfig.builder()
+                .enableTestExecutionListenerAutoRegistration(false).build());
+        var summary = new SummaryGeneratingListener();
+        launcher.registerTestExecutionListeners(new TestFixtureExecutionListener() {
+            @Override public void testPlanExecutionFinished(TestPlan plan) {
+                // This nested launcher must not close fixtures owned by the surrounding suite.
+            }
+        }, summary);
+        launcher.execute(LauncherDiscoveryRequestBuilder.request().selectors(selectClass(CleanupFailureProbe.class))
+                .configurationParameter("junit.jupiter.extensions.autodetection.enabled", "true")
+                .configurationParameter("junit.jupiter.execution.parallel.enabled", "false").build());
+        assertEquals(1, summary.getSummary().getTestsFailedCount());
+        assertTrue(summary.getSummary().getFailures().getFirst().getException().getMessage()
+                .contains("Test fixture cleanup did not complete successfully"));
+        assertTrue(CleanupFailureProbe.siblingClosed.get());
+    }
+
+    static class CleanupFailureProbe {
+        static final AtomicBoolean siblingClosed = new AtomicBoolean();
+
+        @Test
+        void bodySucceedsButCleanupFails() {
+            Fluxzero failing = mock(Fluxzero.class, CALLS_REAL_METHODS);
+            doAnswer(invocation -> { throw new IllegalStateException("cleanup failure"); }).when(failing).close(true);
+            Fluxzero sibling = mock(Fluxzero.class, CALLS_REAL_METHODS);
+            doAnswer(invocation -> { siblingClosed.set(true); return null; }).when(sibling).close(true);
+            for (Fluxzero fluxzero : new Fluxzero[]{failing, sibling}) {
+                TestFixture fixture = mock(TestFixture.class);
+                when(fixture.getFluxzero()).thenReturn(fluxzero);
+                TestFixtureLifecycle.register(fixture);
+            }
+        }
+    }
+
+    @Test
+    void finishingScopeWaitsForCompleteCleanupWithoutSerializingIndependentFixtures() throws Exception {
+        String scope = "blocked-cleanup";
+        var firstEntered = new CountDownLatch(1);
+        var secondClosed = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var firstClosed = new AtomicBoolean();
+        TestFixtureLifecycle.startScope(scope, true);
+        Fluxzero first = mock(Fluxzero.class, CALLS_REAL_METHODS);
+        doAnswer(invocation -> {
+            assertSame(first, Fluxzero.get());
+            firstEntered.countDown();
+            assertTrue(release.await(5, SECONDS));
+            firstClosed.set(true);
+            return null;
+        }).when(first).close(true);
+        Fluxzero second = mock(Fluxzero.class, CALLS_REAL_METHODS);
+        doAnswer(invocation -> {
+            secondClosed.countDown();
+            return null;
+        }).when(second).close(true);
+        for (Fluxzero fluxzero : new Fluxzero[]{first, second}) {
+            TestFixture fixture = mock(TestFixture.class);
+            when(fixture.getFluxzero()).thenReturn(fluxzero);
+            TestFixtureLifecycle.register(fixture);
+        }
+        try (var finisher = new TestTask(() -> TestFixtureLifecycle.finishScope(scope), release::countDown)) {
+            assertTrue(firstEntered.await(5, SECONDS));
+            assertTrue(secondClosed.await(5, SECONDS), "Independent fixtures must close concurrently");
+            finisher.awaitBlockedIn(TestFixtureLifecycle.class, "closeFixtures", Duration.ofSeconds(5));
+            release.countDown();
+            finisher.awaitCompletion(Duration.ofSeconds(5));
+        }
+        assertTrue(firstClosed.get());
+    }
+
+    @Test
+    void finishingNestedExecutionOnlyClosesNestedFixtures() {
         TestIdentifier outerExecution = execution("outer", true);
         TestIdentifier innerExecution = execution("inner", false);
 
         listener.executionStarted(outerExecution);
         TestFixture outer = TestFixture.createAsync();
+        AtomicBoolean outerClosed = observeClose(outer);
         listener.executionStarted(innerExecution);
         TestFixture inner = TestFixture.create();
+        AtomicBoolean innerClosed = observeClose(inner);
 
         listener.executionFinished(innerExecution, TestExecutionResult.successful());
 
-        assertTrue(closesWithin(inner, Duration.ofSeconds(1)));
-        assertFalse(closesWithin(outer, Duration.ofMillis(200)));
+        assertTrue(innerClosed.get());
+        assertFalse(outerClosed.get());
         assertSame(outer.getFluxzero(), Fluxzero.get());
 
         listener.executionFinished(outerExecution, TestExecutionResult.successful());
-        assertTrue(closesWithin(outer, Duration.ofSeconds(1)));
+        assertTrue(outerClosed.get());
     }
 
     @Test
-    void finishingOnAnotherThreadDoesNotLoseParentScope() throws InterruptedException {
+    void finishingOnAnotherThreadDoesNotLoseParentScope() throws Exception {
         TestIdentifier outerExecution = execution("cross-thread-outer", true);
         TestIdentifier innerExecution = execution("cross-thread-inner", false);
 
         listener.executionStarted(outerExecution);
         TestFixture outer = TestFixture.createAsync();
+        AtomicBoolean outerClosed = observeClose(outer);
         listener.executionStarted(innerExecution);
         TestFixture inner = TestFixture.create();
+        AtomicBoolean innerClosed = observeClose(inner);
 
-        CompletableFuture.runAsync(
-                () -> listener.executionFinished(innerExecution, TestExecutionResult.successful())).join();
+        finishOnWorker(innerExecution);
         TestFixture secondOuter = TestFixture.createAsync();
+        AtomicBoolean secondOuterClosed = observeClose(secondOuter);
 
-        assertTrue(closesWithin(inner, Duration.ofSeconds(1)));
-        assertFalse(closesWithin(outer, Duration.ofMillis(200)));
-        assertFalse(closesWithin(secondOuter, Duration.ofMillis(200)));
+        assertTrue(innerClosed.get());
+        assertFalse(outerClosed.get());
+        assertFalse(secondOuterClosed.get());
 
-        CompletableFuture.runAsync(
-                () -> listener.executionFinished(outerExecution, TestExecutionResult.successful())).join();
-        assertTrue(closesWithin(outer, Duration.ofSeconds(1)));
-        assertTrue(closesWithin(secondOuter, Duration.ofSeconds(1)));
+        finishOnWorker(outerExecution);
+        assertTrue(outerClosed.get());
+        assertTrue(secondOuterClosed.get());
 
         TestIdentifier nextExecution = execution("cross-thread-next", false);
         listener.executionStarted(nextExecution);
@@ -86,17 +174,18 @@ class TestFixtureLifecycleTest {
     }
 
     @Test
-    void testExecutionAdoptsFixturesCreatedWhileConstructingTestInstance() throws InterruptedException {
+    void testExecutionAdoptsFixturesCreatedWhileConstructingTestInstance() {
         TestIdentifier containerExecution = execution("container", false);
         TestIdentifier testExecution = execution("test", true);
 
         listener.executionStarted(containerExecution);
         TestFixture fixture = TestFixture.create();
+        AtomicBoolean closed = observeClose(fixture);
         listener.executionStarted(testExecution);
 
         listener.executionFinished(testExecution, TestExecutionResult.successful());
 
-        assertTrue(closesWithin(fixture, Duration.ofSeconds(1)));
+        assertTrue(closed.get());
         listener.executionFinished(containerExecution, TestExecutionResult.successful());
     }
 
@@ -107,28 +196,16 @@ class TestFixtureLifecycleTest {
         return result;
     }
 
-    private static boolean closesWithin(TestFixture fixture, Duration timeout) throws InterruptedException {
-        long deadline = System.nanoTime() + timeout.toNanos();
-        while (System.nanoTime() < deadline) {
-            if (closed(fixture)) {
-                return true;
-            }
-            Thread.sleep(10);
+    private void finishOnWorker(TestIdentifier execution) throws Exception {
+        try (var executor = newWorkerPool("fixture-lifecycle-test", 1)) {
+            executor.submit(() -> listener.executionFinished(execution, TestExecutionResult.successful()))
+                    .get(5, SECONDS);
         }
-        return closed(fixture);
     }
 
-    private static boolean closed(TestFixture fixture) {
-        try {
-            Fluxzero fluxzero = fixture.getFluxzero();
-            if (fluxzero instanceof FixtureFluxzero fixtureFluxzero) {
-                fluxzero = fixtureFluxzero.delegate();
-            }
-            var closed = fluxzero.getClass().getDeclaredField("closed");
-            closed.setAccessible(true);
-            return ((AtomicBoolean) closed.get(fluxzero)).get();
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
+    private static AtomicBoolean observeClose(TestFixture fixture) {
+        var closed = new AtomicBoolean();
+        fixture.getFluxzero().beforeShutdown(() -> closed.set(true));
+        return closed;
     }
 }

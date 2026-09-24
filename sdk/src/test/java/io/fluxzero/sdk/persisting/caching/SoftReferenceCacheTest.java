@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.caching;
 
 import io.fluxzero.common.DirectExecutorService;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache.SoftCacheReference;
 import io.fluxzero.sdk.test.TestFixture;
@@ -25,19 +26,31 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.function.Executable;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.util.AbstractSet;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
 import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
 import static io.fluxzero.common.caching.CacheEviction.Reason.memoryPressure;
 import static io.fluxzero.common.caching.CacheEviction.Reason.size;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -58,6 +71,45 @@ class SoftReferenceCacheTest {
     void testPutAndGet() {
         subject.put("foo", "bar");
         assertEquals("bar", subject.get("foo"));
+    }
+
+    @Test
+    void modifyEachSnapshotsKeysUnderTheMapLockButRunsModifiersOutsideIt() {
+        var mutex = new AtomicReference<Object>();
+        var backing = new LinkedHashMap<Object, SoftReferenceCache.CacheReference>(16, 0.75f, true) {
+            @Override
+            public Set<Object> keySet() {
+                var keys = super.keySet();
+                return new AbstractSet<>() {
+                    @Override
+                    public Iterator<Object> iterator() {
+                        assertTrue(Thread.holdsLock(mutex.get()), "LRU iteration must hold the map lock");
+                        return keys.iterator();
+                    }
+
+                    @Override
+                    public int size() {
+                        return keys.size();
+                    }
+                };
+            }
+        };
+        var map = Collections.synchronizedMap(backing);
+        mutex.set(map);
+        subject.close();
+        subject = new SoftReferenceCache(2, map, DirectExecutorService.newInstance(), null,
+                                         Duration.ofMinutes(1), false, Clock.systemUTC());
+        subject.put("first", "one");
+        subject.put("second", "two");
+
+        subject.<String>modifyEach((key, value) -> {
+            assertFalse(Thread.holdsLock(map), "Modifiers must not invert map/compute lock ordering");
+            subject.get("first"); // Change LRU ordering while processing the detached snapshot.
+            return value + "!";
+        });
+
+        assertEquals("one!", subject.get("first"));
+        assertEquals("two!", subject.get("second"));
     }
 
     @Test
@@ -111,6 +163,75 @@ class SoftReferenceCacheTest {
     }
 
     @Test
+    void mergeAllRetainsTheValueSelectedForEveryKey() {
+        subject.put("current", "old");
+
+        subject.mergeAll(
+                Map.of(
+                        "current", "candidate",
+                        "new", "inserted"),
+                (current, candidate) ->
+                        current == null
+                                ? candidate
+                                : current);
+
+        assertEquals("old", subject.get("current"));
+        assertEquals("inserted", subject.get("new"));
+    }
+
+    @Test
+    void mergeAllCanRemoveAnExistingValue() {
+        subject.put("remove", "old");
+
+        subject.mergeAll(
+                Map.of("remove", "candidate"),
+                (current, candidate) -> null);
+
+        assertNull(subject.get("remove"));
+    }
+
+    @Test
+    @Timeout(10)
+    void mergeAllWaitsForAnInFlightComputeOnTheSameKey() throws Exception {
+        assertBulkUpdateWaitsForCompute(
+                cache -> cache.mergeAll(
+                        Map.of("id", 20),
+                        (current, candidate) -> Math.max(current, candidate)));
+    }
+
+    @Test
+    @Timeout(10)
+    void updateAllWaitsForAnInFlightComputeOnTheSameKey() throws Exception {
+        assertBulkUpdateWaitsForCompute(
+                cache -> cache.updateAll(
+                        Map.of("id", ignored -> 20)));
+    }
+
+    private void assertBulkUpdateWaitsForCompute(
+            Consumer<SoftReferenceCache> bulkUpdate) throws Exception {
+        subject.put("id", 0);
+        CountDownLatch computeStarted = new CountDownLatch(1);
+        CountDownLatch completeCompute = new CountDownLatch(1);
+        try (TestTask compute = new TestTask(
+                () -> subject.compute(
+                        "id",
+                        (ignored, current) -> ObjectUtils.call(() -> {
+                            computeStarted.countDown();
+                            completeCompute.await();
+                            return 10;
+                        })), completeCompute::countDown)) {
+            assertTrue(computeStarted.await(2, TimeUnit.SECONDS));
+            try (TestTask bulk = new TestTask(() -> bulkUpdate.accept(subject), completeCompute::countDown)) {
+                bulk.awaitBlockedIn(SoftReferenceCache.class, "compute", Duration.ofSeconds(2));
+                completeCompute.countDown();
+                compute.awaitCompletion(Duration.ofSeconds(2));
+                bulk.awaitCompletion(Duration.ofSeconds(2));
+            }
+        }
+        assertEquals(20, subject.<Integer>get("id"));
+    }
+
+    @Test
     void testComputeInOtherCompute() {
         subject.compute("id1", (k, v) -> {
             subject.compute("id2", (k2, v2) -> "bar");
@@ -131,46 +252,51 @@ class SoftReferenceCacheTest {
 
     @SneakyThrows
     @Test
+    @Timeout(10)
     void testLockingSameKey() {
         var latch = new CountDownLatch(1);
-        var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+        var entered = new CountDownLatch(1);
+        try (TestTask first = new TestTask(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+            entered.countDown();
             latch.await();
             return "bar";
-        })));
-        thread1.start();
-        Thread.sleep(10);
-        var thread2 = new Thread(() -> subject.compute("foo", (k, v) -> "bar2"));
-        thread2.start();
-        Thread.sleep(10);
-        assertNull(subject.get("foo"));
-        assertEquals(Thread.State.WAITING, thread1.getState());
-        assertEquals(Thread.State.BLOCKED, thread2.getState());
-        latch.countDown();
-        thread2.join();
+        })), latch::countDown)) {
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            try (TestTask second = new TestTask(
+                    () -> subject.compute(new String("foo"), (k, v) -> "bar2"), latch::countDown)) {
+                first.awaitBlockedIn(CountDownLatch.class, "await", EVENTUALLY_TIMEOUT);
+                second.awaitBlockedIn(SoftReferenceCache.class, "compute", EVENTUALLY_TIMEOUT);
+                assertNull(subject.get("foo"));
+                latch.countDown();
+                first.awaitCompletion(EVENTUALLY_TIMEOUT);
+                second.awaitCompletion(EVENTUALLY_TIMEOUT);
+            }
+        }
         assertEquals("bar2", subject.get("foo"));
     }
 
     @SneakyThrows
     @Test
+    @Timeout(10)
     void testNoLockIfDifferentKey() {
         var latch = new CountDownLatch(1);
-        var thread1 = new Thread(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+        var entered = new CountDownLatch(1);
+        try (TestTask first = new TestTask(() -> subject.compute("foo", (k, v) -> ObjectUtils.call(() -> {
+            entered.countDown();
             latch.await();
             return "bar";
-        })));
-        thread1.start();
-        Thread.sleep(10);
-        var thread2 = new Thread(() -> subject.compute("foo2", (k, v) -> "bar2"));
-        thread2.start();
-        thread2.join();
-        assertNull(subject.get("foo"));
-        assertEquals("bar2", subject.get("foo2"));
-        assertEquals(Thread.State.WAITING, thread1.getState());
-        assertEquals(Thread.State.TERMINATED, thread2.getState());
-        latch.countDown();
-        thread1.join();
+        })), latch::countDown)) {
+            assertTrue(entered.await(2, TimeUnit.SECONDS));
+            try (TestTask second = new TestTask(
+                    () -> subject.compute("foo2", (k, v) -> "bar2"), latch::countDown)) {
+                second.awaitCompletion(EVENTUALLY_TIMEOUT);
+                assertNull(subject.get("foo"));
+                assertEquals("bar2", subject.get("foo2"));
+                first.awaitBlockedIn(CountDownLatch.class, "await", EVENTUALLY_TIMEOUT);
+            }
+            first.awaitCompletion(EVENTUALLY_TIMEOUT);
+        }
         assertEquals("bar", subject.get("foo"));
-        assertEquals(Thread.State.TERMINATED, thread1.getState());
     }
 
     @Test

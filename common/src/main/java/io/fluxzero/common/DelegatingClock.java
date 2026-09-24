@@ -73,4 +73,9 @@ public class DelegatingClock extends Clock {
     public Instant instant() {
         return delegate.get().instant();
     }
+
+    @Override
+    public long millis() {
+        return delegate.get().millis();
+    }
 }

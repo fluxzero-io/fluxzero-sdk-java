@@ -33,11 +33,14 @@ import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -93,6 +96,52 @@ import static org.mockito.Mockito.when;
 class AbstractWebsocketClientTest {
 
     @Test
+    void appliesCompactAndCustomCorrelationDataWithExistingSemantics() {
+        Metadata base = Metadata.of("keep", "base", "remove", "old");
+
+        assertEquals(Metadata.of("keep", "compact", "remove", "old"),
+                     AbstractWebsocketClient.applyCorrelationData(
+                             base, Metadata.of("keep", "compact")));
+
+        Map<String, String> custom = new HashMap<>();
+        custom.put("keep", "custom");
+        custom.put("remove", null);
+        assertEquals(Metadata.of("keep", "custom"),
+                     AbstractWebsocketClient.applyCorrelationData(base, custom));
+        assertEquals(base, AbstractWebsocketClient.applyCorrelationData(base, null));
+    }
+
+    @Test
+    void singleResultIsHandledOutsideTheWebsocketCallback() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ResultCallbackObservingClient client =
+                new ResultCallbackObservingClient(mock(WebsocketConnector.class), clientConfig);
+        WebsocketSession session = mock(WebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.<String, Object>of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456",
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE,
+                AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON)));
+        AtomicReference<String> callerThread = new AtomicReference<>();
+
+        try {
+            callerThread.set(Thread.currentThread().getName());
+            client.onMessage(
+                    WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
+                            .encode(new VoidResult(42L)),
+                    session);
+
+            assertTrue(client.resultHandled.await(1, TimeUnit.SECONDS));
+            assertNotEquals(callerThread.get(), client.resultThread.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
     void malformedSdkRuntimeMessageFailsItsRetainedIngressCompletion() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -101,13 +150,13 @@ class AbstractWebsocketClientTest {
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
         WebsocketSession session = mockSession("client123_runtime456");
         session.getUserProperties().put(
-                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.LZ4);
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.ZSTD);
         session.getUserProperties().put(
                 AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
 
         try {
             CompletableFuture<Void> completion = client.dispatchRuntimeMessage(
-                    () -> client.handleMessage(CompressionAlgorithm.LZ4.compress(new byte[]{'x'}), session, null))
+                    () -> client.handleMessage(CompressionAlgorithm.ZSTD.compress(new byte[]{'x'}), session, null))
                     .toCompletableFuture();
 
             assertTrue(completion.isCompletedExceptionally(),
@@ -148,6 +197,54 @@ class AbstractWebsocketClientTest {
             }).toCompletableFuture();
 
             outerCompletion.get(1, TimeUnit.SECONDS);
+            assertEquals(2, handledResults.get());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void runtimeResultDispatchWaitsForRequestOwnedGroupCompletion() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        CompletableFuture<Void> preparation = new CompletableFuture<>();
+        CountDownLatch preparationStarted = new CountDownLatch(1);
+        AtomicInteger handledResults = new AtomicInteger();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig) {
+            @Override
+            protected CompletableFuture<Void> prepareResults(
+                    List<RequestResult> results,
+                    List<Object> requestContexts) {
+                preparationStarted.countDown();
+                return preparation;
+            }
+
+            @Override
+            protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                        WebsocketResultDiagnostics.ResultTiming timing) {
+                handledResults.incrementAndGet();
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+        session.getUserProperties().put(
+                AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE);
+        session.getUserProperties().put(
+                AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY, WebSocketTransportFormat.JSON);
+        byte[] batch = WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
+                .encode(new ResultBatch(List.of(new VoidResult(1L), new VoidResult(2L))));
+
+        try {
+            CompletableFuture<Void> completion = client.dispatchRuntimeMessage(
+                    () -> client.handleMessage(batch, session, null)).toCompletableFuture();
+
+            assertTrue(preparationStarted.await(1, TimeUnit.SECONDS));
+            assertEquals(0, handledResults.get());
+            assertFalse(completion.isDone());
+
+            preparation.complete(null);
+            completion.get(1, TimeUnit.SECONDS);
             assertEquals(2, handledResults.get());
         } finally {
             client.close();
@@ -337,13 +434,13 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void supportedCompressionAlgorithmsDefaultToZstdWithLz4Fallback() {
+    void supportedCompressionAlgorithmsDefaultToZstdOnly() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
 
-        assertEquals(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.LZ4),
+        assertEquals(List.of(CompressionAlgorithm.ZSTD),
                      clientConfig.getSupportedCompressionAlgorithms());
     }
 
@@ -354,19 +451,28 @@ class AbstractWebsocketClientTest {
                 .name("test-client")
                 .build();
 
-        assertEquals(List.of(WebSocketTransportFormat.CBOR, WebSocketTransportFormat.JSON),
+        assertEquals(List.of(WebSocketTransportFormat.BINARY, WebSocketTransportFormat.CBOR,
+                             WebSocketTransportFormat.JSON),
                      clientConfig.getSupportedTransportFormats());
         assertEquals(Duration.ofSeconds(30), clientConfig.getWebSocketSendTimeout());
     }
 
     @Test
-    void serviceUrlKeepsLz4AsLegacyCompressionHintForDefaultConfig() {
+    void serviceUrlRetainsLegacyHintWhenLz4IsExplicitlySupported() {
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("test-client")
+                .supportedCompressionAlgorithms(List.of(CompressionAlgorithm.ZSTD, CompressionAlgorithm.LZ4)).build();
+        assertEquals(CompressionAlgorithm.LZ4, ServiceUrlBuilder.legacyCompressionHint(config));
+        assertTrue(ServiceUrlBuilder.gatewayUrl(MessageType.EVENT, null, config).contains("compression=LZ4"));
+    }
+
+    @Test
+    void serviceUrlUsesZstdForDefaultConfig() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
                 .build();
 
-        assertTrue(ServiceUrlBuilder.gatewayUrl(MessageType.EVENT, null, clientConfig).contains("compression=LZ4"));
+        assertTrue(ServiceUrlBuilder.gatewayUrl(MessageType.EVENT, null, clientConfig).contains("compression=ZSTD"));
     }
 
     @Test
@@ -382,6 +488,7 @@ class AbstractWebsocketClientTest {
                 AbstractWebsocketClient.createConnectionSetup(clientConfig);
         Map<String, List<String>> headers = connectionSetup.options().headers();
 
+        assertEquals(List.of("ZSTD,LZ4,NONE"), headers.get(WebSocketCapabilities.SUPPORTED_DOCUMENT_COMPRESSION_HEADER));
         assertEquals(clientConfig.getSupportedCompressionAlgorithms(),
                      WebSocketCapabilities.getSupportedCompressionAlgorithms(headers));
         assertEquals(clientConfig.getSupportedTransportFormats(),
@@ -451,14 +558,14 @@ class AbstractWebsocketClientTest {
         Map<String, List<String>> responseHeaders = Map.of(
                 WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER, List.of("srv123456789"),
                 WebSocketCapabilities.RUNTIME_VERSION_HEADER, List.of("1.2.3"),
-                WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("LZ4"),
+                WebSocketCapabilities.SELECTED_COMPRESSION_ALGORITHM_HEADER, List.of("ZSTD"),
                 WebSocketCapabilities.SELECTED_TRANSPORT_FORMAT_HEADER, List.of("CBOR"));
 
         connectionSetup.configurator().afterResponse(responseHeaders);
 
         assertEquals("srv123456789", connectionSetup.configurator().getRuntimeSessionId());
         assertEquals("1.2.3", connectionSetup.configurator().getRuntimeVersion());
-        assertEquals(CompressionAlgorithm.LZ4, connectionSetup.configurator().getSelectedCompressionAlgorithm());
+        assertEquals(CompressionAlgorithm.ZSTD, connectionSetup.configurator().getSelectedCompressionAlgorithm());
         assertEquals(WebSocketTransportFormat.CBOR,
                      connectionSetup.configurator().getSelectedTransportFormat());
     }
@@ -482,11 +589,13 @@ class AbstractWebsocketClientTest {
         assertNull(connectionSetup.configurator().getSelectedTransportFormat());
     }
 
-    @Test
-    void onOpenUsesLegacyUrlCompressionWhenRuntimeDoesNotSelectCompression() {
+    @ParameterizedTest
+    @EnumSource(CompressionAlgorithm.class)
+    void onOpenUsesConfiguredCompressionWhenRuntimeDoesNotSelectCompression(CompressionAlgorithm compression) {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
+                .supportedCompressionAlgorithms(List.of(compression))
                 .build();
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig);
         WebsocketSession session = mock(WebsocketSession.class);
@@ -495,12 +604,14 @@ class AbstractWebsocketClientTest {
                            AbstractWebsocketClient.createConnectionSetup(clientConfig).configurator());
         when(session.getUserProperties()).thenReturn(userProperties);
         when(session.getHandshakeResponseHeaders()).thenReturn(Map.of());
-        when(session.getRequestURI()).thenReturn(URI.create("ws://localhost/tracking/readevent?compression=LZ4"));
+        String url = ServiceUrlBuilder.trackingUrl(MessageType.EVENT, null, clientConfig);
+        assertTrue(url.contains("compression=" + compression));
+        when(session.getRequestURI()).thenReturn(URI.create(url));
 
         try {
             client.onOpen(session);
 
-            assertEquals(CompressionAlgorithm.LZ4,
+            assertEquals(compression,
                          userProperties.get(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY));
             assertEquals(WebSocketTransportFormat.JSON,
                          userProperties.get(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY));
@@ -519,7 +630,7 @@ class AbstractWebsocketClientTest {
         WebsocketSession session = mock(WebsocketSession.class);
         when(session.isOpen()).thenReturn(true);
         doThrow(new ClosedChannelException()).when(session).sendBinary(any());
-        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.<String, Object>of(
                 AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
                 AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456",
                 AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, CompressionAlgorithm.NONE)));
@@ -602,7 +713,12 @@ class AbstractWebsocketClientTest {
                 .build();
         CloseObservingClient client = new CloseObservingClient(mock(WebsocketConnector.class), clientConfig);
         WebsocketSession session = mockSession("client123_runtime456");
-        CompletableFuture<Void> closeHandshake = new CompletableFuture<>();
+        CompletableFuture<Void> closeHandshake = new CompletableFuture<>() {
+            @Override public CompletableFuture<Void> orTimeout(long timeout, TimeUnit unit) {
+                assertEquals(client.getCloseHandshakeTimeout().toMillis(), unit.toMillis(timeout));
+                return this; // The test explicitly attempts the late timeout below.
+            }
+        };
         when(session.closeAsync(any())).thenReturn(closeHandshake);
 
         try {
@@ -611,7 +727,7 @@ class AbstractWebsocketClientTest {
             verify(session).closeAsync(any());
             verify(session, never()).abort(any());
             closeHandshake.complete(null);
-            Thread.sleep(150);
+            assertFalse(closeHandshake.completeExceptionally(new java.util.concurrent.TimeoutException()));
             verify(session, never()).abort(any());
         } finally {
             client.close();
@@ -815,6 +931,44 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void pongCancelsTimeoutAndSchedulesNextPing() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .pingDelay(Duration.ofMillis(10))
+                .pingTimeout(Duration.ofMillis(40))
+                .build();
+        var scheduler = new ManuallyTriggeredTaskScheduler();
+        TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig, scheduler);
+        WebsocketSession session = mock(WebsocketSession.class);
+        when(session.getUserProperties()).thenReturn(new HashMap<>(Map.of(
+                AbstractWebsocketClient.CLIENT_SESSION_ID_USER_PROPERTY, "client123",
+                AbstractWebsocketClient.RUNTIME_SESSION_ID_USER_PROPERTY, "runtime456")));
+        when(session.getRequestURI()).thenReturn(URI.create("ws://localhost"));
+        when(session.isOpen()).thenReturn(true);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            client.onPong(ByteBuffer.allocate(0), session);
+            return null;
+        }).when(session).sendPing(any());
+
+        try {
+            client.onOpen(session);
+
+            for (int i = 0; i < 3; i++) {
+                assertEquals(1, scheduler.pendingTaskCount(), "Only the next ping may remain, not the old deadline");
+                assertEquals(scheduler.clock().millis() + clientConfig.getPingDelay().toMillis(), scheduler.nextDeadline());
+                scheduler.advance(clientConfig.getPingDelay());
+                scheduler.dequeue().run();
+            }
+            assertEquals(1, scheduler.pendingTaskCount());
+            verify(session, org.mockito.Mockito.times(3)).sendPing(any());
+            verify(session, never()).closeAsync(any());
+            verify(session, never()).abort(any());
+        } finally {
+            client.close();
+        }
+    }
+
     void connectionRetryConfigurationLogsInitialAndPeriodicFailures() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -1540,9 +1694,7 @@ class AbstractWebsocketClientTest {
             assertEquals(0L, metric.stallCloseTimeoutMillis());
             assertEquals(Runtime.version().feature(), metric.javaFeatureVersion());
             assertEquals("custom-connector", metric.workerMode());
-            assertEquals(Runtime.version().feature() >= 25
-                                 ? "sdk-default-virtual-thread-per-task"
-                                 : "sdk-default-fixed-platform-pool",
+            assertEquals("sdk-default-virtual-thread-per-task",
                          metric.completionWorkerMode());
             assertEquals("9.8.7", metric.runtimeVersion());
         } finally {
@@ -2109,6 +2261,22 @@ class AbstractWebsocketClientTest {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+    }
+
+    private static class ResultCallbackObservingClient extends TestClient {
+        private final CountDownLatch resultHandled = new CountDownLatch(1);
+        private final AtomicReference<String> resultThread = new AtomicReference<>();
+
+        ResultCallbackObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
+            super(container, clientConfig);
+        }
+
+        @Override
+        protected void handleResult(RequestResult result, String batchId, String sessionId,
+                                    WebsocketResultDiagnostics.ResultTiming clientResultTiming) {
+            resultThread.set(Thread.currentThread().getName());
+            resultHandled.countDown();
         }
     }
 

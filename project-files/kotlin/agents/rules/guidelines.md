@@ -1,4 +1,9 @@
 ---
+
+For concurrent Model invariants, read [Model state and protection boundaries](https://fluxzero.io/docs/guides/modeling-and-persistence/model-state-boundaries/).
+Identify the Model values/relations, ID source and conflict policy. Inject the Model/Graph or load its Graph within
+the mutation. Search, arbitrary manual Model reads and standalone assertions are not automatic commit dependencies.
+An unclear binding must be resolved before adding an application workaround.
 apply: always
 ---
 
@@ -16,13 +21,19 @@ Execution cadence and backlog workflow are defined in `AGENTS.md` in the root of
 Fluxzero encourages an **inside-out** development order to ensure logic is correct and testable.
 Prefer model/DDD fidelity over fast breadth. Do not begin with endpoints; begin with domain commands and model.
 
-1. **Commands + Domain Model**: Define command intent, aggregate/entity boundaries, value objects, and invariants.
-2. **Handlers + State Transitions**: Implement `@HandleCommand`/`@HandleQuery` with `@Apply` and `@AssertLegal`.
+1. **Commands + Domain Model**: Define command intent, choose model boundaries by independent lifecycle, then define
+   relationships, value objects, and invariants.
+2. **State Transitions + Handlers**: Implement model `@Apply`/`@AssertLegal`; add message handlers only for orchestration,
+   queries and side effects.
 3. **Tests**: Verify domain behavior and invariants using `TestFixture`.
 4. **Queries / Read Models / Side Effects**: Add search/read shaping and event-driven side effects.
 5. **Endpoints Last**: Expose logic via REST/WebSockets as thin transport adapters.
 
 ---
+
+Before creating application classes, follow [Project Structure Rules](#project-structure-rules): identify their
+owning business domains and concrete package paths. Recheck the changed tree before finishing. Follow established
+conventions in an existing application; this check does not authorize a cosmetic package migration.
 
 ## Task Decision Tree
 
@@ -48,13 +59,13 @@ Use this tree to find the correct manual for your current task, ordered by the r
 
 ### 2. Implementing Logic & State
 
-- **"I need to define Aggregates, Entities, or apply state changes"**
-    - → [Entities & Aggregates](entities.md)
-        - [Define an Aggregate or Entity](entities.md#aggregates)
+- **"I need to define Models, relationships, or apply state changes"**
+    - → [Models and State](entities.md)
+        - [Define a Model](entities.md#define-a-model)
         - [Intercept or rewrite updates (@InterceptApply)](entities.md#intercept-apply)
         - [Apply state changes (@Apply)](entities.md#apply)
         - [Implement permission checks (@AssertLegal)](entities.md#assertlegal)
-        - [Load entities (Id, @Alias, Entity<T>)](entities.md#loading-entities)
+        - [Load models and lazy graphs (Id, @Alias, Graph<T>)](entities.md#loading-and-event-parameters)
 - **"I need to search for data or work with documents"**
     - → [Search & Documents](search.md)
         - [Configure search indexing (@Searchable)](search.md#configuration)
@@ -147,7 +158,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 | [Glossary](glossary.md)               | Key terms and definitions used in Fluxzero.                  |
 | [Handling](handling.md)               | Handling incoming messages (Commands, Queries, Events, Web). |
 | [Sending](sending.md)                 | Dispatching messages and making external web requests.       |
-| [Entities](entities.md)               | Domain modeling, event sourcing, and aggregate lifecycle.    |
+| [Models](entities.md)                 | Domain modeling, relationships, persistence and lifecycle.   |
 | [Sagas](sagas.md)                     | Stateful handlers and long-running workflows.                |
 | [Tracking](tracking.md)               | Async consumption mechanism, consumers, and replays.         |
 | [Metrics](metrics.md)                 | Observability signals, tracking metrics, and ignored messages. |
@@ -167,7 +178,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 1. **Logic First**: Business logic resides in `@Apply`, `@AssertLegal`, and handler methods. Infrastructure is managed
    automatically by Fluxzero.
 2. **Deterministic State**: `@Apply` methods must be pure functions. Never load data or search inside an `@Apply` block.
-3. **Dumb Aggregates**: Aggregates are immutable state holders. They do not handle messages themselves.
+3. **Immutable Models**: Models are immutable state holders. Action logic normally lives on command/update payloads.
 4. **Naming Convention**: Commands are imperative (`CreateUser`), Queries are descriptive (`GetUserProfile`). Events
    reflect facts and are typically the action payload (`CreateUser`).
 5. **Method Precedence**: When multiple handler methods match a message, the most specific one (matching the payload
@@ -188,7 +199,11 @@ Use this tree to find the correct manual for your current task, ordered by the r
 14. **Value Object Modeling (Details vs. Status)**: Model business details that map 1:1 into entity state as dedicated
     value objects (for example `TenantDetails`, `UserDetails`), even when there is only one field initially (like
     `name`). Keep top-level primitive/scalar fields for identifiers and simple status/control indicators (for example
-    IDs, enums, booleans, timestamps) that are intentionally changed by a single command.
+    IDs, enums, booleans, timestamps) that are intentionally changed by a single command. Classify by meaning, not
+    primitive type: a preference is configuration, a completion timestamp is status, and a requested delivery date
+    is business input. Group coherent configuration separately; do not mix execution bookkeeping into editable
+    details. Plain details need neither `@Model` nor `@Member`. A focused `RenameProject(id, name)` may still carry
+    a scalar and replace only that field in the existing details. See [field selection and examples](entities.md#choose-details-configuration-and-state).
 15. **Payload Purity**: Command/query payloads MUST NOT contain the sending user's ID. Handlers MUST inject `Sender`
     (`@Handle...`, `@AssertLegal`, `@Apply`) for user context.
 16. **Secure by Default**: Add `@file:RequiresUser` to the top of your Kotlin file or `@RequiresUser` to your domain's
@@ -196,16 +211,19 @@ Use this tree to find the correct manual for your current task, ordered by the r
 17. **Domain Errors**: Use Error Interfaces like `ProjectErrors` (singleton objects) to group domain-specific exceptions.
 18. **Present-Tense Events**: Don't invent event types. The applied command payload (e.g. `CreateOrder`) is
     automatically reused for the event.
-19. **Entity History**: Fluxzero enables viewing Entity history using `Entity.previous()`. This removes the need for
-    second-class events like `BalanceChanged` after e.g. a `DepositMoney` command to see what changed.
+19. **Model History**: View current Model history through `Graph.previous()`, `revisions()` and
+    `playBackToCondition(...)`. This removes the need for second-class events like `BalanceChanged` after a
+    `DepositMoney` command solely to see what changed. Reserve `Entity<T>` for legacy Aggregate and persistence code.
 20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
     system that updates whenever source documents change.
-21. **The Consistency Window**: Remember that `sendCommandAndWait` only waits for the primary state change. Use
-    WebSockets or secondary queries to handle eventually consistent side-effects like search index updates.
+21. **The Consistency Window**: Direct Model documents selected by including `DOCUMENT` in the persistence set
+    complete with the Model commit. Materialized Graph
+    projections are asynchronous unless the operation selects `GraphProjectionCompletion.AWAIT`; unrelated handler
+    side effects remain eventually consistent.
 22. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of
     messages asynchronously.
-23. **Entity IDs**: Use `Fluxzero.generateId(...)` when creating new aggregates or members. Do this in the **endpoint**
-    or **command interface**, never inside the aggregate's `@Apply` method.
+23. **Model IDs**: Use `Fluxzero.generateId(...)` when creating new models or members. Do this in the **endpoint**
+    or **command interface**, never inside `@Apply`.
 24. **Message Idempotency**: Every message has an ID. Providing a consistent ID from the client (or endpoint) enables
     automatic deduplication in the Fluxzero runtime.
 25. **Search Ownership**: Filtering and sorting MUST be implemented in `Fluxzero.search(...)`. Client app code MUST NOT
@@ -220,42 +238,92 @@ Use this tree to find the correct manual for your current task, ordered by the r
 
 ## Project Structure Rules
 
-Follow this layout unless instructed otherwise:
+Group application code by business domain first. Within each domain, use `api` for commands, queries and typed IDs,
+and `api.model` for state and value objects. A domain is a cohesive product area such as `catalog` or `ordering`;
+`<domain>` is a placeholder for that name, not a literal application-wide `domain` package. Several related models
+may belong to one domain. A package is not a requirement to create a separate service, module or deployment.
 
-- Root: `io.fluxzero.<app>.<domain>`
-- Commands, queries, IDs: `...<domain>.api`
-- Models (aggregates, entities, value objects): `...<domain>.api.model`
-- Handlers (stateful and stateless): `...<domain>`
-- Endpoints: `...<domain>.<Something>Endpoint`
-- Tests: mirror the domain structure under `src/test/kotlin`
-- JSON test resources: flat files grouped per domain (`/home/create-home.json`, etc.)
+### Before creating files
 
-Here's the layout of a sample app called `fluxchess`:
+For a new application, follow this convention unless the user or repository specifies another structure. Before
+adding the first product classes, inspect the generated or existing tree, identify the relevant business domains,
+and map the first commands, queries, IDs, models and handlers to concrete package paths. For an existing application,
+follow its established conventions and make a deliberate migration only when the task calls for it. This is an
+implementation check, not a request for user approval or a new planning document.
 
+| Kind | Package | Example |
+| --- | --- | --- |
+| Command or query payload | `<root>.<domain>.api` | `com.example.shop.ordering.api.PlaceOrder` |
+| Typed ID | `<root>.<domain>.api` | `com.example.shop.ordering.api.OrderId` |
+| Model, details, status or other value object | `<root>.<domain>.api.model` | `com.example.shop.ordering.api.model.Order` |
+| Separate handler, orchestration or endpoint | `<root>.<domain>` | `com.example.shop.ordering.OrderQueries` |
+| Behavior tests | Same domain under the test source root | `com.example.shop.ordering.OrderTest` |
+| JSON test resources | Flat files grouped per domain under `src/test/resources` | `ordering/place-order.json` |
+
+Here `api` means the domain's message and model contract; it does not mean HTTP routes. A self-handling command or
+query stays in `api` even when it contains an `@Apply`, `@HandleCommand` or `@HandleQuery` method. Do not add a
+pass-through handler or a duplicate DTO merely to fill out this tree. Add endpoints only when the product needs them.
+
+### Example tree
+
+This Kotlin example shows two domains so the boundary is visible. Only create the classes needed for the current feature.
+
+```text
+src/main/kotlin/com/example/shop/
+├── App.kt
+├── catalog/
+│   ├── ProductQueries.kt
+│   └── api/
+│       ├── CreateProduct.kt
+│       ├── GetProduct.kt
+│       ├── ProductId.kt
+│       └── model/
+│           ├── Product.kt
+│           └── ProductDetails.kt
+└── ordering/
+    ├── OrderQueries.kt
+    └── api/
+        ├── PlaceOrder.kt
+        ├── GetOrder.kt
+        ├── OrderId.kt
+        └── model/
+            ├── Order.kt
+            └── OrderDetails.kt
+
+src/test/kotlin/com/example/shop/
+├── catalog/ProductTest.kt
+└── ordering/OrderTest.kt
+
+src/test/resources/
+├── catalog/create-product.json
+└── ordering/place-order.json
 ```
-src/main/kotlin
-└── io/fluxzero/fluxchess/game
-    ├── GameEndpoint.kt
-    ├── GameSaga.kt
-    └── api
-        ├── CreateGame.kt
-        ├── GameId.kt
-        ├── GameUpdate.kt
-        └── model
-            ├── Game.kt
-            └── GameStatus.kt
 
-src/test/kotlin
-└── io/fluxzero/fluxchess/game
-    ├── GameSagaTest.kt
-    ├── GameEndpointTest.kt
-    └── GameTest.kt
+Keep any Java `package-info.java` under `src/main/java` at the matching package path. A later order HTTP adapter
+would be `com.example.shop.ordering.OrderEndpoint` in `OrderEndpoint.kt`.
 
-src/test/resources
-└── game
-    ├── create-game.json
-    └── create-game-request.json
-```
+### Keep domains cohesive
+
+Avoid application-wide `commands`, `queries`, `models`, `domain`, `handlers` or `services` buckets that mix several
+business domains. For example, put `PlaceOrder`, `OrderId` and `Order` together under `ordering.api` and
+`ordering.api.model`, rather than splitting them across `shop.commands`, `shop.ids` and `shop.domain`.
+Additional subpackages inside a large domain are useful when they describe a real responsibility; an owning domain
+must remain recognizable. An external integration may form such a responsibility, with its message contracts in its
+own `api` package. Package placement alone does not select local versus tracked handling.
+
+### Before finishing
+
+Inspect the changed production and test paths before committing:
+
+- Each new type has an identifiable owning domain; related types have not drifted into global technical buckets.
+- Commands, queries and typed IDs follow that domain's `api` convention; state and values use its `api.model`.
+- Existing separate handlers and endpoints remain near their domain; no unnecessary layers were added.
+- Tests mirror the owning domains, and package declarations, imports and package-level annotations match the paths.
+
+Apply this check to code you add or change. Do not automatically rename an existing application's persisted payload
+classes for cosmetic consistency. Moving a class can affect serialized type names, registration, inherited security,
+web routing and consumer discovery. Preserve these contracts with the version's migration/type-alias facilities and
+focused behavior or reconstruction tests when a move is explicitly in scope.
 
 ---
 
@@ -269,11 +337,11 @@ If a pattern is not documented, ask the user for clarification rather than guess
 ## Kotlin Specific Guidelines
 
 - **Use `::class`**: In Kotlin applications, you can use `::class` directly instead of `::class.java` when referencing
-  types in SDK methods (e.g., in `Fluxzero.generateId(ProjectId::class)` or
+  types in SDK methods (e.g., in `Fluxzero.generateId(ProjectId::class.java)` or
   `@HandleDocument(documentClass = OrderDocument::class)`).
 - **Data Classes**: Use `data class` for all payloads (Commands, Queries, Events) and Entities to benefit from
   automatic `copy()`, `equals()`, and `hashCode()` implementations.
-- **Extension Logic**: While aggregates should remain "dumb", you can use Kotlin extension functions to keep domain
+- **Extension Logic**: While models should remain immutable, you can use Kotlin extension functions to keep domain
   logic clean and discoverable without cluttering the state holder.
 
 ---

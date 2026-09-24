@@ -26,11 +26,15 @@ This section explains how Fluxzero handles messages — the core of how data flo
 
 ## Modeling & Persistence
 
+For the complete 2.0 design, start with [Fluxzero 2.0](/docs/fluxzero-2): why independent Models replace a
+single growing persistence boundary, how Graphs bring them together, and how to migrate from 1.x.
+The chapter includes Java and Kotlin examples; the focused guides below provide the detailed contracts.
+
 This section focuses on your domain model and how Fluxzero stores and loads data. Topics include:
 
 - Building rich domain models using records or classes
 - Working with nested and stateful entities
-- Using aggregates, projections, and entity loading
+- Using models, relationships, projections, and exact model loading
 - Persisting and updating documents
 - Indexing and searching through domain objects
 

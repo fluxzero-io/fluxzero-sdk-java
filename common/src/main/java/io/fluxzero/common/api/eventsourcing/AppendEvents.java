@@ -93,7 +93,7 @@ public class AppendEvents extends Command {
         }
 
         /**
-         * The total number of bytes in the data across all messages within all batches.
+         * The complete serialized size of all messages within all batches.
          */
         public long getBytes() {
             return eventBatches.stream()

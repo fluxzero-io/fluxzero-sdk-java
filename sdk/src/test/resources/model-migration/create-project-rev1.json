@@ -1,0 +1,6 @@
+{
+  "@class": "io.fluxzero.sdk.modeling.ModelReconstructionDocumentationTest$CreateProject",
+  "@revision": 1,
+  "projectId": "project-1",
+  "name": "Legacy name"
+}

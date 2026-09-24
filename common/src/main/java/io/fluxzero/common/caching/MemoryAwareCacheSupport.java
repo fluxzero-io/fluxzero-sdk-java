@@ -30,14 +30,17 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.ToLongBiFunction;
 
 import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.entryTooLarge;
@@ -56,6 +59,15 @@ import static io.fluxzero.common.caching.MemoryAwareCacheSupportEviction.Reason.
  */
 @Slf4j
 public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
+    /**
+     * Unit represented by a cache weight. Only caches with the same unit can share a JVM-wide pressure budget.
+     */
+    public enum WeightUnit {
+        ENTRIES,
+        BYTES,
+        CUSTOM
+    }
+
     public static final Duration DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL = Duration.ofSeconds(1);
     private static final ScheduledExecutorService memoryPressureMonitor =
             Executors.newSingleThreadScheduledExecutor(daemonThreadFactory());
@@ -68,6 +80,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     private final long maxEntryWeight;
     private final ToLongBiFunction<? super K, ? super V> weigher;
     private final MemoryPressureController memoryPressureController;
+    private final WeightUnit weightUnit;
     private final ScheduledFuture<?> memoryPressureMonitorTask;
     private final WeakReference<MemoryAwareCacheSupport<?, ?>> memoryPressureReference;
     private final LinkedHashMap<K, Entry<V>> entries = new LinkedHashMap<>(128, 0.75f, true);
@@ -75,6 +88,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     private final Collection<Consumer<MemoryAwareCacheSupportEviction<K, V>>> evictionListeners = new CopyOnWriteArrayList<>();
 
     private long weight;
+    private long mappingVersion;
     private boolean closed;
 
     public MemoryAwareCacheSupport(long maxWeight, long maxEntryWeight,
@@ -93,7 +107,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
                          Comparator<? super K> keyComparator,
                          MemoryPressureController memoryPressureController) {
         this(maxWeight, maxEntryWeight, weigher, keyComparator, memoryPressureController,
-             DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL);
+             DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL, WeightUnit.CUSTOM);
     }
 
     public MemoryAwareCacheSupport(long maxWeight, long maxEntryWeight,
@@ -101,6 +115,16 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
                          Comparator<? super K> keyComparator,
                          MemoryPressureController memoryPressureController,
                          Duration memoryPressureCheckInterval) {
+        this(maxWeight, maxEntryWeight, weigher, keyComparator, memoryPressureController,
+             memoryPressureCheckInterval, WeightUnit.CUSTOM);
+    }
+
+    public MemoryAwareCacheSupport(long maxWeight, long maxEntryWeight,
+                         ToLongBiFunction<? super K, ? super V> weigher,
+                         Comparator<? super K> keyComparator,
+                         MemoryPressureController memoryPressureController,
+                         Duration memoryPressureCheckInterval,
+                         WeightUnit weightUnit) {
         if (maxWeight < 0) {
             throw new IllegalArgumentException("maxWeight must be non-negative");
         }
@@ -111,6 +135,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         this.maxEntryWeight = maxEntryWeight;
         this.weigher = Objects.requireNonNull(weigher, "weigher");
         this.memoryPressureController = Objects.requireNonNull(memoryPressureController, "memoryPressureController");
+        this.weightUnit = Objects.requireNonNull(weightUnit, "weightUnit");
         this.orderedKeys = keyComparator == null ? null : new TreeMap<>(keyComparator);
         this.memoryPressureReference = registerMemoryPressureCache();
         this.memoryPressureMonitorTask = startMemoryPressureMonitor(memoryPressureCheckInterval);
@@ -159,9 +184,163 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         trimForMemoryPressure();
     }
 
+    /**
+     * Applies independent updates under one cache lock and checks memory pressure once after the batch.
+     *
+     * <p>Iteration order, admission, size eviction and manual-removal notifications are identical to applying the
+     * updates individually. The batch as a whole is not an atomic transaction.</p>
+     */
+    public <U> void updateAll(
+            Map<? extends K, ? extends U> updates,
+            BiFunction<? super U, ? super V, ? extends V> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        if (updates.isEmpty()) {
+            return;
+        }
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            updates.forEach((key, update) -> {
+                /*
+                 * LinkedHashMap#get already moves an existing entry to the access-order tail. Defer updating the
+                 * cross-cache access sequence until the mapping fails; successful replacements immediately receive a
+                 * new sequence in putEntry. This avoids two sequence increments for every hot batch update.
+                 */
+                Entry<V> current = entries.get(key);
+                V next;
+                try {
+                    next = updateFunction.apply(
+                            update, current == null ? null : current.value());
+                } catch (RuntimeException | Error e) {
+                    if (current != null) {
+                        current.recordAccess(nextAccessSequence());
+                    }
+                    throw e;
+                }
+                if (next == null) {
+                    removeEntry(key, manual, true);
+                } else {
+                    putEntry(key, next);
+                }
+            });
+        }
+        trimForMemoryPressure();
+    }
+
+    /**
+     * Applies ordered updates under one cache lock and checks memory pressure once after the batch.
+     * Repeated keys are applied in iteration order.
+     */
+    public <U> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ? extends K> keyFunction,
+            BiFunction<? super U, ? super V, ? extends V> updateFunction) {
+        updateAll(
+                updates, keyFunction, keyFunction,
+                updateFunction, false);
+    }
+
+    /**
+     * Applies ordered updates while retaining a stable key only when an update inserts a new mapping.
+     * Repeated keys are applied in iteration order.
+     */
+    public <U> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ? extends K> lookupKeyFunction,
+            Function<? super U, ? extends K> retainedKeyFunction,
+            BiFunction<? super U, ? super V, ? extends V> updateFunction) {
+        updateAll(
+                updates, lookupKeyFunction,
+                retainedKeyFunction, updateFunction,
+                true);
+    }
+
+    private <U> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ? extends K> lookupKeyFunction,
+            Function<? super U, ? extends K> retainedKeyFunction,
+            BiFunction<? super U, ? super V, ? extends V> updateFunction,
+            boolean transientLookupKey) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(lookupKeyFunction, "lookupKeyFunction");
+        Objects.requireNonNull(retainedKeyFunction, "retainedKeyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        boolean updated = false;
+        synchronized (this) {
+            if (closed) {
+                return;
+            }
+            for (U update : updates) {
+                updated = true;
+                K key = lookupKeyFunction.apply(update);
+                Entry<V> current = entries.get(key);
+                long expectedMappingVersion = mappingVersion;
+                V next;
+                try {
+                    next = updateFunction.apply(
+                            update, current == null ? null : current.value());
+                } catch (RuntimeException | Error e) {
+                    if (current != null) {
+                        current.recordAccess(nextAccessSequence());
+                    }
+                    throw e;
+                }
+                if (transientLookupKey) {
+                    key = lookupKeyFunction.apply(update);
+                }
+                if (next == null) {
+                    removeEntry(
+                            current == null
+                            || !transientLookupKey ? key
+                                    : retainedKeyFunction.apply(update),
+                            manual, true);
+                } else if (current == null
+                           || mappingVersion
+                              != expectedMappingVersion) {
+                    putEntry(
+                            transientLookupKey
+                                    ? retainedKeyFunction.apply(update)
+                                    : key,
+                            next);
+                } else {
+                    updateEntry(
+                            key, current, next, update,
+                            retainedKeyFunction,
+                            transientLookupKey);
+                }
+            }
+        }
+        if (updated) {
+            trimForMemoryPressure();
+        }
+    }
+
     public synchronized V get(K key) {
         Entry<V> entry = getEntryForAccess(key);
         return entry == null ? null : entry.value();
+    }
+
+    /**
+     * Supplies present values for an ordered group of lookups under one cache lock.
+     * Every hit retains the same LRU and cross-cache access bookkeeping as {@link #get(Object)}.
+     */
+    public synchronized <U> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ? extends K> keyFunction,
+            BiConsumer<? super U, ? super V> valueConsumer) {
+        Objects.requireNonNull(lookups, "lookups");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(valueConsumer, "valueConsumer");
+        for (U lookup : lookups) {
+            Entry<V> entry = getEntryForAccess(
+                    keyFunction.apply(lookup));
+            if (entry != null) {
+                valueConsumer.accept(
+                        lookup, entry.value());
+            }
+        }
     }
 
     public synchronized boolean containsKey(K key) {
@@ -182,16 +361,20 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return removed == null ? null : removed.value();
     }
 
-    public synchronized void clear() {
-        clear(true);
+    public void clear() {
+        List<MemoryAwareCacheSupportEviction<K, V>> evictions;
+        synchronized (this) {
+            evictions = new ArrayList<>(entries.size());
+            entries.forEach((key, entry) -> evictions.add(eviction(key, entry, manual)));
+            clearEntries();
+        }
+        notifyEvictions(evictions);
     }
 
-    private void clear(boolean notify) {
+    private void clearEntries() {
         if (!entries.isEmpty()) {
-            if (notify) {
-                entries.forEach((key, entry) -> notifyEviction(key, entry.value(), entry.weight(), manual));
-            }
             entries.clear();
+            mappingVersion++;
             if (orderedKeys != null) {
                 orderedKeys.clear();
             }
@@ -282,7 +465,8 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         }
         if (memoryPressureController instanceof MemoryPressureController.JvmMemoryPressureController jvmController
             && jvmController.shouldEvictAll(currentWeight, maxWeight)) {
-            return trimAllForObservedMemoryPressure(jvmController.trimRatioPercent(), jvmController.maxTrimWeight());
+            return trimAllForObservedMemoryPressure(
+                    jvmController.trimRatioPercent(), jvmController.maxTrimWeight(), weightUnit);
         }
         if (!memoryPressureController.shouldEvict(currentWeight, maxWeight)) {
             return false;
@@ -290,13 +474,18 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return trimForObservedMemoryPressure();
     }
 
-    private synchronized boolean trimForObservedMemoryPressure() {
-        if (closed || entries.isEmpty()) {
-            return false;
+    private boolean trimForObservedMemoryPressure() {
+        List<MemoryAwareCacheSupportEviction<K, V>> evictions;
+        synchronized (this) {
+            if (closed || entries.isEmpty()) {
+                return false;
+            }
+            evictions = removeToWeight(
+                    targetWeightAfterPressureTrim(weight, memoryPressureController.trimRatioPercent(),
+                                                  memoryPressureController.maxTrimWeight()),
+                    memoryPressure);
         }
-        trimToWeight(targetWeightAfterPressureTrim(weight, memoryPressureController.trimRatioPercent(),
-                                                   memoryPressureController.maxTrimWeight()),
-                     memoryPressure);
+        notifyEvictions(evictions);
         return true;
     }
 
@@ -307,7 +496,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             memoryPressureMonitorTask.cancel(false);
         }
         memoryPressureCaches.remove(memoryPressureReference);
-        clear(false);
+        clearEntries();
     }
 
     private WeakReference<MemoryAwareCacheSupport<?, ?>> registerMemoryPressureCache() {
@@ -320,7 +509,8 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return reference;
     }
 
-    private static boolean trimAllForObservedMemoryPressure(int trimRatioPercent, long maxTrimWeight) {
+    private static boolean trimAllForObservedMemoryPressure(
+            int trimRatioPercent, long maxTrimWeight, WeightUnit weightUnit) {
         cleanupMemoryPressureCaches();
         List<MemoryAwareCacheSupport<?, ?>> caches = new ArrayList<>();
         long totalWeight = 0L;
@@ -328,7 +518,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
             MemoryAwareCacheSupport<?, ?> cache = reference.get();
             if (cache == null) {
                 memoryPressureCaches.remove(reference);
-            } else {
+            } else if (cache.weightUnit == weightUnit) {
                 long cacheWeight = cache.currentWeightForMemoryPressure();
                 if (cacheWeight > 0L) {
                     caches.add(cache);
@@ -415,25 +605,43 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     }
 
     @SuppressWarnings("unchecked")
-    private synchronized long evictCandidateForObservedMemoryPressure(MemoryPressureEvictionCandidate candidate) {
-        if (closed || entries.isEmpty()) {
-            return 0L;
+    private long evictCandidateForObservedMemoryPressure(MemoryPressureEvictionCandidate candidate) {
+        MemoryAwareCacheSupportEviction<K, V> eviction;
+        synchronized (this) {
+            if (closed || entries.isEmpty()) {
+                return 0L;
+            }
+            K key = (K) candidate.key();
+            Entry<V> removed = entries.remove(key);
+            if (removed == null) {
+                return 0L;
+            }
+            if (removed.lastAccess() != candidate.lastAccess()) {
+                entries.put(key, removed);
+                return 0L;
+            }
+            mappingVersion++;
+            weight -= removed.weight();
+            if (orderedKeys != null) {
+                orderedKeys.remove(key);
+            }
+            eviction = eviction(key, removed, memoryPressure);
         }
-        K key = (K) candidate.key();
-        Entry<V> removed = entries.remove(key);
-        if (removed == null) {
-            return 0L;
+        notifyEviction(eviction);
+        return eviction.weight();
+    }
+
+    private List<MemoryAwareCacheSupportEviction<K, V>> removeToWeight(
+            long targetWeight, MemoryAwareCacheSupportEviction.Reason reason) {
+        List<MemoryAwareCacheSupportEviction<K, V>> evictions = new ArrayList<>();
+        while (weight > targetWeight && !entries.isEmpty()) {
+            Map.Entry<K, Entry<V>> eldest = entries.entrySet().iterator().next();
+            Entry<V> removed = removeEntry(eldest.getKey(), reason, false);
+            if (removed != null) {
+                evictions.add(eviction(eldest.getKey(), removed, reason));
+            }
         }
-        if (removed.lastAccess() != candidate.lastAccess()) {
-            entries.put(key, removed);
-            return 0L;
-        }
-        weight -= removed.weight();
-        if (orderedKeys != null) {
-            orderedKeys.remove(key);
-        }
-        notifyEviction(key, removed.value(), removed.weight(), memoryPressure);
-        return removed.weight();
+        return evictions;
     }
 
     private static long saturatedAdd(long left, long right) {
@@ -447,6 +655,7 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     private Entry<V> removeEntry(K key, MemoryAwareCacheSupportEviction.Reason reason, boolean notify) {
         Entry<V> removed = entries.remove(key);
         if (removed != null) {
+            mappingVersion++;
             weight -= removed.weight();
             if (orderedKeys != null) {
                 orderedKeys.remove(key);
@@ -460,12 +669,16 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
 
     private boolean putEntry(K key, V value) {
         long entryWeight = value == null ? 0L : Math.max(1L, weigher.applyAsLong(key, value));
-        removeEntry(key, manual, false);
         if (value == null || maxWeight == 0 || entryWeight > maxEntryWeight || entryWeight > maxWeight) {
+            removeEntry(key, manual, false);
             notifyEviction(key, value, entryWeight, entryTooLarge);
             return false;
         }
-        entries.put(key, new Entry<>(value, entryWeight, nextAccessSequence()));
+        Entry<V> previous = entries.put(key, new Entry<>(value, entryWeight, nextAccessSequence()));
+        mappingVersion++;
+        if (previous != null) {
+            weight -= previous.weight();
+        }
         if (orderedKeys != null) {
             orderedKeys.put(key, key);
         }
@@ -474,17 +687,62 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return true;
     }
 
-    private void notifyEviction(K key, V value, long entryWeight, MemoryAwareCacheSupportEviction.Reason reason) {
-        if (!evictionListeners.isEmpty()) {
-            MemoryAwareCacheSupportEviction<K, V> event = new MemoryAwareCacheSupportEviction<>(key, value, entryWeight, reason);
-            evictionListeners.forEach(listener -> {
-                try {
-                    listener.accept(event);
-                } catch (Exception e) {
-                    log.error("Cache eviction listener {} failed", listener, e);
-                }
-            });
+    private <U> boolean updateEntry(
+            K key, Entry<V> current, V value,
+            U update,
+            Function<? super U, ? extends K> retainedKeyFunction,
+            boolean transientLookupKey) {
+        long entryWeight = Math.max(
+                1L, weigher.applyAsLong(key, value));
+        if (maxWeight == 0
+            || entryWeight > maxEntryWeight
+            || entryWeight > maxWeight) {
+            K retainedKey = transientLookupKey
+                    ? retainedKeyFunction.apply(update)
+                    : key;
+            removeEntry(retainedKey, manual, false);
+            notifyEviction(
+                    retainedKey, value, entryWeight,
+                    entryTooLarge);
+            return false;
         }
+        long previousWeight = current.weight();
+        current.replace(
+                value, entryWeight,
+                nextAccessSequence());
+        mappingVersion++;
+        weight += entryWeight - previousWeight;
+        if (orderedKeys != null) {
+            K retainedKey = transientLookupKey
+                    ? retainedKeyFunction.apply(update)
+                    : key;
+            orderedKeys.put(retainedKey, retainedKey);
+        }
+        trimToWeight(maxWeight, size);
+        return true;
+    }
+
+    private void notifyEviction(K key, V value, long entryWeight, MemoryAwareCacheSupportEviction.Reason reason) {
+        notifyEviction(new MemoryAwareCacheSupportEviction<>(key, value, entryWeight, reason));
+    }
+
+    private void notifyEvictions(List<MemoryAwareCacheSupportEviction<K, V>> evictions) {
+        evictions.forEach(this::notifyEviction);
+    }
+
+    private void notifyEviction(MemoryAwareCacheSupportEviction<K, V> event) {
+        evictionListeners.forEach(listener -> {
+            try {
+                listener.accept(event);
+            } catch (Exception e) {
+                log.error("Cache eviction listener {} failed", listener, e);
+            }
+        });
+    }
+
+    private static <K, V> MemoryAwareCacheSupportEviction<K, V> eviction(
+            K key, Entry<V> entry, MemoryAwareCacheSupportEviction.Reason reason) {
+        return new MemoryAwareCacheSupportEviction<>(key, entry.value(), entry.weight(), reason);
     }
 
     private Entry<V> getEntryForAccess(K key) {
@@ -524,9 +782,10 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
     private record MemoryPressureEvictionCandidate(MemoryAwareCacheSupport<?, ?> cache, Object key, long lastAccess) {
     }
 
+
     private static final class Entry<V> {
-        private final V value;
-        private final long weight;
+        private V value;
+        private long weight;
         private long lastAccess;
 
         private Entry(V value, long weight, long lastAccess) {
@@ -548,6 +807,14 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         }
 
         private void recordAccess(long lastAccess) {
+            this.lastAccess = lastAccess;
+        }
+
+        private void replace(
+                V value, long weight,
+                long lastAccess) {
+            this.value = value;
+            this.weight = weight;
             this.lastAccess = lastAccess;
         }
     }

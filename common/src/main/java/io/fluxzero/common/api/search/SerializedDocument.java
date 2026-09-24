@@ -207,6 +207,26 @@ public class SerializedDocument {
     }
 
     /**
+     * Returns a retrieval-only view that preserves the complete serialized payload and document identity while
+     * discarding all derived search data.
+     * <p>
+     * The returned document has no text summary, facets or sortable indexes. Its entries and metadata remain available
+     * for deserialization, including through a custom document serializer.
+     */
+    public SerializedDocument withoutSearchIndexes() {
+        Supplier<Document> retrievalDocument = memoize(() -> deserializeDocument()
+                .toBuilder()
+                .summary(() -> null)
+                .facets(Collections.emptySet())
+                .sortables(Collections.emptySet())
+                .build());
+        return new SerializedDocument(
+                id, timestamp, end, collection, data,
+                retrievalDocument, null,
+                Collections.emptySet(), Collections.emptySet());
+    }
+
+    /**
      * Returns the deserialized document view.
      */
     public Document deserializeDocument() {

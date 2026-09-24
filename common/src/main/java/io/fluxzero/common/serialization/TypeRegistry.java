@@ -14,6 +14,8 @@
 
 package io.fluxzero.common.serialization;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -39,6 +41,17 @@ import java.util.Optional;
  * @see RegisterType
  */
 public interface TypeRegistry {
+
+    /**
+     * Returns the fully qualified names that make up this registry.
+     * <p>
+     * Custom registries that only support alias lookup may retain the empty default. The standard registry exposes
+     * its generated catalog so structural metadata such as declared model relationships can be discovered without
+     * turning those types into message handlers.
+     */
+    default Collection<String> getTypeNames() {
+        return List.of();
+    }
 
     /**
      * Returns the fully qualified class name associated with the given alias or type key.

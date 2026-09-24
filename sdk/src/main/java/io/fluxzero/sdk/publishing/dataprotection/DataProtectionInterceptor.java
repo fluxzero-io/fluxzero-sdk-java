@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.publishing.dataprotection;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
@@ -48,8 +49,11 @@ import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.AccessibleObject;
+import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -63,9 +67,11 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
+import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getValue;
 import static io.fluxzero.common.reflection.ReflectionUtils.isLeafValue;
+import static io.fluxzero.common.reflection.ReflectionUtils.readProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
 import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
 import static java.util.Optional.ofNullable;
@@ -233,6 +239,293 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         }
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public SerializedMessage modifySerializedMessage(SerializedMessage serialized, DeserializingMessage source,
+                                                     MessageType messageType, String topic, String namespace) {
+        // Invoke the existing extension point once, including overrides supplied by applications.
+        serialized = modifySerializedMessage(serialized, source.toMessage(), messageType, topic);
+        if (serialized == null) {
+            return null;
+        }
+        if (getAnnotatedProperties(source.getPayloadClass(), ProtectData.class).isEmpty()
+            && serialized.getData() == source.getSerializedObject(serializer).getData()) {
+            Metadata metadata = serialized.getMetadata();
+            return metadata.containsKey(METADATA_KEY) || metadata.containsKey(NAMESPACE_METADATA_KEY)
+                    ? serialized.withMetadata(withoutProtectedDataMetadata(metadata)) : serialized;
+        }
+        ProtectionContext context = source.computeContextIfAbsent(ProtectionContext.class, ignored -> new ProtectionContext());
+        synchronized (context) {
+            List<PreparedProtection> previous = context.prepared.computeIfAbsent(source, ignored -> new ArrayList<>());
+            for (PreparedProtection prepared : previous) {
+                if (prepared.matches(source, serialized, namespace)) {
+                    return prepared.apply(serialized);
+                }
+            }
+            // Decode the current candidate, not the logical source: preceding serialized interceptors own its edits.
+            Object payload = serializer.deserialize(serialized.getData());
+            if (payload == null || getAnnotatedProperties(payload.getClass(), ProtectData.class).isEmpty()) {
+                return serialized.withMetadata(withoutProtectedDataMetadata(serialized.getMetadata()));
+            }
+            Metadata metadata = serialized.getMetadata();
+            Map<String, String> existing = metadata.containsKey(METADATA_KEY)
+                    ? metadata.get(METADATA_KEY, Map.class) : Map.of();
+            String storedNamespace = metadata.get(NAMESPACE_METADATA_KEY);
+            String targetNamespace = storedNamespace == null
+                    ? namespace == null ? getConsumerNamespace(source) : namespace
+                    : storedNamespace.isEmpty() ? null : storedNamespace;
+            Map<String, String> references = new LinkedHashMap<>(existing);
+            references.keySet().removeIf(path -> !isProtectedPath(payload, payload.getClass(), path));
+            Map<String, Object> values = new LinkedHashMap<>();
+            collectProtectedValues(payload, "", values);
+            for (var entry : new LinkedHashMap<>(references).entrySet()) {
+                String field = entry.getKey();
+                RestoredValue restored = context.restored.get(entry.getValue());
+                Object candidateValue = readProperty(field, payload).orElse(null);
+                if (candidateValue == null && restored != null) {
+                    Object logicalValue = readProperty(field, source.getPayload()).orElse(null);
+                    if (!restored.matches(targetNamespace, snapshot(logicalValue))) {
+                        references.remove(field);
+                        if (logicalValue != null) {
+                            values.put(field, logicalValue);
+                        }
+                    }
+                }
+            }
+            PendingProtectedData additions = new PendingProtectedData(targetNamespace);
+            for (var entry : values.entrySet()) {
+                String field = entry.getKey();
+                Object value = entry.getValue();
+                String reference = references.get(field);
+                RestoredValue restored = reference == null ? null : context.restored.get(reference);
+                if (restored == null || !restored.matches(targetNamespace, snapshot(value))) {
+                    references.put(field, protectValue(value, targetNamespace, additions));
+                }
+            }
+            // Work on the current wire tree so unknown extension fields, type aliases and revisions survive redaction.
+            Data<byte[]> input = serialized.getData();
+            JsonNode sanitized = serializer.deserialize(
+                    input.withType(JsonNode.class.getName()).withRevision(0), JsonNode.class);
+            // A regular bean getter can also derive output from a protected backing field. Apply the serialization
+            // delta of logical sanitization, while retaining fields added by earlier serialized interceptors.
+            Map<String, String> redactionFields = new LinkedHashMap<>(references);
+            existing.forEach((path, reference) -> {
+                if (isProtectedPath(payload, payload.getClass(), path)) {
+                    redactionFields.putIfAbsent(path, reference);
+                }
+            });
+            if (payload.getClass() == source.getPayloadClass()) {
+                Map<String, Object> sourceFields = new LinkedHashMap<>();
+                collectProtectedValues(source.getPayload(), "", sourceFields);
+                sourceFields.keySet().forEach(path -> redactionFields.putIfAbsent(path, ""));
+            }
+            Object redactionBasis = redactionBasis(payload, sanitized, source, redactionFields, context);
+            JsonNode before = serializedTree(redactionBasis, input.getFormat());
+            JsonNode after = serializedTree(sanitizePayload(redactionBasis, redactionFields), input.getFormat());
+            sanitized = redactDerivedProperties(sanitized, before, after);
+            for (String path : references.keySet()) {
+                writeProtectedProperty(payload, sanitized, path, null);
+            }
+            byte[] safeBytes = serializer.serialize(sanitized, input.getFormat()).getValue();
+            Data<byte[]> safeData = input.map(ignored -> safeBytes);
+            Metadata safeMetadata = withoutProtectedDataMetadata(metadata);
+            if (!references.isEmpty()) {
+                safeMetadata = safeMetadata.with(METADATA_KEY, references)
+                        .with(NAMESPACE_METADATA_KEY, targetNamespace == null ? "" : targetNamespace);
+            }
+            // No durable references are published until every new value is stored successfully.
+            additions.externalize(keyValueStore, Set.copyOf(references.values()));
+            PreparedProtection prepared = new PreparedProtection(source, input.map(bytes -> bytes.clone()), metadata, namespace,
+                                                                  safeData, safeMetadata);
+            previous.add(prepared);
+            return prepared.apply(serialized);
+        }
+    }
+
+    /**
+     * Carries private restoration provenance to an explicitly emitted message in the Model pipeline. It is never
+     * serialized, and an emitted message's own restoration context takes precedence.
+     */
+    public static void preserveRestoredDataContext(DeserializingMessage source, DeserializingMessage emitted) {
+        source.getContext(ProtectionContext.class).ifPresent(context ->
+                emitted.computeContextIfAbsent(ProtectionContext.class, ignored -> context));
+    }
+
+    /**
+     * Restores retained private values before reconstructing a Model from its stored events. Reconstruction does not
+     * invoke command handlers, apply missing-handler policies, drop values, or write new references. Missing values
+     * remain {@code null}, as for replay after erasure. The stored envelope and event index stay unchanged.
+     */
+    @SuppressWarnings("unchecked")
+    public DeserializingMessage restoreForReplay(DeserializingMessage message) {
+        return restoreStoredValues(message, false);
+    }
+
+    /**
+     * Restores a temporary schedule-ownership read view. The caller selects the protected parent paths in
+     * {@link #METADATA_KEY}; missing values fail before payload conversion, rather than silently dropping ownership.
+     * The result must never replace the redacted outbound message.
+     */
+    public DeserializingMessage restoreScheduleParents(DeserializingMessage message) {
+        return restoreStoredValues(message, true);
+    }
+
+    private DeserializingMessage restoreStoredValues(DeserializingMessage message, boolean required) {
+        if (!message.containsMetadata(METADATA_KEY) || message.getPayload() == null) {
+            return message;
+        }
+        Object payload = message.getPayload();
+        Object restored = payload.getClass().isRecord() ? serializer.convert(payload, JsonNode.class)
+                : serializer.deserialize(serializer.serialize(payload));
+        KeyValueStore store = keyValueStore.forNamespace(getProtectedDataNamespace(message));
+        Map<String, String> fields = message.getMetadata().get(METADATA_KEY, Map.class);
+        // A missing key is erased data; a failed read must not become a cacheable, incomplete Model revision.
+        fields.forEach((field, reference) -> {
+            Object value = store.get(reference);
+            if (required && value == null) {
+                throw new IllegalStateException("Protected schedule parent data is unavailable; ownership cannot be established");
+            }
+            writeProtectedProperty(payload, restored, field, value);
+        });
+        Object logical = payload.getClass().isRecord() ? serializer.convert(restored, payload.getClass()) : restored;
+        return message.withRestoredPayload(logical);
+    }
+
+    private Data<byte[]> snapshot(Object value) {
+        if (value == null) {
+            return null;
+        }
+        Data<byte[]> serialized = serializer.serialize(value);
+        return serialized.map(bytes -> bytes.clone());
+    }
+
+    private Object redactionBasis(Object payload, JsonNode raw, DeserializingMessage source, Map<String, String> fields,
+                                  ProtectionContext context) {
+        Object copy = null;
+        for (var field : fields.entrySet()) {
+            if (readProperty(field.getKey(), payload).orElse(null) != null
+                && serializer.serializedPropertyPaths(payload, field.getKey()).stream()
+                        .noneMatch(path -> raw.at("/" + path).isNull())) {
+                continue;
+            }
+            Object previous = payload.getClass() == source.getPayloadClass()
+                    ? readProperty(field.getKey(), source.getPayload()).orElse(null) : null;
+            RestoredValue restored = context.restored.get(field.getValue());
+            if (previous == null && restored != null && restored.value() != null) {
+                previous = serializer.deserialize(restored.value());
+            }
+            if (previous != null) {
+                if (copy == null) {
+                    copy = payload.getClass().isRecord() ? serializer.convert(payload, JsonNode.class)
+                            : serializer.deserialize(serializer.serialize(payload));
+                }
+                writeProtectedProperty(payload, copy, field.getKey(), previous);
+            }
+        }
+        // This is a private comparison view, never a replay input or a value to retain in the vault.
+        return copy == null ? payload : payload.getClass().isRecord()
+                ? serializer.convert(copy, payload.getClass()) : copy;
+    }
+
+    private static JsonNode redactDerivedProperties(JsonNode raw, JsonNode before, JsonNode after) {
+        if (raw.isNull() || Objects.equals(before, after)) {
+            return raw;
+        }
+        if (raw instanceof ObjectNode object && before.isObject() && after.isObject()) {
+            before.properties().forEach(entry -> {
+                String name = entry.getKey();
+                if (object.has(name)) {
+                    JsonNode replacement = after.get(name);
+                    if (replacement == null) {
+                        if (!object.get(name).isNull()) {
+                            requireMatchingProtectedRepresentation(object.get(name), entry.getValue());
+                        }
+                        object.remove(name);
+                    } else {
+                        object.set(name, redactDerivedProperties(object.get(name), entry.getValue(), replacement));
+                    }
+                }
+            });
+            return object;
+        }
+        if (!raw.equals(after)) {
+            requireMatchingProtectedRepresentation(raw, before);
+        }
+        return after.deepCopy();
+    }
+
+    private static void requireMatchingProtectedRepresentation(JsonNode actual, JsonNode expected) {
+        if (!Objects.equals(actual, expected)) {
+            throw new IllegalStateException("Protected payload serialization is not stable enough for safe redaction");
+        }
+    }
+
+    private JsonNode serializedTree(Object payload, String format) {
+        return serializer.deserialize(serializer.serialize(payload, format)
+                                              .withType(JsonNode.class.getName()).withRevision(0), JsonNode.class);
+    }
+
+    private void writeProtectedProperty(Object logicalPayload, Object target, String path, Object value) {
+        if (target instanceof JsonNode tree) {
+            List<String> paths = serializer.serializedPropertyPaths(logicalPayload, path);
+            JsonNode replacement = value == null ? null : serializer.convert(value, JsonNode.class);
+            boolean present = paths.stream().anyMatch(candidate -> !tree.at("/" + candidate).isMissingNode());
+            for (int i = 0; i < paths.size(); i++) {
+                String serializedPath = paths.get(i);
+                if ((present || i > 0) && tree.at("/" + serializedPath).isMissingNode()) {
+                    continue;
+                }
+                String[] parts = serializedPath.split("/", -1);
+                ObjectNode parent = (ObjectNode) tree;
+                for (int part = 0; part < parts.length - 1; part++) {
+                    String name = parts[part].replace("~1", "/").replace("~0", "~");
+                    JsonNode nested = parent.get(name);
+                    parent = nested == null || nested.isNull() ? parent.putObject(name) : (ObjectNode) nested;
+                }
+                String name = parts[parts.length - 1].replace("~1", "/").replace("~0", "~");
+                parent.set(name, replacement);
+            }
+        } else {
+            writeProperty(path, target, value);
+        }
+    }
+
+    private static void collectProtectedValues(Object payload, String prefix, Map<String, Object> values) {
+        if (payload == null) {
+            return;
+        }
+        for (AccessibleObject property : getAnnotatedProperties(payload.getClass(), ProtectData.class)) {
+            Object value = getValue(property, payload);
+            if (value == null) {
+                continue;
+            }
+            String path = prefix + getPropertyName(property);
+            if (isLeafValue(value) || value instanceof JsonNode || value instanceof Data<?>
+                || value instanceof Iterable<?> || value instanceof Map<?, ?>
+                || getTypeAnnotation(value.getClass(), ProtectData.class) != null) {
+                values.put(path, value);
+            } else {
+                collectProtectedValues(value, path + "/", values);
+            }
+        }
+    }
+
+    private static boolean isProtectedPath(Object value, Class<?> type, String path) {
+        int separator = path.indexOf('/');
+        String propertyName = separator < 0 ? path : path.substring(0, separator);
+        for (AccessibleObject property : getAnnotatedProperties(type, ProtectData.class)) {
+            if (getPropertyName(property).equals(propertyName)) {
+                if (separator < 0) {
+                    return true;
+                }
+                Object nested = value == null ? null : getValue(property, value);
+                return isProtectedPath(nested, nested == null ? getPropertyType(property) : nested.getClass(),
+                                       path.substring(separator + 1));
+            }
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private Message protectData(Message m, String namespace, boolean deferStorage) {
         Object payload = m.getPayload();
@@ -290,7 +583,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
             @Override
             public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
-                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                if (!message.containsMetadata(METADATA_KEY)) {
                     return handler.getInvokerOrNull(message);
                 }
                 HandlerInvoker invoker = handler.getInvokerOrNull(message);
@@ -328,7 +621,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
             @Override
             public HandlerMethod<DeserializingMessage> getHandlerMethodOrNull(DeserializingMessage message) {
-                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                if (!message.containsMetadata(METADATA_KEY)) {
                     return handler.getHandlerMethodOrNull(message);
                 }
                 return null;
@@ -337,7 +630,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             @Override
             public HandlerMethodPlan<DeserializingMessage> getHandlerMethodPlanOrNull(
                     DeserializingMessage message) {
-                if (!message.getMetadata().containsKey(METADATA_KEY)) {
+                if (!message.containsMetadata(METADATA_KEY)) {
                     return handler.getHandlerMethodPlanOrNull(message);
                 }
                 return null;
@@ -354,7 +647,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                     public Object getCacheKey(DeserializingMessage message) {
                         Object key = planner.getCacheKey(message);
                         return key == null ? null : new DataProtectionPlanKey(
-                                key, message.getMetadata().containsKey(METADATA_KEY));
+                                key, message.containsMetadata(METADATA_KEY));
                     }
 
                     @Override
@@ -362,13 +655,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                         Object key = planner.getCacheKey(input);
                         boolean protectedData = input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
                                 ? local.containsMetadata(METADATA_KEY)
-                                : input.getMessage().getMetadata().containsKey(METADATA_KEY);
+                                : input.getMessage().containsMetadata(METADATA_KEY);
                         return key == null ? null : new DataProtectionPlanKey(key, protectedData);
                     }
 
                     @Override
                     public HandlerMethodPreparation<DeserializingMessage> prepare(DeserializingMessage message) {
-                        return message.getMetadata().containsKey(METADATA_KEY)
+                        return message.containsMetadata(METADATA_KEY)
                                 ? HandlerMethodPreparation.unsupported() : planner.prepare(message);
                     }
 
@@ -377,7 +670,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                             HandlerInput<DeserializingMessage> input) {
                         boolean protectedData = input instanceof io.fluxzero.sdk.tracking.handling.LocalHandlerInput local
                                 ? local.containsMetadata(METADATA_KEY)
-                                : input.getMessage().getMetadata().containsKey(METADATA_KEY);
+                                : input.getMessage().containsMetadata(METADATA_KEY);
                         return protectedData ? HandlerMethodPreparation.unsupported() : planner.prepare(input);
                     }
 
@@ -440,7 +733,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     @SuppressWarnings("unchecked")
     private RestoredMessage restoreProtectedData(DeserializingMessage m, HandlerDescriptor invoker) {
-        if (!m.getMetadata().containsKey(METADATA_KEY)) {
+        if (!m.containsMetadata(METADATA_KEY)) {
             return new RestoredMessage(m, false);
         }
         Object payload = m.getPayload();
@@ -478,22 +771,27 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                 }
             }
         }
+        ProtectionContext protectionContext = new ProtectionContext();
+        protectedFields.forEach((field, reference) -> protectionContext.restored.put(reference,
+                new RestoredValue(getProtectedDataNamespace(m), snapshot(failedFields.contains(field)
+                        ? readProperty(field, payload).orElse(null) : protectedValues.get(field)))));
+        m.withoutContext(ProtectionContext.class).putContext(ProtectionContext.class, protectionContext);
         boolean dropProtectedData = invoker.getMethod().isAnnotationPresent(DropProtectedData.class);
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
             protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                    payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
+                    payload, payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
             return new RestoredMessage(m.withPayload(serializer.convert(payloadTree, payload.getClass())), false);
         }
         if (payload != null && pending != null) {
             Object restoredPayload = pending.getOrCreateRestoredPayload(
                     () -> serializer.deserialize(serializer.serialize(payload)));
             protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                    restoredPayload, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
+                    payload, restoredPayload, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
             return new RestoredMessage(m.withPayload(restoredPayload), false);
         }
         protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                payload, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
+                payload, payload, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
         return new RestoredMessage(m, false);
     }
 
@@ -512,7 +810,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private String getProtectedDataNamespace(DeserializingMessage message) {
-        String namespace = message.getMetadata().get(NAMESPACE_METADATA_KEY);
+        String namespace = message.getMetadataValue(NAMESPACE_METADATA_KEY);
         return namespace == null ? getConsumerNamespace(message) : namespace.isEmpty() ? null : namespace;
     }
 
@@ -529,13 +827,13 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         return consumerPolicy == MissingProtectedDataPolicy.DEFAULT ? onMissingProtectedData : consumerPolicy;
     }
 
-    private void restoreProtectedField(Object payload, String fieldName, String key,
+    private void restoreProtectedField(Object logicalPayload, Object payload, String fieldName, String key,
                                         Map<String, Object> protectedValues, Set<String> failedFields,
                                         boolean dropProtectedData, KeyValueStore store,
                                         PendingProtectedData pending) {
         if (!failedFields.contains(fieldName)) {
             try {
-                writeProperty(fieldName, payload, protectedValues.get(fieldName));
+                writeProtectedProperty(logicalPayload, payload, fieldName, protectedValues.get(fieldName));
             } catch (Exception e) {
                 log.warn("Failed to set protected field {}", fieldName, e);
             }
@@ -568,7 +866,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     private Object sanitizePayload(Object payload, Map<String, String> protectedFields) {
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
-            protectedFields.forEach((name, key) -> writeProperty(name, payloadTree, null));
+            protectedFields.forEach((name, key) -> writeProtectedProperty(payload, payloadTree, name, null));
             return serializer.convert(payloadTree, payload.getClass());
         }
         Object payloadCopy = serializer.deserialize(serializer.serialize(payload));
@@ -670,6 +968,29 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     }
 
     private record RestoredMessage(DeserializingMessage message, boolean skip) {
+    }
+
+    private static final class ProtectionContext {
+        private final Map<String, RestoredValue> restored = new LinkedHashMap<>();
+        private final Map<DeserializingMessage, List<PreparedProtection>> prepared = new IdentityHashMap<>();
+    }
+
+    private record RestoredValue(String namespace, Data<byte[]> value) {
+        private boolean matches(String namespace, Data<byte[]> value) {
+            return Objects.equals(this.namespace, namespace) && Objects.equals(this.value, value);
+        }
+    }
+
+    private record PreparedProtection(DeserializingMessage source, Data<byte[]> input, Metadata metadata,
+                                      String namespace, Data<byte[]> output, Metadata outputMetadata) {
+        private boolean matches(DeserializingMessage source, SerializedMessage candidate, String namespace) {
+            return this.source == source && Objects.equals(this.namespace, namespace)
+                   && input.equals(candidate.getData()) && metadata.equals(candidate.getMetadata());
+        }
+
+        private SerializedMessage apply(SerializedMessage candidate) {
+            return candidate.withData(output).withMetadata(outputMetadata);
+        }
     }
 
     private record DataProtectionPlanKey(Object delegate, boolean protectedData) {

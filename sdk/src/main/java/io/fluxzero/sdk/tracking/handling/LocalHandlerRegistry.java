@@ -122,6 +122,15 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     }
 
     @Override
+    public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+        if (!localHandlers.isEmpty()) {
+            return false;
+        }
+        return (!messageType.isRequest() && messageType != MessageType.SCHEDULE)
+               || selfHandlers.apply(payloadType).isEmpty();
+    }
+
+    @Override
     public boolean supportsDeferredExternalization() {
         return true;
     }

@@ -1,5 +1,10 @@
 Use scheduling when a message should run later or periodically. Keep time deterministic with `Fluxzero.currentTime()` or injected time; do not use `Instant.now()` in scheduling logic.
 
+Use `@Parent` on a schedule payload or `Schedule.withParents(...)` when delayed work belongs to a committed Model's
+lifetime. Direct `@Apply → null`, cascade deletion and hard erasure asynchronously cancel that work without a cleanup
+consumer. This does not recall delivered messages or replace current-intent guards. Read
+`/docs/sdk/scheduling/parent-owned-schedules` for lifetime, replacement and testing semantics.
+
 For deadline tests, prove the required boundary rather than only the happy-path delivery: exact active-schedule counts,
 cleanup after every relevant terminal path, stale or duplicate delivery, and the distinction between synthetic schedule
 seeding and persistence-backed restart belong in the verification-boundaries and reconstruction guidance.

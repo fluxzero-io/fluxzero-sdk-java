@@ -37,6 +37,17 @@ With annotation processing enabled, Fluxzero writes the generated document to `M
 
 ## Make validation and security explicit
 
+For a composed Model Graph response, select its root with
+`@ApiDocResponse(status = 200, modelGraph = RootModel.class)`. Child declarations can add
+`apiDoc = @ApiDoc(...)` to `@Parent(pathInParent = ...)`: the final path segment becomes a list of that child type,
+with slash-separated prefixes represented as nested objects. Array/collection responses remain arrays of Graphs.
+An empty `modelGraphPaths` includes every documented relation; select `{"children/grandchildren"}` for an endpoint
+subgraph, including its ancestors but not siblings or deeper descendants. `type` and `modelGraph` are mutually
+exclusive. Runtime-served docs include locally discovered/registered child Models from other modules.
+`@Parent(apiDoc = @ApiDoc(exclude = true))` excludes a relationship from the documentation only; it does not filter
+runtime responses or Graph reads. See the API-discovery options article for the broader generated/merged document
+contract and the Graph guides for actual response scoping.
+
 OpenAPI generation maps supported Jakarta constraints that are visible on the inspected element, but Java record-component propagation and annotation-processor visibility can still leave required arrays incomplete. Runtime security is separate: package-level `@RequiresUser` is not inferred as an OpenAPI scheme or requirement. Inspect the generated schema instead of assuming either contract is complete.
 
 Keep runtime validation and add `@ApiDoc(required = true)` on required request record components when the generated schema would otherwise omit requiredness:

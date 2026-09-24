@@ -25,6 +25,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
@@ -362,16 +363,62 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * {@link Collection list} of collections. Collection names are resolved using
      * {@link #determineCollection(Object)}.
      */
-    default Search search(@NonNull Object collection) {
+    default <T> Search<T> search(@NonNull Object collection) {
         List<String> collections = (collection instanceof Collection<?> list ? list.stream() : Stream.of(collection))
                 .map(this::determineCollection).toList();
         return search(SearchQuery.builder().collections(collections));
     }
 
     /**
+     * Prepares a typed search for the collection represented by the given document class.
+     * <p>
+     * For independent Models, unrestricted search requires a public direct document. Adding a relationship selector
+     * can instead use a direct reference-only or internal Graph-component document. Neither route replays Models or
+     * inherits a handler's historical boundary. See {@link Search} for capabilities and consistency limits.
+     */
+    default <T> Search<T> search(@NonNull Class<T> collection) {
+        return this.<T>search((Object) collection);
+    }
+
+    /**
      * Prepares a search query based on the specified {@link SearchQuery.Builder}.
      */
-    Search search(SearchQuery.Builder queryBuilder);
+    <T> Search<T> search(SearchQuery.Builder queryBuilder);
+
+    /**
+     * Searches complete graph views for an independent model root.
+     * <p>
+     * A configured materialized graph collection is used by default. If the root has no materialized projection, the
+     * current graph is composed live from its public or private current document and explicit parent paths.
+     * A root without any current document is rejected; having children alone does not supply that root document.
+     * <p>
+     * Results contain complete composed documents, not pathless relationships. Graph predicates select roots without
+     * pruning their nonmatching children. {@link Graph#get()} returns only the root Model value; navigate children
+     * through the Graph. Use raw JSON results when configuring output field selection.
+     * <p>
+     * Live composition applies root and nested field predicates, ordering and pagination after composition; related
+     * selectors can narrow candidate roots first. It reads current documents, not an atomic historical snapshot.
+     * Materialized projections may lag commits. Related predicates still select current related documents even when
+     * the returned projection is older. These searches do not inherit an event boundary or a transaction readset.
+     */
+    default <T> Search<Graph<T>> searchGraph(
+            @NonNull Class<T> rootModelType) {
+        return searchGraph(
+                rootModelType, false);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root.
+     *
+     * @param rootModelType root model class
+     * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
+     */
+    default <T> Search<Graph<T>> searchGraph(
+            @NonNull Class<T> rootModelType,
+            boolean forceAdHoc) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph search is not supported by this document store");
+    }
 
     /**
      * Checks whether a document exists for the given identifier and its associated type. The type is used to determine

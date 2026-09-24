@@ -40,11 +40,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.ObjectUtils.newWorkerExecutor;
 import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
 import static java.net.http.HttpRequest.BodyPublishers.ofByteArray;
 
@@ -92,6 +94,8 @@ import static java.net.http.HttpRequest.BodyPublishers.ofByteArray;
  */
 @Slf4j
 public class ForwardingWebConsumer implements AutoCloseable {
+    private static final Executor HTTP_EXECUTOR = newWorkerExecutor("fluxzero-forward-http-");
+
     private final String host;
     private final LocalServerConfig localServerConfig;
     private final ConsumerConfiguration configuration;
@@ -102,7 +106,7 @@ public class ForwardingWebConsumer implements AutoCloseable {
         this.host = "http://localhost:" + localServerConfig.getPort();
         this.localServerConfig = localServerConfig;
         this.configuration = configuration;
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder().executor(HTTP_EXECUTOR).build();
     }
 
     @Synchronized
@@ -121,12 +125,12 @@ public class ForwardingWebConsumer implements AutoCloseable {
                 HttpRequest request = createRequest(m);
                 ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
                 httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray())
-                        .whenComplete(context.wrap((r, e) -> {
+                        .whenCompleteAsync(context.wrap((r, e) -> {
                             if (e == null && r.statusCode() == 404 && localServerConfig.isIgnore404()) {
                                 return;
                             }
                             gateway.accept(m, e == null ? toMessage(r, correlationData) : toMessage(e, correlationData));
-                        }));
+                        }), HTTP_EXECUTOR);
             } catch (Exception e) {
                 try {
                     gateway.accept(m, toMessage(e, correlationData));

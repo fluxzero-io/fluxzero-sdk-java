@@ -1,6 +1,12 @@
+# Legacy aggregates and entities
+
+This topic preserves the aggregate API for already persisted 1.x state. Use `@Model` for new v2 code and follow the
+Models topic for lifecycle boundaries, commands, graph navigation and conflict detection. Do not migrate stored state
+by changing only its annotation.
+
 Aggregates and entities are immutable state holders. They should contain data, not orchestration.
 
-Use an aggregate for the consistency boundary:
+For an existing legacy aggregate consistency boundary:
 
 ```java
 @Aggregate(searchable = true)
@@ -11,7 +17,7 @@ public record Project(
 }
 ```
 
-Use `@Member` for nested entities that have identity and can be created, updated, or removed independently. Use value objects for details that are replaced as a whole.
+In a legacy aggregate, `@Member` identifies nested entities within the same persisted root. For new v2 state, independently created, changed or retained state is a separate `@Model` connected with `@Parent`. Use value objects for details that are replaced as a whole.
 
 State transitions belong in command payload methods annotated with `@Apply`; invariants belong in `@AssertLegal`.
 

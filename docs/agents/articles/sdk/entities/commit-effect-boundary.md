@@ -1,3 +1,6 @@
+This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
+and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+
 Use this whenever a command both changes an event-sourced aggregate and intends to schedule, cancel, publish, or send an external effect.
 
 ## `assertAndApply(...).get()` is not persistence

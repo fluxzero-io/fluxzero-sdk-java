@@ -36,6 +36,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TestFixtureDocumentRevisionTest {
+    @Test
+    void storedNotificationAfterCompletedBatchDoesNotReintroducePendingWork() {
+        var stored = batch(document("same"), 1);
+        stored.getMessages().getFirst().setSegment(0);
+        var consume = interceptor.intercept(b -> {}, tracker);
+        fixture.whenExecuting(f -> {
+            consume.accept(stored);
+            interceptor.interceptClientDispatch(DOCUMENT, "documents", f.client().namespace(), stored.getMessages());
+            assertTrue(fixture.checkConsumers());
+        }).expectNoErrors();
+    }
+
     private final TestFixture fixture = TestFixture.create().async();
     private final TestFixture.GivenWhenThenInterceptor interceptor =
             new TestFixture.GivenWhenThenInterceptor(fixture);

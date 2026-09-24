@@ -3,7 +3,7 @@ Recipes are short task paths. Use them when the user asks an agent to build or e
 Recommended order:
 
 1. Create the app and package layout.
-2. Add one command and aggregate transition.
+2. Add one command and Model transition.
 3. Add queries for reads.
 4. For browse/search/count requirements, use indexed search constraints.
 5. Add web endpoints as thin adapters.

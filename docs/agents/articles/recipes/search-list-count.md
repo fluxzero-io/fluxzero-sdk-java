@@ -1,6 +1,6 @@
 Use this recipe when a product asks for a browse page, text search, filters, sorting, pagination, totals, or grouped counts.
 
-1. Make the aggregate or projection searchable.
+1. Include `ModelPersistence.DOCUMENT` on the Model, or maintain a separate searchable projection.
 2. Put `@Sortable` on fields used for sorting, numeric/range filtering, or existence checks.
 3. Model the user intent as a typed `Request<T>`.
 4. Build every supplied filter in `Fluxzero.search(...)` inside the query handler.
@@ -9,11 +9,13 @@ Use this recipe when a product asks for a browse page, text search, filters, sor
 
 ```java
 import io.fluxzero.common.search.Sortable;
-import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.EntityId;
 
-@Aggregate(searchable = true)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record KnowledgeArticle(
-        @Sortable ArticleId articleId,
+        @EntityId @Sortable ArticleId articleId,
         @Sortable String title,
         String description,
         Topic topic,

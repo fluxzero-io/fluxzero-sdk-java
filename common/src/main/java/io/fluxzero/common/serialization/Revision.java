@@ -21,7 +21,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Specifies the revision number of a persistable object, such as a message payload, document, or aggregate snapshot.
+ * Specifies the revision number of a persistable object, such as a message payload, document, or model snapshot.
  * <p>
  * Revisions are used to version serialized data, allowing for upcasting migration when older versions are read from
  * storage or received from other systems.
@@ -35,7 +35,8 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>Message payloads sent through the event store or command log</li>
  *     <li>Serialized documents stored in the document store</li>
- *     <li>Aggregate snapshots used for efficient rehydration of event-sourced entities</li>
+ *     <li>Model and legacy aggregate snapshots used for efficient rehydration</li>
+ *     <li>Individual nodes of a materialized model Graph, each of which retains its own type and revision</li>
  * </ul>
  *
  * <h2>Example</h2>

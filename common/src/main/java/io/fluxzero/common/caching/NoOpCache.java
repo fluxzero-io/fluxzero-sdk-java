@@ -17,6 +17,7 @@ package io.fluxzero.common.caching;
 import io.fluxzero.common.Registration;
 import lombok.NonNull;
 
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -47,6 +48,13 @@ public enum NoOpCache implements Cache {
     @Override
     public <T> T compute(Object id, BiFunction<? super Object, ? super T, ? extends T> mappingFunction) {
         return mappingFunction.apply(id, null);
+    }
+
+    @Override
+    public <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        //no op
     }
 
     @Override

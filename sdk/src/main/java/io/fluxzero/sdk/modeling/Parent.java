@@ -1,0 +1,141 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.modeling;
+
+import io.fluxzero.sdk.web.ApiDoc;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * On a Model, registers a directed Graph relationship whose property contains the referenced parent Model's ID.
+ * <p>
+ * Choose which relationships belong in the Graph first, then choose each relationship's deletion policy.
+ * A plain typed {@link Id} without this annotation stores a reference but registers no Graph edge.
+ * This annotation defaults to cascade deletion; {@code @Parent(deleteOnParentDeletion = false)} expresses a
+ * normal non-owning Graph relation. For example, a LineItem can have an owning {@code @Parent OrderId orderId}
+ * and a non-owning {@code @Parent(deleteOnParentDeletion = false) ProductId productId}: deleting the order
+ * deletes the line, whereas deleting the product does not.
+ * <p>
+ * On a scheduled message or command payload, this also declares schedule ownership: deletion of any referenced,
+ * already committed Model asynchronously cancels the schedule. Applicable {@code @Apply} returns of {@code null},
+ * cascaded deletion and hard erasure all invalidate ownership. Null references and
+ * {@code deleteOnParentDeletion = false} do not own the schedule. The schedule is not a Model or Graph node;
+ * {@code pathInParent} and {@code apiDoc} do not compose it. Already delivered work cannot be recalled.
+ * Explicit {@link io.fluxzero.sdk.scheduling.Schedule#withParents(Object...)} selections override these declarations.
+ * <p>
+ * Both sides remain independent model and persistence boundaries. Use a parent relationship when the child has its own
+ * creation, update history, retention, or deletion lifecycle but belongs in the parent's domain graph. Being rendered
+ * below the parent, or being deleted with it by default, does not turn the child into an embedded {@link Member}.
+ * A child identifier that is meaningful only below this parent can use {@link EntityId#parentScoped()}.
+ * <p>
+ * A parent reference is stored independently from both model values so changing this property can attach, detach, or
+ * move the child without loading or rewriting either parent. A {@code null} value means that the property currently has no
+ * parent. Non-null values use their {@link Object#toString()} representation as the referenced model identity.
+ * <p>
+ * The parent model type is inferred when the property is an {@link Id}{@code <T>}. For a {@link String} or another
+ * untyped ID, {@link #value()} may name the parent model explicitly. An explicit type is required only for features
+ * that need parent model metadata, including automatic graph-document composition.
+ * A typed parent may target the declaring model type itself, for example to represent folders within folders.
+ * Concrete relationship cycles are rejected atomically when the relationship change is committed.
+ * <p>
+ * {@link #pathInParent()} is an optional path relative to the parent document. Supplying it opts this edge into
+ * automatic virtual-document stitching and CQRS graph placement. Omitting it leaves relationship navigation and graph
+ * bundles available without silently deriving a durable document path from a Java class name. The path names a
+ * list-valued collection: the runtime appends deterministic numeric child positions, so numeric path segments are not
+ * allowed.
+ * Graph placement is independent from {@link Model#persistence()}: a child without a direct document but with an
+ * explicit path is retained in a type-isolated private current-document collection for composition and indexed
+ * relationship selection, but is not exposed through its own collection. Parent and Graph searches can therefore
+ * select matching children first and traverse their current relationship edges without composing unrelated roots.
+ * This enables scoped {@code search(Child.class).whereParent(parentId)} without {@code DOCUMENT} on the child.
+ * The parent does not acquire a document simply by being referenced: a related parent-content predicate or
+ * {@code searchGraph(Parent.class)} still needs the parent's own current document. Identity-based Graph navigation
+ * needs neither document nor explicit composition path.
+ * {@link #apiDoc()} optionally describes the list-valued property created at that path when the graph is used as a
+ * documented web response. It has no effect unless {@link #pathInParent()} is set.
+ * <p>
+ * By default the relationship also owns the child's lifecycle: deleting the referenced parent deletes this model and
+ * its likewise owned descendants in the same atomic model commit. Set {@link #deleteOnParentDeletion()} to
+ * {@code false} for a non-owning relation, including shared or independently retained children.
+ * Disabling cascade does not block deletion of the referenced parent; enforce such restrictions with domain rules.
+ * It also does not permit concrete Graph cycles. This lifecycle rule does not require a graph path and
+ * moving a child by changing its parent ID does not count as parent deletion.
+ * Sole-Graph event/notification handlers for a cascaded child observe its empty current value and historical
+ * before-state through the original published event, just as for a direct logical deletion. Reading that before-state
+ * requires stored history; DOCUMENT-only persistence does not retain previous document versions.
+ * <p>
+ * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
+ * A one-to-one companion model may annotate the same property with {@link EntityId}; entity-ID affixes affect only
+ * the companion's repository identity and do not alter the parent reference value.
+ *
+ * @see Model
+ * @see Member
+ * @see EntityId
+ */
+@Documented
+@Target({ElementType.FIELD, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Parent {
+
+    /**
+     * Explicit parent model type for an untyped ID. Must match the inferred {@link Id} target when both are present.
+     */
+    Class<?> value() default void.class;
+
+    /**
+     * Explicit possible parent model types for a polymorphic {@link Id} property.
+     * <p>
+     * At runtime the concrete {@link Id} subtype selects exactly one of these model types through its declared type.
+     * This keeps graph validation, API documentation, cascade deletion and cycle detection statically knowable while
+     * allowing one domain property such as {@code Id<?> nominee} to refer to different model types. This attribute and
+     * {@link #value()} are mutually exclusive.
+     * The standard serializer preserves polymorphic IDs as an object with {@code name} (logical Model name) and
+     * {@code id} (functional ID). Each allowed Model must declare its concrete ID class as {@link EntityId}.
+     * This allowlist is also enforced when reading the discriminator; unknown or ambiguous names are rejected.
+     */
+    Class<?>[] types() default {};
+
+    /**
+     * Optional slash-separated, non-reserved collection path relative to the parent document.
+     */
+    String pathInParent() default "";
+
+    /**
+     * Optional API documentation for the list-valued graph property at {@link #pathInParent()}.
+     * <p>
+     * The child item schema is inferred from the model that declares this parent reference. Nested path segments are
+     * represented as objects, while the final path segment is represented as an array of child models. Structural
+     * {@link ApiDoc} hints such as {@link ApiDoc#type()}, {@link ApiDoc#format()}, and {@link ApiDoc#implementation()}
+     * cannot override that inferred array and child type. Use {@link ApiDoc#exclude()} to keep this relationship out
+     * of every documented graph while retaining it in the runtime model graph.
+     */
+    ApiDoc apiDoc() default @ApiDoc;
+
+    /**
+     * Whether this model is deleted when the referenced parent is logically deleted.
+     * <p>
+     * The default expresses parent-owned child lifecycle. Set this to {@code false} for a non-owning Graph relation
+     * or a model which must remain independently addressable after this parent disappears. The policy is per edge:
+     * another owning parent may still cascade deletion to the same child. This setting does not prevent parent
+     * deletion or relax Graph cycle checks.
+     */
+    boolean deleteOnParentDeletion() default true;
+}

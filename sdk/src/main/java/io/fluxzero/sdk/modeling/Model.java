@@ -1,0 +1,257 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.modeling;
+
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Marks an independently identified and stored domain model.
+ * <p>
+ * Unlike an {@link Aggregate}, a model is its own persistence and lifecycle boundary. Loading or updating it does not
+ * require loading a parent, sibling, child, or an artificial aggregate root. A model may still contain embedded
+ * entities declared with {@link Member @Member}; those members share the model's stream, cache, search document,
+ * snapshots, and lifecycle.
+ * <p>
+ * Choose this boundary from domain lifecycle first: state that can be created, changed, retained, deleted, or whose
+ * history matters independently is a separate model, even when it is normally displayed in a parent's collection.
+ * Connect such a child with {@link Parent @Parent}. A meaningful domain identity is strong evidence for that boundary,
+ * not an additional gate: an independently living child may use a globally unique ID or a
+ * {@link EntityId#parentScoped() parent-scoped} ID. Collection shape, searchability, storage format, update frequency,
+ * and convenient embedding do not make independently living state a {@link Member}.
+ * <p>
+ * Model identity is the repository representation of its {@link EntityId @EntityId}. Applications can use a typed
+ * {@link Id}, annotation-level prefix/postfix affixes, or both to isolate otherwise equal functional identifiers.
+ * <p>
+ * An {@link Apply @Apply} method targets a model by returning that model. Returning {@code null} deletes the targeted
+ * model while retaining the applied event according to the configured publication settings. Returning {@code void} is
+ * invalid for model applies because it does not identify a stored result. Legacy mutable aggregate applies remain
+ * supported.
+ *
+ * <h2>Persistence</h2>
+ * {@link #persistence()} makes the durable representations and authoritative load path explicit. Event-sourced models
+ * are reconstructed from their model stream, optionally from a snapshot. Adding {@link ModelPersistence#DOCUMENT}
+ * maintains an independent public projection as well; when event sourcing is absent, the internal current source
+ * is authoritative. Event storage
+ * and publication remain independent and are controlled by {@link #eventPublication()},
+ * {@link #publicationStrategy()}, and per-apply overrides. Internal component documents used for Graph composition are
+ * likewise orthogonal and never change the selected load path.
+ *
+ * <h2>Example</h2>
+ * <pre>{@code
+ * @Model
+ * public record Product(@EntityId ProductId productId, ProductDetails details) {
+ *     @Apply
+ *     Product rename(RenameProduct command) {
+ *         return new Product(productId, details.withName(command.name()));
+ *     }
+ * }
+ * }</pre>
+ * Here {@code ProductDetails} is an immutable business value with a copy method such as Lombok's generated
+ * {@code withName}. Use a cohesive details value even when the only descriptive field is a name; keep identity,
+ * relationships and simple status distinct. A plain details value needs neither {@code @Model} nor {@link Member}.
+ * A focused rename command may carry a scalar while replacing only that field in the existing details.
+ * An update may instead create or update the model from a payload-side {@code @Apply}. When both sides define an
+ * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
+ * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.
+ * <p>
+ * Start with this default: event sourcing without a direct document or periodic snapshots. Add {@code DOCUMENT} for
+ * an application-wide {@code Fluxzero.search(Product.class)} list, or to make the current document authoritative when
+ * event sourcing is omitted. Relationship-scoped search may already use an internal component document supplied by
+ * an explicit {@link Parent#pathInParent()} or {@link #materializeGraph()}; it does not by itself require DOCUMENT.
+ * A pathless parent reference supplies navigation but no component document. See the
+ * <a href="https://fluxzero.io/docs/guides/modeling-and-persistence/model-query-guide">Model and Graph query guide</a>
+ * for the capability matrix and current versus event-bound result semantics.
+ *
+ * Model declarations are indexed at compilation by {@link ModelTypeProcessor}. Enable SDK annotation processing
+ * (Kotlin: kapt) in each contract module and preserve {@link ModelTypes#INDEX} when packaging. This index discovers
+ * classes without registering message handlers; the optional serialization {@code @RegisterType} is not required.
+ * Contract JARs built before this index was introduced must be rebuilt for cold discovery. A shaded JAR must append
+ * all contributing Model indexes rather than retain only one.
+ * Identified abstract/interface contracts remain discoverable; identity-less abstract/interface inheritance templates
+ * are not standalone Models and are omitted from the runtime catalog.
+ *
+ * @see Aggregate
+ * @see io.fluxzero.sdk.Fluxzero#loadModel(Id)
+ * @see io.fluxzero.sdk.persisting.repository.ModelRepository
+ * @see Member
+ * @see Parent
+ * @see Apply
+ * @see EntityId
+ * @see ModelPersistence
+ * @see DocumentProjection
+ */
+@Documented
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+public @interface Model {
+
+    /**
+     * Stable logical name of this Model in persisted Model metadata.
+     * <p>
+     * The default is the simple name of the concrete Model class. This name deliberately does not contain the Java
+     * package, so moving or renaming a class remains possible by retaining its previous logical name explicitly.
+     * Applications sharing one Runtime namespace can prepend an application-scoped prefix with
+     * {@code fluxzero.model.namePrefix}; the prefix is concatenated literally and should therefore include any desired
+     * separator; prefix {@code billing} and name {@code Invoice} become {@code billingInvoice}.
+     * <p>
+     * This is a durable identity. Changing it for an existing Model creates a different Model type and requires an
+     * application-managed data transition.
+     */
+    String name() default "";
+
+    /**
+     * Conflict handling for this model when an apply does not provide an explicit override.
+     * {@link ModelConflictPolicy#DEFAULT} inherits the application policy, which defaults to
+     * {@link ModelConflictPolicy#RETRY} for updates and creations alike, independently of the defaults version.
+     * Factory compatibility is checked again after retry; retry does not implicitly turn a factory into an upsert.
+     */
+    ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
+
+    /**
+     * Controls whether applies producing this model may be exposed as automatic command handlers.
+     */
+    AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
+
+    /**
+     * Durable representations and authoritative load path for this Model.
+     * <p>
+     * The set must contain at least one unique value. When {@link ModelPersistence#EVENT_SOURCED EVENT_SOURCED} is
+     * present, the event stream is authoritative. Otherwise {@link ModelPersistence#DOCUMENT DOCUMENT} is
+     * authoritative. To use {@link Graph#previous()} for historical values, keep {@code EVENT_SOURCED} enabled:
+     * {@code DOCUMENT} alone stores current state, not previous versions. Adding {@code DOCUMENT} to event sourcing
+     * preserves history; replacing event sourcing with {@code DOCUMENT} does not.
+     * <p>
+     * This setting does not suppress storing or publishing events produced by {@link Apply} methods. A state-changing
+     * event-sourced Model apply must store its reconstructing event; a {@code PUBLISH_ONLY} or
+     * {@link EventPublication#NEVER NEVER} transition that would change state is rejected before commit. A publish-only
+     * no-op remains a valid domain notification when publication is explicitly set to
+     * {@link EventPublication#ALWAYS ALWAYS}.
+     */
+    ModelPersistence[] persistence() default {ModelPersistence.EVENT_SOURCED};
+
+    /**
+     * Whether unknown events should be ignored while reconstructing an event-sourced model.
+     */
+    boolean ignoreUnknownEvents() default false;
+
+    /**
+     * Number of stored model events between snapshots. The default {@code 0} disables periodic snapshots.
+     * Enable only to bound measured replay work; snapshots do not create a searchable current document.
+     */
+    int snapshotPeriod() default 0;
+
+    /**
+     * Maximum number of snapshots retained for this model. Values below {@code 1} are treated as {@code 1}.
+     */
+    int maxSnapshotCount() default 1;
+
+    /**
+     * Whether the latest model state should be stored in the shared application cache.
+     * <p>
+     * Models participating in a commit may additionally be retained in a commit-local cache until the commit
+     * completes. A document revision alone is not a namespace snapshot: simple DOCUMENT writes verify that revision
+     * when an additional transactional read first needs a shared boundary; complex contexts verify before evaluation.
+     */
+    boolean cached() default true;
+
+    /**
+     * Number of older model versions retained in the shared cache. {@code -1} retains all available cached versions;
+     * {@code 0} retains only the latest version.
+     * <p>
+     * Independent models retain one previous version by default so event handlers can compare the event-visible model
+     * with {@link Entity#previous()}. Retaining an unbounded revision chain must be an explicit choice because model
+     * caches are expected to contain far more keys than aggregate caches.
+     */
+    int cachingDepth() default 1;
+
+    /**
+     * Frequency at which intermediate states are checkpointed within one reconstruction session.
+     * <p>
+     * Checkpoints avoid replaying the same prefix for repeated historical dependency loads. They are bounded by the
+     * reconstruction session and are not retained as document revisions.
+     */
+    int checkpointPeriod() default 100;
+
+    /**
+     * Controls when model changes are committed and whether completion-phase commits may run concurrently.
+     * <p>
+     * The default value resolves from {@code fluxzero.model.commitPolicy} when present and otherwise uses
+     * {@link ModelCommitPolicy#ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH}. Independent models were introduced with this
+     * default, so it does not depend on the active defaults version.
+     */
+    ModelCommitPolicy commitPolicy() default ModelCommitPolicy.DEFAULT;
+
+    /**
+     * Controls whether an applied update produces an event, including unchanged results.
+     * <p>
+     * Independent models default to {@link EventPublication#IF_MODIFIED IF_MODIFIED}, so a no-op apply does not
+     * create a model-stream or globally published event. Use {@link EventPublication#ALWAYS ALWAYS} when an unchanged
+     * apply intentionally represents a domain event. This setting is evaluated before {@link #publicationStrategy()}.
+     * {@link EventPublication#NEVER NEVER} permits eventless state changes only for document-loaded Models, not
+     * event-sourced Models. It does not suppress incoming command/webrequest logs, results or application logging.
+     */
+    EventPublication eventPublication() default EventPublication.IF_MODIFIED;
+
+    /**
+     * Controls whether applied events are stored, published, or both.
+     * <p>
+     * {@link EventPublicationStrategy#PUBLISH_ONLY PUBLISH_ONLY} may mutate a document-loaded model. For an
+     * event-sourced model it may only publish an unchanged result, because otherwise the next reconstruction could not
+     * reproduce the committed state.
+     */
+    EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
+
+    /**
+     * Advanced configuration for the Model's direct current document.
+     * <p>
+     * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Every direct
+     * document uses the configured collection, which defaults to the resolved logical Model name. A reference-only
+     * document is excluded from unrestricted typed Model search while remaining retrievable via relationships.
+     * Model loads, verified state and Graph composition use the separate internal source, unaffected by ordinary
+     * public document rewrites. Timestamps default to the applied event timestamp when no paths are
+     * configured.
+     * <p>Non-searchability is not authorization or encryption. Model state and documents do not inherit
+     * {@code @ProtectData} protection from input messages; enforce sensitive-state access and storage separately.</p>
+     */
+    DocumentProjection document() default @DocumentProjection;
+
+    /**
+     * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
+     * <p>
+     * Fluxzero retains the root's current source in type-isolated internal storage, independently of any public
+     * document projection. Only the separately named whole-graph collection is allowed
+     * to lag; its high-watermark is exposed through the model repository. The collection defaults to the resolved
+     * direct-model collection plus {@code -graphs} when present, or to {@code <logical Model name>-graphs} otherwise.
+     */
+    boolean materializeGraph() default false;
+
+    /**
+     * Advanced configuration for the materialized whole-graph search document.
+     * <p>
+     * This configuration does not enable materialization by itself; set {@link #materializeGraph()} to {@code true}.
+     */
+    GraphProjection graphProjection() default @GraphProjection;
+}

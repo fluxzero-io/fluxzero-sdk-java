@@ -35,5 +35,13 @@ The Kotlin shape is equivalent. A Gradle `JavaExec` task or Maven `exec-maven-pl
 If a port is occupied, reuse the intended stack or select different runtime/proxy ports. Use `TestFixture` for ordinary
 behavior tests; this stack is for real-network or browser smoke checks.
 
+For isolated programmatic real-network tests, bind both servers to the same explicit address used by their clients:
+`TestServer.startServer(new InetSocketAddress("127.0.0.1", 0))` and
+`ProxyServer.start(config, "127.0.0.1")`. In Kotlin the first argument is `InetSocketAddress("127.0.0.1", 0)`.
+Obtain an automatically chosen port from the returned server/connector, and stop both servers afterward.
+These APIs do not register JVM shutdown hooks. A wildcard listener can share a port with another specific-address
+listener on macOS, even when port `0` was requested; disabling address reuse alone is not sufficient. Existing
+overloads and standalone startup retain their all-interface binding and fixed-port restart behavior.
+
 Database, runtime-service, and container-platform administration remain outside this application fallback. Prefer the
 dev-server-owned environment or an explicitly supplied managed environment rather than reconstructing platform internals.

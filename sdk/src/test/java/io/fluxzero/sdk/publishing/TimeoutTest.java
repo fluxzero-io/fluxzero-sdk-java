@@ -226,7 +226,14 @@ class TimeoutTest {
         class UnhandledRequest { }
 
         TestFixture fixture = TestFixture.create();
-        ExecutorService responseExecutor = Executors.newFixedThreadPool(2);
+        CountDownLatch batchProcessed = new CountDownLatch(1);
+        ExecutorService responseExecutor = new java.util.concurrent.ThreadPoolExecutor(
+                2, 2, 0, TimeUnit.MILLISECONDS, new java.util.concurrent.LinkedBlockingQueue<>()) {
+            @Override
+            protected void afterExecute(Runnable task, Throwable error) {
+                batchProcessed.countDown();
+            }
+        };
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(1),
                 "chunk-order-test", responseExecutor);
@@ -246,7 +253,10 @@ class TimeoutTest {
             requestHandler.handleResults(List.of(intermediate, finalChunk));
 
             assertTrue(intermediateStarted.await(1, TimeUnit.SECONDS));
-            Thread.sleep(50);
+            assertTrue(batchProcessed.await(1, TimeUnit.SECONDS));
+            // The intermediate callback owns one worker. Drain the other worker past the batch submission:
+            // an incorrectly independent final callback would have completed before this marker.
+            responseExecutor.submit(() -> {}).get(1, TimeUnit.SECONDS);
             assertFalse(future.isDone());
 
             releaseIntermediate.countDown();

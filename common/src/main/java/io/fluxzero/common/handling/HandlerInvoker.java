@@ -15,6 +15,7 @@
 package io.fluxzero.common.handling;
 
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingRunnable;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
@@ -40,6 +41,27 @@ import static io.fluxzero.common.ObjectUtils.asCallable;
  * @see Handler
  */
 public interface HandlerInvoker extends HandlerDescriptor {
+
+    /**
+     * Whether asynchronous invocations in one tracked batch must retain the generic message-segment order.
+     *
+     * <p>The default is {@code true}. Framework invokers may return {@code false} only when they own a stricter
+     * ordering mechanism based on the actual state read and written by the invocation.</p>
+     */
+    default boolean requiresBatchSegmentOrder() {
+        return true;
+    }
+
+    /**
+     * Registers framework lifecycle state on the dispatching thread before this invocation moves to an asynchronous
+     * worker. The returned cleanup runs after invocation or when the worker handoff fails, and must leave lifecycle
+     * state that was consumed by the invocation untouched. Cleanup must not throw. The default returns {@code null}
+     * when no preparation is required. Preparation does not alter invocation-result or result-publication completion;
+     * an invoker must express those through its result and the owning publication mechanism.
+     */
+    default Registration prepareAsyncInvocation() {
+        return null;
+    }
 
     /**
      * Returns a no-op invoker that performs no action and returns {@code null}.
@@ -197,6 +219,16 @@ public interface HandlerInvoker extends HandlerDescriptor {
     @AllArgsConstructor
     abstract class DelegatingHandlerInvoker implements HandlerInvoker {
         protected final HandlerInvoker delegate;
+
+        @Override
+        public boolean requiresBatchSegmentOrder() {
+            return delegate.requiresBatchSegmentOrder();
+        }
+
+        @Override
+        public Registration prepareAsyncInvocation() {
+            return delegate.prepareAsyncInvocation();
+        }
 
         @Override
         public Class<?> getTargetClass() {

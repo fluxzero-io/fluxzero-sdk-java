@@ -2,7 +2,7 @@ To add a query:
 
 1. Create a payload implementing `Request<T>`.
 2. Keep the handler read-only.
-3. Load a single aggregate for direct lookup, or use `Fluxzero.search(...)` for lists, filters, sorting, and counts.
+3. Use `Fluxzero.loadModel(id)` for direct lookup, or use `Fluxzero.search(...)` for lists, filters, sorting, and counts.
 4. Return a typed result, not loosely shaped maps unless the API is truly dynamic.
 5. Add a `TestFixture` query test.
 

@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -118,6 +119,16 @@ class LocalOnlyDispatchTest {
                     .forEach(LocalOnlyDispatchTest::assertMissingHandler);
             assertMissingHandler(fluxzero.commandGateway().sendAndForget(
                     Guarantee.NONE, new LocalCommand("forget")));
+        }
+    }
+
+    @Test
+    void missingHandlerAlsoFailsBeforeV2ParallelBulkSerialization() {
+        Object[] commands = IntStream.range(0, 256)
+                .mapToObj(index -> new LocalCommand("parallel-" + index)).toArray();
+        try (Fluxzero fluxzero = createFluxzero()) {
+            fluxzero.commandGateway().send(commands).forEach(LocalOnlyDispatchTest::assertMissingHandler);
+            assertMissingHandler(fluxzero.commandGateway().sendAndForget(Guarantee.NONE, commands));
         }
     }
 

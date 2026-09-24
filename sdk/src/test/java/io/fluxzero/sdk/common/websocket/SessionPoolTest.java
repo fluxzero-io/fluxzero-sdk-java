@@ -55,8 +55,8 @@ class SessionPoolTest {
                 new SessionPool(1, () -> when(mock(WebsocketSession.class).isOpen()).thenReturn(true).getMock());
 
         WebsocketSession first = sessionPool.get();
-        WebsocketSession second = sessionPool.get();
-        WebsocketSession third = sessionPool.get();
+        WebsocketSession second = sessionPool.get("first-routing-key");
+        WebsocketSession third = sessionPool.get("another-routing-key");
 
         assertSame(first, second);
         assertSame(first, third);

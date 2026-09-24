@@ -32,6 +32,8 @@ import io.fluxzero.common.api.tracking.ReadFromIndexResult;
 import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
+import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -65,6 +67,11 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     private final String topic;
     private final Metadata metricsMetadata;
 
+    @Override
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of(TrackingWebSocketCodec.INSTANCE);
+    }
+
     public WebsocketTrackingClient(String endPointUrl, WebSocketClient client, MessageType type, String topic) {
         this(URI.create(endPointUrl), client, type, topic, type != METRICS);
     }
@@ -82,10 +89,11 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
         return this.<ReadResult>send(new Read(messageType,
                         configuration.getName(), trackerId, configuration.getMaxFetchSize(),
                         configuration.effectiveMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
-                        configuration.getTypeFilter(),
-                        configuration.filterMessageTarget(), configuration.ignoreSegment(),
-                        configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
-                        Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
+                configuration.getTypeFilter(),
+                configuration.filterMessageTarget(), configuration.ignoreSegment(),
+                configuration.singleTracker(), configuration.clientControlledIndex(),
+                configuration.isIncludeDocumentTombstones(), lastIndex,
+                Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
                 .thenApply(ReadResult::getMessageBatch);
     }
 

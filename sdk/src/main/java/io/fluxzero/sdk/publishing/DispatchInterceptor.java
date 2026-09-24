@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.util.List;
 import java.util.ServiceLoader;
@@ -117,7 +118,7 @@ public interface DispatchInterceptor {
     /**
      * Carries interceptor-private local dispatch state across a replacement {@link Message}.
      *
-     * <p>The default returns the replacement unchanged. Stateful interceptors may override this without exposing
+     * <p>The default does nothing. Stateful interceptors may override this without exposing
      * their transient state through message metadata or serialization.</p>
      *
      * @param previousMessage the message before another interceptor replaced it
@@ -217,6 +218,14 @@ public interface DispatchInterceptor {
             }
 
             @Override
+            public SerializedMessage modifySerializedMessage(SerializedMessage serializedMessage,
+                                                             DeserializingMessage source, MessageType messageType,
+                                                             String topic, String dispatchNamespace) {
+                return delegate.modifySerializedMessage(serializedMessage, source, messageType, topic,
+                                                        dispatchNamespace);
+            }
+
+            @Override
             public void monitorDispatch(Message message, MessageType messageType, String topic,
                                         String dispatchNamespace, boolean request) {
                 delegate.monitorDispatch(message, messageType, topic, dispatchNamespace, request);
@@ -257,6 +266,27 @@ public interface DispatchInterceptor {
     default SerializedMessage modifySerializedMessage(SerializedMessage serializedMessage,
                                                       Message message, MessageType messageType, String topic) {
         return serializedMessage;
+    }
+
+    /**
+     * Modifies an event derived from a handled message while retaining access to its transient handling context.
+     *
+     * <p>Model commits use this hook because an applied command can contain restored private values that must not
+     * enter the event stream. The default invokes the ordinary serialized-message hook, preserving existing
+     * interceptors and their ordering. The source remains the complete logical update; changes to the supplied
+     * serialized candidate must not change what was asserted or applied.</p>
+     *
+     * @param serializedMessage the current serialized candidate, including preceding interceptor changes
+     * @param source the applied message and its non-persistent handling context
+     * @param messageType the outgoing message type
+     * @param topic the outgoing topic, or {@code null}
+     * @param namespace the outgoing namespace, or {@code null} for the application namespace
+     * @return the modified or original serialized message
+     */
+    default SerializedMessage modifySerializedMessage(SerializedMessage serializedMessage,
+                                                      DeserializingMessage source, MessageType messageType,
+                                                      String topic, String namespace) {
+        return modifySerializedMessage(serializedMessage, source.toMessage(), messageType, topic);
     }
 
     /**

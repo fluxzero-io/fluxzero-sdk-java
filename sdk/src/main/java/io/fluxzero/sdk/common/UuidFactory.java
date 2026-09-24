@@ -18,6 +18,7 @@ package io.fluxzero.sdk.common;
 import lombok.AllArgsConstructor;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Default implementation of {@link IdentityProvider} that generates random UUIDs.
@@ -33,6 +34,20 @@ import java.util.UUID;
  */
 @AllArgsConstructor
 public class UuidFactory implements IdentityProvider {
+
+    private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+    private static final long UUID_VERSION_MASK = 0xffff_ffff_ffff_0fffL;
+    private static final long UUID_VERSION_4 = 0x0000_0000_0000_4000L;
+    private static final long UUID_VARIANT_2 = 0x8000_0000_0000_0000L;
+    private static final long UUID_SEQUENCE_MASK = 0x3fff_ffff_ffff_ffffL;
+    private static final UUID technicalSeed = UUID.randomUUID();
+    private static final long technicalPrefix =
+            technicalSeed.getMostSignificantBits() & UUID_VERSION_MASK
+            | UUID_VERSION_4;
+    private static final AtomicLong technicalSequence =
+            new AtomicLong(
+                    technicalSeed.getLeastSignificantBits()
+                    & UUID_SEQUENCE_MASK);
 
     /**
      * Whether to remove dashes from generated UUIDs.
@@ -53,13 +68,44 @@ public class UuidFactory implements IdentityProvider {
      */
     @Override
     public String nextFunctionalId() {
-        String id = UUID.randomUUID().toString();
-        return removeDashes ? id.replace("-", "") : id;
+        UUID id = UUID.randomUUID();
+        return removeDashes ? compact(id.getMostSignificantBits(), id.getLeastSignificantBits()) : id.toString();
+    }
+
+    /**
+     * Returns a process-unique UUID without consulting the secure random source for every technical message.
+     *
+     * <p>A securely generated process prefix is combined with a 62-bit atomic sequence. The resulting value retains
+     * the UUID version-4 and IETF variant bits and cannot repeat within one process before the sequence space is
+     * exhausted. Functional IDs remain independently random through {@link #nextFunctionalId()}.</p>
+     */
+    @Override
+    public String nextTechnicalId() {
+        long leastSignificantBits = UUID_VARIANT_2
+                                    | technicalSequence.getAndIncrement()
+                                      & UUID_SEQUENCE_MASK;
+        return removeDashes
+                ? compact(technicalPrefix, leastSignificantBits)
+                : new UUID(technicalPrefix, leastSignificantBits).toString();
     }
 
     @Override
     public String idForName(String name) {
-        String id = UUID.nameUUIDFromBytes(name.getBytes()).toString();
-        return removeDashes ? id.replace("-", "") : id;
+        UUID id = UUID.nameUUIDFromBytes(name.getBytes());
+        return removeDashes ? compact(id.getMostSignificantBits(), id.getLeastSignificantBits()) : id.toString();
+    }
+
+    private static String compact(long mostSignificantBits, long leastSignificantBits) {
+        char[] result = new char[32];
+        writeHex(mostSignificantBits, result, 0);
+        writeHex(leastSignificantBits, result, 16);
+        return new String(result);
+    }
+
+    private static void writeHex(long value, char[] target, int offset) {
+        for (int index = 15; index >= 0; index--) {
+            target[offset + index] = HEX_DIGITS[(int) value & 0xf];
+            value >>>= 4;
+        }
     }
 }

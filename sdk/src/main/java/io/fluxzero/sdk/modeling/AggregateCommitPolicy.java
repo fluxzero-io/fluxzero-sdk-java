@@ -18,7 +18,7 @@ package io.fluxzero.sdk.modeling;
  * Controls when aggregate changes are committed and whether multiple commits in the same completion phase may run
  * concurrently.
  */
-public enum AggregateCommitPolicy {
+public enum AggregateCommitPolicy implements CommitPolicy {
 
     /**
      * Resolve the policy from the active Fluxzero defaults version or explicit application properties.
@@ -78,6 +78,7 @@ public enum AggregateCommitPolicy {
     /**
      * Returns whether this policy commits at batch completion rather than handler completion.
      */
+    @Override
     public boolean commitAfterBatch() {
         return commitAfterBatch;
     }
@@ -95,6 +96,7 @@ public enum AggregateCommitPolicy {
      * When this is {@code true}, active thread-local aggregates are retained until batch completion as well, so later
      * handlers in the same batch keep seeing the in-memory aggregate until pending commits have completed.
      */
+    @Override
     public boolean awaitAfterBatch() {
         return awaitAfterBatch;
     }
@@ -102,6 +104,7 @@ public enum AggregateCommitPolicy {
     /**
      * Returns whether this policy allows commits from the same completion phase to run concurrently.
      */
+    @Override
     public boolean async() {
         return async;
     }

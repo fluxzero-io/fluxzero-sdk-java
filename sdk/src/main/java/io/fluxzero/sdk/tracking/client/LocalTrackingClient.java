@@ -242,6 +242,7 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
                         config.getTypeFilter(),
                         config.filterMessageTarget(), config.ignoreSegment(),
                         config.singleTracker(), config.clientControlledIndex(),
+                        config.isIncludeDocumentTombstones(),
                         lastIndex == null ? -1L : lastIndex,
                         Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis).orElse(null));
     }

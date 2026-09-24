@@ -17,6 +17,7 @@ package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -25,6 +26,9 @@ import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.ModelConflictResolver;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ErrorGateway;
@@ -68,8 +72,9 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     /**
      * Update the default consumer configuration for the specified message type.
      * <p>
-     * When unconfigured handlers use {@link ConsumerConfiguration#PER_HANDLER_CONSUMER_MODE}, this configuration is
-     * used as the template for the generated per-handler consumers.
+     * When unconfigured handlers use {@link ConsumerConfiguration#PER_HANDLER_CONSUMER_MODE} or
+     * {@link ConsumerConfiguration#PER_PACKAGE_CONSUMER_MODE}, this configuration is used as the template for the
+     * generated consumers.
      */
     FluxzeroBuilder configureDefaultConsumer(MessageType messageType,
                                              UnaryOperator<ConsumerConfiguration> updateFunction);
@@ -168,9 +173,68 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache);
 
     /**
+     * Configures the cache used by independently stored models.
+     * <p>
+     * This overrides the shared cache for model state only; aggregate and relationship caches are unaffected.
+     * Model entries are isolated by repository family and namespace, even when the supplied cache is shared between
+     * applications. A shared delegate must still support its applications' existing cache shutdown lifecycle.
+     */
+    default FluxzeroBuilder withModelCache(Cache cache) {
+        throw new UnsupportedOperationException(
+                "Independent model caching is not supported by this builder");
+    }
+
+    /**
      * Replaces the internal relationships cache with a new implementation.
      */
     FluxzeroBuilder replaceRelationshipsCache(UnaryOperator<Cache> replaceFunction);
+
+    /**
+     * Configures the optional policy used when an independent-model commit was evaluated against an older model state.
+     * <p>
+     * {@link ModelConflictPolicy#ACCEPT} preserves the original event and internally rebases stale apply state
+     * without rerunning assertions or interceptors. Scoped
+     * {@link io.fluxzero.sdk.modeling.Model @Model} and {@link io.fluxzero.sdk.persisting.eventsourcing.Apply @Apply}
+     * settings may override this policy. Rejecting policies roll back the complete runtime action before invoking
+     * {@code resolver}. A resolver-requested retry performs a fresh pinned model load and is bounded by
+     * {@code maxRetries}. If this method is not called, properties {@code fluxzero.model.conflictPolicy} and
+     * {@code fluxzero.model.maxConflictRetries} are consulted. The policy defaults to {@code RETRY} with three retries,
+     * for both updates and creations, independently of the defaults version. Factory compatibility still rejects an
+     * occupied target after retry; nullable existing-Model applies are a separate upsert choice. The conventional
+     * environment variables are {@code FLUXZERO_MODEL_CONFLICT_POLICY} and {@code FLUXZERO_MODEL_MAX_CONFLICT_RETRIES}.
+     *
+     * @param policy conflict policy sent with model commits
+     * @param resolver client-side decision after a rolled-back conflict
+     * @param maxRetries maximum number of complete action reevaluations
+     * @return this builder
+     */
+    default FluxzeroBuilder configureModelConflictHandling(
+            ModelConflictPolicy policy, ModelConflictResolver resolver, int maxRetries) {
+        throw new UnsupportedOperationException(
+                "Independent model conflict handling is not supported by this builder");
+    }
+
+    /**
+     * Configures whether model applies are exposed as automatic command handlers by default.
+     * Scoped {@code @Model} and {@code @Apply} settings take precedence. If this method is not called,
+     * {@code fluxzero.model.automaticHandling} is consulted before falling back to {@link AutomaticModelHandling#ENABLED}.
+     */
+    default FluxzeroBuilder configureAutomaticModelHandling(
+            AutomaticModelHandling handling) {
+        throw new UnsupportedOperationException(
+                "Automatic model handling configuration is not supported by this builder");
+    }
+
+    /**
+     * Configures the application default for materialized graph-projection result completion.
+     * Properties fall back through {@code fluxzero.model.graphProjectionCompletion}, then
+     * {@link GraphProjectionCompletion#ASYNC}.
+     */
+    default FluxzeroBuilder configureGraphProjectionCompletion(
+            GraphProjectionCompletion completion) {
+        throw new UnsupportedOperationException(
+                "Graph projection completion configuration is not supported by this builder");
+    }
 
     /**
      * Forwards incoming {@link io.fluxzero.common.MessageType#WEBREQUEST} messages to a locally running HTTP server on
@@ -220,6 +284,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
 
     /**
      * Replaces the default {@link TaskScheduler} implementation.
+     * Configure a replacement before building or requesting the default scheduler to avoid creating unused resources.
+     * The built Fluxzero instance shuts down the selected scheduler when it closes.
      */
     FluxzeroBuilder replaceTaskScheduler(Function<Clock, TaskScheduler> function);
 
@@ -362,6 +428,14 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     FluxzeroBuilder disableAutomaticAggregateCaching();
 
     /**
+     * Disables shared caching and cache tracking for independently stored models.
+     */
+    default FluxzeroBuilder disableAutomaticModelCaching() {
+        throw new UnsupportedOperationException(
+                "Independent model caching is not supported by this builder");
+    }
+
+    /**
      * Prevents installation of the default scheduled command handler.
      */
     FluxzeroBuilder disableScheduledCommandHandler();
@@ -373,7 +447,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * E.g., this disables the scheduled command handler and automatic entity caching.
      */
     default FluxzeroBuilder disableAutomaticTracking() {
-        return disableAutomaticAggregateCaching().disableScheduledCommandHandler();
+        return disableAutomaticAggregateCaching()
+                .disableScheduledCommandHandler();
     }
 
     /**

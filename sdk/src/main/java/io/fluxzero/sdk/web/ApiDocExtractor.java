@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -178,16 +179,31 @@ public final class ApiDocExtractor {
 
     private static void addResponses(Map<Integer, ApiDocResponseDescriptor> target, ApiDocResponse[] responses) {
         for (ApiDocResponse response : responses) {
+            if (isBlank(response.ref())
+                && !Void.class.equals(response.type()) && !Void.class.equals(response.modelGraph())) {
+                throw new IllegalArgumentException(
+                        "@ApiDocResponse may declare either type or modelGraph, but not both");
+            }
+            if (isBlank(response.ref()) && Void.class.equals(response.modelGraph())
+                && response.modelGraphPaths().length > 0) {
+                throw new IllegalArgumentException(
+                        "@ApiDocResponse.modelGraphPaths requires modelGraph");
+            }
             target.put(response.status(),
                        new ApiDocResponseDescriptor(response.status(), response.description(), response.ref(),
-                                                    response.type(), response.contentType()));
+                                                    response.type(), response.modelGraph(),
+                                                    List.of(response.modelGraphPaths()), response.contentType()));
         }
     }
 
     private static boolean isExcluded(Class<?> handlerType, Executable executable) {
-        return packages(handlerType).anyMatch(p -> p.isAnnotationPresent(ApiDocExclude.class))
-               || handlerType.isAnnotationPresent(ApiDocExclude.class)
-               || executable.isAnnotationPresent(ApiDocExclude.class);
+        return packages(handlerType).anyMatch(ApiDocExtractor::isExcluded)
+               || isExcluded(handlerType) || isExcluded(executable);
+    }
+
+    private static boolean isExcluded(AnnotatedElement element) {
+        ApiDoc apiDoc = element.getAnnotation(ApiDoc.class);
+        return element.isAnnotationPresent(ApiDocExclude.class) || apiDoc != null && apiDoc.exclude();
     }
 
     private static boolean isDocumented(Class<?> handlerType, Executable executable) {

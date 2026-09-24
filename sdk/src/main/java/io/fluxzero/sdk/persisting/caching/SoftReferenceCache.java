@@ -31,11 +31,12 @@ import java.lang.ref.SoftReference;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
@@ -64,9 +65,9 @@ import static io.fluxzero.common.caching.CacheEviction.Reason.size;
  * </ul>
  *
  * <p>
- * The cache ensures thread safety through synchronized access on its internal {@link LinkedHashMap} and per-key locking
- * using {@code intern()} on a string prefix plus key combination. While this does introduce some memory overhead due to
- * string interning, it ensures atomic updates for concurrent access to the same key.
+ * The cache ensures thread safety through synchronized access on its internal {@link LinkedHashMap} and striped locking
+ * for computations. Equal keys always use the same stripe, preserving atomic updates without allocating or globally
+ * interning a lock value for every cache operation.
  *
  * <p><strong>Threading:</strong> Eviction listeners and expiration polling run on background threads.
  * The {@code valueMap} itself is backed by a synchronized {@link LinkedHashMap} with LRU eviction behavior.</p>
@@ -77,7 +78,9 @@ import static io.fluxzero.common.caching.CacheEviction.Reason.size;
 @AllArgsConstructor
 @Slf4j
 public class SoftReferenceCache implements Cache, AutoCloseable {
-    protected static final String mutexPrecursor = "$SRC$";
+    private static final int COMPUTE_LOCK_COUNT = 1_024;
+    private static final Object[] COMPUTE_LOCKS =
+            createComputeLocks();
 
     private final int maxSize;
     @Getter
@@ -168,12 +171,12 @@ public class SoftReferenceCache implements Cache, AutoCloseable {
     }
 
     /**
-     * Returns a synchronized computation that adds, removes, or updates a cache entry. Internally uses per-key
-     * {@link String#intern()} synchronization to prevent race conditions.
+     * Returns a synchronized computation that adds, removes, or updates a cache entry. A fixed hash stripe preserves
+     * per-key atomicity without allocating and globally interning a mutex String for every cache operation.
      */
     @Override
     public <T> T compute(Object id, BiFunction<? super Object, ? super T, ? extends T> mappingFunction) {
-        synchronized ((mutexPrecursor + id).intern()) {
+        synchronized (computeLock(id)) {
             CacheReference previous = valueMap.get(id);
             CacheReference next = wrap(id, mappingFunction.apply(id, unwrap(previous)));
             if (next == null) {
@@ -189,8 +192,57 @@ public class SoftReferenceCache implements Cache, AutoCloseable {
     }
 
     @Override
+    public <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        Objects.requireNonNull(values, "values");
+        Objects.requireNonNull(mergeFunction, "mergeFunction");
+        values.forEach(
+                (id, candidate) ->
+                        this.<T>compute(
+                                id,
+                                (ignored, current) ->
+                                        mergeFunction.apply(
+                                                current,
+                                                candidate)));
+    }
+
+    @Override
+    public <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        Objects.requireNonNull(updates, "updates");
+        updates.forEach(
+                (id, update) ->
+                        this.<T>compute(
+                                id,
+                                (ignored, current) ->
+                                        update.apply(current)));
+    }
+
+    private static Object computeLock(Object id) {
+        int hash = Objects.hashCode(id);
+        hash ^= hash >>> 16;
+        return COMPUTE_LOCKS[
+                hash & (COMPUTE_LOCK_COUNT - 1)];
+    }
+
+    private static Object[] createComputeLocks() {
+        Object[] result =
+                new Object[COMPUTE_LOCK_COUNT];
+        Arrays.setAll(
+                result,
+                ignored -> new Object());
+        return result;
+    }
+
+    @Override
     public <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
-        new HashSet<>(valueMap.keySet()).forEach(key -> computeIfPresent(key, modifierFunction));
+        // SynchronizedMap's key-set toArray takes the map lock; iterating that set does not.
+        // Release the map lock before taking compute stripes or invoking application callbacks.
+        Object[] keys = valueMap.keySet().toArray();
+        for (Object key : keys) {
+            computeIfPresent(key, modifierFunction);
+        }
     }
 
     @Override

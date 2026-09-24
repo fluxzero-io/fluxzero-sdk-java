@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -44,6 +45,58 @@ class ThreadLocalContextTest {
 
     private static final ThreadLocal<String> first = ThreadLocalContext.create();
     private static final ThreadLocal<Integer> second = ThreadLocalContext.create();
+
+    @Test
+    void reusesSnapshotAfterValuesAndTemporaryParticipantsAreRestored() {
+        ThreadLocal<Object> temporary = ThreadLocalContext.create();
+        String value = new String("request");
+        first.set(value);
+        second.set(42);
+        ThreadLocalContext.Snapshot snapshot = ThreadLocalContext.capture();
+        try {
+            first.set("event");
+            temporary.set(new Object());
+            first.set(value);
+            temporary.remove();
+            assertSame(snapshot, ThreadLocalContext.capture());
+
+            second.remove();
+            second.set(42);
+            assertSame(snapshot, ThreadLocalContext.capture());
+        } finally {
+            temporary.remove();
+            first.remove();
+            second.remove();
+        }
+    }
+
+    @Test
+    void equalValuesAndDifferentParticipantsDoNotReuseSnapshot() {
+        ThreadLocal<String> replacement = ThreadLocalContext.create();
+        String original = new String("same");
+        String equal = new String("same");
+        first.set(original);
+        ThreadLocalContext.Snapshot snapshot = ThreadLocalContext.capture();
+        try {
+            first.set(equal);
+            assertNotSame(snapshot, ThreadLocalContext.capture());
+            snapshot.run(() -> assertSame(original, first.get()));
+            assertSame(equal, first.get());
+
+            first.remove();
+            replacement.set(original);
+            assertNotSame(snapshot, ThreadLocalContext.capture());
+            snapshot.run(() -> {
+                assertSame(original, first.get());
+                assertNull(replacement.get());
+            });
+            assertNull(first.get());
+            assertSame(original, replacement.get());
+        } finally {
+            replacement.remove();
+            first.remove();
+        }
+    }
 
     @Test
     void capturesAllParticipatingValuesAndRestoresWorkerContext() throws Exception {
@@ -93,6 +146,42 @@ class ThreadLocalContextTest {
         assertEquals("outer", first.get());
         first.set(null);
         assertNull(first.get());
+        assertTrue(ThreadLocalContext.capture().isEmpty());
+    }
+
+    @Test
+    void repeatedActivationSwitchesExactSnapshotsAndRestoresOuterValues() {
+        first.set("first");
+        second.remove();
+        ThreadLocalContext.Snapshot firstSnapshot = ThreadLocalContext.capture();
+        first.set("second");
+        second.set(2);
+        ThreadLocalContext.Snapshot secondSnapshot = ThreadLocalContext.capture();
+        first.set("second");
+        second.set(3);
+        ThreadLocalContext.Snapshot thirdSnapshot = ThreadLocalContext.capture();
+        first.set("outer");
+        second.set(42);
+
+        try (ThreadLocalContext.Activation activation = ThreadLocalContext.openActivation()) {
+            activation.use(firstSnapshot);
+            assertEquals("first", first.get());
+            assertNull(second.get());
+
+            second.set(99);
+            activation.use(secondSnapshot);
+            assertEquals("second", first.get());
+            assertEquals(2, second.get());
+
+            activation.use(thirdSnapshot);
+            assertEquals("second", first.get());
+            assertEquals(3, second.get());
+        }
+
+        assertEquals("outer", first.get());
+        assertEquals(42, second.get());
+        first.remove();
+        second.remove();
         assertTrue(ThreadLocalContext.capture().isEmpty());
     }
 

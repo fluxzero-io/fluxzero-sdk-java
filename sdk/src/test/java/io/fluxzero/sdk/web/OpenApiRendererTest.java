@@ -15,6 +15,13 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProperty;
+import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Range;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.URL;
@@ -28,9 +35,39 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OpenApiRendererTest {
+
+    @Test
+    void polymorphicIdsRetainOptionalNullabilityInBothOpenApiVersions() {
+        for (String version : List.of("3.0.4", "3.1.1")) {
+            var document = OpenApiRenderer.render(ApiDocExtractor.extract(IdWireHandler.class),
+                    new OpenApiOptions("IDs", "1", "", List.of(), version));
+            var fields = document.path("components").path("schemas").path("IdWireRequest").path("properties");
+            var optional = fields.path("optional");
+            if (version.startsWith("3.1")) {
+                assertEquals("null", optional.path("anyOf").get(1).path("type").asText());
+                assertEquals(2, optional.path("anyOf").get(0).path("oneOf").size());
+            } else {
+                assertTrue(optional.path("nullable").asBoolean());
+                assertEquals(2, optional.path("oneOf").size());
+            }
+            assertEquals(2, fields.path("untyped").path("oneOf").size());
+            assertEquals(2, fields.path("array").path("items").path("oneOf").size());
+            assertEquals(2, fields.path("bounded").path("items").path("oneOf").size());
+        }
+    }
+
+    static class IdWireHandler {
+        @HandlePost("/id-wire") @ApiDoc
+        void receive(IdWireRequest request) { }
+    }
+
+    record IdWireRequest(java.util.Optional<Id<?>> optional,
+                         @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NONE)
+                         Id<?> untyped, Id<?>[] array, List<? extends Id<?>> bounded) { }
 
     @Test
     void rendersOpenApiDocumentForJsonEndpoint() {
@@ -196,6 +233,10 @@ class OpenApiRendererTest {
         assertEquals("Whether this item is active", properties.path("active").path("description").asText());
         assertTrue(properties.path("active").path("default").asBoolean());
         assertEquals("string", properties.path("jsonValueId").path("type").asText());
+        assertEquals(2, properties.path("polymorphicId").path("oneOf").size());
+        assertEquals("string", properties.path("polymorphicId").path("oneOf").get(0)
+                .path("properties").path("name").path("type").asText());
+        assertEquals(2, properties.path("polymorphicIds").path("items").path("oneOf").size());
         assertEquals("Json value id", properties.path("jsonValueId").path("description").asText());
         assertEquals("string", properties.path("opensAt").path("type").asText());
         assertEquals("partial-time", properties.path("opensAt").path("format").asText());
@@ -223,10 +264,224 @@ class OpenApiRendererTest {
         assertEquals("uuid", properties.path("externalId").path("format").asText());
         assertTrue(properties.path("uniqueTags").path("uniqueItems").asBoolean());
         assertFalse(properties.has("secret"));
+        assertFalse(properties.has("alternateSecret"));
         JsonNode required = document.path("components").path("schemas").path("AccessorDto").path("required");
         assertTrue(contains(required, "status"));
         assertTrue(contains(required, "aliases"));
         assertFalse(document.path("components").path("schemas").has("JsonValueId"));
+    }
+
+    @Test
+    void rendersDocumentedModelGraphForJsonNodeResponse() {
+        ApiDocCatalog extracted = ApiDocExtractor.extract(ModelGraphHandler.class);
+        ApiDocCatalog catalog = new ApiDocCatalog(
+                extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
+                                               ContractModel.class, ContactModel.class));
+
+        JsonNode document = OpenApiRenderer.render(catalog);
+        JsonNode responseSchema = document.path("paths").path("/organisations/{id}").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("#/components/schemas/OrganisationModel", responseSchema.path("$ref").asText());
+        assertEquals("#/components/schemas/OrganisationModel",
+                     document.path("paths").path("/organisations/{id}/copy").path("get")
+                             .path("responses").path("200").path("content").path("application/json")
+                             .path("schema").path("$ref").asText());
+        JsonNode listResponseSchema = document.path("paths").path("/organisations").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", listResponseSchema.path("type").asText());
+        assertFalse(listResponseSchema.has("description"));
+        assertEquals("List organisations",
+                     document.path("paths").path("/organisations").path("get").path("description").asText());
+        assertEquals("#/components/schemas/OrganisationModel",
+                     listResponseSchema.path("items").path("$ref").asText());
+        JsonNode arrayResponseSchema = document.path("paths").path("/organisations/array").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", arrayResponseSchema.path("type").asText());
+        assertEquals("#/components/schemas/OrganisationModel",
+                     arrayResponseSchema.path("items").path("$ref").asText());
+
+        JsonNode schemas = document.path("components").path("schemas");
+        assertFalse(schemas.has("ObjectNode"));
+        assertFalse(schemas.has("JsonNode"));
+        JsonNode organisation = schemas.path("OrganisationModel");
+        JsonNode locations = organisation.path("properties").path("locations");
+        assertEquals("array", locations.path("type").asText());
+        assertEquals("Locations belonging to the organisation", locations.path("description").asText());
+        assertEquals("#/components/schemas/LocationModel", locations.path("items").path("$ref").asText());
+        assertTrue(contains(organisation.path("required"), "locations"));
+        assertEquals("integer", organisation.path("properties").path("locationCount").path("type").asText());
+        assertEquals("Number of locations", organisation.path("properties").path("locationCount")
+                .path("description").asText());
+
+        JsonNode connections = schemas.path("LocationModel").path("properties")
+                .path("infrastructure").path("properties").path("connections");
+        assertEquals("array", connections.path("type").asText());
+        assertEquals("Physical connections at this location", connections.path("description").asText());
+        assertEquals("#/components/schemas/ConnectionModel", connections.path("items").path("$ref").asText());
+        JsonNode contacts = organisation.path("properties").path("contacts");
+        assertEquals("array", contacts.path("type").asText());
+        assertEquals("#/components/schemas/ContactModel", contacts.path("items").path("$ref").asText());
+        assertFalse(organisation.path("properties").has("contracts"));
+        assertFalse(schemas.has("ContractModel"));
+    }
+
+    @Test
+    void enrichesGeneratedGraphWithModelsRegisteredFromAnotherModule() {
+        String generated = """
+                {
+                  "openapi": "3.0.1",
+                  "info": {"title": "Test", "version": "1"},
+                  "paths": {
+                    "/organisations/{id}": {
+                      "get": {
+                        "responses": {
+                          "200": {
+                            "description": "OK",
+                            "content": {"application/json": {"schema": {
+                              "$ref": "#/components/schemas/OrganisationModel",
+                              "x-fluxzero-model-graph": "%s",
+                              "x-fluxzero-model-graph-paths": ["locations/infrastructure/connections"]
+                            }}}
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "components": {"schemas": {
+                    "OrganisationModel": {
+                      "type": "object",
+                      "properties": {"id": {"type": "string"}},
+                      "x-fluxzero-java-type": "%s"
+                    }
+                  }}
+                }
+                """.formatted(OrganisationModel.class.getName(), OrganisationModel.class.getName());
+
+        JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(
+                        generated, List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
+                                           ContractModel.class),
+                        getClass().getClassLoader()), JsonNode.class);
+
+        JsonNode schemas = document.path("components").path("schemas");
+        assertEquals("Locations belonging to the organisation",
+                     schemas.path("OrganisationModel").path("properties").path("locations")
+                             .path("description").asText());
+        assertEquals("Physical connections at this location",
+                     schemas.path("LocationModel").path("properties").path("infrastructure")
+                             .path("properties").path("connections").path("description").asText());
+        assertFalse(schemas.path("OrganisationModel").path("properties").has("contracts"));
+        assertFalse(document.toString().contains("x-fluxzero-java-type"));
+        assertFalse(document.toString().contains("x-fluxzero-model-graph"));
+    }
+
+    @Test
+    void rejectsUnknownSelectedModelGraphPath() {
+        ApiDocCatalog extracted = ApiDocExtractor.extract(InvalidModelGraphHandler.class);
+        ApiDocCatalog catalog = new ApiDocCatalog(
+                extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class));
+
+        assertThrows(IllegalArgumentException.class, () -> OpenApiRenderer.render(catalog));
+    }
+
+    @Test
+    void retainsCompiledModelGraphTypesWhenTheRuntimeRegistryIsPartial() {
+        ObjectNode generated = generatedModelGraph(true, "locations/infrastructure/connections");
+        List<Class<?>> runtimeTypes = List.of(ContractModel.class);
+
+        JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated.toString(), runtimeTypes, getClass().getClassLoader()),
+                JsonNode.class);
+
+        JsonNode schemas = document.path("components").path("schemas");
+        assertEquals("#/components/schemas/LocationModel", schemas.path("OrganisationModel").path("properties")
+                .path("locations").path("items").path("$ref").asText());
+        assertEquals("#/components/schemas/ConnectionModel", schemas.path("LocationModel").path("properties")
+                .path("infrastructure").path("properties").path("connections").path("items").path("$ref").asText());
+        assertEquals(List.of(ContractModel.class), runtimeTypes);
+        assertFalse(document.toString().contains("x-fluxzero-java-type"));
+        assertFalse(document.toString().contains("x-fluxzero-model-graph"));
+    }
+
+    @Test
+    void runtimeModelGraphEnrichmentStaysLocalToItsDocument() {
+        String generated = generatedModelGraph(false, null).toString();
+        JsonNode expanded = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(ConnectionModel.class), getClass().getClassLoader()),
+                JsonNode.class);
+        JsonNode independent = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(ContractModel.class), getClass().getClassLoader()),
+                JsonNode.class);
+
+        assertTrue(expanded.path("components").path("schemas").path("LocationModel")
+                .path("properties").has("infrastructure"));
+        assertFalse(independent.path("components").path("schemas").path("LocationModel")
+                .path("properties").has("infrastructure"));
+    }
+
+    @Test
+    void compiledModelEvidenceDoesNotHideUnknownSelectedPaths() {
+        String generated = generatedModelGraph(true, "locations/missing").toString();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> OpenApiRenderer.enrichModelGraphs(
+                        generated, List.of(ContractModel.class), getClass().getClassLoader()));
+
+        assertTrue(failure.getMessage().contains("locations/missing"));
+    }
+
+    private static ObjectNode generatedModelGraph(boolean includeConnections, String selectedPath) {
+        List<Class<?>> compiledTypes = includeConnections
+                ? List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class)
+                : List.of(OrganisationModel.class, LocationModel.class);
+        ObjectNode generated = OpenApiRenderer.render(new ApiDocCatalog(
+                ApiDocExtractor.extract(ModelGraphHandler.class).endpoints(), compiledTypes));
+        ObjectNode response = (ObjectNode) generated.path("paths").path("/organisations/{id}").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        response.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, OrganisationModel.class.getName());
+        if (selectedPath != null) {
+            response.putArray(OpenApiRenderer.MODEL_GRAPH_PATHS_EXTENSION).add(selectedPath);
+        }
+        compiledTypes.forEach(type -> ((ObjectNode) generated.path("components").path("schemas")
+                .path(type.getSimpleName())).put(OpenApiRenderer.JAVA_TYPE_EXTENSION, type.getName()));
+        return generated;
+    }
+
+    @Test
+    void excludesGraphPropertiesFromRequestSchemas() {
+        JsonNode document = OpenApiRenderer.render(ApiDocExtractor.extract(ModelGraphRequestHandler.class));
+
+        assertFalse(document.path("components").path("schemas").path("OrganisationModel")
+                            .path("properties").has("locationCount"));
+    }
+
+    @Test
+    void preservesCompileTimeGraphWhenNoRuntimeModelRegistryIsAvailable() {
+        String generated = """
+                {
+                  "openapi": "3.0.1",
+                  "info": {"title": "Test", "version": "1"},
+                  "paths": {"/organisations/{id}": {"get": {"responses": {"200": {
+                    "description": "OK",
+                    "content": {"application/json": {"schema": {
+                      "$ref": "#/components/schemas/OrganisationModel",
+                      "x-fluxzero-model-graph": "%s"
+                    }}}
+                  }}}}},
+                  "components": {"schemas": {"OrganisationModel": {
+                    "type": "object",
+                    "properties": {"compileTimeChild": {"type": "array", "items": {"type": "string"}}},
+                    "x-fluxzero-java-type": "%s"
+                  }}}
+                }
+                """.formatted(OrganisationModel.class.getName(), OrganisationModel.class.getName());
+
+        JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(), getClass().getClassLoader()), JsonNode.class);
+
+        assertEquals("array", document.path("components").path("schemas").path("OrganisationModel")
+                .path("properties").path("compileTimeChild").path("type").asText());
+        assertFalse(document.toString().contains("x-fluxzero-java-type"));
+        assertFalse(document.toString().contains("x-fluxzero-model-graph"));
     }
 
     @Test
@@ -313,6 +568,99 @@ class OpenApiRendererTest {
                 CreateReading body) {
             return null;
         }
+    }
+
+    static class ModelGraphHandler {
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
+        @HandleGet("/organisations/{id}")
+        JsonNode organisation(@PathParam("id") String id) {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
+        @HandleGet("/organisations/{id}/copy")
+        JsonNode organisationCopy(@PathParam("id") String id) {
+            return null;
+        }
+
+        @ApiDoc(description = "List organisations")
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
+        @HandleGet("/organisations")
+        List<ObjectNode> organisations() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class)
+        @HandleGet("/organisations/array")
+        JsonNode[] organisationArray() {
+            return null;
+        }
+    }
+
+    static class InvalidModelGraphHandler {
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = OrganisationModel.class,
+                modelGraphPaths = "missing")
+        @HandleGet("/invalid-model-graph")
+        JsonNode invalidModelGraph() {
+            return null;
+        }
+    }
+
+    static class ModelGraphRequestHandler {
+        @ApiDoc
+        @HandlePost("/organisations")
+        void create(OrganisationModel organisation) {
+        }
+    }
+
+    @Model
+    record OrganisationModel(@EntityId String id, String name) {
+        @GraphProperty
+        @ApiDoc(description = "Number of locations")
+        int locationCount(Graph<OrganisationModel> graph) {
+            return graph.childModels(LocationModel.class).size();
+        }
+    }
+
+    @Model
+    record LocationModel(
+            @EntityId String id,
+            @Parent(value = OrganisationModel.class, pathInParent = "locations",
+                    apiDoc = @ApiDoc(description = "Locations belonging to the organisation", required = true,
+                            type = "object"))
+            String organisationId,
+            String name) {
+    }
+
+    @Model
+    record ConnectionModel(
+            @EntityId String id,
+            @Parent(value = LocationModel.class, pathInParent = "infrastructure/connections",
+                    apiDoc = @ApiDoc(description = "Physical connections at this location"))
+            String locationId,
+            String ean) {
+    }
+
+    @Model
+    record ContractModel(
+            @EntityId String id,
+            @Parent(value = OrganisationModel.class, pathInParent = "contracts",
+                    apiDoc = @ApiDoc(exclude = true)) String organisationId) {
+    }
+
+    @Model
+    record AlternateRootModel(@EntityId String id) {
+    }
+
+    @Model
+    record ContactModel(
+            @EntityId String id,
+            @Parent(types = {OrganisationModel.class, AlternateRootModel.class}, pathInParent = "contacts")
+            Id<?> parentId) {
     }
 
     static class FormHandler {
@@ -494,6 +842,8 @@ class OpenApiRendererTest {
         String lombokField;
         @ApiDoc(description = "Json value id")
         JsonValueId jsonValueId;
+        Id<?> polymorphicId;
+        List<Id<?>> polymorphicIds;
         java.time.LocalTime opensAt;
         java.time.ZoneId timeZone;
         @ApiDoc(description = "Attempt count", type = "integer", minimum = "0", maximum = "10", example = "5",
@@ -518,6 +868,8 @@ class OpenApiRendererTest {
         List<String> uniqueTags;
         @ApiDocExclude
         String secret;
+        @ApiDoc(exclude = true)
+        String alternateSecret;
         List<String> aliases;
 
         @ApiDoc(description = "Whether this item is active", defaultValue = "true")

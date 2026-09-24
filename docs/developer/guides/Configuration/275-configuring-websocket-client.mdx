@@ -48,6 +48,14 @@ runtime base URL, which must point to the desired deployment.
 
 ---
 
+SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
+outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
+supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
+GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+`fluxzero.defaults.version`.
+
 ## Client configuration (ClientConfig)
 
 The `ClientConfig` class defines all connection, routing, compression, and tracking parameters. It is fully immutable
@@ -61,7 +69,7 @@ Key options include:
 | `name`                                       | Name of the application                                                          | `FLUXZERO_APPLICATION_NAME` or legacy alias |
 | `applicationId`                              | Optional app ID                                                                  | `FLUXZERO_APPLICATION_ID` or legacy alias |
 | `id`                                         | Unique client/process instance ID                                                | `FLUXZERO_CLIENT_ID`, legacy alias; otherwise task-ID-prefixed UUID or UUID |
-| `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD, then LZ4                           |
+| `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD only                               |
 | `pingDelay` / `pingTimeout`                  | Heartbeat intervals for WebSocket health                                         | 10s / 15s                                |
 | `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
 | `maxRetainedRuntimeWebSocketMessages`        | Total assembling, compressed-pending, decode/admission, and active messages     | `128`                                    |
@@ -78,6 +86,12 @@ authoritative `$taskId` correlation metadata. The generated client ID remains st
 a newly constructed client receives a new UUID suffix. Set `FLUXZERO_CLIENT_ID` only when supplying an explicitly
 unique client-instance ID; `FLUX_CLIENT_ID` remains available as a legacy alias.
 
+In compatibility mode, failed WebSocket connections retry every second. Set
+`fluxzero.websocket.reconnectBackoff.enabled=true`, or use `fluxzero.defaults.version >= 2026.09.09`, to use equal
+jitter over capped exponential ceilings of 1, 2, 4, 8, then 16 seconds. A successful connection resets the retry
+cycle. Set the dedicated property to `false` to keep fixed retries on a newer defaults profile. The conventional
+environment-variable name is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
+
 Aggregate histories use count-bounded pages of at most 8,192 events. Set
 `fluxzero.eventsourcing.maxFetchBytes` or `ClientConfig.aggregateHistoryMaxFetchBytes(...)` to add a cumulative
 serialized payload-byte bound per page; `fluxzero.defaults.version >= 2026.09.10` selects 100 MiB when neither is set.
@@ -86,12 +100,6 @@ The property accepts `0` to retain count-only paging and is also available as
 payload measure. One individually oversized event still flows on its own, and the client continues after short
 byte-limited pages until the Runtime returns an empty page. A Runtime from before this protocol extension ignores the
 optional byte request and remains count-bounded only; the SDK still reads its pages correctly.
-
-In compatibility mode, failed WebSocket connections retry every second. Set
-`fluxzero.websocket.reconnectBackoff.enabled=true`, or use `fluxzero.defaults.version >= 2026.09.09`, to use equal
-jitter over capped exponential ceilings of 1, 2, 4, 8, then 16 seconds. A successful connection resets the retry
-cycle. Set the dedicated property to `false` to keep fixed retries on a newer defaults profile. The conventional
-environment-variable name is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
 
 ---
 
@@ -180,9 +188,9 @@ workers supplied.
 Increasing retained limits raises worst-case memory use. Message concurrency controls simultaneous decode/allocation;
 result-completion concurrency separately controls admitted decoded work and customer-callback pressure.
 
-The executor policy itself does not change: Java 25 and newer use virtual completion workers, while Java 21 through 24
-use the existing lazily populated fixed platform-thread pool. Both routes default to eight. Explicit completion
-concurrency still wins on both routes, so a Java 25 application can opt into 32 after validating its workload.
+Completion tasks use one virtual thread per task, with admission limited separately to eight concurrent completions
+by default. Explicit completion concurrency still wins, so an application can opt into 32 after validating its
+workload. Using virtual threads does not remove the configured resource limits.
 
 ---
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Fluxzero IP or its affiliates. All Rights Reserved.
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,11 +10,11 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
 
 package io.fluxzero.common.api;
 
+import io.fluxzero.common.api.internal.BinaryWire;
 import lombok.AllArgsConstructor;
 import lombok.NonNull;
 import lombok.With;
@@ -22,113 +22,37 @@ import lombok.With;
 import java.beans.Transient;
 
 /**
- * Represents a fully serialized message for transmission or storage within the Fluxzero Runtime.
- * <p>
- * A {@code SerializedMessage} wraps the binary {@link Data} of a message payload, along with associated
- * {@link Metadata} and optional routing and tracking information such as {@code index}, {@code segment}, and
- * {@code requestId}.
- * </p>
- *
- * <p>
- * This class is the wire format and persistence format for messages. It implements {@link SerializedObject} to expose
- * type and revision metadata, and {@link HasMetadata} to allow downstream access to structured metadata.
- * </p>
- *
- * <h2>Key Features</h2>
- * <ul>
- *   <li>Encapsulates payload as serialized {@code byte[]} via {@link Data}</li>
- *   <li>Immutable-style updates via {@code @With} for metadata, segment, etc.</li>
- *   <li>Tracks message origin and target via {@code source} and {@code target}</li>
- *   <li>Supports custom revision control via {@code originalRevision}, set before upcasting</li>
- * </ul>
- *
- * <h2>Tracking Fields</h2>
- * <ul>
- *   <li><b>segment</b> – the segment of the message log this message belongs to (used for partitioning)</li>
- *   <li><b>index</b> – the index of this message in the log, used for ordering and deduplication</li>
- *   <li><b>requestId</b> – identifier that ties a response to its originating request</li>
- * </ul>
- *
- * <h2>Typical Use</h2>
- * Serialized messages are produced by serializing a {@code Message} using a {@code Serializer},
- * and are then stored, indexed, transmitted, or routed based on metadata and log location.
- *
- * @see Data
- * @see Metadata
- * @see SerializedObject
+ * A serialized message value. Transport codecs own its binary representation; this class owns only message data.
  */
 @lombok.Data
 @AllArgsConstructor
 public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata {
 
-    /**
-     * The serialized representation of the message payload.
-     */
     @NonNull
-    private Data<byte[]> data;
+    private volatile Data<byte[]> data;
 
-    /**
-     * Structured metadata associated with the message, such as headers or routing info.
-     */
     @With
-    private Metadata metadata;
+    private volatile Metadata metadata;
 
-    /**
-     * The segment number for this message, used for partitioning and consistent hashing.
-     */
     @With
-    private Integer segment;
+    private volatile Integer segment;
 
-    /**
-     * The index of the message within its segment. Used for message ordering and deduplication.
-     */
-    private Long index;
+    private volatile Long index;
+    private volatile String source;
+    private volatile String target;
+    private volatile Integer requestId;
+    private volatile Long timestamp;
+    private volatile String messageId;
+    private transient volatile Integer originalRevision;
 
-    /**
-     * The identifier of the source that published this message.
-     */
-    private String source;
-
-    /**
-     * The optional target ID that this message is addressed to.
-     */
-    private String target;
-
-    /**
-     * An optional request ID linking this message to a request-response interaction.
-     */
-    private Integer requestId;
-
-    /**
-     * The timestamp when this message was created, in epoch milliseconds.
-     */
-    private Long timestamp;
-
-    /**
-     * The unique identifier of the message.
-     */
-    private String messageId;
-
-    /**
-     * If set, contains the original revision of the message prior to upcasting.
-     */
-    private transient Integer originalRevision;
-
-    public SerializedMessage(Data<byte[]> data, Metadata metadata, String messageId, Long timestamp) {
-        this.data = data;
-        this.metadata = metadata;
-        this.timestamp = timestamp;
-        this.messageId = messageId;
+    public SerializedMessage(
+            Data<byte[]> data, Metadata metadata,
+            String messageId, Long timestamp) {
+        this(data, metadata, null, null, null, null, null,
+             timestamp, messageId, null);
     }
 
-    /**
-     * Returns the original revision of the payload object.
-     * <p>
-     * If {@code originalRevision} was explicitly set before upcasting, it is returned. Otherwise, the revision is
-     * delegated to {@link Data#getRevision()}.
-     *
-     * @return the original revision of the serialized payload
-     */
+    /** Returns the payload revision before any upcasting. */
     public int getOriginalRevision() {
         return originalRevision == null ? data.getRevision() : originalRevision;
     }
@@ -140,30 +64,76 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
 
     @Override
     public SerializedMessage withData(@NonNull Data<byte[]> data) {
-        return this.data == data ? this : new SerializedMessage(data, this.metadata, this.segment, this.index,
-                                                                this.source, this.target, this.requestId,
-                                                                this.timestamp, this.messageId,
-                                                                getOriginalRevision());
+        return this.data == data ? this : new SerializedMessage(
+                data, metadata, segment, index, source, target, requestId,
+                timestamp, messageId, getOriginalRevision());
     }
 
     @Override
     @Transient
     public int getRevision() {
-        return SerializedObject.super.getRevision();
+        return data.getRevision();
     }
 
     @Override
     @Transient
     public String getType() {
-        return SerializedObject.super.getType();
+        return data.getType();
     }
 
-    /**
-     * Returns the length of bytes in the serialized payload. If the amount cannot be determined, {@code 0} is returned.
-     */
+    /** Returns the exact size used by the compact binary transports. */
     @Transient
     public long getBytes() {
-        byte[] value = data.getValue();
-        return value == null ? 0 : value.length;
+        return BinaryWire.envelopeSize(this);
+    }
+
+    /** Checks a metadata key without forcing callers to handle absent metadata. */
+    public boolean metadataContainsKey(String key) {
+        Metadata value = getMetadata();
+        return value != null && value.containsKey(key);
+    }
+
+    /** Returns one metadata value, or {@code null} when metadata or the key is absent. */
+    public String getMetadataValue(String key) {
+        Metadata value = getMetadata();
+        return value == null ? null : value.get(key);
+    }
+
+    /** Returns a decimal metadata value, or the fallback when absent or malformed. */
+    public long getMetadataLongValue(String key, long defaultValue) {
+        String value = getMetadataValue(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    protected static boolean encodedMetadataContainsKey(
+            byte[] bytes, int offset, int length, String key) {
+        return Metadata.containsKey(bytes, offset, length, key);
+    }
+
+    protected static String encodedMetadataValue(
+            byte[] bytes, int offset, int length, String key) {
+        return Metadata.get(bytes, offset, length, key);
+    }
+
+    protected static long encodedMetadataLongValue(
+            byte[] bytes, int offset, int length, String key, long defaultValue) {
+        return Metadata.getLong(bytes, offset, length, key, defaultValue);
+    }
+
+    /** Compares the target without an intermediate optional value. */
+    public boolean targetEquals(String candidate) {
+        return java.util.Objects.equals(target, candidate);
+    }
+
+    /** Compares the serialized payload type. */
+    public boolean typeEquals(String candidate) {
+        return java.util.Objects.equals(data.getType(), candidate);
     }
 }

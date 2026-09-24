@@ -75,8 +75,8 @@ public interface Tracker extends Comparable<Tracker> {
     int getMaxSize();
 
     /**
-     * @return the maximum serialized payload bytes this tracker wants to consume in a single batch, or {@code 0} for
-     * no byte limit.
+     * @return the maximum complete serialized message bytes this tracker wants to consume in a single batch, or
+     * {@code 0} for no byte limit.
      */
     default long getMaxBytes() {
         return 0L;
@@ -138,12 +138,29 @@ public interface Tracker extends Comparable<Tracker> {
     }
 
     /**
+     * @return whether typed model-graph deletion records should be included while scanning document collections
+     */
+    default boolean includeDocumentTombstones() {
+        return false;
+    }
+
+    /**
      * Returns a predicate for filtering messages based on their type (class name).
      *
      * @return a type filter predicate. By default, allows all types.
      */
     default Predicate<String> getTypeFilter() {
         return s -> true;
+    }
+
+    /**
+     * Indicates whether {@link #getTypeFilter()} imposes an actual constraint.
+     * <p>
+     * Existing custom trackers default to filtering so their predicate keeps being evaluated. Transport trackers can
+     * override this when no filter was configured, allowing native messages to retain their encoded type bytes.
+     */
+    default boolean hasTypeFilter() {
+        return true;
     }
 
     /**
@@ -177,12 +194,12 @@ public interface Tracker extends Comparable<Tracker> {
      * tracker's segment range.
      */
     private boolean isValidTarget(SerializedMessage message, int[] segmentRange) {
-        String target = message.getTarget();
-        if (isFilterMessageTarget() && target != null) {
-            if (target.equals(getTrackerId())) {
+        if (isFilterMessageTarget()
+            && !message.targetEquals(null)) {
+            if (message.targetEquals(getTrackerId())) {
                 return true;
             }
-            if (!target.equals(getClientId())) {
+            if (!message.targetEquals(getClientId())) {
                 return false;
             }
         }
@@ -206,7 +223,11 @@ public interface Tracker extends Comparable<Tracker> {
      * Internal helper to check type filter.
      */
     private boolean isValidType(SerializedMessage message) {
-        return message.getData().getType() == null || getTypeFilter().test(message.getData().getType());
+        if (!hasTypeFilter()) {
+            return true;
+        }
+        String type = message.getType();
+        return type == null || getTypeFilter().test(type);
     }
 
     /**

@@ -35,6 +35,10 @@ An absolute resource path begins at the test classpath root. Keep the base valid
 variant so the test identifies the intended validation or domain failure. Avoid inheritance chains so deep that an
 agent cannot see the final payload contract.
 
+Relative paths resolve against the resource containing that object, including inherited bases and nested arrays.
+Each array element resolves its own inheritance; root arrays retain their container even with one element or an
+explicit array target type. JSONL/NDJSON roots remain separate records.
+
 ## Seed large preconditions deliberately
 
 `givenCommands("/setup/baseline.json")` can load a resource containing a command or command array. A `.ndjson` or

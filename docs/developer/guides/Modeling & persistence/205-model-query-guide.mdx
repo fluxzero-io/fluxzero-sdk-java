@@ -1,0 +1,321 @@
+---
+title: Choosing Model and Graph queries
+slug: docs/guides/modeling-and-persistence/model-query-guide
+description: Which Model and Graph query to use, what storage it needs, and which state it returns
+sidebar:
+   order: 205
+---
+
+Start with plain `@Model`. It stores events and loads state through replay, with caching enabled and periodic
+snapshots disabled. Add another representation only for a specific read requirement—not because the application
+uses the word “search”.
+
+## Five independent choices
+
+Changing stored fields? [Model migration tests](../model-migration-tests) connects value-preserving upcasts,
+old-writer/new-reader reconstruction and queries before/after reindexing. A new read-time shape alone does not
+change the server's stored query paths.
+
+1. **Load source:** `EVENT_SOURCED` makes events authoritative; `DOCUMENT` alone loads the verified internal
+   current Model source. With both, events remain authoritative for `loadModel` and identity-based Graph values.
+2. **Independent documents:** `DOCUMENT` maintains a public document projection **and a separate internal Model
+   source**. An explicit child composition path or `materializeGraph = true` also maintains an internal component,
+   without requiring a public projection or changing the load source. Plain event sourcing adds neither.
+3. **Search visibility:** `document.searchable` controls unrestricted typed `search(T.class)`. Internal component
+   documents are available to relationship queries, but do not open unrestricted typed Model search.
+4. **Graph shape:** `@Parent` creates a durable relationship. `pathInParent` additionally places that child in a
+   composed search document. It does not embed the child in its parent's stored Model value.
+5. **Read time:** identity-based Graphs can follow an event boundary. Search reads current documents or a stored
+   projection; it does not become historical just because the caller is handling an old event.
+
+Persistence is also independent of event publication. `DOCUMENT` alone does not suppress emitted/stored events.
+See [Model persistence](../model-persistence) for publication, caching, snapshots and commit configuration.
+
+## Capability matrix
+
+The rows describe **the queried Model type `T`**. They assume existing committed data written with that configuration,
+not manually indexed objects. “Yes” assumes the requested relationships actually exist. A relation query needs documents for its **result targets**; a content predicate also
+needs a suitable document for the **related type**. A known related ID needs no related document.
+
+| Configuration of `T` | Normal value load | Current Model document | `search(T.class)` | As target of `whereParent(id)` / `whereAncestor(id)` | As source of a related content predicate | `searchGraph(T.class)` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Plain `@Model`; no composition role | Event replay | None | Empty | Rejected: no target document | Rejected: no related document | Rejected: no root document |
+| `@Model` with explicit `@Parent(pathInParent = "items")` | Event replay | Internal, indexed component | Empty | Yes, including target content filters | Yes | Live composition from this component as root |
+| `@Model(persistence = {EVENT_SOURCED, DOCUMENT})` | Event replay | Separate indexed source and public projection | Yes, public projection | Yes, public projection | Yes, internal source | Live from internal sources, unless materialization enabled |
+| `@Model(persistence = DOCUMENT)` | Internal source document | Separate indexed source and public projection | Yes, public projection | Yes, public projection | Yes, internal source | Live from internal sources, unless materialization enabled |
+| `DOCUMENT` with `document = @DocumentProjection(searchable = false)`; no separate Graph role | Event replay or internal source | Separate retrieval-only source and public projection; no summary, facets or sortables | Empty | Yes, public projection; no indexed text filters | No portable indexed content search | Live from internal source; no materialized projection |
+| Same reference-only document **with** explicit composition path or materialization | Same | Indexed internal component; public projection still retrieval-only | Empty | Yes, public projection; still no indexed text filters | Yes, indexed internal source | Live or configured materialized projection |
+| `@Model(materializeGraph = true)` without `DOCUMENT` | Event replay | Internal, indexed root component **plus separate Graph document** | Empty | Yes | Yes, on the root component—not the whole Graph | Materialized by default; `true` forces live |
+
+“Empty” describes the unrestricted typed Model API, not deletion or lack of stored state. Collection-name/low-level
+document access is not an authorization boundary; `searchable = false` is not a security policy.
+
+A parent does **not** acquire a document merely because a child points at it. A plain parent with no document can
+therefore be used in `whereParent(parentId)`, while `whereParent(Parent.class, constraint)` and
+`searchGraph(Parent.class)` still fail. Being the child in an explicit path and being its parent are different roles.
+
+## Choose by the question you need to answer
+
+### I know the identity; I need its state or relationships
+
+```java
+@Model
+record Order(@EntityId OrderId orderId, String status) {}
+
+@Model
+record LineItem(@EntityId LineItemId lineItemId, @Parent OrderId orderId, String status) {}
+
+Order order = Fluxzero.loadModel(orderId).get();
+Graph<Order> graph = Fluxzero.loadGraph(orderId);
+List<Graph<LineItem>> lines = graph.children(LineItem.class);
+```
+
+This needs neither `DOCUMENT` nor a composition path. A pathless relation is navigable but is not placed in a search
+Graph. `children(LineItem.class)` selects relationship nodes; reading their values uses their configured load source.
+For a transactional quota, inject `Graph<Order>` into `@AssertLegal` and inspect the relevant children there. A
+separate search does not register those membership reads for conflict detection.
+
+Metadata-only selection by exact logical name, including unknown types, is also available:
+
+```java
+int count = graph.namedChildren("LineItem", false).size();
+```
+
+Here `false` includes unknown types; it is **not** the `forceLive` flag used by `searchGraph`. Names include any
+configured Model-name prefix. Class-based queries select locally known assignable types only. See
+[selective navigation](../model-persistence#selective-graph-navigation-across-applications) before using known-only counts
+for cross-application invariants.
+
+### I know the parent; I need to filter its children
+
+If line items already belong in the Order's composed document, declare that concrete need:
+
+```java
+@Model
+record LineItem(@EntityId LineItemId lineItemId,
+                @Parent(pathInParent = "lines") OrderId orderId,
+                String status) {}
+
+List<LineItem> openLines = Fluxzero.search(LineItem.class)
+        .whereParent(orderId)
+        .match("open", "status")
+        .fetchAll();
+
+List<LineItem> withinOrganisation = Fluxzero.search(LineItem.class)
+        .whereAncestor(organisationId)
+        .match("open", "status")
+        .fetchAll();
+```
+
+The target content filter is relative to the **LineItem document**, so use `status`, not `lines/status`.
+`DOCUMENT` is unnecessary here: the explicit path supplies indexed current components. The ancestor example assumes
+an actual `Organisation → … → Order → LineItem` relationship chain. Intermediate and starting ancestors need no
+documents, and traversal also crosses pathless edges.
+
+Without a composition role or `DOCUMENT` on `LineItem`, the search is rejected; use identity-based Graph navigation
+instead. With a component but no public document, `search(LineItem.class).fetchAll()` remains empty.
+Use `whereParent(rawId, Order.class)` for an untyped functional ID, or `whereParent(parentGraph)` for an already resolved,
+parent-scoped identity. An ID selector uses exact identity, not an alias lookup. Ancestor depth defaults to 1–64;
+`whereAncestor(id, 2, 2)` selects exact grandparents.
+
+### I need an application-wide list of Models
+
+Add a direct document to the Model being listed. For example, a screen listing every open order justifies:
+
+```java
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+record Order(@EntityId OrderId orderId, String status) {}
+
+List<Order> openOrders = Fluxzero.search(Order.class).match("open", "status").fetchAll();
+```
+
+The result contains current **Order values**, not `Entity<Order>`, histories or composed child collections.
+`search(Order.class).match("open", "lines/status")` does not follow relations: the direct Order document contains only
+Order's own serialized state. A genuinely embedded value is part of that state; an independent `@Parent` child is not.
+
+Choose `persistence = ModelPersistence.DOCUMENT` instead only when the document should also be the authoritative
+current load source. Both configurations support the same direct queries; they do not have the same replay contract.
+
+### I need related Models selected by their contents
+
+```java
+List<LineItem> linesInOpenOrders = Fluxzero.search(LineItem.class)
+        .whereParent(Order.class, MatchConstraint.match("open", "status"))
+        .fetchAll();
+
+List<Order> ordersWithOpenLines = Fluxzero.search(Order.class)
+        .whereDescendant(LineItem.class, MatchConstraint.match("open", "status"))
+        .fetchAll();
+```
+
+These examples return the public Order projection or internal-only LineItem component. Their related content
+predicates always inspect the related Model's **internal source**, not its public projection or composed Graph.
+Ordinary filters after the selector inspect the **returned document**. Thus
+`search(Order.class).whereChild(LineItem.class, match(...)).match(...)` tests internal LineItem state first
+and public Order projection state last. Independent public reindexing does not change those internal predicates.
+`whereParent` and
+`whereChild` use one edge; `whereAncestor` and `whereDescendant` support deeper traversal. They select matching
+related document IDs first, traverse relationships, and then fetch/filter target documents. They do not replay Models.
+
+All constraints in **one** `whereChild(Child.class, a, b)` must match the same child document. Two separate
+`whereChild` calls can match two different children. These are existential selectors, not arbitrary joins, counts per
+parent, or a request to strip nonmatching children out of the result.
+
+For a retrieval-only document with `searchable = false` and no Graph role:
+
+```java
+@Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(searchable = false))
+record Preferences(@EntityId PreferencesId preferencesId, @Parent UserId userId, String theme) {}
+
+List<Preferences> preferences = Fluxzero.search(Preferences.class).whereParent(userId).fetchAll();
+```
+
+That can retrieve values, but adding `.match("dark", "theme")` cannot select it through the missing text summary.
+It has no summary/facet/sortable indexes. RC10's LocalClient could over-match positive text predicates by scanning the
+retained entries; the corrected LocalClient excludes those hits where a summary is required, like JDBC.
+
+Missing indexes do **not** ban every possible content test: operators such as `exists("theme")`, unindexed range
+predicates and certain substring patterns can deliberately fall back to entry scans. These are not equivalent to
+indexed text/facet/sort capabilities, and this fix does not promise complete SQL/LocalClient parity for every boolean
+combination. Use an indexed component or public direct document for predictable indexed content selection. A
+composition role retains its needed indexes in the separate internal source; it does not make a reference-only
+public projection indexed. Parent/ancestor selectors still return that public projection when `DOCUMENT` is enabled.
+
+### I need to query whole Graphs
+
+The root needs a current document. Use the Order document above, or enable materialization if a reusable whole-Graph
+read projection is the actual requirement:
+
+```java
+@Model(materializeGraph = true)
+record Order(@EntityId OrderId orderId, String status) {}
+
+List<Graph<Order>> graphs = Fluxzero.searchGraph(Order.class)
+        .match("open", "lines/status")
+        .fetchAll();
+
+List<Graph<Order>> live = Fluxzero.searchGraph(Order.class, true)
+        .whereDescendant(LineItem.class, MatchConstraint.match("open", "status"))
+        .fetchAll();
+```
+
+Both examples require `LineItem`'s explicit `lines` path. `DOCUMENT` is not required for the materialized root.
+`graph.get()` is just the Order value; `graph.childModels("lines", LineItem.class)` returns line values. A matching
+Graph still contains **all composed children**, including closed lines. Its shape includes explicit composition paths,
+not every pathless relationship visible to `loadGraph(orderId)`.
+
+| Query aspect | Live composition | Materialized Graph |
+| --- | --- | --- |
+| Source | Current root/component documents stitched on demand | Stored whole-Graph document |
+| Root and nested path predicates | Evaluated after composition | Evaluated against stored projection |
+| Related selectors such as `whereDescendant` | Current related documents/relationships narrow roots **before** composition | Still current related documents/relationships; not the projection's historical child state |
+| Sorting and pagination | After candidate Graphs have been composed | Against stored projection |
+| Additional lag | No asynchronous whole-Graph projection to await | May lag commits; default completion is `ASYNC` |
+
+Live does not mean “cheap because only ten results were requested”. `.fetch(10)` and a root/nested `.match(...)`
+do not in themselves limit the candidate composition work. Prefer selective related predicates, or materialize for
+broad nested filtering/sorting across many roots. Default composition does not impose a small implicit size cap;
+explicit lower-level bounds fail instead of silently truncating. A related-document selector has its own candidate
+limit and also fails when exceeded.
+
+Paths refer to serialized document properties, with slash-separated nesting. Related predicates use the related
+Model's **own** fields; whole-Graph predicates use the composed paths (including projection path overrides).
+For indexed queries, `@SearchExclude` shapes the text summary and `@Facet`/`@Sortable` supply the relevant indexes;
+a readable Java property does not automatically supply every kind of index. Live full-Graph predicates instead inspect
+composed entries: a retained `@SearchExclude` value can match a live `.match(...)` even when its absence from the
+text summary prevents the same match in the materialized/indexed route. Exclusion is not redaction or access control.
+For example, a unique excluded value `hiddenvalue` at `lines/secret` may match
+`searchGraph(Order.class, true).match("hiddenvalue", "lines/secret")`, but not the corresponding indexed projection
+query. A `whereChild(LineItem.class, match(...))` still uses the child's indexed document on either route.
+
+`includeOnly`/`exclude` select output fields; they do not scope traversal or prune children by a predicate. Partial
+documents cannot be returned as typed `Graph<T>`:
+
+```java
+List<ObjectNode> json = Fluxzero.searchGraph(Order.class)
+        .includeOnly("lines")
+        .fetch(10, ObjectNode.class);
+```
+
+Use full `Graph<T>` results for navigation, raw JSON for explicit field projection. Full typed search Graphs require
+locally resolvable Model contracts for their manifest nodes, even though values are decoded lazily; they are not the
+unknown-type-safe metadata navigation API. Neither route loads missing event classes automatically.
+
+Relation queries and live Graph composition support ordinary fetch/stream operations, not `count()`/`countAsync()`, grouped statistics, facet
+statistics, histograms, bulk move or bulk delete. An ordinary materialized-projection query without relation selectors
+can use document statistics, including `count()`. `stream().count()` counts fetched results client-side, not through an
+indexed server-side count, and is not a transaction-safe quota check. Do not use document deletion to delete authoritative Models.
+
+## What state does the result represent?
+
+| Read | Result | State and consistency boundary |
+| --- | --- | --- |
+| `loadModel(id)` | `Entity<T>`; `.get()` gives `T` | Authoritative load path, with cache and applicable handler boundary; an arbitrary manual Model load does not itself register a commit dependency |
+| Injected `T` / `Graph<T>` in a mutation | Selected value / lazy Graph | Attempt boundary; protects injected values and inspected Graph memberships at commit |
+| `loadGraph(id)` | Lazy relationship Graph | In a mutation: same attempt boundary, staged state and inspected read dependencies. In Model-event handling: event-bound. Otherwise: storage-verified when its lazy boundary is established |
+| `loadCurrentGraph(id)` / `graph.current()` | Lazy relationship Graph | In a mutation: same attempt and readset, not a newer snapshot. Otherwise: fresh storage boundary pinned during the call, not the old event's boundary. A DOCUMENT-only root is read and retained during the call; event-sourced values and descendants remain lazy. Not a no-replay API |
+| `search(T.class)` with/without relationships | Current document values | Search-visible committed documents, not event-bound state and not transaction read dependencies |
+| `searchGraph(T.class, true)` | Document-backed `Graph<T>` | On-demand composition of current documents/relations; not an authoritative historical reconstruction or a verified multi-model snapshot |
+| `searchGraph(T.class)` with materialization | Document-backed `Graph<T>` | Stored projection version, possibly behind current state; combining current relationship predicates with it can mix selection and result versions |
+| `loadCurrentModelState(id)` | Read-only `ModelState<T>` | Verifies one current document against its durable head; no replay, no event boundary, no commit readset |
+
+Successful **Model commit completion** includes both configured source and public document writes. Ordinary public
+projection updates are independent: they neither change Model state nor invalidate its verification proof.
+Use `@HandleDocument(modelState = T.class)` for guarded internal schema reindexing; see the migration guide.
+No document copies are kept solely for historical reads. Pending changes before that
+completion are not promised to appear in search. Concurrent writers may change documents between related selection,
+relationship traversal and result fetching, or between pages. A search Graph's manifest/state index is not a proof
+that all current source reads formed one atomic snapshot. A previously returned Graph/value does not auto-refresh.
+
+For event processing, use the injected/event-bound Graph to reason about that event, even after later commands have
+run. Use `loadCurrentGraph` only when deliberately asking for newer state; it can include local pending changes but
+search does not use that pending overlay. Historical document-only reads still require reconstructible history where
+the requested version is no longer available. Current documents do not retain arbitrary historical states.
+
+For a command that must return only after its affected materialized Graphs have caught up, select
+`GraphProjectionCompletion.AWAIT` (for example through `@GraphProjection(completion = AWAIT)` on the root's
+`graphProjection`). The default is `ASYNC`. AWAIT covers that commit's projection boundary, not future concurrent
+writes or one atomic view across all search results. The application-wide property is
+`fluxzero.model.graphProjectionCompletion` (`FLUXZERO_MODEL_GRAPH_PROJECTION_COMPLETION`); the builder alternative is
+`configureGraphProjectionCompletion(...)`. Repository projection status/wait APIs expose progress.
+
+Use injected Models/Graphs and their conflict policy for invariants, not search counts. Use
+[verified current-state reads](../model-persistence#current-state-without-replay) when sharing state contracts without
+historical event contracts; missing/stale/unproven live documents fail explicitly rather than falling back to replay.
+
+## Kotlin: the same choices
+
+Use the same default and explicit relationship path; SDK annotation processing is enabled through kapt in Kotlin:
+
+```kotlin
+@Model
+data class Order(@EntityId val orderId: OrderId, val status: String)
+
+@Model
+data class LineItem(
+    @EntityId val lineItemId: LineItemId,
+    @Parent(pathInParent = "lines") val orderId: OrderId,
+    val status: String
+)
+
+val openLines: List<LineItem> = Fluxzero.search(LineItem::class.java)
+    .whereParent(orderId).match("open", "status").fetchAll()
+val graph: Graph<Order> = Fluxzero.loadGraph(orderId)
+```
+
+For an application-wide Order list, replace its annotation with
+`@Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])`.
+For a document-authoritative, retrieval-only value, use
+`@Model(persistence = [ModelPersistence.DOCUMENT], document = DocumentProjection(searchable = false))`.
+For a materialized Order Graph without a public direct document, use `@Model(materializeGraph = true)` instead:
+
+```kotlin
+val graphs: List<Graph<Order>> = Fluxzero.searchGraph(Order::class.java)
+    .match("open", "lines/status").fetchAll()
+val live: List<Graph<Order>> = Fluxzero.searchGraph(Order::class.java, true)
+    .whereDescendant(LineItem::class.java, MatchConstraint.match("open", "status"))
+    .fetchAll()
+```
+
+These are alternative Order configurations, not annotations to stack. The matrix, path rules, count limitations and
+state guarantees are identical in Java and Kotlin. Domain IDs and imports are omitted from the snippets for focus.

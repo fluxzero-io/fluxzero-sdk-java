@@ -51,8 +51,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
+import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.eventSourcingUrl;
@@ -293,10 +293,10 @@ public class WebSocketClient extends AbstractClient {
 
         /**
          * Ordered list of compression algorithms the client supports for websocket communication, with the preferred
-         * algorithm first. Should not be empty.
+         * algorithm first. Defaults to ZSTD and requires a ZSTD-capable Runtime. Should not be empty.
          */
         @Default
-        List<CompressionAlgorithm> supportedCompressionAlgorithms = List.of(ZSTD, LZ4);
+        List<CompressionAlgorithm> supportedCompressionAlgorithms = List.of(ZSTD);
 
         /**
          * Ordered list of websocket transport formats the client supports, with the preferred format first.
@@ -305,7 +305,7 @@ public class WebSocketClient extends AbstractClient {
          * {@link WebSocketTransportFormat#JSON} remains the compatibility fallback for older runtimes.
          */
         @Default
-        List<WebSocketTransportFormat> supportedTransportFormats = List.of(CBOR, JSON);
+        List<WebSocketTransportFormat> supportedTransportFormats = List.of(BINARY, CBOR, JSON);
 
         /**
          * Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.
@@ -354,8 +354,7 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Maximum number of runtime request results whose SDK completion logic and synchronous customer future
          * continuations may run concurrently per client. Large result batches are submitted incrementally and share
-         * this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer
-         * and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to
+         * this bound with individual responses. Each admitted completion runs on its own virtual thread. Defaults to
          * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.
          */
         @Default

@@ -20,6 +20,7 @@ import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.index;
@@ -29,8 +30,23 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class DocumentTrackingSearchClientTest {
+
+    @Test
+    void delegatesConditionalGraphRewriteWithoutAssumingADocumentWasChanged() {
+        SearchClient delegate = mock(SearchClient.class);
+        TestFixture.GivenWhenThenInterceptor interceptor = mock(TestFixture.GivenWhenThenInterceptor.class);
+        DocumentTrackingSearchClient client = new DocumentTrackingSearchClient(delegate, interceptor);
+        SerializedDocument document = document();
+        CompletableFuture<Void> completion = new CompletableFuture<>();
+        when(delegate.rewriteModelGraphDocument(document, "manifest", STORED)).thenReturn(completion);
+        assertSame(completion, client.rewriteModelGraphDocument(document, "manifest", STORED));
+        completion.completeExceptionally(new IllegalStateException("rejected"));
+        verify(delegate).rewriteModelGraphDocument(document, "manifest", STORED);
+        verifyNoInteractions(interceptor);
+    }
 
     @Test
     void cancelsMonitoredDocumentsWhenIndexThrowsSynchronously() {

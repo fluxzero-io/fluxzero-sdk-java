@@ -168,6 +168,11 @@ class TestFixtureResourceSequenceTest {
 
     private record NamedUser(String name) implements User {
         @Override
+        public String id() {
+            return name;
+        }
+
+        @Override
         public boolean hasRole(String role) {
             return false;
         }

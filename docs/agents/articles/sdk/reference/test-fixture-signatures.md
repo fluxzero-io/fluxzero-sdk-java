@@ -130,6 +130,7 @@ identity and deadline for predicate assertions.
 | --- | --- | --- |
 | `givenSchedules(...)` / `givenScheduledCommands(...)` | Behavior from the scheduler artifacts supplied by this test | That instance A stored them or instance B recovered them |
 | `givenAppliedEvents(...)` | Aggregate reconstruction from the history supplied by this test | Retained event persistence across application instances |
+| `givenModelEvents(Id<?>, Object...)` / `givenModelEvents(String, Class<?>, Object...)` | Current Model replay/application from supplied events, including old serialized JSON after caster registration | Untouched old commits/documents/indexes, cross-SDK storage or process restart |
 
 If a Given call supplies the exact schedule later asserted, describe the test as synthetic reconstruction from supplied
 state. Persistence-backed restart requires a retained external client/runtime and a fresh application without manual
@@ -139,7 +140,26 @@ reseeding of the events, documents, or schedules being proved.
 expectOnlyNewSchedules(Object... expected)
 expectOnlySchedules(Object... expected)
 expectOnlyScheduledCommands(Object... expected)
+expectOnlyActiveScheduledCommands(Object... expected)
 ```
 
-The first inspects schedules created in this phase; the second inspects all active schedules after it; the third matches
-scheduled command payloads. Use a `ThrowingPredicate<Schedule>` when both ID and deadline are part of the contract.
+`expectOnlyNewSchedules` checks When-phase dispatch attempts. `expectOnlySchedules` checks all active schedules, but scheduled
+commands are still wrapped in `ScheduledCommand`. `expectOnlyScheduledCommands` unwraps commands from **When-phase
+dispatch attempts only**. `expectOnlyActiveScheduledCommands` unwraps commands from **all active schedules**, including Given and
+earlier phases. It excludes ordinary `@HandleSchedule` payloads; `expectNoSchedules()` checks absence of both kinds.
+Complete-active assertions use the local fixture store. The new command assertion fails explicitly with a non-local
+scheduling client rather than treating observed remote writes as a complete inventory.
+
+```java
+Predicate<Schedule> expected = s -> s.getScheduleId().equals("reminder-1")
+        && s.getDeadline().equals(deadline)
+        && s.getPayload().equals(new RunReminder(reminderId, deadline));
+
+fixture.whenCommand(new RescheduleReminder(reminderId, deadline))
+        .expectOnlyActiveScheduledCommands(expected);
+```
+
+Use `java.util.function.Predicate<Schedule>` as the varargs argument. The payload is already the command; no manual
+deserialization is needed. A plain `Schedule` expectation checks payload, expected metadata and deadline, **not ID**;
+use the predicate to include ID. No arguments assert zero active scheduled commands. A green
+`expectOnlyScheduledCommands(newCommand)` alone does not prove that a previously scheduled command was cancelled.

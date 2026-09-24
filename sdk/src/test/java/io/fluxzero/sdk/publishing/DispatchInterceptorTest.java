@@ -29,7 +29,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.RESULT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class DispatchInterceptorTest {
 
@@ -141,6 +144,53 @@ public class DispatchInterceptorTest {
                 .interceptDispatch(new Message("payload"), COMMAND, null);
 
         assertEquals("tenant", namespace.get());
+    }
+
+    @Test
+    void detectsWhetherCompositeDispatchMonitoringIsActive() {
+        DispatchInterceptor regular = (message, messageType, topic) -> message;
+        DispatchInterceptor monitor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType messageType,
+                                             String topic) {
+                return message;
+            }
+
+            @Override
+            public void monitorDispatch(Message message, io.fluxzero.common.MessageType messageType, String topic,
+                                        String namespace, boolean request) {
+            }
+        };
+
+        assertFalse(CompositeDispatchInterceptor.requiresMonitoring(DispatchInterceptor.noOp, RESULT));
+        assertFalse(CompositeDispatchInterceptor.requiresMonitoring(regular, RESULT));
+        assertTrue(CompositeDispatchInterceptor.requiresMonitoring(monitor, RESULT));
+        assertFalse(CompositeDispatchInterceptor.requiresMonitoring(
+                DispatchInterceptor.noOp.andThen(regular), RESULT));
+        assertTrue(CompositeDispatchInterceptor.requiresMonitoring(
+                DispatchInterceptor.noOp.andThen(monitor), RESULT));
+    }
+
+    @Test
+    void adhocMonitoringIsOnlyActiveInsideAdhocContext() {
+        DispatchInterceptor chain = DispatchInterceptor.noOp.andThen(new AdhocDispatchInterceptor());
+        DispatchInterceptor monitor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType messageType,
+                                             String topic) {
+                return message;
+            }
+
+            @Override
+            public void monitorDispatch(Message message, io.fluxzero.common.MessageType messageType, String topic,
+                                        String namespace, boolean request) {
+            }
+        };
+
+        assertFalse(CompositeDispatchInterceptor.requiresMonitoring(chain, RESULT));
+        AdhocDispatchInterceptor.runWithAdhocInterceptor(
+                () -> assertTrue(CompositeDispatchInterceptor.requiresMonitoring(chain, RESULT)), monitor, RESULT);
+        assertFalse(CompositeDispatchInterceptor.requiresMonitoring(chain, RESULT));
     }
 
     @Value

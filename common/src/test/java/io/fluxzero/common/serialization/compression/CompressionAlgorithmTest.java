@@ -22,22 +22,52 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
-import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.NONE;
+import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CompressionAlgorithmTest {
 
     @Test
-    void lz4RoundTripsBytes() {
-        byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
+    void safeLz4ReadsHistoricalAndFramedEnvelopes() {
+        for (byte[] raw : List.of(new byte[0], "legacy ".repeat(1024).getBytes(StandardCharsets.UTF_8))) {
+            byte[] legacy = LZ4.compress(raw);
+            byte[] framed = new byte[legacy.length + 3];
+            framed[0] = (byte) 0xff;
+            framed[2] = 1;
+            System.arraycopy(legacy, 0, framed, 3, legacy.length);
+            assertArrayEquals(raw, LZ4.decompress(legacy));
+            assertArrayEquals(raw, LZ4.decompress(framed));
+            assertArrayEquals(raw, ZSTD.decompress(framed));
+            byte[] container = new byte[framed.length + 10];
+            System.arraycopy(framed, 0, container, 5, framed.length);
+            assertArrayEquals(raw, LZ4.decompress(container, 5, framed.length));
+        }
+    }
 
-        assertArrayEquals(bytes, LZ4.decompress(LZ4.compress(bytes)));
+    @Test
+    void safeLz4RejectsTruncatedPayloadsAndIncorrectSizes() {
+        byte[] raw = "legacy ".repeat(100).getBytes(StandardCharsets.UTF_8);
+        byte[] legacy = LZ4.compress(raw);
+        for (int length = 0; length < legacy.length; length++) {
+            byte[] truncated = java.util.Arrays.copyOf(legacy, length);
+            assertThrows(RuntimeException.class, () -> LZ4.decompress(truncated));
+        }
+        for (int size : new int[]{-1, 0, raw.length - 1, raw.length + 1}) {
+            byte[] incorrect = legacy.clone();
+            java.nio.ByteBuffer.wrap(incorrect).putInt(size);
+            assertThrows(RuntimeException.class, () -> LZ4.decompress(incorrect));
+        }
+        assertThrows(IllegalArgumentException.class, () -> LZ4.decompress(legacy, -1, 1));
+        assertThrows(IllegalArgumentException.class, () -> LZ4.decompress(legacy, 1, legacy.length));
     }
 
     @Test
@@ -55,11 +85,27 @@ class CompressionAlgorithmTest {
     }
 
     @Test
+    void zstdDecompressesAFramedByteRangeWithoutIncludingAdjacentBytes() {
+        byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = ZSTD.compress(bytes);
+        byte[] container = new byte[compressed.length + 7];
+        System.arraycopy(compressed, 0, container, 3, compressed.length);
+
+        assertArrayEquals(
+                bytes,
+                ZSTD.decompress(
+                        container,
+                        3,
+                        compressed.length));
+    }
+
+    @Test
     void zstdHandlesConcurrentRoundTripsThroughBoundedPool() throws Exception {
         byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
         int threadCount = 64;
         CountDownLatch start = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(threadCount)) {
+        var executor = Executors.newFixedThreadPool(threadCount, Thread.ofPlatform().daemon().factory());
+        try {
             List<java.util.concurrent.Future<byte[]>> futures = new ArrayList<>();
             for (int i = 0; i < threadCount; i++) {
                 futures.add(executor.submit(() -> {
@@ -69,8 +115,12 @@ class CompressionAlgorithmTest {
             }
             start.countDown();
             for (var future : futures) {
-                assertArrayEquals(bytes, future.get());
+                assertArrayEquals(bytes, future.get(5, TimeUnit.SECONDS));
             }
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
         }
     }
 
@@ -90,17 +140,18 @@ class CompressionAlgorithmTest {
     }
 
     @Test
-    void lz4CanReadFluxzeroRuntimeCompressionHeader() {
-        byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
-        byte[] legacyLz4 = LZ4.compress(bytes);
-        byte[] runtimeLz4 = new byte[legacyLz4.length + 3];
-        runtimeLz4[0] = (byte) 0xFF;
-        runtimeLz4[1] = 0x00;
-        runtimeLz4[2] = 1;
-        System.arraycopy(legacyLz4, 0, runtimeLz4, 3, 4);
-        System.arraycopy(legacyLz4, 4, runtimeLz4, 7, legacyLz4.length - 4);
+    void rejectsUnknownCompressionId() {
+        byte[] retiredFrame = {(byte) 0xff, 0, 99, 0, 0, 0, 0};
+        assertEquals("Unknown Fluxzero compression algorithm id: 99",
+                     assertThrows(IllegalArgumentException.class, () -> ZSTD.decompress(retiredFrame)).getMessage());
+    }
 
-        assertArrayEquals(bytes, LZ4.decompress(runtimeLz4));
+    @Test
+    void zstdReadsRawFramesAndEmptyPayloads() {
+        for (byte[] bytes : List.of(new byte[0], "raw frame".getBytes(StandardCharsets.UTF_8))) {
+            assertArrayEquals(bytes, ZSTD.decompress(com.github.luben.zstd.Zstd.compress(bytes)));
+            assertArrayEquals(bytes, ZSTD.decompress(ZSTD.compress(bytes)));
+        }
     }
 
     @Test

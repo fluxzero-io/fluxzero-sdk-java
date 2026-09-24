@@ -62,6 +62,17 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    CompletableFuture<Void> handle(RewriteModelGraphDocument request) {
+        return store.rewriteModelGraphDocument(request.getDocument(), request.getExpectedManifest(),
+                                              request.getGuarantee());
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
+        return store.rewriteModelSourceDocument(request);
+    }
+
+    @Handle
     CompletableFuture<Void> handle(BulkUpdateDocuments request) {
         Map<BulkUpdate.Type, List<DocumentUpdate>> updatesByType =
                 request.getUpdates().stream().filter(Objects::nonNull)
@@ -90,6 +101,46 @@ public class SearchEndpoint extends WebsocketEndpoint {
         } catch (Exception e) {
             log.error("Failed to handle {}", request, e);
             return new SearchDocumentsResult(request.getRequestId(), emptyList());
+        }
+    }
+
+    @Handle
+    public SearchDocumentsResult handle(
+            SearchModelDocuments request) {
+        try {
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    store.searchModels(
+                                    request, -1)
+                            .map(SearchHit::getValue)
+                            .toList());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to handle {}",
+                    request, e);
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    emptyList());
+        }
+    }
+
+    @Handle
+    public SearchDocumentsResult handle(
+            SearchModelGraphDocuments request) {
+        try {
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    store.searchModelGraph(
+                                    request, -1)
+                            .map(SearchHit::getValue)
+                            .toList());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to handle {}",
+                    request, e);
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    emptyList());
         }
     }
 
@@ -126,6 +177,9 @@ public class SearchEndpoint extends WebsocketEndpoint {
     @Handle
     GetDocumentResult handle(GetDocument request) {
         try {
+            if (request.isIncludeModelHead()) {
+                return store.fetchModelDocument(request);
+            }
             return new GetDocumentResult(request.getRequestId(), store.fetch(request).orElse(null));
         } catch (Exception e) {
             log.error("Failed to handle {}", request, e);
@@ -141,6 +195,21 @@ public class SearchEndpoint extends WebsocketEndpoint {
             log.error("Failed to handle {}", request, e);
             return new GetDocumentsResult(request.getRequestId(), emptyList());
         }
+    }
+
+    @Handle
+    GetModelMigrationResult handle(GetModelMigration request) {
+        return store.getModelMigration(request);
+    }
+
+    @Handle
+    GetModelMigrationsResult handle(GetModelMigrations request) {
+        return store.getModelMigrations(request);
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(AdoptModelMigration request) {
+        return store.adoptModelMigration(request);
     }
 
     @Handle

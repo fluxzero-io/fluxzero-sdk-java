@@ -218,6 +218,12 @@ public class Document {
     }
 
     private static Entry extractSortValue(Document document, Predicate<Path> pathPredicate, boolean descending) {
+        Optional<SortableEntry> sortable = descending
+                ? document.getSortableEntries(pathPredicate).max(naturalOrder())
+                : document.getSortableEntries(pathPredicate).min(naturalOrder());
+        if (sortable.isPresent()) {
+            return new Entry(EntryType.TEXT, sortable.get().getValue());
+        }
         Stream<Entry> matchingEntries = document.getMatchingEntries(pathPredicate)
                 .filter(entry -> entry.getType() != EntryType.NULL);
         return (descending ? matchingEntries.max(naturalOrder()) : matchingEntries.min(naturalOrder())).orElse(null);

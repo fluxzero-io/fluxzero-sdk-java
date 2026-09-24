@@ -1,6 +1,15 @@
+For SDK v2 Model commands, applicable `@Apply` methods already provide automatic handling. Do not add the legacy
+pass-through interface below. This article covers explicit local/tracked `@HandleCommand` payloads and existing
+aggregate workflows; retain their production registration when maintaining those flows.
+
 Use this article when command behavior is implemented on the command payload itself. Decide whether the command is local or tracked from the production delivery contract, not from whichever fixture happens to pass.
 
 ## Local self-handling commands
+
+Use this as the default for a named external action invoked by another handler in the same application: the command's
+`@HandleCommand` performs the `WebRequestGateway` call and returns/maps its outcome. No injected API-service bean,
+`@Consumer` or `@TrackSelf` is needed for that interaction. The HTTP request retains its own gateway audit and retry
+settings. See `/docs/sdk/web/outbound-requests` for a complete example and the post-commit boundary for external writes.
 
 A command payload with `@HandleCommand` but no `@TrackSelf` is handled immediately in the sending Fluxzero process. It bypasses the command log and tracker infrastructure. This is useful for deliberately local composition, but it is not a production ingress handler for commands published by another application through the runtime.
 

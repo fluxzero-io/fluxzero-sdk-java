@@ -1,3 +1,6 @@
+This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
+and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+
 Use this when a business key must be unique across aggregate roots, especially when the key that owns the invariant is not the aggregate ID being updated. Examples include one device serial across inventories, one email address across accounts, or one external reference across orders.
 
 ## Route by the invariant key

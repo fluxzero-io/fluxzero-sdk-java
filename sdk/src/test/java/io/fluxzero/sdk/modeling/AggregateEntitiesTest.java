@@ -94,6 +94,27 @@ public class AggregateEntitiesTest {
                 .expectResult(predicate);
     }
 
+    @Test
+    void entityIdAffixesAreUsedForAggregateRelationshipsAndTypedEntityLoads() {
+        AffixedEmbeddedId childId = new AffixedEmbeddedId("one");
+
+        TestFixture.create()
+                .given(fc -> loadAggregate("affixed", AffixedAggregate.class)
+                        .update(ignored -> new AffixedAggregate(
+                                "affixed", List.of(new AffixedEmbedded(childId)))))
+                .whenApplying(fc -> loadEntity(childId))
+                .expectResult(entity -> new AffixedEmbedded(childId).equals(entity.get()))
+                .expectThat(fluxzero -> {
+                    Entity<AffixedAggregate> aggregate = loadAggregate("affixed", AffixedAggregate.class);
+                    assertEquals(childId, aggregate.get().children().getFirst().id());
+                    assertEquals(new AffixedEmbedded(childId), loadEntity((Object) childId).get());
+                    assertEquals(
+                            Set.of("affixed", "move-embedded-one"),
+                            aggregate.relationships().stream()
+                                    .map(Relationship::getEntityId).collect(java.util.stream.Collectors.toSet()));
+                });
+    }
+
     private boolean folderState(Folder root, List<String> path, List<String> expectedFolders, List<String> expectedFiles) {
         Folder folder = findFolder(root, path);
         return folder != null
@@ -2651,6 +2672,22 @@ public class AggregateEntitiesTest {
         @Override
         public String toString() {
             return key;
+        }
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    private record AffixedAggregate(
+            @EntityId String id,
+            @Member List<AffixedEmbedded> children) {
+    }
+
+    private record AffixedEmbedded(
+            @EntityId(prefix = "move-") AffixedEmbeddedId id) {
+    }
+
+    private static final class AffixedEmbeddedId extends Id<AffixedEmbedded> {
+        private AffixedEmbeddedId(String id) {
+            super(id, "embedded-");
         }
     }
 

@@ -19,10 +19,7 @@ import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdCompressCtx;
 import com.github.luben.zstd.ZstdDecompressCtx;
 import lombok.NonNull;
-import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
-import net.jpountz.lz4.LZ4FastDecompressor;
-import net.jpountz.util.Native;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -37,16 +34,13 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipException;
 
-import static net.jpountz.lz4.LZ4Factory.fastestJavaInstance;
-import static net.jpountz.lz4.LZ4Factory.nativeInsecureInstance;
-
 /**
  * Enumeration of supported compression algorithms used for serializing and deserializing byte data.
  *
  * <p>The available algorithms include:
  * <ul>
  *   <li>{@link #NONE} – No compression. The input is passed through unchanged.</li>
- *   <li>{@link #LZ4} – Fast compression using the LZ4 codec. Optimized for speed and suitable for large volumes of data.</li>
+ *   <li>{@link #LZ4} – Bounds-checked Java LZ4 for historical envelopes and explicit compatibility.</li>
  *   <li>{@link #ZSTD} – Zstandard compression. Optimized for fast transport compression at high throughput.</li>
  *   <li>{@link #GZIP} – Standard GZIP compression. Compatible with most zip tools and libraries.</li>
  * </ul>
@@ -80,7 +74,7 @@ public enum CompressionAlgorithm {
     },
 
     /**
-     * Fast compression using the LZ4 codec. Includes original size prefix in output.
+     * Bounds-checked Java LZ4. Includes the historical original-size prefix in output.
      */
     LZ4(1) {
         @Override
@@ -97,6 +91,9 @@ public enum CompressionAlgorithm {
             if (hasFluxzeroCompressionHeader(compressed)) {
                 return decompressFluxzeroCompressionHeader(compressed);
             }
+            if (compressed.length < Integer.BYTES) {
+                throw new IllegalArgumentException("Truncated LZ4 size header");
+            }
             int uncompressedLength = readInt(compressed, 0);
             return decompressPayload(compressed, Integer.BYTES, compressed.length - Integer.BYTES,
                                      uncompressedLength);
@@ -104,13 +101,18 @@ public enum CompressionAlgorithm {
 
         @Override
         byte[] compressPayload(byte[] uncompressed) {
-            return Lz4.COMPRESSOR.compress(uncompressed);
+            return Lz4.FACTORY.fastCompressor().compress(uncompressed);
         }
 
         @Override
         byte[] decompressPayload(byte[] compressed, int offset, int length, int originalSize) {
-            byte[] result = new byte[originalSize];
-            Lz4.DECOMPRESSOR.decompress(compressed, offset, result, 0, originalSize);
+            if (originalSize < 0) {
+                throw new IllegalArgumentException("Negative LZ4 uncompressed size");
+            }
+            byte[] result = Lz4.FACTORY.safeDecompressor().decompress(compressed, offset, length, originalSize);
+            if (result.length != originalSize) {
+                throw new IllegalArgumentException("LZ4 uncompressed size does not match its header");
+            }
             return result;
         }
     },
@@ -221,6 +223,33 @@ public enum CompressionAlgorithm {
      */
     public abstract byte[] decompress(byte[] compressed);
 
+    /**
+     * Decompresses one byte range without first copying that range into a temporary array.
+     *
+     * <p>Fluxzero-framed payloads are decoded directly from the supplied backing array. Other formats retain the
+     * existing whole-array implementation as a compatibility fallback.</p>
+     */
+    public byte[] decompress(
+            byte[] compressed, int offset, int length) {
+        if (offset < 0
+            || length < 0
+            || offset > compressed.length - length) {
+            throw new IllegalArgumentException(
+                    "Invalid compressed byte range");
+        }
+        if (offset == 0 && length == compressed.length) {
+            return decompress(compressed);
+        }
+        if (hasFluxzeroCompressionHeader(
+                compressed, offset, length)) {
+            return decompressFluxzeroCompressionHeader(
+                    compressed, offset, length);
+        }
+        return decompress(
+                Arrays.copyOfRange(
+                        compressed, offset, offset + length));
+    }
+
     abstract byte[] compressPayload(byte[] uncompressed);
 
     abstract byte[] decompressPayload(byte[] compressed, int offset, int length, int originalSize);
@@ -240,11 +269,26 @@ public enum CompressionAlgorithm {
     }
 
     private static byte[] decompressFluxzeroCompressionHeader(byte[] compressed) {
-        CompressionAlgorithm algorithm = fromFluxzeroCompressionId(compressed[2] & 0xff);
-        int uncompressedLength = readInt(compressed, 3);
-        int offset = FLUXZERO_COMPRESSION_HEADER_LENGTH;
-        int length = compressed.length - offset;
-        return algorithm.decompressPayload(compressed, offset, length, uncompressedLength);
+        return decompressFluxzeroCompressionHeader(
+                compressed, 0, compressed.length);
+    }
+
+    private static byte[] decompressFluxzeroCompressionHeader(
+            byte[] compressed, int offset, int length) {
+        CompressionAlgorithm algorithm =
+                fromFluxzeroCompressionId(
+                        compressed[offset + 2] & 0xff);
+        int uncompressedLength =
+                readInt(compressed, offset + 3);
+        int payloadOffset =
+                offset + FLUXZERO_COMPRESSION_HEADER_LENGTH;
+        int payloadLength =
+                length - FLUXZERO_COMPRESSION_HEADER_LENGTH;
+        return algorithm.decompressPayload(
+                compressed,
+                payloadOffset,
+                payloadLength,
+                uncompressedLength);
     }
 
     private static CompressionAlgorithm fromFluxzeroCompressionId(int id) {
@@ -257,9 +301,15 @@ public enum CompressionAlgorithm {
     }
 
     private static boolean hasFluxzeroCompressionHeader(byte[] compressed) {
-        return compressed.length >= FLUXZERO_COMPRESSION_HEADER_LENGTH
-               && compressed[0] == FLUXZERO_COMPRESSION_MAGIC[0]
-               && compressed[1] == FLUXZERO_COMPRESSION_MAGIC[1];
+        return hasFluxzeroCompressionHeader(
+                compressed, 0, compressed.length);
+    }
+
+    private static boolean hasFluxzeroCompressionHeader(
+            byte[] compressed, int offset, int length) {
+        return length >= FLUXZERO_COMPRESSION_HEADER_LENGTH
+               && compressed[offset] == FLUXZERO_COMPRESSION_MAGIC[0]
+               && compressed[offset + 1] == FLUXZERO_COMPRESSION_MAGIC[1];
     }
 
     private static void writeInt(byte[] bytes, int offset, int value) {
@@ -276,30 +326,9 @@ public enum CompressionAlgorithm {
                 | (bytes[offset + 3] & 0xff);
     }
 
-    /**
-     * Returns the fastest available LZ4 factory.
-     *
-     * <p>Fluxzero deliberately uses the native insecure factory when possible. The non-deprecated
-     * {@link LZ4Factory#fastestInstance()} selects the secure native factory, which keeps the fast decompressor on the
-     * Java implementation in this LZ4 release.</p>
-     */
-    @SuppressWarnings("deprecation")
-    private static LZ4Factory fastestInstance() {
-        if (Native.isLoaded() || Native.class.getClassLoader() == ClassLoader.getSystemClassLoader()) {
-            try {
-                return nativeInsecureInstance();
-            } catch (Throwable t) {
-                return fastestJavaInstance();
-            }
-        } else {
-            return fastestJavaInstance();
-        }
-    }
-
     private static final class Lz4 {
-        private static final LZ4Factory FACTORY = fastestInstance();
-        private static final LZ4Compressor COMPRESSOR = FACTORY.fastCompressor();
-        private static final LZ4FastDecompressor DECOMPRESSOR = FACTORY.fastDecompressor();
+        // Deliberately exclude JNI and Unsafe implementations, including for compression.
+        private static final LZ4Factory FACTORY = LZ4Factory.safeInstance();
     }
 
     private static final class ResourcePool<T extends AutoCloseable> implements AutoCloseable {

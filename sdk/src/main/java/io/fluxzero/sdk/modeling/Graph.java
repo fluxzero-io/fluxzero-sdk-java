@@ -1,0 +1,886 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.modeling;
+
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer;
+import jakarta.annotation.Nullable;
+
+import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
+
+/**
+ * A typed view of one independently stored model and its lazily available relationship context.
+ * <p>
+ * Merely resolving a detached graph by ID does not load its model value. A typed ancestor can be resolved directly
+ * from relationship identities without loading either the source or intermediate parents. The source value, children,
+ * history and update context are loaded only when requested, at one pinned model-state boundary. Every returned child
+ * is itself a graph view, so root, parent, history and update operations remain available without exposing the
+ * persistence-only {@link Entity} wrapper.
+ * <p>
+ * When injected or synchronously loaded within a Model evaluation, inspected values and relationship collections
+ * become conflict dependencies on that evaluation's pinned boundary and owning repository/namespace.
+ * Empty child collections and examined/rejected filter candidates count too; merely loading a graph does not protect
+ * every descendant. Cached transformations retain their read evidence. Reads, including joined parallel scans, must
+ * finish within the synchronous evaluation. Explicit historical views and unrelated repository/search reads are not
+ * implicitly live dependencies. Membership protection is path-scoped (conservative across types); remapped paths
+ * protect all direct paths of their source. Matching relationship-read-capable SDK and Runtime versions are required.
+ * RETRY/FAIL validate the full evaluation readset; ACCEPT preserves only apply dependencies through rebase.
+ * Custom repositories must return SDK views (e.g. {@link Graphs#compose(String, long, java.util.Map, java.util.List,
+ * io.fluxzero.sdk.persisting.repository.ModelRepository, boolean)}) for transactional navigation. Opaque custom Graph
+ * implementations fail explicitly on that path; ordinary non-transactional reads remain supported.
+ * <p>
+ * As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and
+ * any descendant. The handler runs once per affected root and change boundary. {@link #previous()} returns the graph directly
+ * before the change; a child move therefore invokes the handler once for the old root and once for the new root. One
+ * handler object may declare separate sole-parameter methods for different {@code Graph<T>} root types; each changed
+ * root is routed to its matching typed method. Cascaded deletions also reach a sole child-Graph handler, with an empty
+ * current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
+ * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions.
+ * <p>
+ * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
+ * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or
+ * separate graph-upcaster contract. Returning a complete materialized graph from a
+ * {@link io.fluxzero.sdk.tracking.handling.HandleDocument @HandleDocument}{@code (modelGraph = ...)} handler can
+ * persist those evolved node schemas into the derived projection without changing the authoritative Models or
+ * relationships.
+ *
+ * Metadata-first child selection does not reconstruct selected child values. The default repository also resolves
+ * lazy root aliases from head metadata without replay. Initial alias lookup uses the current alias table, including
+ * for historical reads; the resulting identity (or absence), values and relationships then stay pinned. Consumed
+ * alias lookups inside a Model mutation also participate in commit conflict detection, including missing aliases
+ * and metadata-only navigation. Exact-ID reads do not acquire alias dependencies. Custom repositories may retain
+ * value-based lookup.
+ * Remote alias navigation requires a Runtime transport that preserves canonical IDs in alias heads.
+ *
+ * @param <T> model value type at the current graph placement
+ */
+@JsonSerialize(using = GraphJsonSerializer.class)
+public interface Graph<T> {
+
+    /**
+     * Returns the current model value, or {@code null} for a missing or deleted model. An unknown metadata node fails
+     * explicitly instead of masquerading as absent; inspect {@link #knownType()} before accessing its value.
+     */
+    @Nullable
+    T get();
+
+    /** Returns whether this graph currently contains a model value. */
+    default boolean isPresent() {
+        return get() != null;
+    }
+
+    /** Returns whether this graph currently represents a missing or deleted model. */
+    default boolean isEmpty() {
+        return get() == null;
+    }
+
+    /** Returns the current model value as an optional without loading relationship context. */
+    default Optional<T> optional() {
+        return Optional.ofNullable(get());
+    }
+
+    /** Maps this graph itself without loading relationship context. */
+    default <R> Optional<R> mapGraph(Function<? super Graph<T>, ? extends R> mapper) {
+        Objects.requireNonNull(mapper, "mapper");
+        return Optional.ofNullable(mapper.apply(this));
+    }
+
+    /** Returns this graph when it matches the supplied condition. */
+    default Optional<Graph<T>> filterGraph(Predicate<? super Graph<T>> predicate) {
+        Objects.requireNonNull(predicate, "predicate");
+        return Optional.of(this).filter(predicate);
+    }
+
+    /** Returns this graph only when its current model value is present. */
+    default Optional<Graph<T>> filterPresent() {
+        return isPresent() ? Optional.of(this) : Optional.empty();
+    }
+
+    /**
+     * Returns an immutable graph view carrying typed response context for graph-derived properties.
+     * <p>
+     * Context is shared by the complete graph view, including its parents, children and historical revisions. It does
+     * not become part of model state and is not loaded or persisted by the SDK. This makes it suitable for one
+     * response-wide, already-batched lookup that several {@link GraphProperty @GraphProperty} methods consume without
+     * introducing per-node I/O.
+     */
+    default Graph<T> withContext(Object... values) {
+        return Graphs.withContext(this, List.of(values));
+    }
+
+    /** Returns response context assignable to the requested type, if attached to this graph view. */
+    default <C> Optional<C> context(Class<C> contextType) {
+        Objects.requireNonNull(contextType, "contextType");
+        return Optional.empty();
+    }
+
+    /** Maps this graph only when its current model value is present. */
+    default <R> Optional<R> mapIfPresent(Function<? super Graph<T>, ? extends R> mapper) {
+        Objects.requireNonNull(mapper, "mapper");
+        return isPresent() ? Optional.ofNullable(mapper.apply(this)) : Optional.empty();
+    }
+
+    /** Maps the current model value when present without loading relationship context. */
+    default <R> Optional<R> map(Function<? super T, ? extends R> mapper) {
+        return optional().map(mapper);
+    }
+
+    /** Returns the current model value or the supplied fallback. */
+    default T orElse(T fallback) {
+        return optional().orElse(fallback);
+    }
+
+    /** Returns the current model value or obtains a fallback lazily. */
+    default T orElseGet(Supplier<? extends T> fallback) {
+        return optional().orElseGet(fallback);
+    }
+
+    /** Returns the current model value or throws when this graph is empty. */
+    default T orElseThrow() {
+        return optional().orElseThrow();
+    }
+
+    /** Returns the current model value or throws the supplied exception when this graph is empty. */
+    default <X extends Throwable> T orElseThrow(Supplier<? extends X> exceptionSupplier) throws X {
+        return optional().orElseThrow(exceptionSupplier);
+    }
+
+    /** Applies a graph operation only when a current model value is present. */
+    default Graph<T> ifPresent(UnaryOperator<Graph<T>> operation) {
+        Objects.requireNonNull(operation, "operation");
+        return isPresent() ? operation.apply(this) : this;
+    }
+
+    /** Returns the exact collision-safe repository identity of this model. */
+    Object id();
+
+    /**
+     * Returns the public functional identity from the current model value or, for a deleted model, its latest
+     * available historical value.
+     * <p>
+     * This deliberately differs from {@link #id()}, which can contain an {@link EntityId} prefix, postfix or
+     * parent scope used only for durable repository identity. A model that has never existed has no functional
+     * identity and returns {@code null}.
+     */
+    @Nullable
+    default String functionalId() {
+        for (Graph<?> version = this; version != null; version = version.previous()) {
+            Object value = version.get();
+            if (value == null) {
+                continue;
+            }
+            Object functionalId = EntityMetadata.of(version.type()).functionalIdOf(value);
+            return functionalId instanceof Id<?> typedId
+                    ? typedId.getFunctionalId() : String.valueOf(functionalId);
+        }
+        return null;
+    }
+
+    /** Returns the concrete Model type, failing explicitly for an unknown metadata node. See {@link #knownType()}. */
+    Class<T> type();
+
+    /**
+     * Returns the resolved logical Model name, including its configured prefix. Unlike {@link #type()}, this is
+     * available for an unknown node returned by metadata navigation and does not require its Java contract.
+     */
+    default String modelName() {
+        return ModelNames.name(type());
+    }
+
+    /**
+     * Returns the locally known Model class without loading its value, or an empty optional for an unknown node.
+     * A known class does not guarantee that its historical event contracts or replay logic are available.
+     */
+    default Optional<Class<T>> knownType() {
+        return Optional.of(type());
+    }
+
+    /** Returns the model aliases without loading relationship context. */
+    default Collection<?> aliases() {
+        return List.of();
+    }
+
+    /** Returns the parent-relative relationship path, or {@code null} for a pathless, standalone, or root view. */
+    @Nullable
+    String relationshipPath();
+
+    /** Returns the pinned namespace-wide model-state boundary. */
+    long stateIndex();
+
+    /**
+     * Returns the namespace-wide state boundary at which this concrete model revision became current.
+     * <p>
+     * Unlike {@link #stateIndex()}, which describes the pinned boundary shared by the complete graph, this value can
+     * differ between nodes and therefore provides a stable ordering for otherwise ambiguous functional-ID lookups.
+     * For still-lazy persisted nodes, a metadata-capable repository can provide this from the pinned head without
+     * reconstructing the value. Pending and custom graph revisions retain their own version semantics.
+     */
+    default long revisionStateIndex() {
+        return stateIndex();
+    }
+
+    /** Returns the last globally published event identifier visible to this model revision. */
+    @Nullable
+    String lastEventId();
+
+    /** Returns the last globally published event index visible to this model revision. */
+    @Nullable
+    Long lastEventIndex();
+
+    /** Returns the model-local sequence number, using pinned head evidence without replay when available. */
+    long sequenceNumber();
+
+    /** Returns the timestamp of this model revision. */
+    Instant timestamp();
+
+    /** Returns the outer graph root. On a root graph this returns {@code this}. */
+    Graph<?> root();
+
+    /** Returns whether this graph is the outer root of its current graph view. */
+    default boolean isRoot() {
+        return root() == this;
+    }
+
+    /** Returns the parent of this concrete graph placement, if one exists. */
+    Optional<Graph<?>> parent();
+
+    /**
+     * Returns all direct parents of this model. A concrete placement normally has one parent, while a directly loaded
+     * model may expose multiple declared {@link Parent} relationships.
+     */
+    default List<Graph<?>> parents() {
+        return parent().stream().toList();
+    }
+
+    /** Returns the closest parent assignable to the requested type. */
+    <P> Optional<Graph<P>> parent(Class<P> parentType);
+
+    /** Returns the value of the closest parent assignable to the requested type. */
+    default <P> Optional<P> parentModel(Class<P> parentType) {
+        return parent(parentType).map(Graph::get);
+    }
+
+    /**
+     * Returns the closest ancestor, including the current graph, assignable to the requested type. The concrete graph
+     * placement is searched before alternate parent branches.
+     */
+    <A> Optional<Graph<A>> ancestor(Class<A> ancestorType);
+
+    /** Returns the value of the closest ancestor, including the current model, assignable to the requested type. */
+    default <A> Optional<A> ancestorModel(Class<A> ancestorType) {
+        return ancestor(ancestorType).map(Graph::get);
+    }
+
+    /** Returns all direct children in deterministic relationship-path order. */
+    List<Graph<?>> children();
+
+    /** Returns locally known direct children at the exact relationship path; {@code null} selects pathless children. */
+    default List<Graph<?>> children(String path) {
+        return children(path, true);
+    }
+
+    /**
+     * Returns direct children at the exact relationship path without loading values. {@code knownOnly=true} excludes
+     * locally unknown types and is not a complete count of all children. False includes unknown metadata nodes:
+     * their identity and relationships remain available, but {@link #get()}, {@link #type()} and mutations fail.
+     * A null path selects only pathless children. Inspected memberships, including empty results, are tracked.
+     */
+    default List<Graph<?>> children(String path, boolean knownOnly) {
+        return children(path, null, knownOnly);
+    }
+
+    /** Returns locally known direct children matching an exact relationship path and resolved logical Model name. */
+    default List<Graph<?>> children(String path, String modelName) {
+        return children(path, modelName, true);
+    }
+
+    /**
+     * Combines exact path and logical-name selection. Null names impose no name filter; null paths select pathless
+     * children. Names are already resolved, including any application prefix. See {@link #children(String, boolean)}.
+     */
+    default List<Graph<?>> children(String path, String modelName, boolean knownOnly) {
+        return children().stream().filter(child -> Objects.equals(path, child.relationshipPath()))
+                .filter(child -> modelName == null || modelName.equals(child.modelName()))
+                .filter(child -> !knownOnly || child.knownType().isPresent()).toList();
+    }
+
+    /** Returns locally known direct children with this exact resolved logical Model name, across all paths. */
+    default List<Graph<?>> namedChildren(String modelName) {
+        return namedChildren(modelName, true);
+    }
+
+    /** Selects a logical Model name across all direct paths. False also includes locally unknown metadata nodes. */
+    default List<Graph<?>> namedChildren(String modelName, boolean knownOnly) {
+        Objects.requireNonNull(modelName, "modelName");
+        return children().stream().filter(child -> modelName.equals(child.modelName()))
+                .filter(child -> !knownOnly || child.knownType().isPresent()).toList();
+    }
+
+    /** Returns locally known descendants at the root-relative relationship path, excluding this node. */
+    default List<Graph<?>> descendants(String path) {
+        return descendants(path, true);
+    }
+
+    /**
+     * Selects descendants at a root-relative relationship path without reading values. Unknown intermediate nodes
+     * do not hide reachable matches. True selects only locally known types; false also returns unknown nodes.
+     * A null path selects every reachable path. Membership reads remain pinned and conflict tracked.
+     */
+    default List<Graph<?>> descendants(String path, boolean knownOnly) {
+        return descendants(path, null, knownOnly);
+    }
+
+    /** Returns locally known descendants matching a root-relative path and exact resolved logical Model name. */
+    default List<Graph<?>> descendants(String path, String modelName) {
+        return descendants(path, modelName, true);
+    }
+
+    /** Combines descendant path and exact logical-name selection. See {@link #descendants(String, boolean)}. */
+    default List<Graph<?>> descendants(String path, String modelName, boolean knownOnly) {
+        return Graphs.selectDescendants(this, path, modelName, knownOnly);
+    }
+
+    /** Returns locally known descendants of this exact resolved logical Model name, across all paths. */
+    default List<Graph<?>> namedDescendants(String modelName) {
+        return namedDescendants(modelName, true);
+    }
+
+    /** Selects descendants by logical Model name across every path, optionally including unknown metadata nodes. */
+    default List<Graph<?>> namedDescendants(String modelName, boolean knownOnly) {
+        return descendants(null, Objects.requireNonNull(modelName, "modelName"), knownOnly);
+    }
+
+    /**
+     * Returns the declared serialized child paths in deterministic order, including paths that currently have no
+     * children. Pathless relationships are deliberately absent because they are graph context rather than JSON
+     * structure.
+     */
+    default List<String> childPaths() {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        children().stream().map(Graph::relationshipPath)
+                .filter(path -> path != null && !path.isBlank())
+                .forEach(result::add);
+        return List.copyOf(result);
+    }
+
+    /**
+     * Returns an immutable graph view containing only the selected serialized relationship paths, relative to this
+     * graph, and their ancestors.
+     * Model values and graph nodes are shared with this graph; no models are copied or loaded merely by creating the
+     * view. Metadata-capable repositories select paths before reconstructing any values. An empty selection returns
+     * this graph unchanged.
+     */
+    default Graph<T> selectPaths(String... paths) {
+        return Graphs.selectPaths(this, List.of(paths));
+    }
+
+    /** See {@link #selectPaths(String...)}. */
+    default Graph<T> selectPaths(Collection<String> paths) {
+        return Graphs.selectPaths(this, paths);
+    }
+
+    /**
+     * Returns an immutable, lazy view whose model values are retained only when the supplied predicate accepts their
+     * graph placement. Rejected descendants remain structurally addressable as empty graphs but are omitted during
+     * graph serialization; accepted values are shared and never copied. A caller that retains a deep descendant should
+     * also retain its serialized ancestors.
+     */
+    default Graph<T> filterNodes(Predicate<? super Graph<?>> predicate) {
+        Objects.requireNonNull(predicate, "predicate");
+        return Graphs.mapValues(this, graph -> predicate.test(graph) ? graph.get() : null);
+    }
+
+    /**
+     * Returns an immutable response view containing every matching placement, its complete descendant branch and the
+     * ancestors needed to preserve its serialized path. This is useful for selecting independently addressed branches:
+     * matching a parent retains its whole subtree, while matching a leaf retains only that leaf and its ancestors.
+     * The graph is traversed once; retained model values are shared and never copied.
+     */
+    default Graph<T> filterBranches(Predicate<? super Graph<?>> predicate) {
+        return Graphs.filterBranches(this, predicate);
+    }
+
+    /**
+     * Returns direct children assignable to the requested locally known type, without reconstructing values.
+     * Unknown logical types are not matches, including for {@code Object.class}. Multiple matching relationship
+     * paths require the explicit-path overload.
+     */
+    <C> List<Graph<C>> children(Class<C> childType);
+
+    /** Returns direct children placed at the requested explicit relationship path. */
+    <C> List<Graph<C>> children(String path, Class<C> childType);
+
+    /** Returns direct child values of the requested type. */
+    default <C> List<C> childModels(Class<C> childType) {
+        return Graphs.modelValues(children(childType));
+    }
+
+    /** Returns direct child values placed at the requested explicit relationship path. */
+    default <C> List<C> childModels(String path, Class<C> childType) {
+        return Graphs.modelValues(children(path, childType));
+    }
+
+    /**
+     * Returns locally known assignable descendants in deterministic graph order without reconstructing values.
+     * Unknown intermediate nodes are traversed but are never type matches, including for {@code Object.class}.
+     */
+    <D> List<Graph<D>> descendants(Class<D> descendantType);
+
+    /** Returns descendants reached through the requested relationship path. */
+    <D> List<Graph<D>> descendants(String path, Class<D> descendantType);
+
+    /** Returns all descendant values assignable to the requested type. */
+    default <D> List<D> descendantModels(Class<D> descendantType) {
+        return Graphs.modelValues(descendants(descendantType));
+    }
+
+    /** Returns descendant values reached through the requested relationship path. */
+    default <D> List<D> descendantModels(String path, Class<D> descendantType) {
+        return Graphs.modelValues(descendants(path, descendantType));
+    }
+
+    /**
+     * Lazily traverses this graph in deterministic pre-order, including this graph itself. Relationship context is
+     * loaded only when the returned stream is consumed.
+     */
+    default Stream<Graph<?>> stream() {
+        Iterator<Graph<?>> iterator = new Iterator<>() {
+            private final Deque<Iterator<Graph<?>>> remaining = new ArrayDeque<>();
+            private Graph<?> next = Graph.this;
+            private Graph<?> expandAfterReturn;
+
+            @Override
+            public boolean hasNext() {
+                if (next != null) {
+                    return true;
+                }
+                if (expandAfterReturn != null) {
+                    remaining.addLast(expandAfterReturn.children().iterator());
+                    expandAfterReturn = null;
+                }
+                while (!remaining.isEmpty()) {
+                    Iterator<Graph<?>> siblings = remaining.peekLast();
+                    if (siblings.hasNext()) {
+                        next = siblings.next();
+                        return true;
+                    }
+                    remaining.removeLast();
+                }
+                return false;
+            }
+
+            @Override
+            public Graph<?> next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException();
+                }
+                Graph<?> result = next;
+                next = null;
+                expandAfterReturn = result;
+                return result;
+            }
+        };
+        return StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED | Spliterator.NONNULL), false);
+    }
+
+    /** Finds the first graph in deterministic graph order matching the supplied condition. */
+    default Optional<Graph<?>> find(Predicate<? super Graph<?>> predicate) {
+        Objects.requireNonNull(predicate, "predicate");
+        return stream().filter(predicate).findFirst();
+    }
+
+    /**
+     * Finds a graph by exact persisted identity or alias. Exact identities take precedence over aliases throughout
+     * the complete graph, even when an earlier graph owns a colliding alias.
+     * Metadata-capable repositories search identities before reading alias values. Unknown Model nodes can be found
+     * by exact identity; inspecting their aliases still requires their local contract.
+     */
+    default Optional<Graph<?>> find(Object idOrAlias) {
+        if (idOrAlias == null) {
+            return Optional.empty();
+        }
+        String requested = idOrAlias.toString();
+        var iterator = Graphs.lookupStream(this).iterator();
+        while (iterator.hasNext()) {
+            Graph<?> candidate = iterator.next();
+            if (candidate.id() != null && requested.equals(candidate.id().toString())) {
+                return Optional.of(candidate);
+            }
+        }
+        return Graphs.lookupStream(this).filter(candidate -> matchesAlias(candidate, requested)).findFirst();
+    }
+
+    /**
+     * Finds a graph by functional identity or alias and expected model type. The expected type applies the same
+     * {@link EntityId} and nested {@link Id} affixes as a typed model load.
+     * The expected type participates in local Model discovery; unrelated unknown types are excluded. Alias matching
+     * and parent-scoped functional-ID matching may require values of matching types, never unrelated model values.
+     */
+    default <M> Optional<Graph<M>> find(Object idOrAlias, Class<M> modelType) {
+        return find(idOrAlias, modelType, GraphLookupPolicy.MOST_RECENT);
+    }
+
+    /**
+     * Finds a graph by functional identity or alias and expected model type using the supplied ambiguity policy.
+     * Exact identities take precedence over aliases throughout the complete graph.
+     */
+    default <M> Optional<Graph<M>> find(
+            Object idOrAlias, Class<M> modelType,
+            GraphLookupPolicy lookupPolicy) {
+        if (idOrAlias == null) {
+            return Optional.empty();
+        }
+        Objects.requireNonNull(modelType, "modelType");
+        Objects.requireNonNull(lookupPolicy, "lookupPolicy");
+        if (this instanceof GraphView<?> view) {
+            view.registerRequestedType(modelType);
+        }
+        String requested = idOrAlias.toString();
+        EntityMetadata metadata = EntityMetadata.of(modelType);
+        String repositoryId = metadata.parentScopedEntityId()
+                ? null : metadata.repositoryId(idOrAlias);
+        Graph<M> identityMatch = null;
+        Graph<M> aliasMatch = null;
+        int identityMatches = 0;
+        int aliasMatches = 0;
+        var iterator = Graphs.lookupStream(this).iterator();
+        while (iterator.hasNext()) {
+            Graph<?> candidate = iterator.next();
+            if (candidate.knownType().filter(modelType::isAssignableFrom).isEmpty()) {
+                continue;
+            }
+            @SuppressWarnings("unchecked") Graph<M> typed = (Graph<M>) candidate;
+            if (metadata.parentScopedEntityId()) {
+                Object value = candidate.get();
+                if (value != null
+                    && requested.equals(Objects.toString(metadata.functionalIdOf(value), null))) {
+                    identityMatches++;
+                    identityMatch = selectLookupMatch(
+                            identityMatch, typed);
+                }
+            } else if (candidate.id() != null
+                       && repositoryId.equals(candidate.id().toString())) {
+                return Optional.of(typed);
+            }
+        }
+        if (identityMatch != null) {
+            validateLookupAmbiguity(
+                    identityMatches, requested, modelType,
+                    lookupPolicy);
+            return Optional.of(identityMatch);
+        }
+        iterator = Graphs.lookupStream(this).iterator();
+        while (iterator.hasNext()) {
+            Graph<?> candidate = iterator.next();
+            if (candidate.knownType().filter(modelType::isAssignableFrom).isPresent()
+                && matchesAlias(candidate, requested)) {
+                aliasMatches++;
+                @SuppressWarnings("unchecked") Graph<M> typed = (Graph<M>) candidate;
+                aliasMatch = selectLookupMatch(aliasMatch, typed);
+            }
+        }
+        validateLookupAmbiguity(
+                aliasMatches, requested, modelType,
+                lookupPolicy);
+        return Optional.ofNullable(aliasMatch);
+    }
+
+    private static <M> Graph<M> selectLookupMatch(
+            Graph<M> existing, Graph<M> candidate) {
+        if (existing == null) {
+            return candidate;
+        }
+        long existingStateIndex = existing.revisionStateIndex();
+        long candidateStateIndex = candidate.revisionStateIndex();
+        if (candidateStateIndex != existingStateIndex) {
+            return candidateStateIndex > existingStateIndex
+                    ? candidate : existing;
+        }
+        Instant existingTimestamp = existing.timestamp();
+        Instant candidateTimestamp = candidate.timestamp();
+        if (existingTimestamp == null) {
+            return candidate;
+        }
+        return candidateTimestamp != null
+               && candidateTimestamp.compareTo(existingTimestamp) >= 0
+                ? candidate : existing;
+    }
+
+    private static void validateLookupAmbiguity(
+            int matches, String requested, Class<?> modelType,
+            GraphLookupPolicy lookupPolicy) {
+        if (matches > 1
+            && lookupPolicy == GraphLookupPolicy.FAIL_ON_AMBIGUITY) {
+            throw new IllegalStateException(
+                    "Graph contains multiple %s models matching '%s'"
+                            .formatted(modelType.getName(), requested));
+        }
+    }
+
+    private static boolean matchesAlias(Graph<?> graph, String requested) {
+        if (graph instanceof GraphView<?> view && view.aliasesKnownAbsent()) {
+            return false;
+        }
+        Collection<?> aliases = graph.aliases();
+        return aliases != null && aliases.stream().filter(Objects::nonNull)
+                .map(Object::toString).anyMatch(requested::equals);
+    }
+
+    /** Applies one update to this graph's current model and returns the staged resulting graph. */
+    Graph<T> apply(Object update);
+
+    /** Applies one update with explicit metadata. */
+    Graph<T> apply(Object update, Metadata metadata);
+
+    /** Applies a deserializing message. */
+    Graph<T> apply(DeserializingMessage update);
+
+    /** Applies a complete message. */
+    Graph<T> apply(Message update);
+
+    /** Applies the supplied updates in order. */
+    Graph<T> apply(Object... updates);
+
+    /** Applies the supplied updates in order. */
+    Graph<T> apply(Collection<?> updates);
+
+    /**
+     * Updates the current value directly. When returned by an apply interceptor, the staged update joins that
+     * interceptor's atomic model commit and is replayed against fresh state after an accepted conflict. The operator
+     * must therefore be deterministic and free of external side effects. Prefer {@link #apply(Object)} for domain
+     * updates whose apply-specific event publication settings should govern the transition.
+     */
+    Graph<T> update(UnaryOperator<T> update);
+
+    /**
+     * Replaces this existing Model only if this graph's {@link #revisionStateIndex()} is still current.
+     * A null replacement deletes the Model. Returns only after durable commit; false means the expected
+     * revision was absent or conflicted. Technical failures still propagate. No retry is performed.
+     * Even an equal replacement writes a new revision, so comparison is always verified by storage.
+     * This independent operation is not allowed inside a Model mutation or on a staged/custom Graph.
+     * Uses the application's configured namespace; consumer namespace overrides are not supported.
+     * This is a direct state replacement, not an invocation of payload apply handlers or their assertions.
+     */
+    default boolean compareAndSet(@Nullable T replacement) {
+        return AtomicGraphUpdate.compareAndSet(this, replacement);
+    }
+
+    /** Equivalent to {@link #updateAndGet(UnaryOperator, int)} with no retries. */
+    default Graph<T> updateAndGet(UnaryOperator<Graph<T>> update) {
+        return updateAndGet(update, 0);
+    }
+
+    /**
+     * Updates one existing Model from a fresh transactional Graph and returns its committed resulting view.
+     * The function must return a same-target graph produced with {@link #update(UnaryOperator)} or {@link #delete()},
+     * or its input unchanged. All consumed Graph values and relationships participate in conflict validation.
+     * On a rejected storage commit the function may run again, at most {@code maxRetries} additional times;
+     * do not perform external effects in it. Application failures and unavailable pinned document history are
+     * not retried. An absent Model is never implicitly created. Equal values still write a checked revision.
+     * This is an independently durable operation, not a nested part of a surrounding Model mutation.
+     * It reads committed state, not provisional changes from other commands in the current batch.
+     * Uses the application's configured namespace; consumer namespace overrides are not supported.
+     * This directly replaces state; run required validation in the function, without nested writes.
+     * Return new immutable values: never modify a cached input value in place, even if the commit later fails.
+     * Returned root values and revisions are retained. Lazy related-state reads still require available history.
+     *
+     * @param update side-effect-free transformation of the fresh graph
+     * @param maxRetries maximum additional attempts after storage conflicts, nonnegative
+     * @return the exact successful commit's view, not a subsequent current load
+     * @throws java.util.NoSuchElementException if the selected Model is absent at an attempt's read boundary
+     */
+    default Graph<T> updateAndGet(UnaryOperator<Graph<T>> update, int maxRetries) {
+        return AtomicGraphUpdate.update(this, update, maxRetries, false);
+    }
+
+    /** Equivalent to {@link #getAndUpdate(UnaryOperator, int)} with no retries. */
+    default Graph<T> getAndUpdate(UnaryOperator<Graph<T>> update) {
+        return getAndUpdate(update, 0);
+    }
+
+    /**
+     * Like {@link #updateAndGet(UnaryOperator, int)}, but returns the graph immediately before the successful
+     * attempt. No old value is released before commit succeeds. This can implement consume-once with
+     * {@code graph.getAndUpdate(Graph::delete)}; it does not make an external side effect atomic with deletion.
+     */
+    default Graph<T> getAndUpdate(UnaryOperator<Graph<T>> update, int maxRetries) {
+        return AtomicGraphUpdate.update(this, update, maxRetries, true);
+    }
+
+    /**
+     * Marks this model as deleted and returns the staged resulting graph. Return it from model handling so it joins the
+     * surrounding commit, or call {@link #commit()} for an explicit graph operation.
+     */
+    default Graph<T> delete() {
+        return update(ignored -> null);
+    }
+
+    /** Explicitly commits staged changes. Normal handler processing commits automatically. */
+    Graph<T> commit();
+
+    /** Verifies that the supplied update is legal and returns this graph. */
+    <E extends Exception> Graph<T> assertLegal(Object update) throws E;
+
+    /**
+     * Verifies and applies the supplied update. For an independent {@link Model}, applies are restricted to the
+     * selected Model type and Model-owned handlers retain their target filtering. Assertions on the update payload
+     * run, including assertions that read other Models; their reads participate in the configured conflict policy.
+     * Returns after the selected model commit is durable; payload IDs do not replace this graph's explicit
+     * identity. Interceptor payload transformations retain that identity, while returning an explicit
+     * {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their
+     * surrounding aggregate lifecycle.
+     */
+    Graph<T> assertAndApply(Object update);
+
+    /** Verifies and applies the supplied update with explicit metadata. */
+    Graph<T> assertAndApply(Object update, Metadata metadata);
+
+    /** Verifies and applies the supplied updates in order. */
+    default Graph<T> assertAndApply(Object... updates) {
+        return assertAndApply(List.of(updates));
+    }
+
+    /** Verifies and applies the supplied updates in order. */
+    default Graph<T> assertAndApply(Collection<?> updates) {
+        Objects.requireNonNull(updates, "updates");
+        Graph<T> result = this;
+        for (Object update : updates) {
+            result = result.assertAndApply(update);
+        }
+        return result;
+    }
+
+    /**
+     * Opens a new, deliberately current view of this Model using its exact repository identity and owning repository.
+     * The new namespace boundary is pinned during this call, ignoring an active event-handler boundary.
+     * Event-sourced values and relationships remain lazy; a DOCUMENT-only root is coherently read and retained
+     * during this call. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current
+     * message-batch overlay. It is not a continuously updating view and does not modify this graph or commit its edits.
+     * <p>The result is rooted at this Model, even when this node was reached through a parent. Reparenting is reflected
+     * in its new navigation; a deleted Model has an empty value. View-only path selections, filters, mapped values and
+     * response context are not carried over: reapply those deliberately to the new view.</p>
+     * <p>Requires a locally known Model type and repository support for exact-identity current reads. Custom Graphs
+     * may override this method; the default fails rather than silently switching repositories or read boundaries.</p>
+     * <p>Within a mutation on this repository/namespace, the view joins that active attempt's pinned boundary,
+     * staged values and inspected read dependencies; it does not open a second snapshot. Outside mutations it has
+     * no transaction provenance and deliberately opens the fresh boundary described above.</p>
+     *
+     * @throws UnsupportedOperationException if this Graph or its repository cannot open such a view
+     * @throws IllegalStateException if this node's Model type is unknown locally
+     */
+    default Graph<T> current() {
+        throw new UnsupportedOperationException("This Graph does not support current Model reads");
+    }
+
+    /**
+     * Returns the preceding model revision as a lazy graph, or {@code null} when none is available.
+     * Surrounding models and relationships are resolved immediately before the current revision became effective.
+     * This keeps children added after the preceding root revision visible while excluding changes made by the update
+     * whose before-state is being observed.
+     * A complete-change handler's explicit before-state takes precedence over retained model revisions: creation
+     * has no previous graph, including when a deleted identity is recreated or a node is absent at that boundary.
+     * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
+     * stores current state, not document versions: it does not provide durable prior values after overwrite. A
+     * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.</p>
+     */
+    @Nullable
+    Graph<T> previous();
+
+    /** Returns current and retained preceding revisions, newest first. */
+    default Stream<Graph<T>> revisions() {
+        return Stream.iterate(this, Objects::nonNull, Graph::previous);
+    }
+
+    /** Returns the newest event index retained by this graph's revision history. */
+    @Nullable
+    default Long highestEventIndex() {
+        Graph<T> revision = this;
+        while (revision != null) {
+            if (revision.lastEventIndex() != null) {
+                return revision.lastEventIndex();
+            }
+            revision = revision.previous();
+        }
+        return null;
+    }
+
+    /** Returns the same model graph reconstructed at the requested durable state boundary. */
+    Graph<T> atStateIndex(long stateIndex);
+
+    /** Plays back to the first retained revision matching the supplied event boundary. */
+    Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId);
+
+    /** Plays back to the first retained revision matching the supplied condition. */
+    Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition);
+
+    /** Returns whether the selected value differs from the preceding revision. */
+    default boolean hasChanged(Function<? super T, ?> selector) {
+        Objects.requireNonNull(selector, "selector");
+        Graph<T> previous = previous();
+        return !Objects.equals(get() == null ? null : selector.apply(get()),
+                               previous == null || previous.get() == null ? null : selector.apply(previous.get()));
+    }
+
+    /** Returns the selected value from the preceding revision, or {@code null} when unavailable. */
+    @Nullable
+    default <V> V previousValue(Function<? super T, V> selector) {
+        Objects.requireNonNull(selector, "selector");
+        Graph<T> previous = previous();
+        return previous == null || previous.get() == null ? null : selector.apply(previous.get());
+    }
+
+    /** Optional caller-imposed graph reconstruction limits. */
+    record Options(int maxDepth, int maxModels) {
+        /** Uses no caller-imposed graph limits. */
+        public static final Options DEFAULT = new Options(UNBOUNDED, UNBOUNDED);
+
+        public Options {
+            if (maxDepth != UNBOUNDED && maxDepth < 0) {
+                throw new IllegalArgumentException(
+                        "Graph maxDepth must be non-negative or UNBOUNDED (-1)");
+            }
+            if (maxModels != UNBOUNDED && maxModels < 1) {
+                throw new IllegalArgumentException(
+                        "Graph maxModels must be positive or UNBOUNDED (-1)");
+            }
+        }
+    }
+}

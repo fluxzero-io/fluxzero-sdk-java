@@ -15,11 +15,26 @@
 package io.fluxzero.sdk.tracking.handling.validation
 
 import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.AssertTrue
+import java.time.Duration
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import org.junit.jupiter.api.Test
 
 class KotlinValidationTest {
+    @Test
+    fun reminderExampleNeedsNoRedundantNullGuard() {
+        ValidationUtils.assertValid(ConfigureReminder(Duration.ZERO))
+        assertFailsWith<ValidationException> {
+            ValidationUtils.assertValid(ConfigureReminder(Duration.ofSeconds(-1)))
+        }
+    }
+
+    data class ConfigureReminder(@field:NotNull val delay: Duration) {
+        @AssertTrue(message = "Choose a non-negative delay.")
+        fun hasNonNegativeDelay(): Boolean = !delay.isNegative
+    }
+
     @Test
     fun validatesConstructorPropertyAnnotationsWithoutFieldUseSiteTarget() {
         val exception = assertFailsWith<ValidationException> {

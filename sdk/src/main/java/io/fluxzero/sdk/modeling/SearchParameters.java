@@ -17,6 +17,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
@@ -34,9 +35,10 @@ import lombok.With;
  *
  * <h2>Fields:</h2>
  * <ul>
- *   <li>{@code searchable} – whether documents of this type should be indexed and searchable.</li>
- *   <li>{@code collection} – name of the logical collection under which documents are grouped; if not
- *       specified, the simple name of the class is used.</li>
+ *   <li>{@code searchable} – whether the type's ordinary search representation is enabled. For Models this controls
+ *       exposure through unrestricted typed search.</li>
+ *   <li>{@code collection} – name of the logical collection under which documents are grouped; if not specified,
+ *       ordinary documents use the simple class name and Models use their resolved logical name.</li>
  *   <li>{@code timestampPath} – expression to extract the primary timestamp (start time) from the object.</li>
  *   <li>{@code endPath} – expression to extract the end timestamp (for ranged entities) from the object.</li>
  * </ul>
@@ -54,14 +56,16 @@ public class SearchParameters implements Substitutable<SearchParameters> {
     public static final SearchParameters defaultSearchParameters = SearchParameters.builder().build();
 
     /**
-     * Whether instances of the annotated class are eligible for indexing and search. Defaults to {@code true}.
+     * Whether the type's ordinary search representation is enabled. Defaults to {@code true}. For Models this controls
+     * exposure through unrestricted typed search; a non-searchable Model that participates in Graph composition may
+     * still maintain the internal indexes required by explicitly bounded Graph and relationship queries.
      */
     @Builder.Default
     boolean searchable = true;
 
     /**
-     * Optional name of the document collection to use. If not specified, the simple class name will be used as the
-     * default.
+     * Optional name of the document collection to use. If not specified, ordinary documents use the simple class name
+     * and Models use their resolved logical name.
      */
     @With
     String collection;
@@ -77,6 +81,30 @@ public class SearchParameters implements Substitutable<SearchParameters> {
      * unspecified, the {@code timestampPath} is used as both start and end.
      */
     String endPath;
+
+    /**
+     * Resolves the effective search configuration for a model or searchable document type.
+     *
+     * <p>Models own their direct-document projection through {@link Model#document()}; other document types continue
+     * to use {@link Searchable}. An unspecified collection resolves to the simple name for an ordinary document and
+     * the resolved logical name for a Model.</p>
+     */
+    public static SearchParameters forType(Class<?> type) {
+        EntityMetadata.RootConfiguration model = EntityMetadata.rootConfiguration(type)
+                .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
+                .orElse(null);
+        if (model != null) {
+            return new SearchParameters(
+                    model.publicDocument(), model.resolvedCollection(type),
+                    model.timestampPath(), model.endPath());
+        }
+        return io.fluxzero.common.reflection.ReflectionUtils
+                .getAnnotationAs(type, Searchable.class, SearchParameters.class)
+                .map(SearchParameters::substituteProperties)
+                .map(parameters -> parameters.getCollection() == null
+                        ? parameters.withCollection(type.getSimpleName()) : parameters)
+                .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
+    }
 
     @Override
     public SearchParameters substituteProperties() {

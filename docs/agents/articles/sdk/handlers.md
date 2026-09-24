@@ -8,7 +8,11 @@ Common handlers:
 - `@HandleDocument` maintains read models in stateful handlers.
 - `@HandleSchedule` handles scheduled follow-up work.
 
-Self-handling payloads are good when behavior is naturally attached to the message. Spring components are good for integration code, grouped orchestration, or handlers that need injected services.
+Prefer self-handling commands and queries for reusable operations, including external API interactions. Put the
+`WebRequestGateway` call in the local payload handler; callers dispatch the command/query instead of injecting an
+API-service bean. Read `/docs/sdk/web/outbound-requests` for Java/Kotlin examples and endpoint-stub tests. Standalone
+components remain useful for event consumers, grouped orchestration or existing dependencies that require injection;
+an external API call alone does not require one.
 
 Handler placement defaults:
 
@@ -16,6 +20,11 @@ Handler placement defaults:
 - For command/query payloads that carry their own behavior, omit `@TrackSelf` for immediate local self-handling. Add `@TrackSelf` only when the payload must be published and processed through tracked delivery; read self-handling query placement before choosing because persistence, replay, timeout, and consumer behavior change.
 - Use `@Stateful` for long-lived projections and sagas that maintain searchable state.
 - Use `@LocalHandler` on standalone/component handlers for synchronous local reads or helpers that should bypass persisted tracking by default. An ordinary self-handling request without `@TrackSelf` is already local.
+
+Local command/query dispatch does not change the nested HTTP transport. A local integration self-handler still gets
+the gateway's normal HTTP audit and configured transport retries. It needs neither `@Consumer` nor `@TrackSelf`
+unless the operation itself requires a tracked delivery boundary. An existing post-commit consumer can call it and
+retain responsibility for handling the outcome.
 
 ## Make standalone production handlers discoverable
 
