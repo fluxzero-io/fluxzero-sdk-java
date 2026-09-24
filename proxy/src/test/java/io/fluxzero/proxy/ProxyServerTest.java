@@ -1360,10 +1360,12 @@ class ProxyServerTest {
                 byte[] payload = requestPayload(96);
 
                 testFixture.registerHandlers(new Object() {
+                    // Typed payloads require a complete body. An InputStream handler may legitimately enter on
+                    // the first chunk, before the proxy can know that an unknown-length upload exceeds its limit.
                     @HandlePost("/limited-unknown")
-                    String handle(InputStream body) throws Exception {
+                    String handle(byte[] body) {
                         invocations.incrementAndGet();
-                        return String.valueOf(body.readAllBytes().length);
+                        return String.valueOf(body.length);
                     }
                 });
 

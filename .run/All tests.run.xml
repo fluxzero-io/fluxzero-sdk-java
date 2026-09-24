@@ -14,17 +14,12 @@
   -->
 
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="All tests" type="JUnit" factoryName="JUnit">
-    <option name="PACKAGE_NAME" value="io.fluxzero" />
-    <option name="MAIN_CLASS_NAME" value="" />
-    <option name="METHOD_NAME" value="" />
-    <option name="TEST_OBJECT" value="package" />
-    <option name="VM_PARAMETERS" value="-ea -Djunit.jupiter.execution.parallel.enabled=true -Djunit.jupiter.execution.parallel.mode.default=same_thread -Djunit.jupiter.execution.parallel.mode.classes.default=concurrent -Djunit.jupiter.execution.parallel.config.strategy=fixed -Djunit.jupiter.execution.parallel.config.fixed.parallelism=4 -Djunit.jupiter.execution.parallel.config.executor-service=WORKER_THREAD_POOL" />
-    <option name="TEST_SEARCH_SCOPE">
-      <value defaultName="wholeProject" />
-    </option>
-    <method v="2">
-      <option name="Make" enabled="true" />
-    </method>
+  <configuration default="false" name="All tests" type="CompoundRunConfigurationType">
+    <toRun name="Tests - common" type="JUnit" />
+    <toRun name="Tests - sdk" type="JUnit" />
+    <toRun name="Tests - test-server" type="JUnit" />
+    <toRun name="Tests - proxy" type="JUnit" />
+    <toRun name="Tests - annotation-processor-tests" type="JUnit" />
+    <method v="2" />
   </configuration>
 </component>

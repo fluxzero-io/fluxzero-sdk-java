@@ -483,3 +483,9 @@ authentication. In async HTTP tests, a denied downstream stub can return an erro
 the sync fixture may expose its exception directly. Assert the boundary you intend to test.
 Native-HTTP settings are also routed to fixture handlers, with retry count/status policy but without real
 delays. Use separate real HTTP tests for headers, sockets, TLS and failures; use transport tests for envelopes.
+
+Automatic JUnit fixture cleanup waits until owned resources are closed. It skips the response grace period for
+requests that the completed test left unanswered, including expected timeout scenarios. Explicit application
+`close()` calls retain their normal graceful response wait. To test a different cleanup grace period, configure
+`fluxzero.shutdown.requestTimeoutMillis` (`FLUXZERO_SHUTDOWN_REQUEST_TIMEOUT_MILLIS`) in the fixture's application
+property source; an explicit value takes precedence. This setting does not change request deadlines or wire metadata.

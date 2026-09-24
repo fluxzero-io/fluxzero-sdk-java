@@ -77,3 +77,9 @@ synthetic reconstruction; persistence-backed restart requires a retained externa
 without manual reseeding. For two independently correlated components, use the correlated-workflow matrix and the
 behavior matrix so both directions, every message/reference pairing, late decisions, repeated compensation suppression,
 interleaved workflows, and reconstructed routes are falsifiable.
+
+Automatic JUnit fixture cleanup waits until owned resources are closed. It skips the response grace period for
+requests that the completed test left unanswered, including expected timeout scenarios. Explicit application
+`close()` calls retain their normal graceful response wait. To test a different cleanup grace period, configure
+`fluxzero.shutdown.requestTimeoutMillis` (`FLUXZERO_SHUTDOWN_REQUEST_TIMEOUT_MILLIS`) in the fixture's application
+property source; an explicit value takes precedence. This setting does not change request deadlines or wire metadata.
