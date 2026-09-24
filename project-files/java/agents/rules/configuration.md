@@ -3,6 +3,10 @@
 Setting up and tuning your Fluxzero application is straightforward. Most configuration is handled automatically, but
 you can fine-tune your application using properties, environment variables, or programmatic builders.
 
+A builder initializes its default task scheduler only on `taskScheduler()` access or `build(...)`.
+Installing `replaceTaskScheduler(...)` first avoids starting an unused default scheduler; the built Fluxzero instance
+shuts down the selected scheduler when it closes.
+
 This manual covers application and SDK configuration. For local environment orchestration and `.fluxzero/dev.yaml`,
 use [Local Development](development.md) and obtain the current schema with `fz dev config`.
 

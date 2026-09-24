@@ -126,6 +126,10 @@ those files in its own packaging configuration.
 
 - `replaceTaskScheduler(...)` to inject a custom scheduler for async or delayed task execution.
 
+The default scheduler is initialized when the builder's `taskScheduler()` is first requested or the application is
+built, not when the builder is created. Installing a replacement before that does not start an unused default
+scheduler. Closing the built Fluxzero instance shuts down its selected scheduler.
+
 ---
 
 ## Optional behavior toggles

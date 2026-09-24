@@ -42,6 +42,10 @@ Spring auto-configuration registers annotated handlers, upcasters, downcasters, 
 
 `DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, host metrics, web request forwarding, and fetch byte limits. Keep these settings centralized near application bootstrap.
 
+The builder initializes its default task scheduler only on `taskScheduler()` access or `build(...)`.
+Use `replaceTaskScheduler(...)` before that to supply a scheduler without starting an unused default.
+Closing the built Fluxzero instance shuts down the selected scheduler.
+
 Use `application.properties`, environment variables, and runtime configuration for deploy-specific values. Access them through `ApplicationProperties.getProperty(...)`, its default-value overload, or `ApplicationProperties.requireProperty(...)`. The required accessor is `requireProperty`, not `require`. Read the focused property-access article for a typed configuration boundary and `TestFixture.withProperty(...)` scenarios.
 
 Avoid reading environment variables deep inside domain code. Pass configuration into handlers or service boundaries where it can be tested.

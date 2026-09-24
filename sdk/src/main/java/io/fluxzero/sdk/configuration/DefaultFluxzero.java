@@ -394,9 +394,7 @@ public class DefaultFluxzero implements Fluxzero {
                 ? new DefaultValidator(clock) : ValidationUtils.defaultValidator;
         private final SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
         private DispatchInterceptor messageRoutingInterceptor;
-        private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
-                "FluxzeroTaskScheduler", clock,
-                newWorkerPool("FluxzeroTaskScheduler-worker", 8));
+        private TaskScheduler taskScheduler;
         private ForwardingWebConsumer forwardingWebConsumer;
         private Cache cache;
         private boolean cacheConfigured;
@@ -686,6 +684,19 @@ public class DefaultFluxzero implements Fluxzero {
             return this;
         }
 
+        /**
+         * Returns the configured scheduler, creating the default only when requested or used by a build.
+         * Merely configuring a builder or installing a replacement must not start an unused polling thread.
+         */
+        @Override
+        public TaskScheduler taskScheduler() {
+            if (taskScheduler == null) {
+                taskScheduler = new InMemoryTaskScheduler(
+                        "FluxzeroTaskScheduler", clock, newWorkerPool("FluxzeroTaskScheduler-worker", 8));
+            }
+            return taskScheduler;
+        }
+
         @Override
         public FluxzeroBuilder withAggregateCache(Class<?> aggregateType, Cache cache) {
             this.cache = new SelectiveCache(cache, SelectiveCache.aggregateSelector(aggregateType), initialCache());
@@ -891,6 +902,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public Fluxzero build(@NonNull Client client) {
             configureTypeAliases();
+            TaskScheduler taskScheduler = taskScheduler();
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
             }

@@ -284,6 +284,8 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
 
     /**
      * Replaces the default {@link TaskScheduler} implementation.
+     * Configure a replacement before building or requesting the default scheduler to avoid creating unused resources.
+     * The built Fluxzero instance shuts down the selected scheduler when it closes.
      */
     FluxzeroBuilder replaceTaskScheduler(Function<Clock, TaskScheduler> function);
 
