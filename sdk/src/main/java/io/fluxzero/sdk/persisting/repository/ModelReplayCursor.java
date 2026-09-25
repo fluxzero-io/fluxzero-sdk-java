@@ -2692,7 +2692,9 @@ final class ModelReplayCursor {
                 if (resolution.hasAncestorDependencies()) {
                     long relationshipBoundary =
                             membership.getReadStateIndex();
-                    if (relationshipBoundary < 0L) {
+                    // Later substeps can use ancestors created within this first commit, even when its
+                    // original read boundary precedes all model state. They resolve at commit(substep - 1).
+                    if (relationshipBoundary < 0L && membership.getSubstep() == 0) {
                         throw new EventSourcingException(
                                 "Model event at state %d requires an ancestor before any model state was observed"
                                         .formatted(
