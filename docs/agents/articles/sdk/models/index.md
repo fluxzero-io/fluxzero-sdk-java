@@ -1,5 +1,7 @@
 # Models and Graphs
 
+For the design as a whole and Java/Kotlin examples, see the developer chapter
+[Fluxzero 2.0](https://fluxzero.io/docs/fluxzero-2).
 Use the focused articles below for state, commands, relationships and history.
 
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
