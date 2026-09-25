@@ -1,0 +1,37 @@
+{
+  "name" : "FluxzeroCustomizer",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroCustomizer",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Callback interface that can be implemented by Spring beans to customize the {@link FluxzeroBuilder}\n before it is used to build the main {@link Fluxzero} instance.\n <p>\n This allows applications to modularly apply configuration logic, such as registering additional components,\n setting default values, or modifying behaviors.\n\n <p>For example:\n <pre>{@code\n @Component\n public class MyCustomizer implements FluxzeroCustomizer {\n     @Override\n     public FluxzeroBuilder customize(FluxzeroBuilder builder) {\n         return builder.addParameterResolver(new CustomResolver());\n     }\n }\n }</pre>\n\n @see FluxzeroBuilder\n @see Fluxzero\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "customize",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroCustomizer#customize",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "builder",
+      "type" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

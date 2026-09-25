@@ -1,0 +1,76 @@
+{
+  "name" : "MessageSpliterator",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "protected", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.util.Spliterators.AbstractSpliterator<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "upStream",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator.upStream",
+    "type" : "java.util.Spliterator<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MessageSpliterator",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator#MessageSpliterator",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "upStream",
+      "type" : "java.util.Spliterator<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "onBatchCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator#onBatchCompletion",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryAdvance",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator#tryAdvance",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "action",
+      "type" : "java.util.function.Consumer<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

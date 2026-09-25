@@ -1,0 +1,146 @@
+{
+  "name" : "HandlerMethodPlanner",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Selects and prepares a handler method so that the result can be reused for equivalent inputs.\n\n <p>This is an advanced extension point for handler matchers and parameter resolvers. A planner must account for\n every input property that can affect method selection, argument resolution, or handler specificity. If it cannot do\n so safely, it should return {@code null} from {@link #getCacheKey(Object)} or return\n {@link HandlerMethodPreparation#unsupported()}; Fluxzero will then use normal per-message handler selection.</p>\n\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#getCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a key containing every message property that can affect the result of {@link #prepare(Object)}.\n\n <p>Keys are compared using {@link Object#equals(Object)} and must remain stable after they are returned. Equal\n keys must always produce an equivalent match decision and invocation plan.</p>\n\n @param message a representative message\n @return a complete reusable key, or {@code null} when this message cannot be cached safely\n"
+  }, {
+    "name" : "getCacheKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#getCacheKey",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the complete key without creating the message when the planner supports lazy input.\n\n <p>The default implementation delegates to {@link #getCacheKey(Object)} and therefore creates the message.</p>\n\n @param input a representative handler input\n @return a complete reusable key, or {@code null} when this input cannot be cached safely\n"
+  }, {
+    "name" : "isNoMatchPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#isNoMatchPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the payload's runtime class alone completely determines a non-match for this input.\n\n @return {@code true} if the non-match may be reused for every payload of the same runtime class\n"
+  }, {
+    "name" : "isPayloadClassKey",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#isPayloadClassKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the payload's runtime class alone completely determines a successful preparation for this input.\n\n @return {@code true} if the prepared match may be reused for every payload of the same runtime class\n"
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#prepare",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Selects a handler method for the representative message and prepares its invocation.\n\n @param message a representative message\n @return a prepared plan, a definitive non-match, or an unsupported result\n"
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#prepare",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Selects and prepares a handler method without creating the message when the planner supports lazy input.\n\n <p>The default implementation delegates to {@link #prepare(Object)} and therefore creates the message.</p>\n\n @param input a representative handler input\n @return a prepared plan, a definitive non-match, or an unsupported result\n"
+  }, {
+    "name" : "prepareApplicability",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#prepareApplicability",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodApplicability<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "M",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether a handler applies to the message and returns the complete key needed to reuse that decision.\n\n @param message a representative message\n @return the prepared applicability, or an unsupported result when it cannot be cached safely\n"
+  }, {
+    "name" : "prepareApplicability",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlanner#prepareApplicability",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodApplicability<M>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether a handler applies without creating the complete message when the planner supports lazy input.\n\n @param input a representative handler input\n @return the prepared applicability, or an unsupported result when it cannot be cached safely\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

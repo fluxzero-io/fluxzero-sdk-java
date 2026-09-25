@@ -1,0 +1,61 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric",
+  "packageName" : "io.fluxzero.common.api.eventsourcing",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Compact metric representation of an {@link AppendEvents} command.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "eventBatches",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric.eventBatches",
+    "type" : "java.util.List<io.fluxzero.common.api.eventsourcing.EventBatch.Metric>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBytes",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric#getBytes",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The total number of bytes in the data across all messages within all batches.\n"
+  }, {
+    "name" : "getSize",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.AppendEvents$Metric#getSize",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The size of the metric, representing the number of events within all batches.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

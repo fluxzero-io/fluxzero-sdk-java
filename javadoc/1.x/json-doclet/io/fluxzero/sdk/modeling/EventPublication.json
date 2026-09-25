@@ -1,0 +1,75 @@
+{
+  "name" : "EventPublication",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Controls whether an applied update should result in event publication.\n <p>\n This setting can be defined at the aggregate level (via {@link Aggregate}) and optionally overridden on specific\n {@link Apply @Apply} methods.\n <p>\n Event publication occurs when an update is applied to an entity. Depending on this setting and the configured\n {@link EventPublicationStrategy}, the update may be published and/or stored.\n\n @see Aggregate\n @see Apply\n @see InterceptApply\n @see EventPublicationStrategy\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.EventPublication>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "EventPublication",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication#EventPublication",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.EventPublication",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication#values",
+    "returnType" : "io.fluxzero.sdk.modeling.EventPublication[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ALWAYS",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.ALWAYS",
+    "annotations" : [ ],
+    "documentation" : " Always publish and/or store the applied update, even if it does not change the entity.\n <p>\n This is the default behavior if no other setting is specified.\n"
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Inherit the publication behavior from the parent context.\n <p>\n This may be the enclosing aggregate or the application-level default. If not explicitly configured elsewhere,\n {@link #ALWAYS} is used as a fallback.\n"
+  }, {
+    "name" : "IF_MODIFIED",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.IF_MODIFIED",
+    "annotations" : [ ],
+    "documentation" : " Only publish or store the update if the entity's state is actually modified by the application.\n <p>\n This avoids unnecessary event traffic and eliminates the need for {@link InterceptApply} methods that suppress\n no-op updates.\n"
+  }, {
+    "name" : "NEVER",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EventPublication.NEVER",
+    "annotations" : [ ],
+    "documentation" : " Never publish or store applied updates.\n <p>\n Useful for aggregates where event sourcing is disabled or updates should remain private.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

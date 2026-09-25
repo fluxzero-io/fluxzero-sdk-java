@@ -1,0 +1,57 @@
+{
+  "name" : "EntityResolutionCache",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "entities",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache.entities",
+    "type" : "java.util.Map<io.fluxzero.sdk.modeling.EntityParameterResolver.EntityCacheKey,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "EntityResolutionCache",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache#EntityResolutionCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$EntityResolutionCache#get",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "io.fluxzero.sdk.modeling.EntityParameterResolver.EntityCacheKey",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "loader",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

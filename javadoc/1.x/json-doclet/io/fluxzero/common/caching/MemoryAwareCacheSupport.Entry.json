@@ -1,0 +1,116 @@
+{
+  "name" : "Entry",
+  "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry",
+  "packageName" : "io.fluxzero.common.caching",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "V" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "lastAccess",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry.lastAccess",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry.value",
+    "type" : "V",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "weight",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry.weight",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Entry",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry#Entry",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "V",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "weight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastAccess",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "lastAccess",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry#lastAccess",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "recordAccess",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry#recordAccess",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lastAccess",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry#value",
+    "returnType" : "V",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "weight",
+    "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport$Entry#weight",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

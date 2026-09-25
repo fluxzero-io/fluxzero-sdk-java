@@ -1,0 +1,389 @@
+{
+  "name" : "ProxyServerConfig",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Configuration for embedding the Fluxzero proxy without relying on process-global properties.\n\n @param port                           port to bind, or {@code 0} to select a free port\n @param runtimeBaseUrl                 Fluxzero Runtime websocket base URL\n @param applicationName                proxy client name\n @param namespace                      optional namespace/project id\n @param metricsEnabled                 whether the proxy client publishes metrics\n @param supportedCompressionAlgorithms optional compression algorithm preference\n @param healthEndpoint                 HTTP health endpoint path\n @param gracefulShutdown               whether Jetty uses the proxy's graceful shutdown timeout\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "DEFAULT_APPLICATION_NAME",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.DEFAULT_APPLICATION_NAME",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "$proxy"
+  }, {
+    "name" : "DEFAULT_HEALTH_ENDPOINT",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.DEFAULT_HEALTH_ENDPOINT",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "/proxy/health"
+  }, {
+    "name" : "applicationName",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.applicationName",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gracefulShutdown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.gracefulShutdown",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "healthEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.healthEndpoint",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "metricsEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.metricsEnabled",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.namespace",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "port",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.port",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "runtimeBaseUrl",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.runtimeBaseUrl",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "supportedCompressionAlgorithms",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig.supportedCompressionAlgorithms",
+    "type" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ProxyServerConfig",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#ProxyServerConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "runtimeBaseUrl",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applicationName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metricsEnabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supportedCompressionAlgorithms",
+      "type" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "healthEndpoint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "gracefulShutdown",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "applicationName",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#applicationName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forRuntime",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#forRuntime",
+    "returnType" : "io.fluxzero.proxy.ProxyServerConfig",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "runtimeBaseUrl",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromProperties",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#fromProperties",
+    "returnType" : "io.fluxzero.proxy.ProxyServerConfig",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "gracefulShutdown",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#gracefulShutdown",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "healthEndpoint",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#healthEndpoint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "metricsEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#metricsEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#namespace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "port",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#port",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runtimeBaseUrl",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#runtimeBaseUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportedCompressionAlgorithms",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#supportedCompressionAlgorithms",
+    "returnType" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withMetricsEnabled",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#withMetricsEnabled",
+    "returnType" : "io.fluxzero.proxy.ProxyServerConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metricsEnabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withNamespace",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#withNamespace",
+    "returnType" : "io.fluxzero.proxy.ProxyServerConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withPort",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServerConfig#withPort",
+    "returnType" : "io.fluxzero.proxy.ProxyServerConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "applicationName",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "gracefulShutdown",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "healthEndpoint",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "metricsEnabled",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "namespace",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "port",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "runtimeBaseUrl",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "supportedCompressionAlgorithms",
+    "type" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

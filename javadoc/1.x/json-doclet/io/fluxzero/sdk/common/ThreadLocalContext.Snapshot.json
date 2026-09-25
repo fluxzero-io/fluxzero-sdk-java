@@ -1,0 +1,191 @@
+{
+  "name" : "Snapshot",
+  "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "A reusable snapshot of the context that was active when {@link #capture()} was called. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "empty",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot.empty",
+    "type" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "participants",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot.participants",
+    "type" : "java.lang.ThreadLocal<?>[]",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot.values",
+    "type" : "java.lang.Object[]",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Snapshot",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#Snapshot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "participants",
+      "type" : "java.lang.ThreadLocal<?>[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "values",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "activate",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#activate",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "empty",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#empty",
+    "returnType" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isEmpty",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#isEmpty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether this snapshot contains no participating values. "
+  }, {
+    "name" : "run",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#run",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Runs a task with this snapshot active and restores the previous context afterwards. "
+  }, {
+    "name" : "supply",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#supply",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Supplies a value with this snapshot active and restores the previous context afterwards. "
+  }, {
+    "name" : "wrap",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#wrap",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Wraps a task so that this snapshot is active whenever the task runs. "
+  }, {
+    "name" : "wrap",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#wrap",
+    "returnType" : "java.util.function.BiConsumer<T,U>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T", "U" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.function.BiConsumer<T,U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Wraps a two-argument consumer, such as a completion callback, with this snapshot. "
+  }, {
+    "name" : "wrap",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#wrap",
+    "returnType" : "java.util.function.Function<T,R>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T", "R" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.function.Function<T,R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Wraps a function so that this snapshot is active whenever the function runs. "
+  }, {
+    "name" : "wrap",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$Snapshot#wrap",
+    "returnType" : "java.util.function.Supplier<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Wraps a supplier so that this snapshot is active whenever the supplier runs. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

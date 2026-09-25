@@ -1,0 +1,149 @@
+{
+  "name" : "Memoization",
+  "qualifiedName" : "io.fluxzero.sdk.Memoization",
+  "packageName" : "io.fluxzero.sdk",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Instance-bound memoization store used by {@link Fluxzero} for lightweight caching of values.\n <p>\n A {@code Memoization} is scoped to a single {@link Fluxzero} instance. Higher-level concerns such as whether entries\n are additionally scoped to the calling class or shared globally within that instance are handled by the\n {@link Fluxzero} static helper methods that construct the effective cache key.\n <p>\n Implementations may support expiring entries by lifespan. Expired values are no longer returned, and may be removed\n eagerly or lazily depending on the implementation.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization#clear",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes all cached values from this memoization store.\n"
+  }, {
+    "name" : "compute",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization#compute",
+    "returnType" : "V",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "suppliedKey",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.BiFunction<K,V,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Computes a new value using the current cached value, stores the result, and returns it.\n <p>\n If no value is currently cached for the key, or if the cached value has expired, the second argument passed to\n the supplier will be {@code null}.\n\n @param key the internal cache key\n @param suppliedKey the original key value to pass to the supplier\n @param supplier computes the next value from the key and current cached value\n @param lifespan the optional lifespan of the computed value, or {@code null} for no expiry\n @param <K> the type of the supplied key\n @param <V> the type of the memoized value\n @return the stored value\n"
+  }, {
+    "name" : "computeIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization#computeIfAbsent",
+    "returnType" : "V",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "K", "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "suppliedKey",
+      "type" : "K",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "supplier",
+      "type" : "java.util.function.Function<K,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the cached value for the given key if present and not expired, otherwise computes, stores, and returns a\n new value.\n\n @param key the internal cache key\n @param suppliedKey the original key value to pass to the supplier\n @param supplier computes the value when no valid cached value exists\n @param lifespan the optional lifespan of the computed value, or {@code null} for no expiry\n @param <K> the type of the supplied key\n @param <V> the type of the memoized value\n @return the cached or newly computed value\n"
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization#get",
+    "returnType" : "V",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the currently cached value for the given key, or {@code null} if none exists or the value has expired.\n\n @param key the internal cache key\n @param <V> the type of the memoized value\n @return the cached value, or {@code null}\n"
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization#put",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the given value for the given key, optionally with a lifespan after which it expires.\n\n @param key the cache key\n @param value the value to store, which may be {@code null}\n @param lifespan the optional lifespan of the value, or {@code null} to keep it until overwritten or cleared\n"
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.sdk.Memoization#remove",
+    "returnType" : "V",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes the cached value for the given key and returns it.\n\n @param key the internal cache key\n @param <V> the type of the memoized value\n @return the removed cached value, or {@code null} if none exists or the value has expired\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
