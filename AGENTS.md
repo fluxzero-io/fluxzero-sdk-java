@@ -100,6 +100,10 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Maintenance Releases
 
+- For every bug fix on `main`, explicitly assess whether the same defect affects supported `1.x` behavior.
+  If it does, backport the narrow fix to `1.x`, qualify that branch and publish a maintenance patch as part of
+  completing the fix, unless the user explicitly excludes that work. Do not copy unrelated 2.x features or defaults.
+  Record the applicability decision and the backport/release reference in the owning backlog dossier.
 - When asked to fix or backport an issue on `1.x`, complete the work through a verified 1.x patch release,
   unless the user explicitly limits the task to investigation, local changes, or no publication.
 - Keep `.github/release-major` at `1` on `1.x`. Choose an unused explicit patch version after inspecting the

@@ -9,6 +9,8 @@ and publication destinations, including existing tags on reruns.
 ## Maintenance patches
 
 A completed 1.x fix or backport includes its patch publication unless the requested scope explicitly excludes it.
+Assess each bug fix on `main` for the same defect in supported 1.x behavior; applicable fixes must also be backported,
+qualified and published on `1.x`. Keep unrelated 2.x features and defaults out of the maintenance patch.
 
 1. Inspect the latest published 1.x tag and choose the next unused patch version on that minor line, for example
    `1.292.1` after `1.292.0`. Keep the maintenance branch's release major at `1`.
