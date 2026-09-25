@@ -28,8 +28,9 @@ import java.util.List;
 /**
  * Decoder for the v7 packed Model membership transport format.
  * <p>
- * This format implicitly represents substep zero. Memberships with non-zero substeps must travel through the ordinary
- * {@link ModelEventMembership} representation; changing the v7 layout would break existing readers.
+ * The public metadata view remains v7-only, with implicit substep zero. The page decoder also accepts negotiated
+ * logical membership v8, which carries exact substeps without stored-model metadata. Existing readers must receive
+ * ordinary {@link ModelEventMembership} objects for non-zero substeps; the v7 layout is unchanged.
  */
 public final class ModelStreamBatchDecoder {
 
@@ -44,8 +45,30 @@ public final class ModelStreamBatchDecoder {
     }
 
     /** Decodes one packed membership batch directly from a byte range. */
-    @SneakyThrows
     public static List<Entry> decode(ModelEventDataBlock block) {
+        return decode(block, unpacker -> {
+            int version = unpacker.unpackInt();
+            if (version != VERSION) {
+                throw new IllegalStateException("Unsupported model stream batch version " + version);
+            }
+            return decodeEntries(unpacker);
+        });
+    }
+
+    // v8 carries logical memberships only. Keep the public v7 metadata view unchanged.
+    static List<? extends Membership> decodeMemberships(ModelEventDataBlock block) {
+        return decode(block, unpacker -> {
+            int version = unpacker.unpackInt();
+            return switch (version) {
+                case VERSION -> decodeEntries(unpacker);
+                case 8 -> decodeLogicalMemberships(unpacker);
+                default -> throw new IllegalStateException("Unsupported model stream batch version " + version);
+            };
+        });
+    }
+
+    @SneakyThrows
+    private static <T> T decode(ModelEventDataBlock block, Decoder<T> decoder) {
         byte[] decoded = block.data();
         int offset = block.offset();
         int length = block.length();
@@ -56,11 +79,7 @@ public final class ModelStreamBatchDecoder {
         }
         try (MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(
                 new ArrayBufferInput(decoded, offset, length))) {
-            int version = unpacker.unpackInt();
-            if (version != VERSION) {
-                throw new IllegalStateException("Unsupported model stream batch version " + version);
-            }
-            List<Entry> result = decodeEntries(unpacker);
+            T result = decoder.decode(unpacker);
             if (unpacker.hasNext()) {
                 throw new IllegalStateException("Unexpected trailing model stream batch data");
             }
@@ -99,6 +118,45 @@ public final class ModelStreamBatchDecoder {
         return List.copyOf(result);
     }
 
+    private static List<LogicalMembership> decodeLogicalMemberships(MessageUnpacker unpacker) throws Exception {
+        int count = unpacker.unpackArrayHeader();
+        if (count <= 0 || count > 1024) {
+            throw new IllegalStateException("A v8 membership block must contain between 1 and 1024 entries");
+        }
+        long stateIndex = 0, readStateIndex = 0;
+        List<LogicalMembership> result = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String modelId = unpacker.unpackString();
+            long sequenceNumber = unpacker.unpackLong();
+            stateIndex = Math.addExact(stateIndex, unpacker.unpackLong());
+            readStateIndex = Math.addExact(readStateIndex, unpacker.unpackLong());
+            String commitId = unpackNullableString(unpacker);
+            int substep = unpacker.unpackInt();
+            if (substep < 0) {
+                throw new IllegalStateException("Model membership contains a negative substep");
+            }
+            result.add(new LogicalMembership(modelId, sequenceNumber, stateIndex, readStateIndex, commitId, substep));
+        }
+        return List.copyOf(result);
+    }
+
+    @FunctionalInterface
+    private interface Decoder<T> {
+        T decode(MessageUnpacker unpacker) throws Exception;
+    }
+
+    interface Membership {
+        String modelId();
+        long sequenceNumber();
+        long stateIndex();
+        long readStateIndex();
+        String commitId();
+        int substep();
+    }
+
+    private record LogicalMembership(String modelId, long sequenceNumber, long stateIndex, long readStateIndex,
+                                     String commitId, int substep) implements Membership {}
+
     private static String unpackNullableString(MessageUnpacker unpacker) throws Exception {
         return unpacker.tryUnpackNil() ? null : unpacker.unpackString();
     }
@@ -115,6 +173,6 @@ public final class ModelStreamBatchDecoder {
             long sequenceNumber,
             boolean historyComplete,
             long payloadBytes,
-            String documentCollection) {
+            String documentCollection) implements Membership {
     }
 }

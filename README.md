@@ -11,6 +11,15 @@ This is the SDK for building applications on [Fluxzero](https://fluxzero.io). It
 
 [SDK documentation](https://fluxzero.io/docs) · [Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) · [Packages](https://packages.fluxzero.io) · [Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases)
 
+## Versioned defaults
+
+Applications can opt into newer defaults through `fluxzero.defaults.version`; dedicated properties override them.
+See the [configuration reference](docs/developer/guides/Configuration/280-application-properties.mdx) for all profiles.
+
+| Defaults version | Property | Default |
+| --- | --- | --- |
+| `2026.09.25` | `fluxzero.model.packedSubsteps` | Enable negotiated packed Model substeps; `false` retains compatibility transport. |
+
 ## Build product behavior
 
 Use the SDK to describe a feature with plain messages, immutable models, and small handler methods. A handler can change product state, answer a query, expose a web endpoint, react to an event, or schedule work. Validation and authorization stay close to the behavior they protect.

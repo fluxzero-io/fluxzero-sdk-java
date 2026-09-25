@@ -172,9 +172,9 @@ public final class ModelEventPageDecoder {
                     storedId, ignored -> new ArrayList<>()).add(ordinal);
             memberships.add(new ArrayList<>(stream.getMemberships()));
         }
-        List<List<ModelStreamBatchDecoder.Entry>> decodedBlocks = decodeBlocks(blocks, ModelStreamBatchDecoder::decode);
-        for (List<ModelStreamBatchDecoder.Entry> block : decodedBlocks) {
-            for (ModelStreamBatchDecoder.Entry entry : block) {
+        var decodedBlocks = decodeBlocks(blocks, ModelStreamBatchDecoder::decodeMemberships);
+        for (List<? extends ModelStreamBatchDecoder.Membership> block : decodedBlocks) {
+            for (ModelStreamBatchDecoder.Membership entry : block) {
                 for (int ordinal : ordinalsByModel.getOrDefault(
                         entry.modelId(), List.of())) {
                     ModelEventStreamRequest stream = request.getRequests().get(ordinal);

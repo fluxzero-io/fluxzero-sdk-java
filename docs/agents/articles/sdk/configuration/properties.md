@@ -174,3 +174,17 @@ directly. This preserves shared precedence, normalization, placeholders, decrypt
 Separate classpath resources and nested JARs retain module properties. A custom uber-JAR that collapses resources with
 the same name must merge overlapping properties itself. Spring integration cannot recover a file discarded during
 packaging. Verify the packaged application when its runtime configuration depends on defaults from multiple modules.
+
+### Packed Model substeps
+
+Set `fluxzero.model.packedSubsteps=true` (`FLUXZERO_MODEL_PACKED_SUBSTEPS`) to advertise lossless packed Model
+membership v8 during the WebSocket handshake. It is enabled by default with `fluxzero.defaults.version >= 2026.09.25`;
+without that profile the existing v7/full-membership transport remains active. An explicit `false` is the rollback
+switch. Resolve properties through the application's configured `PropertySource`; the programmatic alternative is
+`ClientConfig.fromProperties(source).toBuilder().packedModelSubsteps(true).build()` in both Java and Kotlin.
+
+A supporting Runtime compacts full memberships only for capable receiving sessions. Old clients retain the lossless
+fallback, and new clients continue to read old replies. No stored data changes or migration are involved. Updating
+only the SDK cannot repair an old Runtime that omits substeps. Zero-only responses and Graph-embedded event pages
+retain their existing representation. Request count and payload-byte limits retain their existing meaning; metadata
+still contributes to total response size.

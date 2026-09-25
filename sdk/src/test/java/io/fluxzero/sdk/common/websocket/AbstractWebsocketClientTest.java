@@ -546,6 +546,19 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void advertisesPackedSubstepsOnlyWhenConfiguredAndRetainsItOnReconnect() {
+        var config = WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("client")
+                .packedModelSubsteps(false).build();
+        assertFalse(AbstractWebsocketClient.createConnectionSetup(config).options().headers()
+                            .containsKey(WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER));
+        config = config.toBuilder().packedModelSubsteps(true).build();
+        for (int reconnect = 0; reconnect < 2; reconnect++) {
+            assertEquals(List.of("8,7"), AbstractWebsocketClient.createConnectionSetup(config).options().headers()
+                    .get(WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER));
+        }
+    }
+
+    @Test
     void connectionOptionsCaptureNegotiatedHandshakeResponse() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")

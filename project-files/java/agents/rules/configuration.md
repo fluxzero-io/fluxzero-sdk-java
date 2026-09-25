@@ -339,3 +339,17 @@ The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixe
 the same HTTP response generator as application responses. These options do not change their
 payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
 same environment settings apply to Java and Kotlin applications.
+
+### Packed Model substeps
+
+Set `fluxzero.model.packedSubsteps=true` (`FLUXZERO_MODEL_PACKED_SUBSTEPS`) to advertise lossless packed Model
+membership v8 during the WebSocket handshake. It is enabled by default with `fluxzero.defaults.version >= 2026.09.25`;
+without that profile the existing v7/full-membership transport remains active. An explicit `false` is the rollback
+switch. Resolve properties through the application's configured `PropertySource`; the programmatic alternative is
+`ClientConfig.fromProperties(source).toBuilder().packedModelSubsteps(true).build()` in both Java and Kotlin.
+
+A supporting Runtime compacts full memberships only for capable receiving sessions. Old clients retain the lossless
+fallback, and new clients continue to read old replies. No stored data changes or migration are involved. Updating
+only the SDK cannot repair an old Runtime that omits substeps. Zero-only responses and Graph-embedded event pages
+retain their existing representation. Request count and payload-byte limits retain their existing meaning; metadata
+still contributes to total response size.

@@ -1896,6 +1896,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             headers.put(WebSocketCapabilities.SUPPORTED_DOCUMENT_COMPRESSION_HEADER, new ArrayList<>(List.of("ZSTD,LZ4,NONE")));
             WebSocketCapabilities.asHeaders(clientConfig.getSupportedCompressionAlgorithms()).forEach(
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
+            if (clientConfig.isPackedModelSubsteps()) {
+                headers.put(WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER,
+                            new ArrayList<>(List.of("8,7")));
+            }
             WebSocketCapabilities.asTransportHeaders(clientConfig.getSupportedTransportFormats()).forEach(
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
         }

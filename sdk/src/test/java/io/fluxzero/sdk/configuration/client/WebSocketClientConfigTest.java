@@ -38,6 +38,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebSocketClientConfigTest {
 
     @Test
+    void packedModelSubstepsUsesVersionedDefaultsAndApplicationLocalOverrides() {
+        assertEquals(false, clientConfig(Map.of()).isPackedModelSubsteps());
+        assertEquals(false, clientConfig(Map.of("fluxzero.defaults.version", "2026.09.24")).isPackedModelSubsteps());
+        assertEquals(true, clientConfig(Map.of("fluxzero.defaults.version", "2026.09.25")).isPackedModelSubsteps());
+        assertEquals(true, clientConfig(Map.of("fluxzero.defaults.version", "2027.01.01")).isPackedModelSubsteps());
+        assertEquals(true, clientConfig(Map.of("fluxzero.model.packedSubsteps", "true")).isPackedModelSubsteps());
+        assertEquals(false, clientConfig(Map.of("fluxzero.defaults.version", "2027.01.01",
+                                                "fluxzero.model.packedSubsteps", "false")).isPackedModelSubsteps());
+        assertEquals(true, clientConfig(Map.of("fluxzero.defaults.version", "2026.09.24",
+                                               "fluxzero.model.packedSubsteps", "true")).isPackedModelSubsteps());
+        assertEquals(false, clientConfig(Map.of()).isPackedModelSubsteps(), "do not reuse another source's capability");
+        assertThrows(IllegalArgumentException.class,
+                     () -> clientConfig(Map.of("fluxzero.defaults.version", "not-a-date")));
+        assertEquals(true, clientConfig(Map.of()).toBuilder().packedModelSubsteps(true).build().isPackedModelSubsteps());
+        assertEquals(false, clientConfig(Map.of("fluxzero.model.packedSubsteps", "true"))
+                .toBuilder().packedModelSubsteps(false).build().isPackedModelSubsteps());
+    }
+
+    @Test
     void taskIdentityPrefixesUniqueClientInstanceIds() {
         withProperties(Map.of(TASK_ID_PROPERTY, "task-123"), () -> {
             WebSocketClient.ClientConfig first = clientConfig();

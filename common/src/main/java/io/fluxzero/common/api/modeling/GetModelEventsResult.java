@@ -54,8 +54,9 @@ public class GetModelEventsResult extends AbstractRequestResult {
      */
     long[] payloadEventIndices;
     /**
-     * Persisted independent-model stream batches. The SDK expands only entries selected by this response's payloads
-     * and the original stream requests.
+     * Packed independent-model memberships. Version 7 represents substep zero; negotiated version 8 carries logical
+     * memberships with exact substeps. The SDK expands only entries selected by this response's payloads and the
+     * original stream requests. Version 8 must only be sent to peers that explicitly advertise support.
      */
     List<ModelEventDataBlock> membershipBlocks;
     long timestamp = System.currentTimeMillis();
