@@ -1,0 +1,39 @@
+{
+  "name" : "RequestBatch",
+  "qualifiedName" : "io.fluxzero.common.api.RequestBatch",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents a batch of requests to be sent to the Fluxzero Runtime in a single network round-trip.\n <p>\n Used internally by the Fluxzero Java SDK to optimize performance by batching multiple {@link Request} instances into a\n single payload. This reduces round-trips and improves throughput when many requests are sent in quick succession.\n </p>\n\n <h2>Usage</h2>\n While most users won't construct {@code RequestBatch} manually, it's useful to know that multiple requests (e.g.\n queries or commands) may be transparently wrapped and sent together.\n\n @param <T> the type of individual request, typically a subtype of {@link JsonType} (e.g., {@link Request})\n @see ResultBatch\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "requests",
+    "qualifiedName" : "io.fluxzero.common.api.RequestBatch.requests",
+    "type" : "java.util.List<T>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The list of requests to be sent together in this batch.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RequestBatch",
+    "qualifiedName" : "io.fluxzero.common.api.RequestBatch#RequestBatch",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

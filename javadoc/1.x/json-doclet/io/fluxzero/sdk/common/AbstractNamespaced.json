@@ -1,0 +1,127 @@
+{
+  "name" : "AbstractNamespaced",
+  "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<T>" ],
+  "fields" : [ {
+    "name" : "namespaceSwitcher",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced.namespaceSwitcher",
+    "type" : "io.fluxzero.common.MemoizingFunction<java.lang.String,T>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "root",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced.root",
+    "type" : "io.fluxzero.sdk.common.AbstractNamespaced<T>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AbstractNamespaced",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#AbstractNamespaced",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "attachTo",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#attachTo",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "root",
+      "type" : "io.fluxzero.sdk.common.AbstractNamespaced<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#close",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createAndAttach",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#createAndAttach",
+    "returnType" : "T",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#createForNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.common.AbstractNamespaced#forNamespace",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

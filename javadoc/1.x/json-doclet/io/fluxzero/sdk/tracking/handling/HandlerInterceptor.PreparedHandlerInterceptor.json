@@ -1,0 +1,92 @@
+{
+  "name" : "PreparedHandlerInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " A handler-method-specific interceptor plan. Plans are created once and may be invoked concurrently.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor.noOp",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInterceptor",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " A prepared no-op policy that proceeds directly to the next function.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor#interceptHandling",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "combiner",
+      "type" : "java.util.function.BiFunction<java.lang.Object,java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerFunction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts one handling operation using previously prepared handler metadata.\n\n @param message  current message\n @param handler  the resolved per-message invoker or reusable handler method\n @param combiner result combiner supplied to the handler\n @param next     the remaining prepared handling chain\n @return the handling result\n"
+  }, {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor#interceptHandling",
+    "returnType" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "function",
+      "type" : "java.util.function.Function<io.fluxzero.sdk.common.serialization.DeserializingMessage,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.handling.HandlerInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adapts this prepared interceptor to the original function-based interceptor contract.\n\n @param function next handling function\n @param invoker  resolved handler invoker\n @return an intercepted handling function\n"
+  }, {
+    "name" : "supportsHandlerMethod",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInterceptor#supportsHandlerMethod",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether this plan can safely wrap a reusable {@link HandlerMethod}. Implementations returning {@code true}\n must depend only on the supplied descriptor and message, not on mutable state of a per-message invoker.\n\n @return {@code true} when the plan supports reusable handler methods\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

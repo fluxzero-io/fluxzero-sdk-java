@@ -1,0 +1,31 @@
+{
+  "name" : "ApiDocExclude",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDocExclude",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,CONSTRUCTOR,TYPE,PACKAGE,FIELD,PARAMETER,RECORD_COMPONENT,TYPE_USE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Excludes a package, type, handler method, parameter, field, record component, or type use from generated API\n documentation.\n <p>\n This annotation affects documentation generation only. It does not disable or alter the runtime web handler or model.\n </p>\n\n @see ApiDocExtractor\n @see OpenApiProcessor\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

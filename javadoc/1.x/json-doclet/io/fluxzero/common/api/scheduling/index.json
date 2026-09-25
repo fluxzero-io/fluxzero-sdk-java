@@ -1,0 +1,49 @@
+{
+  "package" : {
+    "name" : "scheduling",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CancelSchedule.json",
+    "name" : "CancelSchedule",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.CancelSchedule",
+    "kind" : "class"
+  }, {
+    "file" : "GetSchedule.json",
+    "name" : "GetSchedule",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetSchedule",
+    "kind" : "class"
+  }, {
+    "file" : "GetScheduleResult.json",
+    "name" : "GetScheduleResult",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetScheduleResult.Metric.json",
+    "name" : "GetScheduleResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.GetScheduleResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "Schedule.json",
+    "name" : "Schedule",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.Schedule",
+    "kind" : "class"
+  }, {
+    "file" : "Schedule.Metric.json",
+    "name" : "Schedule.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.Schedule$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "SerializedSchedule.json",
+    "name" : "SerializedSchedule",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "kind" : "class"
+  }, {
+    "file" : "SerializedSchedule.Metric.json",
+    "name" : "SerializedSchedule.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.scheduling.SerializedSchedule$Metric",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}
