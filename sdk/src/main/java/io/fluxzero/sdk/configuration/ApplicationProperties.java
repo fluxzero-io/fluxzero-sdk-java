@@ -202,13 +202,6 @@ public class ApplicationProperties {
      *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
      *         Set the property to {@code false} to retain compatibility behavior.</td>
      *     </tr>
-     *     <tr>
-     *         <td>{@code >= 2026.09.25}</td>
-     *         <td>{@code fluxzero.model.packedSubsteps = true}</td>
-     *         <td>WebSocket clients advertise lossless packed Model membership v8. A supporting Runtime compacts
-     *         non-zero substeps; older peers retain the existing representation. Set the property to {@code false}
-     *         to retain v7/full memberships. Environment variable: {@code FLUXZERO_MODEL_PACKED_SUBSTEPS}.</td>
-     *     </tr>
      * </table>
      * <p>
      * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this

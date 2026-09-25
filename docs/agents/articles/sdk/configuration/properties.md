@@ -177,11 +177,9 @@ packaging. Verify the packaged application when its runtime configuration depend
 
 ### Packed Model substeps
 
-Set `fluxzero.model.packedSubsteps=true` (`FLUXZERO_MODEL_PACKED_SUBSTEPS`) to advertise lossless packed Model
-membership v8 during the WebSocket handshake. It is enabled by default with `fluxzero.defaults.version >= 2026.09.25`;
-without that profile the existing v7/full-membership transport remains active. An explicit `false` is the rollback
-switch. Resolve properties through the application's configured `PropertySource`; the programmatic alternative is
-`ClientConfig.fromProperties(source).toBuilder().packedModelSubsteps(true).build()` in both Java and Kotlin.
+The SDK automatically advertises its supported packed Model membership versions during the WebSocket handshake.
+A supporting Runtime can use lossless v8 for non-zero substeps; older peers retain the existing representation.
+This is protocol capability negotiation, independent of application properties and `fluxzero.defaults.version`.
 
 A supporting Runtime compacts full memberships only for capable receiving sessions. Old clients retain the lossless
 fallback, and new clients continue to read old replies. No stored data changes or migration are involved. Updating

@@ -185,8 +185,6 @@ public class WebSocketClient extends AbstractClient {
     @Value
     @Builder(toBuilder = true)
     public static class ClientConfig {
-        static final String PACKED_MODEL_SUBSTEPS_PROPERTY = "fluxzero.model.packedSubsteps";
-        static final LocalDate PACKED_MODEL_SUBSTEPS_DEFAULTS_VERSION = LocalDate.of(2026, 9, 25);
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
@@ -258,7 +256,6 @@ public class WebSocketClient extends AbstractClient {
                     .runtimeIngressStallCloseTimeout(firstDurationProperty(
                             source, Duration.ZERO, RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY))
                     .aggregateHistoryMaxFetchBytes(defaultAggregateHistoryMaxFetchBytes(source))
-                    .packedModelSubsteps(defaultPackedModelSubsteps(source))
                     .namespace(firstProperty(source, "FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID"))
                     .build();
         }
@@ -309,16 +306,6 @@ public class WebSocketClient extends AbstractClient {
          */
         @Default
         List<WebSocketTransportFormat> supportedTransportFormats = List.of(BINARY, CBOR, JSON);
-
-        /**
-         * Advertises support for lossless packed Model substeps (membership v8). Older Runtimes ignore this capability.
-         * Controlled by {@code fluxzero.model.packedSubsteps} ({@code FLUXZERO_MODEL_PACKED_SUBSTEPS}); defaults to
-         * {@code true} from {@code fluxzero.defaults.version=2026.09.25}, otherwise {@code false}.
-         * Set {@code false} to retain the lossless v7/full-membership fallback on new Runtimes.
-         */
-        @Default
-        boolean packedModelSubsteps = defaultPackedModelSubsteps(
-                new DecryptingPropertySource(DefaultPropertySource.getInstance()));
 
         /**
          * Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.
@@ -521,12 +508,6 @@ public class WebSocketClient extends AbstractClient {
             if (aggregateHistoryMaxFetchBytes < 0) {
                 throw new IllegalArgumentException("aggregateHistoryMaxFetchBytes must not be negative");
             }
-        }
-
-        private static boolean defaultPackedModelSubsteps(PropertySource source) {
-            String configured = source.get(PACKED_MODEL_SUBSTEPS_PROPERTY);
-            return configured != null ? Boolean.parseBoolean(configured.trim())
-                    : defaultsVersionAtLeast(source, PACKED_MODEL_SUBSTEPS_DEFAULTS_VERSION);
         }
 
         private static long defaultAggregateHistoryMaxFetchBytes() {
