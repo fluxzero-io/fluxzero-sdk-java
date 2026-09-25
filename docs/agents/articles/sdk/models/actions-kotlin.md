@@ -211,6 +211,8 @@ Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(..
 Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
 of ordinary command payloads when each child operation deserves its own domain command; later parts see earlier staged
 changes and all parts commit atomically. The commit shares a commit ID, not one Model revision or state index.
+Each stored event retains its exact commit substep during replay, including when a later part updates the same Model
+again. A cold reader reconstructs the same state as the writer after the commit.
 Each part's assertions see earlier staged changes too, including removed child memberships. If a validation needs
 the pre-deletion collection, put its command before the Graph deletions in the returned collection. A later
 validation failure rolls back the whole commit; reordering does not turn the parts into separate transactions.

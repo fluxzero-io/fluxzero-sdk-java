@@ -25,7 +25,12 @@ import org.msgpack.core.buffer.ArrayBufferInput;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Decoder for the final persisted independent-model stream batch format. */
+/**
+ * Decoder for the v7 packed Model membership transport format.
+ * <p>
+ * This format implicitly represents substep zero. Memberships with non-zero substeps must travel through the ordinary
+ * {@link ModelEventMembership} representation; changing the v7 layout would break existing readers.
+ */
 public final class ModelStreamBatchDecoder {
 
     private static final int VERSION = 7;
@@ -33,12 +38,12 @@ public final class ModelStreamBatchDecoder {
     private ModelStreamBatchDecoder() {
     }
 
-    /** Decodes one stored stream batch. */
+    /** Decodes one packed membership batch. */
     public static List<Entry> decode(byte[] data) {
         return decode(new ModelEventDataBlock(data));
     }
 
-    /** Decodes one stored stream batch directly from a byte range. */
+    /** Decodes one packed membership batch directly from a byte range. */
     @SneakyThrows
     public static List<Entry> decode(ModelEventDataBlock block) {
         byte[] decoded = block.data();

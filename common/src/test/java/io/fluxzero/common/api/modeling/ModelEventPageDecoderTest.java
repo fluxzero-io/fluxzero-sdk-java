@@ -22,12 +22,14 @@ import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
+import org.msgpack.core.MessagePack;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ModelEventPageDecoderTest {
@@ -48,6 +50,49 @@ class ModelEventPageDecoderTest {
     void malformedBackgroundBlockRetainsDecodingFailure() {
         assertThrows(IllegalArgumentException.class,
                      () -> ModelEventPageDecoder.expand(request(), page(false, true)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void mixedV7AndFullMembershipsRetainSubstepsOrderingAndRequestBounds(boolean compressed) throws Exception {
+        byte[] packed;
+        try (var packer = MessagePack.newDefaultBufferPacker()) {
+            // Frozen v7 wire layout: substep is implicitly zero and must not be added to this format.
+            packer.packInt(7).packArrayHeader(1).packLong(100L).packLong(1_000L).packLong(-1L)
+                    .packBoolean(true).packString("Root")
+                    .packString("root").packLong(0L).packLong(0L).packLong(0L).packString("commit")
+                    .packLong(0L).packBoolean(true).packLong(1L).packNil();
+            packed = packer.toByteArray();
+        }
+        if (compressed) {
+            packed = CompressionAlgorithm.ZSTD.compress(packed);
+        }
+        var first = new ModelEventMembership(0L, 100L, -1L, "commit", 0);
+        var child = new ModelEventMembership(0L, 101L, -1L, "commit", 1);
+        var last = new ModelEventMembership(1L, 102L, -1L, "commit", 2);
+        var rootHead = new ModelHeadState("root", "Root", 1L, 102L, true, false);
+        var childHead = new ModelHeadState("child", "Child", 0L, 101L, true, false);
+        var request = new GetModelEvents(List.of(
+                new ModelEventStreamRequest("root", -1L, 10),
+                new ModelEventStreamRequest("child", -1L, 10)), ModelReadBoundary.current(), 0L);
+        var payloads = LongStream.range(100L, 103L).mapToObj(state -> new ModelEventPayload(state,
+                new SerializedMessage(new Data<>(new byte[]{1}, "event", 0), Metadata.empty(),
+                                      "event-" + state, 1L))).toList();
+        var page = new GetModelEventsResult(1L, 102L, true, payloads, List.of(
+                new ModelEventStream("root", rootHead, List.of(last)),
+                new ModelEventStream("child", childHead, List.of(child))),
+                new long[0], List.of(), new long[0], List.of(new ModelEventDataBlock(packed)));
+        var transported = assertInstanceOf(GetModelEventsResult.class,
+                ModelEventWireCodec.tryDecode(ModelEventWireCodec.tryEncode(page)));
+        var decoded = ModelEventPageDecoder.expand(request, transported);
+        assertEquals(List.of(first, last), decoded.getStreams().get(0).getMemberships());
+        assertEquals(List.of(child), decoded.getStreams().get(1).getMemberships());
+        assertEquals(payloads, decoded.getPayloads());
+        var boundedRequest = new GetModelEvents(List.of(
+                new ModelEventStreamRequest("root", -1L, 1),
+                new ModelEventStreamRequest("child", -1L, 10)), ModelReadBoundary.current(), 0L);
+        assertEquals(List.of(first), ModelEventPageDecoder.expand(boundedRequest, transported)
+                .getStreams().getFirst().getMemberships());
     }
 
     private GetModelEvents request() {
