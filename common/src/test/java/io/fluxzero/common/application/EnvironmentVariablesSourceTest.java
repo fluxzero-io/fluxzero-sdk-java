@@ -61,4 +61,25 @@ class EnvironmentVariablesSourceTest {
         assertEquals("FLUXZERO_API_TOKEN", EnvironmentVariablesSource.toEnvironmentVariableName(
                 "fluxzero..api--token"));
     }
+    @Test
+    void collidingNamesAndUnicodeKeepTheirOwnConversionsDuringConcurrentLookups() {
+        // Aa and BB have the same String hash, including when prefixed with the same property path.
+        java.util.stream.IntStream.range(0, 1_000).parallel().forEach(i -> {
+            assertEquals("FLUXZERO_AA", EnvironmentVariablesSource.toEnvironmentVariableName("fluxzero.Aa"));
+            assertEquals("FLUXZERO_BB", EnvironmentVariablesSource.toEnvironmentVariableName("fluxzero.BB"));
+            assertEquals("GRÜSSE_Δ", EnvironmentVariablesSource.toEnvironmentVariableName("grüße.δ"));
+            assertEquals("XML_HTTP2_VERSION", EnvironmentVariablesSource.toEnvironmentVariableName("xmlHTTP2Version"));
+            assertEquals("XMLHTTP2VERSION", EnvironmentVariablesSource.toCompactEnvironmentVariableName("xmlHTTP2Version"));
+        });
+    }
+
+    @Test
+    void longNamesRemainSupportedWithoutRetainingUnboundedKeys() {
+        String name = "property.".repeat(100) + "camelCase";
+        assertEquals("PROPERTY_".repeat(100) + "CAMEL_CASE",
+                     EnvironmentVariablesSource.toEnvironmentVariableName(name));
+        assertEquals("PROPERTY_".repeat(100) + "CAMELCASE",
+                     EnvironmentVariablesSource.toCompactEnvironmentVariableName(name));
+    }
+
 }
