@@ -28,8 +28,10 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.QualifiedNameable;
 import javax.lang.model.element.TypeElement;
 import javax.tools.FileObject;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -82,10 +84,6 @@ public class TypeRegistryProcessor extends AbstractProcessor {
         return true;
     }
 
-    boolean isNewProcess() {
-        return getTypesResource().getLastModified() == 0;
-    }
-
     @SneakyThrows
     void storeTypes() {
         var prefixes = updateAndGetPrefixes();
@@ -100,9 +98,6 @@ public class TypeRegistryProcessor extends AbstractProcessor {
 
     @SneakyThrows
     Stream<String> getStoredTypes(Set<Prefix> prefixes) {
-        if (isNewProcess()) {
-            return Stream.empty();
-        }
         Collection<String> result = new ArrayList<>();
         try (Scanner scanner = new Scanner(getTypesResource().openInputStream())) {
             while (scanner.hasNextLine()) {
@@ -111,6 +106,8 @@ public class TypeRegistryProcessor extends AbstractProcessor {
                     result.add(type);
                 }
             }
+        } catch (FileNotFoundException | NoSuchFileException ignored) {
+            // A clean compilation has no previous index. FileObject timestamps may also be zero for existing files.
         }
         return result.stream();
     }
@@ -126,12 +123,12 @@ public class TypeRegistryProcessor extends AbstractProcessor {
     Set<Prefix> updateAndGetPrefixes() {
         Set<Prefix> prefixes = new LinkedHashSet<>(roundPrefixes);
         FileObject resource = getPrefixesResource();
-        if (resource.getLastModified() != 0) {
-            try (Scanner scanner = new Scanner(resource.openInputStream())) {
-                while (scanner.hasNextLine()) {
-                    prefixes.add(new Prefix(scanner.nextLine()));
-                }
+        try (Scanner scanner = new Scanner(resource.openInputStream())) {
+            while (scanner.hasNextLine()) {
+                prefixes.add(new Prefix(scanner.nextLine()));
             }
+        } catch (FileNotFoundException | NoSuchFileException ignored) {
+            // First compilation; do not infer existence from timestamps of virtual compiler output files.
         }
         resource = processingEnv.getFiler().createResource(CLASS_OUTPUT, "", PREFIXES_FILE);
         try (Writer resourceWriter = resource.openWriter()) {
@@ -143,10 +140,9 @@ public class TypeRegistryProcessor extends AbstractProcessor {
     }
 
     boolean hasClassOutput(String binaryName) {
-        try {
-            return processingEnv.getFiler()
-                           .getResource(CLASS_OUTPUT, "", binaryName.replace('.', '/') + ".class")
-                           .getLastModified() != 0;
+        try (var ignored = processingEnv.getFiler()
+                .getResource(CLASS_OUTPUT, "", binaryName.replace('.', '/') + ".class").openInputStream()) {
+            return true;
         } catch (IOException ignored) {
             return false;
         }
