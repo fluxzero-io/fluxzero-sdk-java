@@ -34,18 +34,20 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.sdk.tracking.client.DefaultTracker.start;
 import static java.lang.String.format;
@@ -90,6 +92,16 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     private static final int RESPONSE_MAX_FETCH_SIZE =
             Math.max(1, Integer.getInteger("fluxzero.requestHandlerMaxFetchSize", 65_536));
 
+    /**
+     * Maximum wait per request component for outstanding responses during shutdown, in milliseconds.
+     * Configure {@code fluxzero.shutdown.requestTimeoutMillis} (environment variable
+     * {@code FLUXZERO_SHUTDOWN_REQUEST_TIMEOUT_MILLIS}); the application default is 2000. Zero skips only the
+     * response grace period, retaining callback completion and resource cleanup. Resolved by the application builder.
+     */
+    public static final String SHUTDOWN_TIMEOUT_PROPERTY = "fluxzero.shutdown.requestTimeoutMillis";
+
+    private Supplier<Duration> shutdownTimeout = () -> Duration.ofSeconds(2);
+
     private final Client client;
     private final MessageType resultType;
     private final Duration timeout;
@@ -108,7 +120,8 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     protected RequestHandler createForNamespace(String namespace) {
         var clientForNamespace = client.forNamespace(namespace);
         return clientForNamespace == client
-                ? this : new DefaultRequestHandler(clientForNamespace, resultType, timeout, responseConsumerName);
+                ? this : new DefaultRequestHandler(clientForNamespace, resultType, timeout, responseConsumerName)
+                        .withShutdownTimeout(shutdownTimeout);
     }
 
     /**
@@ -296,12 +309,45 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         return callback != null && callback.completeExceptionally(error);
     }
 
+    /**
+     * Sets the response grace period supplier before first use; namespace-specific handlers inherit it when created.
+     * This is a programmatic alternative to {@link #SHUTDOWN_TIMEOUT_PROPERTY}.
+     *
+     * @param timeout supplies a non-negative response grace period when closing; zero still completes pending callbacks and closes resources
+     * @return this handler
+     */
+    public DefaultRequestHandler withShutdownTimeout(Supplier<Duration> timeout) {
+        Duration initial = Objects.requireNonNull(timeout.get(), "Request shutdown timeout");
+        if (initial.isNegative()) {
+            throw new IllegalArgumentException("Request shutdown timeout must not be negative");
+        }
+        this.shutdownTimeout = timeout;
+        return this;
+    }
+
+    /** Returns the current configured response grace period for gateways owned by this handler. */
+    public Duration getShutdownTimeout() {
+        return shutdownTimeout.get();
+    }
+
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
             super.close();
-            waitForResults(Duration.ofSeconds(2),
-                           callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
+            Duration gracePeriod;
+            try {
+                gracePeriod = Objects.requireNonNull(shutdownTimeout.get(), "Request shutdown timeout");
+                if (gracePeriod.isNegative()) {
+                    throw new IllegalArgumentException("Request shutdown timeout must not be negative");
+                }
+            } catch (RuntimeException e) {
+                log.error("Cannot resolve request shutdown grace period; closing without waiting for responses", e);
+                gracePeriod = Duration.ZERO;
+            }
+            if (!gracePeriod.isZero()) {
+                waitForResults(gracePeriod,
+                               callbacks.values().stream().map(ResponseCallback::finalCallback).toList());
+            }
             completePendingRequests(new IllegalStateException("Request handler has closed"));
             if (registration != null) {
                 registration.cancel();

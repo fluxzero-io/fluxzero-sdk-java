@@ -68,3 +68,24 @@ protocol clients inside domain code.
 `fluxzero.websocket.reconnectBackoff.enabled` enables capped exponential equal-jitter retries instead of fixed
 one-second retries. The versioned default enables it from `2026.09.09`; an explicit value overrides the default.
 Read WebSocket recovery for client/task identity and bounded diagnostics.
+
+## Request shutdown grace period
+
+`fluxzero.shutdown.requestTimeoutMillis` (`FLUXZERO_SHUTDOWN_REQUEST_TIMEOUT_MILLIS`) controls how long each
+request gateway and response handler waits for outstanding results during shutdown. The application default is
+`2000` milliseconds per component; `0` skips that grace period. This is not a deadline for the entire application
+shutdown: consumers, callbacks, clients and other owned resources still close through their normal lifecycle.
+A response handler completes remaining requests exceptionally when it closes.
+
+The setting uses the application's configured `PropertySource`, is validated when building, and is read again when
+closing. Negative values are rejected at build time. If a mutable source becomes invalid before shutdown, the component
+logs the configuration error and skips the response grace period so mandatory resource cleanup still runs. The `withShutdownTimeout` methods on `DefaultGenericGateway` and
+`DefaultRequestHandler` provide a programmatic supplier alternative for custom component construction.
+
+Automatic JUnit `TestFixture` cleanup defaults this value to `0` only after its owning test has finished, unless it
+was explicitly configured. Cleanup is still awaited and failures belong to the test outcome. Calling
+`fixture.getFluxzero().close()` yourself retains the ordinary application grace period; this also permits tests of
+responses arriving during graceful shutdown. Request timeouts, timeout metadata and cancellation semantics are unchanged.
+
+When tracking closes, incomplete chunked payloads fail so their handlers cannot remain blocked waiting for missing
+input. A fully received body remains readable, and ordinary asynchronous handler results retain their shutdown grace.

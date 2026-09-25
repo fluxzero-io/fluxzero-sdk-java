@@ -18,7 +18,6 @@ package io.fluxzero.proxy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.fluxzero.sdk.Fluxzero;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.Value;
@@ -35,11 +34,13 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.RSAPublicKeySpec;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * JwtVerifier provides functionality to verify the cryptographic signature of a JSON Web Token (JWT) and validate its
@@ -50,10 +51,10 @@ import java.util.Map;
  * <p>
  * The public keys are cached after being fetched from the JWKS endpoint to reduce network calls.
  */
-@RequiredArgsConstructor
 @Slf4j
 public final class JwtVerifier {
     private final String jwksUrl;
+    private final Clock clock;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newHttpClient();
@@ -61,6 +62,20 @@ public final class JwtVerifier {
     private volatile Map<String, PublicKey> keyCache = Map.of();
     private volatile Instant nextScheduledRefresh = Instant.EPOCH;
     private volatile Instant nextAllowedFetch = Instant.EPOCH;
+
+    /**
+     * Creates a verifier using the system clock to validate token timestamps.
+     *
+     * @param jwksUrl the endpoint providing trusted public keys
+     */
+    public JwtVerifier(String jwksUrl) {
+        this(jwksUrl, Clock.systemUTC());
+    }
+
+    JwtVerifier(String jwksUrl, Clock clock) {
+        this.jwksUrl = jwksUrl;
+        this.clock = Objects.requireNonNull(clock);
+    }
 
     /**
      * Verifies the provided JWT (JSON Web Token) for its signature, expiration, and not-before validity.
@@ -75,7 +90,7 @@ public final class JwtVerifier {
     public JwtClaims verify(String jwt) {
         JsonNode payload = verifySignature(jwt);
 
-        long now = Instant.now().getEpochSecond();
+        long now = clock.instant().getEpochSecond();
         if (payload.has("exp") && payload.get("exp").asLong() < now) {
             throw new SecurityException("JWT expired");
         }

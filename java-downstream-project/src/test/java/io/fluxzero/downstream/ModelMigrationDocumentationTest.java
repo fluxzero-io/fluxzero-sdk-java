@@ -169,7 +169,8 @@ class ModelMigrationDocumentationTest {
     private void writeLegacyState(String url, String namespace) throws Exception {
         Path source = Path.of("../docs/developer/examples/model-migration/LegacyModelWriter.java").toAbsolutePath();
         // Do not expose this reader's application classes/type index to the writer JVM.
-        String defaultClasspath = Arrays.stream(System.getProperty("surefire.test.class.path").split(File.pathSeparator))
+        String defaultClasspath = Arrays.stream(System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"))
+                .split(File.pathSeparator))
                 .filter(p -> !Path.of(p).toAbsolutePath().startsWith(Path.of("target").toAbsolutePath()))
                 .collect(Collectors.joining(File.pathSeparator));
         String writerClasspath = ApplicationProperties.getProperty("migration.writer.classpath", defaultClasspath);

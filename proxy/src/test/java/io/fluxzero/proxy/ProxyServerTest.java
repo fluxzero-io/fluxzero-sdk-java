@@ -17,6 +17,7 @@ package io.fluxzero.proxy;
 
 import com.sun.net.httpserver.HttpServer;
 import io.fluxzero.common.ConsistentHashing;
+import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
@@ -58,6 +59,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -84,8 +86,10 @@ import java.net.http.WebSocket;
 import java.net.http.WebSocketHandshakeException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -116,10 +120,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
 @Execution(ExecutionMode.SAME_THREAD)
+@Order(8) // Start expensive classes early in the shared parallel suite.
 class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
+    private final DelegatingClock jwtClock = new DelegatingClock();
     private final TestProxyRequestHandler proxyRequestHandler =
-            new TestProxyRequestHandler(testFixture.getFluxzero().client());
+            new TestProxyRequestHandler(testFixture.getFluxzero().client(), jwtClock);
     private final ProxyServer proxyServer = ProxyServer.startHttpProxyOnly(0, proxyRequestHandler);
     private final int proxyPort = proxyServer.getPort();
 
@@ -1360,10 +1366,12 @@ class ProxyServerTest {
                 byte[] payload = requestPayload(96);
 
                 testFixture.registerHandlers(new Object() {
+                    // Typed payloads require a complete body. An InputStream handler may legitimately enter on
+                    // the first chunk, before the proxy can know that an unknown-length upload exceeds its limit.
                     @HandlePost("/limited-unknown")
-                    String handle(InputStream body) throws Exception {
+                    String handle(byte[] body) {
                         invocations.incrementAndGet();
-                        return String.valueOf(body.readAllBytes().length);
+                        return String.valueOf(body.length);
                     }
                 });
 
@@ -1565,7 +1573,8 @@ class ProxyServerTest {
         @Test
         @ResourceLock(JWKS_URL_PROPERTY)
         void signedNamespaceHeaderIsRevalidatedForRepeatedValues() {
-            Instant expiresAt = Instant.now().plusSeconds(2);
+            Instant expiresAt = Instant.parse("2026-01-01T12:00:00Z");
+            jwtClock.setDelegate(Clock.fixed(expiresAt, ZoneOffset.UTC));
             var pair = TestJwtUtil.create("test", "expiring_kid", expiresAt);
             String jwt = pair.getKey();
             String jwksResponse = pair.getValue();
@@ -1578,10 +1587,7 @@ class ProxyServerTest {
                                 assertEquals(200, accepted.statusCode());
                                 assertEquals("Hello test", accepted.body());
 
-                                long waitMillis = Math.max(0L,
-                                                           expiresAt.plusSeconds(1).toEpochMilli()
-                                                           - Instant.now().toEpochMilli());
-                                Thread.sleep(waitMillis);
+                                jwtClock.setDelegate(Clock.fixed(expiresAt.plusSeconds(1), ZoneOffset.UTC));
 
                                 return httpClient.send(
                                         newRequest().GET().header(FLUXZERO_NAMESPACE_HEADER, jwt).build(),
@@ -2529,6 +2535,10 @@ class ProxyServerTest {
 
         TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client) {
             super(client);
+        }
+
+        TestProxyRequestHandler(io.fluxzero.sdk.configuration.client.Client client, Clock clock) {
+            super(client, new NamespaceSelector(clock));
         }
 
         void expectResponseFailure(CountDownLatch responseFailure) {

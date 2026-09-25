@@ -19,6 +19,7 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.contracts.DocumentGraphContract;
 import jakarta.annotation.Nullable;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @Execution(ExecutionMode.CONCURRENT)
+@Order(7) // Start expensive classes early in the shared parallel suite.
 class LocalDocumentGraphContractTest extends DocumentGraphContract {
     @Test
     void retainedBeginContextDoesNotVerifyAgainAfterItsOwnCommit() {

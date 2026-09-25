@@ -226,11 +226,14 @@ public class ChunkedDeserializingMessage extends DeserializingMessage {
     }
 
     /**
-     * Fails the stream and any pending aggregated deserialization with the given error.
+     * Fails an incomplete stream and pending aggregated deserialization with the given error.
+     * A body whose final chunk has already arrived remains readable.
      */
-    public void fail(Throwable error) {
-        inputStream.fail(error);
-        completed.completeExceptionally(error);
+    public synchronized void fail(Throwable error) {
+        if (!completed.isDone()) {
+            inputStream.fail(error);
+            completed.completeExceptionally(error);
+        }
     }
 
     protected DeserializingMessage aggregatedMessage() {

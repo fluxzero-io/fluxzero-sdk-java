@@ -24,12 +24,14 @@ import io.fluxzero.sdk.publishing.routing.RoutingKey;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.ConsumerHandlingMode;
+import io.fluxzero.sdk.tracking.LoggingErrorHandler;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -49,6 +51,7 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Timeout(60)
+@Order(1) // Start expensive classes early in the shared parallel suite.
 class ModelAsyncContentionTest {
     private static Server server;
     private static int port;
@@ -71,7 +74,9 @@ class ModelAsyncContentionTest {
         var client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
                 .name("contention-test").runtimeBaseUrl("ws://127.0.0.1:" + port).namespace("contention-" + UUID.randomUUID()).build());
         TestFixture.createAsync(DefaultFluxzero.builder().replaceIdentityProvider(ignored -> new UuidFactory())
-                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().handlingMode(mode).build()), client, SetStock.class, Reserve.class)
+                        .configureDefaultConsumer(COMMAND, c -> c.toBuilder().handlingMode(mode)
+                                // Every rejected reservation is asserted below; keep unexpected technical errors visible.
+                                .errorHandler(new LoggingErrorHandler(false)).build()), client, SetStock.class, Reserve.class)
                 .resultTimeout(Duration.ofSeconds(30))
                 .givenCommands(new SetStock("stock", requests / 2))
                 .whenExecuting(f -> {
@@ -128,8 +133,8 @@ class ModelAsyncContentionTest {
                 }).expectSuccessfulResult().expectNoErrors();
     }
 
-    @Model record Stock(@EntityId String stockId, int remaining) {}
-    @Model record Receipt(@EntityId String receiptId) {}
+    @Model(name = "ModelAsyncContentionTest.Stock") record Stock(@EntityId String stockId, int remaining) {}
+    @Model(name = "ModelAsyncContentionTest.Receipt") record Receipt(@EntityId String receiptId) {}
     record SetStock(String stockId, int remaining) {
         @Apply Stock apply(@jakarta.annotation.Nullable Stock previous) { return new Stock(stockId, remaining); }
     }

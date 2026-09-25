@@ -204,10 +204,10 @@ class FixtureTraceDiagnosticsTest {
 
         assertFalse(error.getMessage().contains("No handler invocation was observed for:"));
         assertFalse(error.getMessage().contains(MissingWhenHandlerCommand.class.getName()));
-        assertTrue(error.getMessage().contains("COMMAND MissingWhenHandlerCommand"));
-        assertTrue(error.getMessage().contains("(no handler invocation observed)"));
-        assertTrue(error.getMessage().contains("Test trace:"));
-        traceFrom(error);
+        String trace = traceFrom(error);
+        assertTrue(trace.contains("COMMAND MissingWhenHandlerCommand"));
+        assertTrue(trace.contains("(no handler invocation observed)"));
+
     }
 
     @Test

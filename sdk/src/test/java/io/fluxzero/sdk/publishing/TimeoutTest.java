@@ -16,11 +16,13 @@ package io.fluxzero.sdk.publishing;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.client.LocalTrackingClient;
@@ -191,13 +193,13 @@ class TimeoutTest {
     }
 
     @Test
-    void defaultRequestHandlerCompletesPendingRequestsWhenClosed() throws Exception {
+    void immediateShutdownCompletesPendingRequestsWhenClosed() throws Exception {
         class UnhandledRequest { }
 
         TestFixture fixture = TestFixture.create();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
-                "timeout-close-test");
+                "timeout-close-test").withShutdownTimeout(() -> Duration.ZERO);
         SerializedMessage request = new SerializedMessage(
                 new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
@@ -219,6 +221,39 @@ class TimeoutTest {
             future.cancel(true);
             requestHandler.close();
         }
+    }
+
+    @Test
+    void defaultShutdownStillAllowsPendingResponsesToComplete() throws Exception {
+        TestFixture fixture = TestFixture.create();
+        DefaultRequestHandler handler = new DefaultRequestHandler(fixture.getFluxzero().client(), MessageType.RESULT);
+        SerializedMessage request = new SerializedMessage(new Data<>(new byte[0], String.class.getName(), 0),
+                Metadata.empty(), "pending-close", System.currentTimeMillis());
+        CompletableFuture<SerializedMessage> response = handler.prepareRequest(request, Duration.ofSeconds(60), null);
+        try (var closer = new TestTask(handler::close, () -> response.complete(request))) {
+            closer.awaitBlockedIn(ClientUtils.class, "waitForResults", Duration.ofSeconds(5));
+            response.complete(request);
+            closer.awaitCompletion(Duration.ofSeconds(1));
+        }
+        assertEquals(request, response.join());
+    }
+
+    @Test
+    void invalidLateShutdownConfigurationStillCompletesRequestsAndClosesResources() throws Exception {
+        TestFixture fixture = TestFixture.create();
+        var grace = new AtomicReference<>(Duration.ZERO);
+        var handler = new DefaultRequestHandler(fixture.getFluxzero().client(), MessageType.RESULT)
+                .withShutdownTimeout(grace::get);
+        SerializedMessage request = new SerializedMessage(new Data<>(new byte[0], String.class.getName(), 0),
+                Metadata.empty(), "invalid-shutdown", System.currentTimeMillis());
+        var response = handler.prepareRequest(request, Duration.ofSeconds(60), null);
+        ScheduledThreadPoolExecutor timeoutExecutor = getField(handler, "timeoutExecutor");
+        grace.set(Duration.ofMillis(-1));
+        handler.close();
+        assertTrue(response.isCompletedExceptionally());
+        assertTrue(timeoutExecutor.isShutdown());
+        assertEquals(0, timeoutExecutor.getQueue().size());
+        assertEquals(0, ((Map<?, ?>) getField(handler, "callbacks")).size());
     }
 
     @Test

@@ -32,8 +32,8 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
-import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 import io.fluxzero.sdk.tracking.handling.LocalExecution;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
@@ -52,6 +52,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.Guarantee.SENT;
@@ -94,6 +95,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     };
     private volatile PreparedDispatchEntry lastPreparedDispatch;
 
+    private Supplier<Duration> shutdownTimeout = () -> Duration.ofSeconds(2);
+
     private final Map<String, CompletableFuture<?>> callbacks = new ConcurrentHashMap<>();
 
     public DefaultGenericGateway(Client client, GatewayClient gatewayClient, RequestHandler requestHandler,
@@ -120,7 +123,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return client == clientForNamespace ? this
                 : new DefaultGenericGateway(clientForNamespace, clientForNamespace.getGatewayClient(messageType, topic),
                                             requestHandlerForNamespace, serializer, dispatchInterceptor,
-                                            messageType, topic, localHandlerRegistry, responseMapper);
+                                            messageType, topic, localHandlerRegistry, responseMapper)
+                        .withShutdownTimeout(shutdownTimeout);
     }
 
     @Override
@@ -763,9 +767,37 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }
     }
 
+    /**
+     * Sets the response grace period supplier before first use; namespace-specific gateways inherit it when created.
+     * This is a programmatic alternative to {@link DefaultRequestHandler#SHUTDOWN_TIMEOUT_PROPERTY}.
+     *
+     * @param timeout supplies a non-negative response grace period when closing; zero skips waiting for outstanding responses
+     * @return this gateway
+     */
+    public DefaultGenericGateway withShutdownTimeout(Supplier<Duration> timeout) {
+        Duration initial = Objects.requireNonNull(timeout.get(), "Request shutdown timeout");
+        if (initial.isNegative()) {
+            throw new IllegalArgumentException("Request shutdown timeout must not be negative");
+        }
+        this.shutdownTimeout = timeout;
+        return this;
+    }
+
     @Override
     public void close() {
-        waitForResults(Duration.ofSeconds(2), callbacks.values());
+        Duration gracePeriod;
+        try {
+            gracePeriod = Objects.requireNonNull(shutdownTimeout.get(), "Request shutdown timeout");
+            if (gracePeriod.isNegative()) {
+                throw new IllegalArgumentException("Request shutdown timeout must not be negative");
+            }
+        } catch (RuntimeException e) {
+            log.error("Cannot resolve request shutdown grace period; closing without waiting for responses", e);
+            gracePeriod = Duration.ZERO;
+        }
+        if (!gracePeriod.isZero()) {
+            waitForResults(gracePeriod, callbacks.values());
+        }
         super.close();
     }
 }

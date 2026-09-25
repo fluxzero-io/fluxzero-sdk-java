@@ -51,7 +51,7 @@ public class ServiceLoadedInterceptor implements DispatchInterceptor, HandlerInt
     @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
-        return message -> message.getPayload() instanceof ServiceLoadedInterceptorTest.ServiceLoadedCommand
+        return message -> message.getPayloadClass() == ServiceLoadedInterceptorTest.ServiceLoadedCommand.class
                 ? "handler " + function.apply(message)
                 : function.apply(message);
     }

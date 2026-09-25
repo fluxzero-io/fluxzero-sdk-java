@@ -16,10 +16,12 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Execution(ExecutionMode.CONCURRENT)
+@Order(2) // Start expensive classes early in the shared parallel suite.
 class DocumentGraphContractTest extends DocumentGraphContract {
     private static Server server;
     private static int port;

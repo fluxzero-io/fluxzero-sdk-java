@@ -129,7 +129,7 @@ final class TestFixtureLifecycle {
         }
         fixtures.forEach(fixture -> closedFixtureInstances.add(fixture.getFluxzero()));
         var completions = fixtures.stream().map(fixture -> CompletableFuture.runAsync(
-                () -> fixture.getFluxzero().execute(fc -> fc.close(true)), shutdownExecutor))
+                fixture::closeAfterTest, shutdownExecutor))
                 .toArray(CompletableFuture<?>[]::new);
         try {
             // Close independent fixtures concurrently, but never hand their resources to the next execution early.

@@ -410,6 +410,69 @@ class DefaultTrackingAsyncResultTest {
     }
 
     @Test
+    void concurrentExternalCloseStillWaitsForOutstandingResults() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<String> handlerResult = new CompletableFuture<>();
+        tracking.report(handlerResult, descriptor(), message(serializer),
+                ConsumerConfiguration.builder().name("web").build());
+        try (var first = new TestTask(tracking::close, () -> handlerResult.complete("ok"))) {
+            first.awaitBlockedIn(ClientUtils.class, "waitForResults", Duration.ofSeconds(5));
+            try (var second = new TestTask(tracking::close, () -> handlerResult.complete("ok"))) {
+                second.awaitBlockedIn(DefaultTracking.class, "close", Duration.ofSeconds(5));
+                handlerResult.complete("ok");
+                first.awaitCompletion(Duration.ofSeconds(5));
+                second.awaitCompletion(Duration.ofSeconds(5));
+            }
+        }
+        verify(resultGateway).respond("ok", "benchmark-app", 7);
+    }
+
+    @Test
+    void failureCallbackDoesNotJoinExternalShutdownWaitingForAnotherResult() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        when(resultGateway.respond(any(), eq("benchmark-app"), eq(7)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CountDownLatch releaseShutdownWait = new CountDownLatch(1);
+        CompletableFuture<String> failing = new CompletableFuture<>();
+        CompletableFuture<String> pending = new CompletableFuture<>() {
+            @Override public String get(long timeout, TimeUnit unit)
+                    throws InterruptedException, java.util.concurrent.ExecutionException,
+                           java.util.concurrent.TimeoutException {
+                // Gate entry to the normal wait so a broken callback cannot pass merely when the grace expires.
+                releaseShutdownWait.await();
+                return super.get(timeout, unit);
+            }
+        };
+        var config = ConsumerConfiguration.builder().name("web").build();
+        tracking.report(failing, descriptor(), message(serializer), config);
+        tracking.report(pending, descriptor(), message(serializer), config);
+        try (var closer = new TestTask(tracking::close, () -> {
+            failing.completeExceptionally(new IllegalStateException("test cleanup"));
+            pending.complete("ok");
+            releaseShutdownWait.countDown();
+        })) {
+            closer.awaitBlockedIn(ClientUtils.class, "waitForResults", Duration.ofSeconds(5));
+            try (var callback = new TestTask(
+                    () -> failing.completeExceptionally(new IllegalStateException("handler failed")),
+                    () -> {
+                        pending.complete("ok");
+                        releaseShutdownWait.countDown();
+                    })) {
+                callback.awaitCompletion(Duration.ofSeconds(5));
+                assertEquals(1L, releaseShutdownWait.getCount());
+            }
+            closer.awaitCompletion(Duration.ofSeconds(5));
+        }
+        verify(resultGateway).respond("ok", "benchmark-app", 7);
+    }
+
+    @Test
     void asyncResultsCanBeAwaitedBeforeBatchCompletion() {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);

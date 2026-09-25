@@ -62,19 +62,25 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Value;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
 import java.net.HttpCookie;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -106,10 +112,62 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
+@Order(6) // Start expensive classes early in the shared parallel suite.
 public class HandleWebTest {
 
     @Nested
     class GenericTests {
+        private URLClassLoader openApiApplication;
+
+        @AfterEach
+        void closeOpenApiApplication() throws Exception {
+            if (openApiApplication != null) {
+                try {
+                    TestFixture.shutDownActiveFixtures();
+                } finally {
+                    openApiApplication.close();
+                }
+            }
+        }
+
+        @SneakyThrows
+        private Object runtimeOpenApiHandler(Class<?> handlerType) {
+            if (openApiApplication == null) {
+                // These tests exercise runtime rendering without compiled documents. Other test modules may have
+                // generated OpenAPI resources, so give the handlers an explicit application classloader boundary.
+                openApiApplication = new URLClassLoader(
+                        new URL[]{HandleWebTest.class.getProtectionDomain().getCodeSource().getLocation()},
+                        HandleWebTest.class.getClassLoader()) {
+                    @Override
+                    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                        if (!name.startsWith(HandleWebTest.class.getName())
+                            && !name.startsWith(PackageDocHandler.class.getPackageName() + ".")) {
+                            return super.loadClass(name, resolve);
+                        }
+                        synchronized (getClassLoadingLock(name)) {
+                            Class<?> type = findLoadedClass(name);
+                            if (type == null) {
+                                type = findClass(name);
+                            }
+                            if (resolve) {
+                                resolveClass(type);
+                            }
+                            return type;
+                        }
+                    }
+
+                    @Override
+                    public Enumeration<URL> getResources(String name) throws java.io.IOException {
+                        return OpenApiProcessor.DEFAULT_OUTPUT.equals(name)
+                                ? Collections.emptyEnumeration() : super.getResources(name);
+                    }
+                };
+            }
+            var constructor = openApiApplication.loadClass(handlerType.getName()).getDeclaredConstructor();
+            constructor.setAccessible(true);
+            return constructor.newInstance();
+        }
+
         private final TestFixture testFixture = TestFixture.create(DefaultFluxzero.builder().registerUserProvider(
                 new FixedUserProvider(() -> null)), new Handler());
 
@@ -215,7 +273,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesOpenApiBelowClassPath() {
-            TestFixture.create(new OpenApiEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(OpenApiEndpointHandler.class))
                     .whenGet("/classDocs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -229,7 +287,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesRedocReferenceBelowClassPath() {
-            TestFixture.create(new OpenApiEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(OpenApiEndpointHandler.class))
                     .whenGet("/classDocs/docs")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -242,7 +300,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesOpenApiAtConfiguredAbsolutePath() {
-            TestFixture.create(new AbsoluteOpenApiEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(AbsoluteOpenApiEndpointHandler.class))
                     .whenGet("/docs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -255,7 +313,7 @@ public class HandleWebTest {
 
         @Test
         void testApiReferenceAlsoServesOpenApiDocument() {
-            TestFixture.create(new ScalarReferenceEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(ScalarReferenceEndpointHandler.class))
                     .whenGet("/scalarDocs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -268,7 +326,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesScalarReference() {
-            TestFixture.create(new ScalarReferenceEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(ScalarReferenceEndpointHandler.class))
                     .whenGet("/scalarDocs/reference")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -280,7 +338,7 @@ public class HandleWebTest {
 
         @Test
         void testApiDocInfoServesSwaggerUiReferenceAtConfiguredAbsolutePath() {
-            TestFixture.create(new SwaggerUiReferenceEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(SwaggerUiReferenceEndpointHandler.class))
                     .whenGet("/swagger-ui")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -293,7 +351,7 @@ public class HandleWebTest {
 
         @Test
         void testApiReferenceUsesConfiguredAssetUrls() {
-            TestFixture.create(new CustomReferenceAssetEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(CustomReferenceAssetEndpointHandler.class))
                     .whenGet("/customDocs/docs")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -306,7 +364,7 @@ public class HandleWebTest {
 
         @Test
         void testPackageApiDocInfoServesOpenApiBelowPackagePath() {
-            TestFixture.create(new PackageDocHandler())
+            TestFixture.create(runtimeOpenApiHandler(PackageDocHandler.class))
                     .whenGet("/packageDocs/openapi.json")
                     .expectWebResult(response -> {
                         String payload = response.getPayloadAs(String.class);
@@ -319,7 +377,7 @@ public class HandleWebTest {
 
         @Test
         void testAutomaticOptionsIncludesAutomaticOpenApiEndpoint() {
-            TestFixture.create(new OpenApiEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(OpenApiEndpointHandler.class))
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/openapi.json").build())
                     .expectWebResult(response -> response.getStatus() == 204
                                                  && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));
@@ -327,7 +385,7 @@ public class HandleWebTest {
 
         @Test
         void testAutomaticOptionsIncludesAutomaticApiReferenceEndpoint() {
-            TestFixture.create(new OpenApiEndpointHandler())
+            TestFixture.create(runtimeOpenApiHandler(OpenApiEndpointHandler.class))
                     .whenWebRequest(WebRequest.builder().method(OPTIONS).url("/classDocs/docs").build())
                     .expectWebResult(response -> response.getStatus() == 204
                                                  && "GET, HEAD, OPTIONS".equals(response.getHeader("Allow")));

@@ -169,7 +169,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         this(client, new NamespaceSelector());
     }
 
-    private ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector) {
+    ProxyRequestHandler(Client client, NamespaceSelector namespaceSelector) {
         this.client = client;
         requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
         requestHandler = new CancellableRequestHandler(

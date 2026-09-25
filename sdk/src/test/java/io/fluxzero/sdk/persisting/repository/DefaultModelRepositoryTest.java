@@ -1730,9 +1730,10 @@ class DefaultModelRepositoryTest {
     }
 
     private static List<Cache> modelCaches() {
+        // These tests exercise revision fencing; GC and unrelated parallel tests must not evict the asserted entry.
         return List.of(
-                new SoftReferenceCache(100),
-                new AdaptiveObjectCache(100));
+                new SoftReferenceCache(100, Runnable::run, null, Duration.ofMinutes(1), false),
+                new AdaptiveObjectCache(100, MemoryPressureController.none()));
     }
 
     private static DefaultModelRepository.Commit.Outcome

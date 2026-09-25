@@ -194,6 +194,47 @@ class DefaultTrackingStrategyTest {
     }
 
     @Test
+    void timeoutDuringWaitRegistrationStillCompletesTheRead() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of())) {
+            scheduler.expireNextSchedule = true;
+            CompletableFuture<MessageBatch> result = subject.getBatch(tracker("consumer", "tracker"));
+            assertTrue(result.isDone(), "A deadline firing inside schedule must not leave an unbounded read");
+            assertTrue(result.join().isEmpty());
+        }
+    }
+
+    @Test
+    void delayedTimeoutCannotRemoveAReplacementRequestForTheSameTrackerObject() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of())) {
+            TestTracker tracker = tracker("consumer", "tracker");
+            var original = subject.getBatch(tracker);
+            ThrowingRunnable oldDeadline = scheduler.scheduledTasks.remove();
+            var replacement = subject.getBatch(tracker);
+            assertTrue(original.isDone());
+            TestScheduler.run(oldDeadline);
+            assertFalse(replacement.isDone());
+            scheduler.runNextScheduledTask();
+            assertTrue(replacement.isDone());
+            assertTrue(replacement.join().isEmpty());
+        }
+    }
+
+    @Test
+    void timeoutDuringWaitRegistrationStillCompletesTheClaim() {
+        TestScheduler scheduler = new TestScheduler();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)) {
+            assertArrayEquals(new int[]{0, MAX_SEGMENT},
+                              subject.claimSegment(tracker("consumer", "first")).join().getSegment());
+            scheduler.expireNextSchedule = true;
+            var result = subject.claimSegment(tracker("consumer", "second"));
+            assertTrue(result.isDone(), "A deadline firing inside schedule must not leave an unbounded claim");
+            assertArrayEquals(new int[]{0, 0}, result.join().getSegment());
+        }
+    }
+
+    @Test
     void sendsEmptyBatchImmediatelyWhenReadHasZeroMaxTimeout() {
         TestScheduler scheduler = new TestScheduler();
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler).withBatches(List.of())) {
@@ -623,6 +664,7 @@ class DefaultTrackingStrategyTest {
     private static class TestScheduler implements TaskScheduler {
         private final ExecutorService executor = Executors.newSingleThreadExecutor();
         private final Queue<ThrowingRunnable> scheduledTasks = new ConcurrentLinkedQueue<>();
+        private boolean expireNextSchedule;
 
         @Override
         public void submit(ThrowingRunnable task) {
@@ -631,6 +673,11 @@ class DefaultTrackingStrategyTest {
 
         @Override
         public Registration schedule(long deadline, ThrowingRunnable task) {
+            if (expireNextSchedule) {
+                expireNextSchedule = false;
+                run(task);
+                return () -> {};
+            }
             scheduledTasks.add(task);
             return () -> scheduledTasks.remove(task);
         }

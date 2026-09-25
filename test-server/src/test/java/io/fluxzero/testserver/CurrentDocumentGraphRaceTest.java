@@ -77,7 +77,7 @@ class CurrentDocumentGraphRaceTest {
         app.apply(fc -> { Fluxzero.assertAndApply(new SetDocument("doc", version)); return null; });
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(name = "CurrentDocumentGraphRaceTest.Document", persistence = ModelPersistence.DOCUMENT)
     record Document(@EntityId String id, int version) {}
     record SetDocument(String id, Integer version) {
         @Apply Document apply(@Nullable Document previous) { return version == null ? null : new Document(id, version); }

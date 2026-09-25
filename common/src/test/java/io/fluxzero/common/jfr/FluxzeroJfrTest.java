@@ -49,6 +49,8 @@ class FluxzeroJfrTest {
         List<RecordedEvent> events = RecordingFile.readAllEvents(recordingFile);
         RecordedEvent batch = events.stream()
                 .filter(event -> event.getEventType().getName().equals("io.fluxzero.Batch"))
+                .filter(event -> event.getThread() != null
+                                 && event.getThread().getJavaThreadId() == Thread.currentThread().threadId())
                 .findFirst().orElseThrow();
         assertEquals("sdk", batch.getString("component"));
         assertEquals(64, batch.getInt("itemCount"));

@@ -15,6 +15,8 @@
  */
 package io.fluxzero.sdk.modeling;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
@@ -24,6 +26,7 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardLocation;
+import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import java.io.File;
 import java.net.URI;
@@ -40,9 +43,19 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Execution(ExecutionMode.CONCURRENT)
+@Order(3) // Start expensive classes early in the shared parallel suite.
 class ModelTypeProcessorTest {
     @TempDir
     Path temporary;
+
+    // Each test has its own compiler filesystem cache; sequential tasks still use fresh compiler/processor contexts.
+    private final StandardJavaFileManager files = ToolProvider.getSystemJavaCompiler()
+            .getStandardFileManager(null, null, null);
+
+    @AfterEach
+    void closeCompilerFiles() throws Exception {
+        files.close();
+    }
 
     @Test
     void indexesModelsWithoutRegisterTypeAndPreservesUnchangedClassesOnIncrementalCompilation() throws Exception {
@@ -254,15 +267,24 @@ class ModelTypeProcessorTest {
         Path log = temporary.resolve("reader.log");
         List<Path> inputs = new ArrayList<>(List.of(contracts));
         inputs.add(reader);
-        Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin/java").toString(),
-                                             "-cp", classpath(inputs.toArray(Path[]::new)), "sample.Reader")
+        List<String> command = new ArrayList<>(List.of(
+                Path.of(System.getProperty("java.home"), "bin/java").toString(), "-ea", "-Xmx256m"));
+        // Match the selected test JVM's compiler mode; Maven/full-JIT runs retain normal tiered compilation.
+        java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments().stream()
+                .filter(argument -> argument.startsWith("-XX:TieredStopAtLevel="))
+                .forEach(command::add);
+        command.addAll(List.of("-cp", classpath(inputs.toArray(Path[]::new)), "sample.Reader"));
+        Process process = new ProcessBuilder(command)
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
         try {
             assertTrue(process.waitFor(20, TimeUnit.SECONDS), "Reader did not terminate");
             assertEquals(0, process.exitValue(), Files.readString(log));
             assertTrue(Files.readString(log).contains("independent-model-catalog-ok"));
         } finally {
-            process.destroyForcibly();
+            if (process.isAlive()) {
+                process.destroyForcibly();
+                assertTrue(process.waitFor(5, TimeUnit.SECONDS), "Reader process did not stop");
+            }
         }
     }
 
@@ -275,21 +297,19 @@ class ModelTypeProcessorTest {
         Files.createDirectories(output);
         var compiler = ToolProvider.getSystemJavaCompiler();
         var diagnostics = new DiagnosticCollector<JavaFileObject>();
-        try (var files = compiler.getStandardFileManager(diagnostics, null, null)) {
-            files.setLocationFromPaths(StandardLocation.CLASS_OUTPUT, List.of(output));
-            List<Path> inputs = new ArrayList<>(List.of(dependencies));
-            inputs.add(output);
-            var unit = new SimpleJavaFileObject(URI.create("string:///" + name.replace('.', '/') + ".java"),
-                                                JavaFileObject.Kind.SOURCE) {
-                @Override public CharSequence getCharContent(boolean ignoreEncodingErrors) { return source; }
-            };
-            List<String> options = new ArrayList<>(List.of("-classpath", classpath(inputs.toArray(Path[]::new))));
-            options.addAll(processors == null ? List.of("-proc:full", "-Xlint:processing", "-Werror")
-                                             : List.of("-processor", processors));
-            var task = compiler.getTask(null, files, diagnostics, options,
-                                        null, List.of(unit));
-            assertTrue(task.call(), () -> diagnostics.getDiagnostics().toString());
-        }
+        files.setLocationFromPaths(StandardLocation.CLASS_OUTPUT, List.of(output));
+        List<Path> inputs = new ArrayList<>(List.of(dependencies));
+        inputs.add(output);
+        var unit = new SimpleJavaFileObject(URI.create("string:///" + name.replace('.', '/') + ".java"),
+                                            JavaFileObject.Kind.SOURCE) {
+            @Override public CharSequence getCharContent(boolean ignoreEncodingErrors) { return source; }
+        };
+        List<String> options = new ArrayList<>(List.of("-classpath", classpath(inputs.toArray(Path[]::new))));
+        options.addAll(processors == null ? List.of("-proc:full", "-Xlint:processing", "-Werror")
+                                         : List.of("-processor", processors));
+        var task = compiler.getTask(null, files, diagnostics, options,
+                                    null, List.of(unit));
+        assertTrue(task.call(), () -> diagnostics.getDiagnostics().toString());
     }
 
     private Path jar(Path directory) throws Exception {
@@ -335,8 +355,12 @@ class ModelTypeProcessorTest {
         return java.util.stream.Stream.concat(java.util.Arrays.stream(roots).map(Path::toString),
                                              java.util.Arrays.stream(System.getProperty("java.class.path")
                                                      .split(java.util.regex.Pattern.quote(File.pathSeparator)))
-                                                     .filter(entry -> !Path.of(entry).toAbsolutePath().normalize()
-                                                             .equals(testClasses)))
+                                                     .filter(entry -> {
+                                                         Path path = Path.of(entry).toAbsolutePath().normalize();
+                                                         return !path.equals(testClasses)
+                                                                && !path.endsWith(Path.of("target", "test-classes"))
+                                                                && !path.getFileName().toString().endsWith("-tests.jar");
+                                                     }))
                 .collect(java.util.stream.Collectors.joining(File.pathSeparator));
     }
 }

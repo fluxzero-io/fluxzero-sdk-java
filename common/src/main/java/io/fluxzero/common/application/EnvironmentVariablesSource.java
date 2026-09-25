@@ -15,6 +15,7 @@
 package io.fluxzero.common.application;
 
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * A {@link PropertySource} that resolves property values from system environment variables.
@@ -48,6 +49,13 @@ import java.util.Locale;
 public enum EnvironmentVariablesSource implements PropertySource {
     INSTANCE;
 
+    // Only immutable name transformations are cached, never property values or application-specific sources.
+    // Direct-mapped slots and a key-length limit bound retention even for arbitrary user-supplied keys.
+    private static final AtomicReferenceArray<Names> normalizedNames = new AtomicReferenceArray<>(1024);
+    private static final int MAX_CACHED_NAME_LENGTH = 256;
+
+    private record Names(String original, String conventional, String compact) {}
+
     /**
      * Retrieves the value of the given property name from the system environment. Exact environment variable names have
      * priority over their normalized variants.
@@ -75,11 +83,23 @@ public enum EnvironmentVariablesSource implements PropertySource {
     }
 
     static String toEnvironmentVariableName(String name) {
-        return toEnvironmentVariableName(name, true);
+        return name.length() > MAX_CACHED_NAME_LENGTH
+                ? toEnvironmentVariableName(name, true) : names(name).conventional();
     }
 
     static String toCompactEnvironmentVariableName(String name) {
-        return toEnvironmentVariableName(name, false);
+        return name.length() > MAX_CACHED_NAME_LENGTH
+                ? toEnvironmentVariableName(name, false) : names(name).compact();
+    }
+
+    private static Names names(String name) {
+        int slot = name.hashCode() & (normalizedNames.length() - 1);
+        Names result = normalizedNames.get(slot);
+        if (result == null || !result.original().equals(name)) {
+            result = new Names(name, toEnvironmentVariableName(name, true), toEnvironmentVariableName(name, false));
+            normalizedNames.set(slot, result);
+        }
+        return result;
     }
 
     private static String toEnvironmentVariableName(String name, boolean separateCamelCase) {

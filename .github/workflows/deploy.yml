@@ -62,6 +62,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          check-latest: true
           cache: maven
           server-id: fluxzero
           server-username-env-var: MAVEN_USERNAME
@@ -143,7 +144,7 @@ jobs:
 
       - name: Build and test
         id: maven-build
-        run: ./mvnw -B install
+        run: ./mvnw -B -Dtest.forks=1 install
 
       - name: Preserve test reports and output
         if: always()
@@ -276,6 +277,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          check-latest: true
           cache: maven
           server-id: central
           server-username-env-var: MAVEN_USERNAME

@@ -140,6 +140,7 @@ import lombok.experimental.Accessors;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -901,6 +902,8 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            PropertySource shutdownProperties = propertySource;
+            requestShutdownTimeout(shutdownProperties); // Validate before allocating application resources.
             configureTypeAliases();
             TaskScheduler taskScheduler = taskScheduler();
             if (client.unwrap() instanceof LocalClient localClient) {
@@ -1212,7 +1215,8 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             //create gateways
-            RequestHandler defaultRequestHandler = new DefaultRequestHandler(client, RESULT);
+            RequestHandler defaultRequestHandler = new DefaultRequestHandler(client, RESULT)
+                    .withShutdownTimeout(() -> requestShutdownTimeout(shutdownProperties));
 
             //enable error reporter as the outermost handler interceptor
             ErrorGateway errorGateway =
@@ -1252,7 +1256,8 @@ public class DefaultFluxzero implements Fluxzero {
                                                                    runtimeParameterResolvers, handlerRepositorySupplier,
                                                                    repositorySupplier, defaultResponseMapper));
 
-            RequestHandler webRequestHandler = new DefaultRequestHandler(client, WEBRESPONSE);
+            RequestHandler webRequestHandler = new DefaultRequestHandler(client, WEBRESPONSE)
+                    .withShutdownTimeout(() -> requestShutdownTimeout(shutdownProperties));
             WebRequestGateway webRequestGateway =
                     new DefaultWebRequestGateway(createRequestGateway(client, WEBREQUEST, null, webRequestHandler,
                                                                       dispatchChains, handlerChains,
@@ -1721,6 +1726,15 @@ public class DefaultFluxzero implements Fluxzero {
                     : configuration;
         }
 
+        private static Duration requestShutdownTimeout(PropertySource propertySource) {
+            int millis = propertySource.getInteger(DefaultRequestHandler.SHUTDOWN_TIMEOUT_PROPERTY, 2000);
+            if (millis < 0) {
+                throw new IllegalArgumentException(DefaultRequestHandler.SHUTDOWN_TIMEOUT_PROPERTY
+                                                   + " must not be negative");
+            }
+            return Duration.ofMillis(millis);
+        }
+
         protected GenericGateway createRequestGateway(Client client, MessageType messageType,
                                                       String topic, RequestHandler requestHandler,
                                                       Map<MessageType, DispatchInterceptor> dispatchInterceptors,
@@ -1736,10 +1750,13 @@ public class DefaultFluxzero implements Fluxzero {
                 localHandlers = localHandlers.orThen(
                         Objects.requireNonNull(modelCommitHandlerRegistry));
             }
+            PropertySource shutdownProperties = propertySource;
             return new DefaultGenericGateway(client, client.getGatewayClient(messageType, topic), requestHandler,
                                              this.serializer, dispatchInterceptors.get(messageType), messageType,
-                                             topic, localHandlers,
-                                             responseMapper);
+                                             topic, localHandlers, responseMapper)
+                    .withShutdownTimeout(requestHandler instanceof DefaultRequestHandler handler
+                                                 ? handler::getShutdownTimeout
+                                                 : () -> requestShutdownTimeout(shutdownProperties));
         }
 
         protected HandlerRegistry localHandlerRegistry(MessageType messageType,

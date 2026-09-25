@@ -338,6 +338,9 @@ class LocalTrackingClientTest {
         int messageCount = 2_000;
         CountDownLatch latch = new CountDownLatch(consumerCount * messageCount);
         CountDownLatch waitingConsumers = new CountDownLatch(consumerCount);
+        List<Set<String>> received = java.util.stream.IntStream.range(0, consumerCount)
+                .<Set<String>>mapToObj(i -> ConcurrentHashMap.newKeySet()).toList();
+        AtomicInteger duplicates = new AtomicInteger();
         Set<String> registeredConsumers = ConcurrentHashMap.newKeySet();
         try (LocalTrackingClient delegate = new LocalTrackingClient(CUSTOM, "cached-live", Duration.ofMinutes(5)) {
             @Override
@@ -353,7 +356,13 @@ class LocalTrackingClientTest {
                 List<io.fluxzero.common.Registration> registrations = java.util.stream.IntStream.range(
                                 0, consumerCount)
                         .mapToObj(i -> DefaultTracker.start(
-                                messages -> countDown(latch, messages.size()),
+                                messages -> messages.forEach(message -> {
+                                    if (received.get(i).add(message.getMessageId())) {
+                                        latch.countDown();
+                                    } else {
+                                        duplicates.incrementAndGet();
+                                    }
+                                }),
                                 config("cached-live-consumer-" + i).toBuilder()
                                         .maxFetchSize(128)
                                         .maxWaitDuration(Duration.ofSeconds(2))
@@ -369,8 +378,18 @@ class LocalTrackingClientTest {
                             .toArray(SerializedMessage[]::new);
                     delegate.append(STORED, messages).join();
 
-                    assertTrue(latch.await(10, TimeUnit.SECONDS),
-                               "Timed out with " + latch.getCount() + " messages remaining");
+                    Set<String> expected = java.util.Arrays.stream(messages).map(SerializedMessage::getMessageId)
+                            .collect(java.util.stream.Collectors.toSet());
+                    assertTrue(latch.await(10, TimeUnit.SECONDS), () -> java.util.stream.IntStream.range(0, consumerCount)
+                            .filter(i -> received.get(i).size() != messageCount)
+                            .mapToObj(i -> "consumer " + i + " missing "
+                                    + expected.stream().filter(id -> !received.get(i).contains(id)).toList()
+                                    + "; position=" + delegate.getPosition("cached-live-consumer-" + i))
+                            .collect(java.util.stream.Collectors.joining("\n")));
+                    // Joining every handler closes the observation window before exact-once assertions.
+                    registrations.forEach(io.fluxzero.common.Registration::cancel);
+                    received.forEach(ids -> assertEquals(expected, ids));
+                    assertEquals(0, duplicates.get(), "Every consumer must receive each message exactly once");
                 } finally {
                     registrations.forEach(io.fluxzero.common.Registration::cancel);
                 }

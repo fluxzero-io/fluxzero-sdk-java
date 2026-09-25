@@ -353,12 +353,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             return;
         }
 
+        AtomicBoolean deadlineExpired = new AtomicBoolean();
         Registration scheduleToken = scheduler.schedule(tracker.getDeadline(), () -> {
-            if (removeWaitingTracker(tracker) != null && !request.isDone()) {
-                clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
-                        ? cluster.withActiveTracker(tracker) : cluster);
-                completeRequest(tracker, request, emptyBatch);
-            }
+            deadlineExpired.set(true);
+            expireWaitingRequest(tracker, request, emptyBatch);
         });
         WaitingTracker existing = waitingTrackers.put(
                 tracker, new WaitingTracker(tracker, request, scheduleToken, followUp,
@@ -367,6 +365,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             log.warn("Tracker replaced another waiting tracker. This should normally not happen. New tracker: {}",
                      tracker);
             completeRequest(existing.tracker, existing.request, emptyBatch);
+        }
+        // A scheduler may run the deadline before schedule() returns or before the waiter is published.
+        if (deadlineExpired.get()) {
+            expireWaitingRequest(tracker, request, emptyBatch);
         }
     }
 
@@ -555,13 +557,15 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         }
     }
 
-    private WaitingTracker removeWaitingTracker(Tracker tracker) {
-        WaitingTracker waitingTracker = waitingTrackers.get(tracker);
-        if (waitingTracker != null && waitingTracker.tracker == tracker
-            && waitingTrackers.remove(tracker, waitingTracker)) {
-            return waitingTracker;
+    private void expireWaitingRequest(Tracker tracker, TrackerRequest<?> request, MessageBatch emptyBatch) {
+        WaitingTracker waiting = waitingTrackers.get(tracker);
+        // A delayed callback from an earlier request must never remove its replacement.
+        if (waiting != null && waiting.tracker == tracker && waiting.request == request
+            && waitingTrackers.remove(tracker, waiting) && !request.isDone()) {
+            clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
+                    ? cluster.withActiveTracker(tracker) : cluster);
+            completeRequest(tracker, request, emptyBatch);
         }
-        return null;
     }
 
     @SuppressWarnings("unchecked")

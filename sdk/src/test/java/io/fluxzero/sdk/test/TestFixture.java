@@ -63,6 +63,7 @@ import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.publishing.DefaultEventGateway;
 import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
+import io.fluxzero.sdk.publishing.DefaultRequestHandler;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
 import io.fluxzero.sdk.scheduling.Schedule;
@@ -124,6 +125,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -398,6 +400,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private final BeanParameterResolver beanParameterResolver = new BeanParameterResolver();
     private final PropertySource basePropertySource;
+    private final AtomicBoolean cleaningUp = new AtomicBoolean();
     private final Map<String, String> testProperties = new HashMap<>();
     private final List<HttpCookie> cookies = new ArrayList<>();
     private final Map<String, List<String>> headers = WebUtils.emptyHeaderMap();
@@ -541,15 +544,22 @@ public class TestFixture implements Given<TestFixture>, When {
         return client.unwrap() instanceof LocalClient ? client : new DocumentTrackingClient(client, interceptor);
     }
 
-    private PropertySource fixturePropertySource() {
-        return new FixturePropertySource(testProperties, basePropertySource);
+    void closeAfterTest() {
+        cleaningUp.set(true);
+        getFluxzero().execute(fc -> fc.close(true));
     }
 
-    private record FixturePropertySource(Map<String, String> properties, PropertySource base)
+    private PropertySource fixturePropertySource() {
+        return new FixturePropertySource(testProperties, basePropertySource, cleaningUp);
+    }
+
+    private record FixturePropertySource(Map<String, String> properties, PropertySource base, AtomicBoolean cleaningUp)
             implements PropertySource {
         @Override
         public String get(String name) {
-            return ofNullable(properties.get(name)).orElseGet(() -> base.get(name));
+            return ofNullable(properties.get(name)).or(() -> ofNullable(base.get(name)))
+                    .orElse(cleaningUp.get() && DefaultRequestHandler.SHUTDOWN_TIMEOUT_PROPERTY.equals(name)
+                                    ? "0" : null);
         }
     }
 

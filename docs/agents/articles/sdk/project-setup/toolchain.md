@@ -4,11 +4,16 @@ Use this after generating a starter or before building an existing project on a 
 
 Inspect the authoritative build and toolchain files before installing anything:
 
-- `.java-version` and `.tool-versions` provide a quick project-level JDK declaration when present.
+- `mise.toml`, `.java-version`, and `.tool-versions` provide a project-level JDK declaration when present.
 - Maven projects normally pin `java.version`, the compiler `release`, and sometimes an enforcer range in `pom.xml`.
 - Gradle projects normally pin `JavaLanguageVersion` or `jvmToolchain` in `build.gradle.kts`.
 
 These declarations should agree. For a generated starter, keep them as generated. For an existing Fluxzero project, preserve a supported Java 25-or-newer choice unless the user requested an upgrade. Do not lower a generated project's toolchain merely because `java` is missing or older on the host.
+
+Use a maintained JDK patch: early Java 25 builds have a virtual-thread timer bug (JDK-8370887).
+Building the SDK repository itself requires JDK 25.0.3 or newer; its `mise.toml` pins a development JDK.
+Run `mise install` and `mise exec -- ./mvnw -B install` when contributing to the SDK.
+IntelliJ's native compiler and JUnit runner use the configured project SDK, independently of mise's shell selection.
 
 ## Install only what is missing
 
