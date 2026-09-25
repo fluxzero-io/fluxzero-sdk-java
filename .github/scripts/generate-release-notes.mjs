@@ -149,7 +149,28 @@ function resolvePreviousTag(configuredTag, releaseTag, ref, allowFallback) {
     .map(normalize)
     .filter(Boolean)
     .filter((tag) => tag !== releaseTag)
+    // Git version sorting puts 2.0.0-rc.20 above 2.0.0. Stable releases must
+    // compare against an earlier stable release, including on tagged reruns.
+    .filter((tag) => !isStableTag(releaseTag) || isEarlierStableTag(tag, releaseTag))
     .at(0) || '';
+}
+
+function isStableTag(tag) {
+  return /^\d+\.\d+\.\d+$/.test(tag);
+}
+
+function isEarlierStableTag(tag, releaseTag) {
+  if (!isStableTag(tag)) {
+    return false;
+  }
+  const candidate = tag.split('.').map(BigInt);
+  const release = releaseTag.split('.').map(BigInt);
+  for (let i = 0; i < release.length; i++) {
+    if (candidate[i] !== release[i]) {
+      return candidate[i] < release[i];
+    }
+  }
+  return false;
 }
 
 function tagExists(tag) {

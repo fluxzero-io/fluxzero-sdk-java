@@ -63,3 +63,17 @@ bash .github/scripts/resolve-release-version.test.sh
 
 This validates commit-based patch/minor selection, breaking-change guards, first-major releases, reruns, milestones, release candidates and exceptional maintenance
 patches without creating tags or publishing artifacts.
+
+## Release notes
+
+Stable release notes compare against the highest earlier stable tag reachable from the release commit, including
+tags from the previous major. Prereleases are excluded from that automatic stable baseline. Tagged reruns use the
+same selection as first publication. The generator's explicit `PREVIOUS_TAG` override remains available for an
+intentional custom comparison; prerelease generation retains its existing tag selection.
+
+The generated commit list is a starting point for release notes. Review the final release diff and edit the published
+description when intermediate commits describe behavior that was changed again before publication. Include directly
+pushed changes as well as pull requests, and verify the comparison link against the preceding release.
+
+Run `node --test .github/scripts/generate-release-notes.test.mjs` to check release-note boundaries in temporary Git
+repositories without publishing artifacts.

@@ -70,19 +70,15 @@ jobs:
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 
+      - name: Test release notes
+        run: node --test .github/scripts/generate-release-notes.test.mjs
+
       - name: Find existing release tag
         id: existing_tag
         run: |
           tag=$(git tag --points-at "$GITHUB_SHA" --sort=-version:refname \
             | awk '/^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$/ { print; exit }')
-          previous_tag=""
-          if [ -n "$tag" ]; then
-            previous_tag=$(git tag --merged "$GITHUB_SHA" --sort=-version:refname \
-              | awk -v current="$tag" \
-                '/^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$/ && $0 != current { print; exit }')
-          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "previous_tag=$previous_tag" >> "$GITHUB_OUTPUT"
 
       - name: Resolve allowed release version
         id: release_version
@@ -125,7 +121,6 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.tag_version.outputs.new_version }}
           RELEASE_TAG: ${{ steps.tag_version.outputs.new_tag }}
-          PREVIOUS_TAG: ${{ steps.existing_tag.outputs.previous_tag || steps.tag_version.outputs.previous_tag }}
           CURRENT_REF: ${{ github.sha }}
           CUSTOM_RELEASE_RULES: "deps:patch:Dependency updates"
           RELEASE_NOTES_PATH: target/release-notes.md
