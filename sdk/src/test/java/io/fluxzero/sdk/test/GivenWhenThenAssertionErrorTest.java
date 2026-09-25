@@ -40,13 +40,13 @@ class GivenWhenThenAssertionErrorTest {
 
     @Test
     void includesTraceWithoutMavenProperty() {
-        withMavenProperty(null, () -> withTrace("Test trace:\n\nwhen\n- COMMAND Example\n", () -> {
+        withMavenProperty(null, () -> withSunJavaCommand("standalone runner", () -> withTrace("Test trace:\n\nwhen\n- COMMAND Example\n", () -> {
             GivenWhenThenAssertionError error = new GivenWhenThenAssertionError(
                     "Published messages did not match", List.of("expected"), List.of("actual"));
 
             assertEquals("Published messages did not match\n\nTest trace:\n\nwhen\n- COMMAND Example\n",
                          error.getMessage());
-        }));
+        })));
     }
 
     @Test

@@ -193,13 +193,13 @@ class TimeoutTest {
     }
 
     @Test
-    void defaultRequestHandlerCompletesPendingRequestsWhenClosed() throws Exception {
+    void immediateShutdownCompletesPendingRequestsWhenClosed() throws Exception {
         class UnhandledRequest { }
 
         TestFixture fixture = TestFixture.create();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
-                "timeout-close-test");
+                "timeout-close-test").withShutdownTimeout(() -> Duration.ZERO);
         SerializedMessage request = new SerializedMessage(
                 new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());

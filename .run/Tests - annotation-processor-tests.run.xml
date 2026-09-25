@@ -14,11 +14,11 @@
   -->
 
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Tests - annotation-processor-tests" type="JUnit" factoryName="JUnit" folderName="Module tests">
+  <configuration default="false" name="Tests - annotation-processor-tests" type="JUnit" factoryName="JUnit" printAsyncStackTraceForExceptions="false" folderName="Module tests">
     <module name="annotation-processor-tests" />
     <option name="PACKAGE_NAME" value="io.fluxzero" />
     <option name="TEST_OBJECT" value="package" />
-    <option name="VM_PARAMETERS" value="-ea -Xmx768m -Djunit.jupiter.extensions.autodetection.enabled=true -Djunit.jupiter.execution.parallel.enabled=true -Djunit.jupiter.execution.parallel.mode.default=same_thread -Djunit.jupiter.execution.parallel.mode.classes.default=concurrent -Djunit.jupiter.execution.parallel.config.strategy=fixed -Djunit.jupiter.execution.parallel.config.fixed.parallelism=2 -Djunit.jupiter.execution.parallel.config.executor-service=WORKER_THREAD_POOL" />
+    <option name="VM_PARAMETERS" value="-ea -Xmx768m -XX:TieredStopAtLevel=1 -Djunit.jupiter.extensions.autodetection.enabled=true -Djunit.jupiter.execution.parallel.enabled=true -Djunit.jupiter.execution.parallel.mode.default=same_thread -Djunit.jupiter.execution.parallel.mode.classes.default=concurrent -Djunit.jupiter.execution.parallel.config.strategy=fixed -Djunit.jupiter.execution.parallel.config.fixed.parallelism=2 -Djunit.jupiter.execution.parallel.config.executor-service=WORKER_THREAD_POOL" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/annotation-processor-tests" />
     <option name="TEST_SEARCH_SCOPE"><value defaultName="singleModule" /></option>
     <method v="2"><option name="Make" enabled="true" /></method>

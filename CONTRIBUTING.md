@@ -18,6 +18,8 @@ The full build runs every test, including the Java/Kotlin downstream projects.
 The SDK uses four isolated test JVMs; Test Server and Proxy use two each, and
 smaller modules use one. Each JVM has a 768 MiB heap cap. Use `-Dtest.forks=1`
 on a smaller machine, or override JVM options with `-Dtest.jvmArgs="-Xmx768m ..."`.
+The CI workflows use one fork per module for runners with few cores. Each fork runs at most two test classes;
+waiting tests do not create additional JUnit workers. Methods remain sequential unless a test explicitly opts into concurrency.
 Nested JUnit tests run through their enclosing class, not again as independent
 fork roots. Targeted commands such as `./mvnw -pl sdk -am test` continue to run tests.
 
@@ -32,8 +34,14 @@ Import the root Maven project with a Java 25+ project SDK. Use IntelliJ's Java c
 each module's before-launch Build step uses IntelliJ's compiler. Results appear in a separate test tab per module.
 Module-specific classpaths and working directories keep their test services and model catalogs isolated.
 
-The SDK runs four test classes concurrently; the other modules run two each. Methods within a class stay sequential.
-Each JVM enables fixture cleanup failure reporting and has a 768 MiB heap cap. The **Module tests** folder contains
+The SDK runs one test class per two available processors (at least one); the other modules run two each.
+Methods remain sequential unless a test explicitly opts into concurrency. These short-lived module runs use `-XX:TieredStopAtLevel=1` to avoid
+spending their lifetime on higher-tier JIT compilation. Maven and **All tests sequential** retain normal tiered
+compilation; use those for validation with the full optimizing JVM and use separate benchmark configurations
+for performance measurements.
+Each JVM enables fixture cleanup failure reporting and has a 768 MiB heap cap. The shared test configurations disable
+IntelliJ's extra async exception stack capture for ordinary Run sessions; this avoids instrumenting every future just
+to run tests. Normal exception stack traces and Debug sessions remain available. The **Module tests** folder contains
 the individual configurations. Use **All tests sequential** to run the modules sequentially with a single results tree when
 memory is constrained. Java/Kotlin downstream artifact checks run through `./mvnw -B install`.
 
@@ -42,6 +50,9 @@ that differ from the shared file: each launched test JVM should contain
 `-Djunit.jupiter.execution.parallel.enabled=true` and `-Djunit.jupiter.extensions.autodetection.enabled=true`.
 Keep the fixture cleanup extension enabled so cleanup failures fail their owning test. If compiled classes are stale
 after a branch switch, use **Build → Rebuild Project**.
+
+The test console prints WARN and ERROR events by default; INFO events remain enabled for logging assertions.
+Use `-Dtest.console.level=INFO` to include fixture lifecycle and diagnostic traces in the console.
 
 ## Open a pull request
 

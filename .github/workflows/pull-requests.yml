@@ -39,7 +39,7 @@ jobs:
           python3 .github/scripts/build-agent-docs.test.py
 
       - name: Run Maven build
-        run: ./mvnw -B install
+        run: ./mvnw -B -Dtest.forks=1 install
 
       - name: Preserve test reports and output
         if: always()
