@@ -2,6 +2,12 @@
 
 Instructions for coding agents working in this repository.
 
+## Worktrees
+
+- Make changes in a dedicated Git worktree under `.worktrees/<short-name>/` in the main checkout, starting from the latest local `main` commit unless instructed otherwise. Keep the main checkout available for other work.
+- Use short descriptive branch names with prefixes such as `fix/`, `feature/`, `docs/`, or `chore/`; never use `codex/`.
+- `.worktrees/` is ignored by the parent checkout. Each worktree keeps its own Git index, so this does not prevent tracking files inside the worktree.
+
 ## Project Shape
 
 This is the Fluxzero Java SDK, built as a Maven multi-module project.
