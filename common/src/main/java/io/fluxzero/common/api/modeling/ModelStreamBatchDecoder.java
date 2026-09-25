@@ -16,11 +16,9 @@
 
 package io.fluxzero.common.api.modeling;
 
+import io.fluxzero.common.serialization.MessagePackIO;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import lombok.SneakyThrows;
-import org.msgpack.core.MessagePack;
-import org.msgpack.core.MessageUnpacker;
-import org.msgpack.core.buffer.ArrayBufferInput;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,8 +75,7 @@ public final class ModelStreamBatchDecoder {
             offset = 0;
             length = decoded.length;
         }
-        try (MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(
-                new ArrayBufferInput(decoded, offset, length))) {
+        try (MessagePackIO.Reader unpacker = new MessagePackIO.Reader(decoded, offset, length)) {
             T result = decoder.decode(unpacker);
             if (unpacker.hasNext()) {
                 throw new IllegalStateException("Unexpected trailing model stream batch data");
@@ -87,7 +84,7 @@ public final class ModelStreamBatchDecoder {
         }
     }
 
-    private static List<Entry> decodeEntries(MessageUnpacker unpacker) throws Exception {
+    private static List<Entry> decodeEntries(MessagePackIO.Reader unpacker) throws Exception {
         int count = unpacker.unpackArrayHeader();
         if (count <= 0) {
             throw new IllegalStateException("A model stream batch must contain an entry");
@@ -118,7 +115,7 @@ public final class ModelStreamBatchDecoder {
         return List.copyOf(result);
     }
 
-    private static List<LogicalMembership> decodeLogicalMemberships(MessageUnpacker unpacker) throws Exception {
+    private static List<LogicalMembership> decodeLogicalMemberships(MessagePackIO.Reader unpacker) throws Exception {
         int count = unpacker.unpackArrayHeader();
         if (count <= 0 || count > 1024) {
             throw new IllegalStateException("A v8 membership block must contain between 1 and 1024 entries");
@@ -142,7 +139,7 @@ public final class ModelStreamBatchDecoder {
 
     @FunctionalInterface
     private interface Decoder<T> {
-        T decode(MessageUnpacker unpacker) throws Exception;
+        T decode(MessagePackIO.Reader unpacker) throws Exception;
     }
 
     interface Membership {
@@ -157,7 +154,7 @@ public final class ModelStreamBatchDecoder {
     private record LogicalMembership(String modelId, long sequenceNumber, long stateIndex, long readStateIndex,
                                      String commitId, int substep) implements Membership {}
 
-    private static String unpackNullableString(MessageUnpacker unpacker) throws Exception {
+    private static String unpackNullableString(MessagePackIO.Reader unpacker) throws Exception {
         return unpacker.tryUnpackNil() ? null : unpacker.unpackString();
     }
 

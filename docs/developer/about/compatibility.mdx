@@ -25,7 +25,12 @@ that capability remain compatible and can upgrade the two components independent
 ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
 The SDK uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
-It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+Document and legacy message encoding uses bounds-checked Java array operations. Existing MessagePack storage
+and transport representations remain unchanged; applications need no migration or JVM-wide MessagePack property.
+The upstream MessagePack library is used only as a test reference and is no longer a transitive runtime dependency.
+Applications that directly use `org.msgpack` classes must declare `org.msgpack:msgpack-core` explicitly.
+
+The SDK also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
 native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
 outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
 supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
@@ -55,7 +60,10 @@ Java and Kotlin projects must target JVM 25 or newer. SDK artifacts are compiled
 requires JDK 25.0.3 or newer before compilation to avoid the virtual-thread timer bug
 [JDK-8370887](https://github.com/openjdk/jdk/pull/28469). Use a maintained Java 25 patch for both Java and Kotlin
 applications. The SDK repository pins its development JDK in `mise.toml`; CI selects the latest Temurin 25 patch.
-No preview features are required.
+No preview features are required. Builds on newer JDKs must keep `maven.compiler.release=25` and the Kotlin JVM
+target at 25. Lombok 1.18.48 or newer is required when compiling on JDK 26 to avoid a runtime dependency from
+`@SneakyThrows`-generated code.
+This requirement does not change the Java baseline of the SDK 1.x release line.
 
 ---
 
@@ -68,7 +76,6 @@ No preview features are required.
 | `com.fasterxml.jackson.core:jackson-databind`            | runtime |
 | `com.fasterxml.jackson.datatype:jackson-datatype-jsr310` | runtime |
 | `com.fasterxml.jackson.datatype:jackson-datatype-jdk8`   | runtime |
-| `org.msgpack:msgpack-core`                               | runtime |
 | `at.yawk.lz4:lz4-java`                                          | runtime |
 | `com.github.luben:zstd-jni`                                       | runtime |
 

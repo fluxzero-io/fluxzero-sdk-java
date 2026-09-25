@@ -71,6 +71,12 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Reference codec used only by compatibility tests. -->
+            <dependency>
+                <groupId>org.msgpack</groupId>
+                <artifactId>msgpack-core</artifactId>
+                <version>0.9.12</version>
+            </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
@@ -200,6 +206,8 @@
                             <include>**</include>
                         </includes>
                         <systemPropertyVariables>
+                            <!-- Select the bounds-checked upstream codec for compatibility fixtures only. -->
+                            <msgpack.universal-buffer>true</msgpack.universal-buffer>
                             <fluxzero.maven.enabled>true</fluxzero.maven.enabled>
                         </systemPropertyVariables>
                         <forkCount>${test.forks}</forkCount>

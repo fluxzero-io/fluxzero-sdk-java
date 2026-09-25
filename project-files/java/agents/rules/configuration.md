@@ -135,7 +135,12 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
 Used for production and shared environments. It connects to a remote Fluxzero Runtime via WebSockets.
 
 The SDK uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
-It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
+Document and legacy message encoding uses bounds-checked Java array operations. Existing MessagePack storage
+and transport representations remain unchanged; applications need no migration or JVM-wide MessagePack property.
+The upstream MessagePack library is used only as a test reference and is no longer a transitive runtime dependency.
+Applications that directly use `org.msgpack` classes must declare `org.msgpack:msgpack-core` explicitly.
+
+The SDK also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
 native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
 outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
 supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
