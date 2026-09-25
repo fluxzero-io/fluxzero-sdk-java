@@ -42,7 +42,7 @@ class ApplicationPropertiesTest {
         testFixture.whenApplying(fc -> ApplicationProperties.getProperty("foo2"))
                 .expectResult("bar2")
                 .andThen()
-                .whenApplying(fc -> ApplicationProperties.getProperty("foo"))
+                .whenApplying(fc -> ApplicationProperties.getProperty("sdk.foo"))
                 .expectResult("barOverride");
     }
 

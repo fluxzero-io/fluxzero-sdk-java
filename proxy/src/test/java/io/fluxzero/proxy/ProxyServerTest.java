@@ -59,6 +59,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -119,6 +120,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Slf4j
 @Execution(ExecutionMode.SAME_THREAD)
+@Order(8) // Start expensive classes early in the shared parallel suite.
 class ProxyServerTest {
     private final TestFixture testFixture = TestFixture.createAsync();
     private final DelegatingClock jwtClock = new DelegatingClock();

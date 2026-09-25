@@ -20,6 +20,7 @@ import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.openapiauto.DocumentedPackageAutoHandler;
 import io.fluxzero.sdk.web.openapiauto.ExcludedPackageAutoHandler;
 import io.fluxzero.sdk.web.openapiauto.SecondDocumentedPackageAutoHandler;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -27,12 +28,23 @@ import java.util.LinkedHashSet;
 import java.util.function.Predicate;
 
 class OpenApiDocumentEndpointTest {
+    private final CompiledOpenApiApplication application = new CompiledOpenApiApplication();
+
+    @AfterEach
+    void closeApplication() throws Exception {
+        try {
+            TestFixture.shutDownActiveFixtures();
+        } finally {
+            application.close();
+        }
+    }
+
     @Test
-    void servesGeneratedDocumentForPackageScopedInstanceHandlers() {
+    void servesGeneratedDocumentForPackageScopedInstanceHandlers() throws Exception {
         TestFixture.create(
-                        new ExcludedPackageAutoHandler(),
-                        new SecondDocumentedPackageAutoHandler(),
-                        new DocumentedPackageAutoHandler())
+                        application.handler(ExcludedPackageAutoHandler.class),
+                        application.handler(SecondDocumentedPackageAutoHandler.class),
+                        application.handler(DocumentedPackageAutoHandler.class))
                 .whenGet("/packageAuto/openapi.json")
                 .expectWebResult(response -> {
                     String payload = response.getPayloadAs(String.class);
@@ -48,22 +60,22 @@ class OpenApiDocumentEndpointTest {
     }
 
     @Test
-    void packageScopedGeneratedDocumentEndpointsAreDeduplicatedByPath() {
+    void packageScopedGeneratedDocumentEndpointsAreDeduplicatedByPath() throws Exception {
         var endpoints = new LinkedHashSet<OpenApiDocumentEndpoint>();
-        endpoints.addAll(OpenApiDocumentEndpoint.forHandler(
-                DocumentedPackageAutoHandler.class, new DocumentedPackageAutoHandler()));
-        endpoints.addAll(OpenApiDocumentEndpoint.forHandler(
-                SecondDocumentedPackageAutoHandler.class, new SecondDocumentedPackageAutoHandler()));
+        Object first = application.handler(DocumentedPackageAutoHandler.class);
+        endpoints.addAll(OpenApiDocumentEndpoint.forHandler(first.getClass(), first));
+        Object second = application.handler(SecondDocumentedPackageAutoHandler.class);
+        endpoints.addAll(OpenApiDocumentEndpoint.forHandler(second.getClass(), second));
 
         org.junit.jupiter.api.Assertions.assertEquals(1, endpoints.size());
     }
 
     @Test
-    void registersPackageScopedApiReferenceEndpointOnlyOnce() {
+    void registersPackageScopedApiReferenceEndpointOnlyOnce() throws Exception {
         TestFixture.createAsync(
-                        new ExcludedPackageAutoHandler(),
-                        new SecondDocumentedPackageAutoHandler(),
-                        new DocumentedPackageAutoHandler())
+                        application.handler(ExcludedPackageAutoHandler.class),
+                        application.handler(SecondDocumentedPackageAutoHandler.class),
+                        application.handler(DocumentedPackageAutoHandler.class))
                 .resultTimeout(Duration.ofSeconds(1))
                 .consumerTimeout(Duration.ofSeconds(1))
                 .whenGet("/packageAuto/docs")

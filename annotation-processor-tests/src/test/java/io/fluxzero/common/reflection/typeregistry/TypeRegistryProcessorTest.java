@@ -20,8 +20,10 @@ import io.fluxzero.common.reflection.typeregistry.empty.inner.ChildOfEmpty;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import org.joor.CompileOptions;
 import org.joor.Reflect;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Order(4) // Start expensive classes early in the shared parallel suite.
 class TypeRegistryProcessorTest {
 
     @Test
@@ -55,6 +58,14 @@ class TypeRegistryProcessorTest {
 
     @TempDir
     Path temporary;
+
+    private final StandardJavaFileManager standard = ToolProvider.getSystemJavaCompiler()
+            .getStandardFileManager(null, null, null);
+
+    @AfterEach
+    void closeCompilerFiles() throws Exception {
+        standard.close();
+    }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
@@ -80,13 +91,15 @@ class TypeRegistryProcessorTest {
                 Files.readAllLines(output.resolve(TypeRegistryProcessor.TYPES_FILE)));
     }
 
-    private void compile(Path output, String name, String source, boolean zeroTimestamps) throws IOException {
+    private void compile(Path output, String name, String source, boolean zeroTimestamps) throws Exception {
         Files.createDirectories(output);
         Path file = temporary.resolve(name + ".java");
         Files.writeString(file, source);
         var compiler = ToolProvider.getSystemJavaCompiler();
-        try (var standard = compiler.getStandardFileManager(null, null, null);
-             var manager = new ForwardingJavaFileManager<StandardJavaFileManager>(standard) {
+        try (var manager = new ForwardingJavaFileManager<StandardJavaFileManager>(standard) {
+                 @Override public void close() {
+                     // The owning test closes the filesystem cache after all incremental compilation tasks.
+                 }
                  private FileObject wrap(FileObject file) {
                      return !zeroTimestamps ? file : new ForwardingFileObject<>(file) {
                          @Override public long getLastModified() { return 0L; }
@@ -105,9 +118,13 @@ class TypeRegistryProcessorTest {
                      return wrap(super.getFileForOutputForOriginatingFiles(location, pkg, relative, origins));
                  }
              }) {
+            // Only the annotation artifact is needed to compile these sources. Avoid scanning the entire IDE
+            // application classpath on every incremental step; the processor instance is supplied explicitly below.
+            String annotationClasspath = Path.of(io.fluxzero.common.serialization.RegisterType.class
+                    .getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
             // Existing output is intentionally absent from the classpath, as in incremental IDE compilation.
             var task = compiler.getTask(null, manager, null,
-                    List.of("-classpath", System.getProperty("java.class.path"), "-d", output.toString()),
+                    List.of("--limit-modules", "java.base", "-classpath", annotationClasspath, "-d", output.toString()),
                     null, standard.getJavaFileObjects(file));
             task.setProcessors(List.of(new TypeRegistryProcessor()));
             assertTrue(task.call());

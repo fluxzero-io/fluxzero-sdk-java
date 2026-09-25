@@ -37,7 +37,7 @@ class OpenApiProcessorTest {
     @Test
     void generatesOpenApiDocumentDuringCompilation() throws IOException {
         byte[] json;
-        try (var input = getClass().getClassLoader().getResourceAsStream(OpenApiProcessor.DEFAULT_OUTPUT)) {
+        try (var input = getClass().getClassLoader().getResourceAsStream(CompiledOpenApiApplication.DOCUMENT)) {
             assertNotNull(input);
             json = input.readAllBytes();
         }

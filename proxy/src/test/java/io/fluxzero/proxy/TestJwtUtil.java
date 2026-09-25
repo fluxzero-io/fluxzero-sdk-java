@@ -17,8 +17,10 @@ package io.fluxzero.proxy;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
+import java.security.KeyFactory;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPublicKeySpec;
+import java.security.interfaces.RSAPrivateCrtKey;
 import java.security.Signature;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
@@ -28,7 +30,8 @@ import java.util.Map;
 
 public final class TestJwtUtil {
 
-    private static final SecureRandom secureRandom = new SecureRandom();
+    // This deliberately public test key exercises real RSA signing/verification without random prime generation.
+    private static final KeyPair keyPair = loadTestKey();
 
     public static Map.Entry<String, String> create(String subject, String kid) {
         return create(subject, kid, null);
@@ -36,11 +39,6 @@ public final class TestJwtUtil {
 
     public static Map.Entry<String, String> create(String subject, String kid, Instant expiresAt) {
         try {
-            // Generate RSA keypair
-            KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-            kpg.initialize(2048, secureRandom);
-            KeyPair keyPair = kpg.generateKeyPair();
-
             RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
             RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
 
@@ -102,6 +100,25 @@ public final class TestJwtUtil {
 
         } catch (Exception ex) {
             throw new RuntimeException("Failed to create test JWT", ex);
+        }
+    }
+
+    private static KeyPair loadTestKey() {
+        try (var input = TestJwtUtil.class.getResourceAsStream("/jwt/test-only-private-key.pem")) {
+            if (input == null) {
+                throw new IllegalStateException("Missing test-only RSA key");
+            }
+            String pem = new String(input.readAllBytes(), StandardCharsets.US_ASCII)
+                    .replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "")
+                    .replaceAll("\\s", "");
+            KeyFactory factory = KeyFactory.getInstance("RSA");
+            var privateKey = (RSAPrivateCrtKey) factory.generatePrivate(
+                    new PKCS8EncodedKeySpec(Base64.getDecoder().decode(pem)));
+            var publicKey = factory.generatePublic(
+                    new RSAPublicKeySpec(privateKey.getModulus(), privateKey.getPublicExponent()));
+            return new KeyPair(publicKey, privateKey);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
         }
     }
 

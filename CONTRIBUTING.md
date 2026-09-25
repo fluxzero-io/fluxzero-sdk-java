@@ -11,14 +11,22 @@ Clone the repository and run the full build:
 ```shell
 git clone https://github.com/fluxzero-io/fluxzero-sdk-java.git
 cd fluxzero-sdk-java
-./mvnw -B install
+mise install
+mise exec -- ./mvnw -B install
 ```
+
+`mise.toml` pins the development JDK. With `mise activate zsh` configured in your shell,
+mise selects it automatically in this directory. Alternatively, set `JAVA_HOME` to JDK 25.0.3 or
+newer and run `./mvnw` directly. Maven rejects older JDKs because early Java 25 builds contain
+[JDK-8370887](https://github.com/openjdk/jdk/pull/28469), which can delay virtual-thread timers.
+The compiler still targets Java 25. Updating Homebrew's Java does not update independently
+installed IntelliJ SDKs or the environment of already-running processes.
 
 The full build runs every test, including the Java/Kotlin downstream projects.
 The SDK uses four isolated test JVMs; Test Server and Proxy use two each, and
 smaller modules use one. Each JVM has a 768 MiB heap cap. Use `-Dtest.forks=1`
 on a smaller machine, or override JVM options with `-Dtest.jvmArgs="-Xmx768m ..."`.
-The CI workflows use one fork per module for runners with few cores. Each fork runs at most two test classes;
+The CI workflows select the latest Temurin 25 patch and use one fork per module for runners with few cores. Each fork runs at most two test classes;
 waiting tests do not create additional JUnit workers. Methods remain sequential unless a test explicitly opts into concurrency.
 Nested JUnit tests run through their enclosing class, not again as independent
 fork roots. Targeted commands such as `./mvnw -pl sdk -am test` continue to run tests.
@@ -29,21 +37,25 @@ Assertion failures and build status remain visible in the Maven console.
 
 ## IntelliJ IDEA
 
-Import the root Maven project with a Java 25+ project SDK. Use IntelliJ's Java compiler and the shared
-**All tests** compound configuration. It starts the five SDK test modules concurrently in separate JVMs;
-each module's before-launch Build step uses IntelliJ's compiler. Results appear in a separate test tab per module.
-Module-specific classpaths and working directories keep their test services and model catalogs isolated.
+Import the root Maven project with a Java 25.0.3+ project SDK. `mise where java` prints the pinned
+installation directory; on macOS, select its `Contents/Home` directory as the IntelliJ project SDK.
+IntelliJ's own JUnit runner does not execute Maven's version check or automatically use mise's shell environment.
+Use IntelliJ's Java compiler and the shared
+**All tests** JUnit configuration. It runs the five SDK test modules in one Run tab with one results tree,
+a single rerun action, and a single stop action. The fixed project working directory lets IntelliJ use one
+JVM for the entire project. Test classes run in parallel across module boundaries. Test resources and model
+names must therefore coexist on the same classpath; tests that install global service providers use their own
+bounded child JVM to keep those providers out of other tests.
 
-The SDK runs one test class per two available processors (at least one); the other modules run two each.
-Methods remain sequential unless a test explicitly opts into concurrency. These short-lived module runs use `-XX:TieredStopAtLevel=1` to avoid
-spending their lifetime on higher-tier JIT compilation. Maven and **All tests sequential** retain normal tiered
-compilation; use those for validation with the full optimizing JVM and use separate benchmark configurations
-for performance measurements.
-Each JVM enables fixture cleanup failure reporting and has a 768 MiB heap cap. The shared test configurations disable
-IntelliJ's extra async exception stack capture for ordinary Run sessions; this avoids instrumenting every future just
-to run tests. Normal exception stack traces and Debug sessions remain available. The **Module tests** folder contains
-the individual configurations. Use **All tests sequential** to run the modules sequentially with a single results tree when
-memory is constrained. Java/Kotlin downstream artifact checks run through `./mvnw -B install`.
+The run uses one test class per available processor, with a bounded worker pool.
+Methods remain sequential unless a test explicitly opts into concurrency. The short-lived test JVM uses
+`-XX:TieredStopAtLevel=1` to avoid spending its lifetime on higher-tier JIT compilation. Maven and
+**All tests (full JIT)** retain normal tiered compilation; use those for validation with the full optimizing JVM
+and use separate benchmark configurations for performance measurements.
+The shared configurations enable fixture cleanup failure reporting and use a 2 GiB test heap. The shared test configurations disable
+IntelliJ's extra async exception stack capture for ordinary Run sessions. Normal exception stack traces and Debug
+sessions remain available. Individual module configurations are available in **Module tests** for focused work.
+Java/Kotlin downstream artifact checks run through `./mvnw -B install`.
 
 After changing branches, check the active configuration if execution appears sequential. IntelliJ can retain options
 that differ from the shared file: each launched test JVM should contain

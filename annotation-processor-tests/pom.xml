@@ -18,6 +18,21 @@
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
 
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- This test application must not merge its API metadata with the proxy demo application. -->
+                    <compilerArgs>
+                        <arg>-Afluxzero.openapi.output=META-INF/fluxzero/processor-test-openapi.json</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
     <dependencies>
         <dependency>
             <groupId>io.fluxzero</groupId>

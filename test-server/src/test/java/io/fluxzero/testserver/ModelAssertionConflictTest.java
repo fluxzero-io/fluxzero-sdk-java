@@ -105,7 +105,7 @@ class ModelAssertionConflictTest {
         }
     }
 
-    @Model record Owner(@EntityId String id, @Member List<Item> items) {}
+    @Model(name = "ModelAssertionConflictTest.Owner") record Owner(@EntityId String id, @Member List<Item> items) {}
     @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.CLASS)
     interface Item { @EntityId String itemId(); }
     record ConcreteItem(String itemId, int observation) implements Item {
@@ -176,8 +176,8 @@ class ModelAssertionConflictTest {
         });
     }
 
-    @Model record Product(@EntityId String productId, boolean active) {}
-    @Model record Reservation(@EntityId String reservationId,
+    @Model(name = "ModelAssertionConflictTest.Product") record Product(@EntityId String productId, boolean active) {}
+    @Model(name = "ModelAssertionConflictTest.Reservation") record Reservation(@EntityId String reservationId,
                               @Parent(value = Product.class, pathInParent = "reservations") String productId) {}
     record SetProduct(String productId, boolean active) {
         @Apply Product apply(@Nullable Product previous) { return new Product(productId, active); }
