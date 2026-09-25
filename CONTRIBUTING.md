@@ -48,6 +48,9 @@ memory is constrained. Java/Kotlin downstream artifact checks run through `./mvn
 After changing branches, check the active configuration if execution appears sequential. IntelliJ can retain options
 that differ from the shared file: each launched test JVM should contain
 `-Djunit.jupiter.execution.parallel.enabled=true` and `-Djunit.jupiter.extensions.autodetection.enabled=true`.
+If Git worktrees live inside the project directory, mark their parent directory as **Excluded** in IntelliJ.
+Otherwise IntelliJ also discovers their shared run configurations, whose identical names can select options from
+another checkout. Reopen the project after correcting exclusions and select **All tests** again.
 Keep the fixture cleanup extension enabled so cleanup failures fail their owning test. If compiled classes are stale
 after a branch switch, use **Build → Rebuild Project**.
 
