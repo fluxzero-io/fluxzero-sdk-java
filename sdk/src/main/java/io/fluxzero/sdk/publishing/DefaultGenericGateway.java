@@ -88,6 +88,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     };
     private volatile PreparedDispatchEntry lastPreparedDispatch;
 
+    private Guarantee defaultGuarantee = Guarantee.NONE;
+
     private final Map<String, CompletableFuture<?>> callbacks = new ConcurrentHashMap<>();
 
     public DefaultGenericGateway(Client client, GatewayClient gatewayClient, RequestHandler requestHandler,
@@ -114,7 +116,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return client == clientForNamespace ? this
                 : new DefaultGenericGateway(clientForNamespace, clientForNamespace.getGatewayClient(messageType, topic),
                                             requestHandlerForNamespace, serializer, dispatchInterceptor,
-                                            messageType, topic, localHandlerRegistry, responseMapper);
+                                            messageType, topic, localHandlerRegistry, responseMapper)
+                        .withDefaultGuarantee(defaultGuarantee);
     }
 
     @Override
@@ -126,6 +129,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @Override
     public CompletableFuture<Void> sendAndForget(Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
                                                  Message... messages) {
+        guarantee = guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
         List<SerializedMessage> serializedMessages = new ArrayList<>();
         for (Message message : messages) {
             Message original = message;
@@ -531,6 +535,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         boolean isExternal() {
             return serializedMessage != null;
         }
+    }
+
+    /**
+     * Configures the concrete application delivery default before first use. Namespace gateways inherit this value.
+     * The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.
+     *
+     * @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed
+     * @return this gateway
+     */
+    public DefaultGenericGateway withDefaultGuarantee(Guarantee guarantee) {
+        if (Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
     }
 
     @Override

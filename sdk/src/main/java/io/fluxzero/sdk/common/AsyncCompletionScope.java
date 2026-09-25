@@ -17,6 +17,7 @@ package io.fluxzero.sdk.common;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
 
 /**
@@ -45,6 +46,23 @@ public final class AsyncCompletionScope {
      * @param task the task that may register asynchronous completion work
      */
     public static void runAndAwait(Runnable task) {
+        runAndAwait(task, false);
+    }
+
+    /**
+     * Runs a task and awaits its asynchronous work before committing progress.
+     * <p>
+     * Unlike {@link #runAndAwait(Runnable)}, a completion failure takes precedence over a task failure. In particular,
+     * a task that intentionally stops partway through a batch must not authorize a partial position commit when
+     * asynchronous work for earlier messages has failed. The task failure is retained as a suppressed exception.
+     *
+     * @param task task whose registered asynchronous work must complete successfully before progress is committed
+     */
+    public static void runAndAwaitBeforeCommit(Runnable task) {
+        runAndAwait(task, true);
+    }
+
+    private static void runAndAwait(Runnable task, boolean beforeCommit) {
         Scope scope = new Scope();
         ScopeStack previous = scopes.get();
         scopes.set(new ScopeStack(scope, previous));
@@ -61,8 +79,13 @@ public final class AsyncCompletionScope {
             }
         }
         Throwable waitFailure = scope.await();
+        if (beforeCommit && taskFailure != null && waitFailure != null) {
+            CompletionException failure = new CompletionException("Asynchronous batch completion failed", waitFailure);
+            failure.addSuppressed(taskFailure);
+            throw failure;
+        }
         if (taskFailure != null) {
-            if (waitFailure != null) {
+            if (waitFailure != null && waitFailure != taskFailure) {
                 taskFailure.addSuppressed(waitFailure);
             }
             throwUnchecked(taskFailure);
@@ -162,24 +185,42 @@ public final class AsyncCompletionScope {
         }
 
         Throwable await() {
-            List<Completion> snapshot;
-            synchronized (this) {
-                snapshot = List.copyOf(completions);
-            }
-            if (snapshot.isEmpty()) {
-                return null;
-            }
+            List<Runnable> callbacks = null;
             Throwable waitFailure = null;
-            try {
-                CompletableFuture.allOf(snapshot.stream()
-                                                .map(Completion::future)
-                                                .toArray(CompletableFuture[]::new)).join();
-            } catch (Throwable e) {
-                waitFailure = e;
+            while (true) {
+                List<Completion> snapshot;
+                synchronized (this) {
+                    if (completions.isEmpty()) {
+                        break;
+                    }
+                    snapshot = List.copyOf(completions);
+                    completions.clear();
+                }
+                for (Completion completion : snapshot) {
+                    if (completion.afterCompletion() != null) {
+                        if (callbacks == null) {
+                            callbacks = new ArrayList<>();
+                        }
+                        callbacks.add(completion.afterCompletion());
+                    }
+                }
+                try {
+                    CompletableFuture.allOf(snapshot.stream()
+                                                    .map(Completion::future)
+                                                    .toArray(CompletableFuture[]::new)).join();
+                } catch (Throwable e) {
+                    if (waitFailure == null) {
+                        waitFailure = e;
+                    } else if (waitFailure != e) {
+                        waitFailure.addSuppressed(e);
+                    }
+                }
+                // Framework workers may register publications before completing their registered invocation future.
+                // Drain those additions too, rather than committing after only the first snapshot has completed.
             }
-            Throwable callbackFailure = runCompletionCallbacks(snapshot);
+            Throwable callbackFailure = runCompletionCallbacks(callbacks);
             if (waitFailure != null) {
-                if (callbackFailure != null) {
+                if (callbackFailure != null && callbackFailure != waitFailure) {
                     waitFailure.addSuppressed(callbackFailure);
                 }
                 return waitFailure;
@@ -187,18 +228,18 @@ public final class AsyncCompletionScope {
             return callbackFailure;
         }
 
-        private Throwable runCompletionCallbacks(List<Completion> snapshot) {
+        private Throwable runCompletionCallbacks(List<Runnable> callbacks) {
             Throwable failure = null;
-            for (Completion completion : snapshot) {
-                if (completion.afterCompletion() == null) {
-                    continue;
-                }
+            if (callbacks == null) {
+                return null;
+            }
+            for (Runnable callback : callbacks) {
                 try {
-                    completion.afterCompletion().run();
+                    callback.run();
                 } catch (Throwable e) {
                     if (failure == null) {
                         failure = e;
-                    } else {
+                    } else if (failure != e) {
                         failure.addSuppressed(e);
                     }
                 }

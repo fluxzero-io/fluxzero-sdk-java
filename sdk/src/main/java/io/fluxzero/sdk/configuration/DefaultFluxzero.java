@@ -957,14 +957,22 @@ public class DefaultFluxzero implements Fluxzero {
 
 
             //create gateways
+            var deliveryGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource);
+            UnaryOperator<GenericGateway> configureDelivery = gateway -> {
+                if (gateway instanceof DefaultGenericGateway defaultGateway) {
+                    defaultGateway.withDefaultGuarantee(deliveryGuarantee);
+                }
+                return gateway;
+            };
             RequestHandler defaultRequestHandler = new DefaultRequestHandler(client, RESULT);
 
             //enable error reporter as the outermost handler interceptor
             ErrorGateway errorGateway =
-                    new DefaultErrorGateway(createRequestGateway(client, ERROR, null, defaultRequestHandler,
-                                                                 dispatchChains, handlerChains,
-                                                                 runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                 repositorySupplier, defaultResponseMapper));
+                    new DefaultErrorGateway(configureDelivery.apply(createRequestGateway(
+                            client, ERROR, null, defaultRequestHandler,
+                            dispatchChains, handlerChains,
+                            runtimeParameterResolvers, handlerRepositorySupplier,
+                            repositorySupplier, defaultResponseMapper)));
             if (!disableErrorReporting) {
                 ErrorReportingInterceptor interceptor = new ErrorReportingInterceptor(errorGateway);
                 Arrays.stream(MessageType.values())
@@ -975,38 +983,43 @@ public class DefaultFluxzero implements Fluxzero {
                                                                    serializer, dispatchChains.get(RESULT),
                                                                    defaultResponseMapper);
             CommandGateway commandGateway =
-                    new DefaultCommandGateway(createRequestGateway(client, COMMAND, null, defaultRequestHandler,
-                                                                   dispatchChains, handlerChains,
-                                                                   runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                   repositorySupplier, defaultResponseMapper));
+                    new DefaultCommandGateway(configureDelivery.apply(createRequestGateway(
+                            client, COMMAND, null, defaultRequestHandler,
+                            dispatchChains, handlerChains,
+                            runtimeParameterResolvers, handlerRepositorySupplier,
+                            repositorySupplier, defaultResponseMapper)));
             QueryGateway queryGateway =
-                    new DefaultQueryGateway(createRequestGateway(client, QUERY, null, defaultRequestHandler,
-                                                                 dispatchChains, handlerChains,
-                                                                 runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                 repositorySupplier, defaultResponseMapper));
+                    new DefaultQueryGateway(configureDelivery.apply(createRequestGateway(
+                            client, QUERY, null, defaultRequestHandler,
+                            dispatchChains, handlerChains,
+                            runtimeParameterResolvers, handlerRepositorySupplier,
+                            repositorySupplier, defaultResponseMapper)));
             EventGateway eventGateway =
-                    new DefaultEventGateway(createRequestGateway(client, EVENT, null, defaultRequestHandler,
-                                                                 dispatchChains, handlerChains,
-                                                                 runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                 repositorySupplier, defaultResponseMapper));
+                    new DefaultEventGateway(configureDelivery.apply(createRequestGateway(
+                            client, EVENT, null, defaultRequestHandler,
+                            dispatchChains, handlerChains,
+                            runtimeParameterResolvers, handlerRepositorySupplier,
+                            repositorySupplier, defaultResponseMapper)));
 
             MetricsGateway metricsGateway =
-                    new DefaultMetricsGateway(createRequestGateway(client, METRICS, null, defaultRequestHandler,
-                                                                   dispatchChains, handlerChains,
-                                                                   runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                   repositorySupplier, defaultResponseMapper));
+                    new DefaultMetricsGateway(configureDelivery.apply(createRequestGateway(
+                            client, METRICS, null, defaultRequestHandler,
+                            dispatchChains, handlerChains,
+                            runtimeParameterResolvers, handlerRepositorySupplier,
+                            repositorySupplier, defaultResponseMapper)));
 
             RequestHandler webRequestHandler = new DefaultRequestHandler(client, WEBRESPONSE);
             WebRequestGateway webRequestGateway =
-                    new DefaultWebRequestGateway(createRequestGateway(client, WEBREQUEST, null, webRequestHandler,
-                                                                      dispatchChains, handlerChains,
-                                                                      runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                      repositorySupplier, webResponseMapper), serializer,
+                    new DefaultWebRequestGateway(configureDelivery.apply(createRequestGateway(
+                            client, WEBREQUEST, null, webRequestHandler,
+                            dispatchChains, handlerChains,
+                            runtimeParameterResolvers, handlerRepositorySupplier,
+                            repositorySupplier, webResponseMapper)), serializer,
                                                  propertySource,
                                                  clientMetricsEnabled(client) ? metricsGateway : null);
-            Function<String, GenericGateway> customGateways = memoize(topic -> createRequestGateway(
+            Function<String, GenericGateway> customGateways = memoize(topic -> configureDelivery.apply(createRequestGateway(
                     client, CUSTOM, topic, defaultRequestHandler, dispatchChains, handlerChains,
-                    runtimeParameterResolvers, handlerRepositorySupplier, repositorySupplier, defaultResponseMapper));
+                    runtimeParameterResolvers, handlerRepositorySupplier, repositorySupplier, defaultResponseMapper)));
 
 
             //tracking
