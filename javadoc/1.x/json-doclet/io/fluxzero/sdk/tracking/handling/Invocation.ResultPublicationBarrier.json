@@ -1,0 +1,63 @@
+{
+  "name" : "ResultPublicationBarrier",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "completions",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier.completions",
+    "type" : "java.util.List<java.util.concurrent.CompletableFuture<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ResultPublicationBarrier",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier#ResultPublicationBarrier",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier#add",
+    "returnType" : "void",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completion",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation$ResultPublicationBarrier#completion",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

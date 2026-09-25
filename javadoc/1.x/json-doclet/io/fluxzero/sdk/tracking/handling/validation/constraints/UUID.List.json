@@ -1,0 +1,42 @@
+{
+  "name" : "List",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID$List",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.constraints",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Container annotation for repeatable {@link UUID} constraints.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID$List#value",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return repeated UUID constraints\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

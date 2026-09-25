@@ -1,0 +1,132 @@
+{
+  "name" : "DocumentSerializer",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Interface for converting domain objects to and from {@link SerializedDocument} instances for indexing and searching.\n <p>\n A {@code DocumentSerializer} defines how objects are transformed into a serializable structure suitable for\n Fluxzero's search infrastructure. Documents are associated with:\n <ul>\n     <li>A unique ID (within a collection)</li>\n     <li>A collection name that groups similar documents</li>\n     <li>An optional timestamp indicating the start time of the document (for time-bounded documents)</li>\n     <li>An optional end timestamp (for time-bounded documents)</li>\n     <li>Optional metadata associated with the document</li>\n </ul>\n <p>\n Implementations are typically used by the {@link DocumentStore} when indexing or retrieving documents.\n\n <p>\n This interface supports both serialization ({@link #toDocument}) and deserialization ({@link #fromDocument}).\n\n @see DocumentStore\n @see IndexOperation\n @see SerializedDocument\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "fromDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer#fromDocument",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes the payload of the given document into a Java object using the type information contained in the\n document.\n\n @param document the {@link SerializedDocument} to deserialize\n @param <T>      the target type\n @return the deserialized object\n"
+  }, {
+    "name" : "fromDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer#fromDocument",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes the payload of the given document into an instance of the specified type.\n\n @param document the {@link SerializedDocument} to deserialize\n @param type     the target class for deserialization\n @param <T>      the target type\n @return the deserialized object\n"
+  }, {
+    "name" : "toDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer#toDocument",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Serializes a given value into a {@link SerializedDocument}, using the specified identifiers and timestamps.\n <p>\n This is a convenience method that uses empty {@link Metadata}.\n\n @param value      the value to be serialized\n @param id         the unique identifier of the document (within the collection)\n @param collection the name of the document collection\n @param timestamp  the optional timestamp marking the start of the document's relevance\n @param end        optional timestamp marking the end of the document's relevance\n @return a {@code SerializedDocument} representing the given value\n"
+  }, {
+    "name" : "toDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer#toDocument",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Serializes a given value into a {@link SerializedDocument}, using the specified identifiers, timestamps, and\n metadata.\n\n @param value      the value to be serialized\n @param id         the unique identifier of the document (within the collection)\n @param collection the name of the document collection\n @param timestamp  the timestamp marking the start of the document's relevance\n @param end        optional timestamp marking the end of the document's relevance\n @param metadata   additional metadata to include with the document\n @return a {@code SerializedDocument} representing the given value\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

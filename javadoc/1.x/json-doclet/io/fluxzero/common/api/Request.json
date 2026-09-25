@@ -1,0 +1,50 @@
+{
+  "name" : "Request",
+  "qualifiedName" : "io.fluxzero.common.api.Request",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {}
+  } ],
+  "documentation" : " Base class for requests sent to the Fluxzero Runtime.\n <p>\n Each {@code Request} is automatically assigned a unique {@link #requestId} to correlate it with its corresponding\n {@link RequestResult}. This identifier is useful for tracing, debugging, and performance monitoring.\n <p>\n All requests implement {@link JsonType}, allowing them to optionally define a custom {@link JsonType#toMetric()}\n representation for metrics logging.\n <p>\n Subclasses of this abstract class typically include payloads such as {@link SearchDocuments},\n {@link GetDocument}, {@link GetFacetStats}, etc.\n\n @see JsonType\n @see RequestResult\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.JsonType" ],
+  "fields" : [ {
+    "name" : "nextRequestId",
+    "qualifiedName" : "io.fluxzero.common.api.Request.nextRequestId",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.Request.requestId",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " A unique identifier automatically assigned to this request. Used to correlate with the response.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Request",
+    "qualifiedName" : "io.fluxzero.common.api.Request#Request",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

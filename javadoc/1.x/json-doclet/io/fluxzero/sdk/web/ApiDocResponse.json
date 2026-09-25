@@ -1,0 +1,91 @@
+{
+  "name" : "ApiDocResponse",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,CONSTRUCTOR,TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.web.ApiDocResponses"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Adds an explicit response entry to generated API documentation.\n <p>\n Handler return types are inferred automatically. Use this annotation for additional status codes, error responses,\n or response descriptions that cannot be derived from the method signature.\n </p>\n\n @see ApiDoc\n @see ApiDocResponses\n @see OpenApiProcessor\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "contentType",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse#contentType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional response content type.\n"
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse#description",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Response description.\n"
+  }, {
+    "name" : "ref",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse#ref",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional reusable response reference.\n <p>\n A bare value such as {@code error} is resolved to {@code #/components/responses/error}. A value starting with\n {@code #/} is used as-is. When set, {@link #description()}, {@link #type()}, and {@link #contentType()} are\n ignored because OpenAPI Reference Objects cannot have response-object siblings in OpenAPI 3.0.\n"
+  }, {
+    "name" : "status",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse#status",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " HTTP status code.\n"
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocResponse#type",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional response body type. {@code Void.class} means no explicit type was provided.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

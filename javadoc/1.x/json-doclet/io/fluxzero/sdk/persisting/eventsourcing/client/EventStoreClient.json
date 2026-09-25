@@ -1,0 +1,285 @@
+{
+  "name" : "EventStoreClient",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Low-level client interface for interacting with the event store in Fluxzero.\n <p>\n This interface provides operations for storing, retrieving, and deleting event streams related to event-sourced\n aggregates, as well as managing entity relationships such as aggregate references and links.\n <p>\n Users rarely interact with this interface directly. Instead, they typically use higher-level abstractions such as:\n <ul>\n   <li>{@link io.fluxzero.sdk.persisting.eventsourcing.EventStore}</li>\n   <li>{@link io.fluxzero.sdk.persisting.repository.AggregateRepository}</li>\n   <li>Static methods on {@link io.fluxzero.sdk.Fluxzero}, e.g. {@code Fluxzero.loadAggregate(...)}.</li>\n </ul>\n\n <p>This interface is backed either by:\n <ul>\n   <li>a connection to the Fluxzero Runtime using a websocket-based implementation, or</li>\n   <li>an in-memory store used for testing or standalone development purposes.</li>\n </ul>\n\n @see io.fluxzero.sdk.persisting.eventsourcing.EventStore\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#close",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes the client and releases any open resources or connections.\n"
+  }, {
+    "name" : "deleteEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#deleteEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deletes all events for a specific aggregate.\n\n @param aggregateId The aggregate ID.\n @return A future that completes when deletion is acknowledged.\n"
+  }, {
+    "name" : "deleteEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#deleteEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deletes all events for a specific aggregate with a given delivery guarantee.\n\n @param aggregateId The aggregate ID.\n @param guarantee   The guarantee to apply.\n @return A future that completes when deletion is acknowledged.\n"
+  }, {
+    "name" : "getAggregateIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getAggregateIds",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetAggregateIds",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Gets aggregate IDs based on a {@link GetAggregateIds} request.\n\n @param request The request containing filtering options.\n @return A map of aggregate IDs referencing the target entity.\n"
+  }, {
+    "name" : "getAggregatesFor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getAggregatesFor",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Gets a map of aggregate IDs that reference a given entity ID.\n\n @param entityId The entity identifier.\n @return A map of aggregate IDs and corresponding reference names.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the full event stream for a given aggregate.\n\n @param aggregateId The aggregate ID.\n @return A stream of serialized events.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the event stream for an aggregate starting after the given sequence number.\n\n @param aggregateId        The aggregate ID.\n @param lastSequenceNumber The sequence number to start from (exclusive).\n @return A stream of serialized events.\n"
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the event stream for an aggregate with control over size and offset.\n\n @param aggregateId        The aggregate ID.\n @param lastSequenceNumber Sequence number to resume after.\n @param maxSize            Maximum number of events to return (or -1 for unlimited).\n @return A stream of serialized events.\n"
+  }, {
+    "name" : "getRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getRelationships",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Gets relationships based on a {@link GetRelationships} request.\n\n @param request The request containing filter parameters.\n @return A list of matching relationships.\n"
+  }, {
+    "name" : "getRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#getRelationships",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entityId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Gets relationships for the given entity.\n\n @param entityId The entity ID.\n @return A list of matching relationships.\n"
+  }, {
+    "name" : "repairRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#repairRelationships",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.RepairRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Repairs entity relationships, e.g. by forcing re-evaluation of existing relationships.\n\n @param request The repair request.\n @return A future that completes when the repair is done.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "storeOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a list of serialized events for a given aggregate identifier.\n\n @param aggregateId The ID of the aggregate.\n @param events      The serialized events to store.\n @param storeOnly   Whether to store the events without publishing them.\n @return A future that completes when the operation is acknowledged.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "storeOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores events for a given aggregate with an explicit guarantee.\n\n @param aggregateId The aggregate ID.\n @param events      Events to store.\n @param storeOnly   If {@code true}, events will not be published.\n @param guarantee   The guarantee level for this operation.\n @return A future representing completion of the store operation.\n"
+  }, {
+    "name" : "updateRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#updateRelationships",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.UpdateRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates entity relationships in the event store (e.g. parent-child, references).\n\n @param request The update request.\n @return A future that completes when the operation is acknowledged.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
