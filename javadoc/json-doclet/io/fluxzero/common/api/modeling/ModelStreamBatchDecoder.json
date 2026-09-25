@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : "Decoder for the final persisted independent-model stream batch format. ",
+  "documentation" : " Decoder for the v7 packed Model membership transport format.\n <p>\n The public metadata view remains v7-only, with implicit substep zero. The page decoder also accepts negotiated\n logical membership v8, which carries exact substeps without stored-model metadata. Existing readers must receive\n ordinary {@link ModelEventMembership} objects for non-zero substeps; the v7 layout is unchanged.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -44,16 +44,13 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Decodes one stored stream batch. "
+    "documentation" : "Decodes one packed membership batch. "
   }, {
     "name" : "decode",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decode",
     "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Entry>",
     "modifiers" : [ "public", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "block",
@@ -63,7 +60,31 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Decodes one stored stream batch directly from a byte range. "
+    "documentation" : "Decodes one packed membership batch directly from a byte range. "
+  }, {
+    "name" : "decode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decode",
+    "returnType" : "T",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "block",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventDataBlock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "decoder",
+      "type" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Decoder<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "decodeEntries",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decodeEntries",
@@ -78,6 +99,38 @@
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decodeLogicalMemberships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decodeLogicalMemberships",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.LogicalMembership>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "org.msgpack.core.MessageUnpacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decodeMemberships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decodeMemberships",
+    "returnType" : "java.util.List<? extends io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Membership>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "block",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventDataBlock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   }, {
@@ -100,10 +153,31 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "Decoder",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Decoder",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
     "name" : "Entry",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Entry",
     "kind" : "record",
     "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "LogicalMembership",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$LogicalMembership",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Membership",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Membership",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "static" ],
     "annotations" : [ ]
   } ]
 }

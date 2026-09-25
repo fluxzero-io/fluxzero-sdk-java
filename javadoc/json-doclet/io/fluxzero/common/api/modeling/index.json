@@ -385,10 +385,25 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder",
     "kind" : "class"
   }, {
+    "file" : "ModelStreamBatchDecoder.Decoder.json",
+    "name" : "ModelStreamBatchDecoder.Decoder",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Decoder",
+    "kind" : "interface"
+  }, {
     "file" : "ModelStreamBatchDecoder.Entry.json",
     "name" : "ModelStreamBatchDecoder.Entry",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Entry",
     "kind" : "record"
+  }, {
+    "file" : "ModelStreamBatchDecoder.LogicalMembership.json",
+    "name" : "ModelStreamBatchDecoder.LogicalMembership",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$LogicalMembership",
+    "kind" : "record"
+  }, {
+    "file" : "ModelStreamBatchDecoder.Membership.json",
+    "name" : "ModelStreamBatchDecoder.Membership",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Membership",
+    "kind" : "interface"
   }, {
     "file" : "ModelUpdate.json",
     "name" : "ModelUpdate",

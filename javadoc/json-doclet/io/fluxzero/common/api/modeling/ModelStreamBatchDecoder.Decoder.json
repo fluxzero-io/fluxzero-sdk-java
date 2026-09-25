@@ -1,0 +1,37 @@
+{
+  "name" : "Decoder",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Decoder",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "private", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "decode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Decoder#decode",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "org.msgpack.core.MessageUnpacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

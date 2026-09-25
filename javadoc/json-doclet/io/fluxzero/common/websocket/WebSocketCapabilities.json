@@ -82,6 +82,14 @@
     "documentation" : "Supported document compression codecs; stored bytes are preserved when the client knows their codec. ",
     "constantValue" : "Fluxzero-Supported-Document-Compression"
   }, {
+    "name" : "SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Explicit packed Model membership versions understood by this client (independent of transport format). ",
+    "constantValue" : "Fluxzero-Supported-Model-Membership-Versions"
+  }, {
     "name" : "SUPPORTED_TRANSPORT_FORMATS_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTED_TRANSPORT_FORMATS_HEADER",
     "type" : "java.lang.String",

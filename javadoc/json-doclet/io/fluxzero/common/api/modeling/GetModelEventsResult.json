@@ -26,7 +26,7 @@
     "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventDataBlock>",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Persisted independent-model stream batches. The SDK expands only entries selected by this response's payloads\n and the original stream requests.\n",
+    "documentation" : " Packed independent-model memberships. Version 7 represents substep zero; negotiated version 8 carries logical\n memberships with exact substeps. The SDK expands only entries selected by this response's payloads and the\n original stream requests. Version 8 must only be sent to peers that explicitly advertise support.\n",
     "constantValue" : null
   }, {
     "name" : "payloadBlocks",

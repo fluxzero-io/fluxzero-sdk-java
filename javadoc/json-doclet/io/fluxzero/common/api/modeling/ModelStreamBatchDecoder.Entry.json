@@ -8,7 +8,7 @@
   "documentation" : "One independently addressable stored model membership. ",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
-  "interfaces" : [ ],
+  "interfaces" : [ "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Membership" ],
   "fields" : [ {
     "name" : "commitId",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Entry.commitId",
