@@ -34,6 +34,8 @@ jobs:
       prerelease: ${{ steps.release_version.outputs.prerelease }}
       javadoc-destination: ${{ steps.release_version.outputs.javadoc_destination }}
       package-channel-tag: ${{ steps.release_version.outputs.package_channel_tag }}
+      make-latest: ${{ steps.release_version.outputs.make_latest }}
+      notify-site: ${{ steps.release_version.outputs.notify_site }}
       maven-build-outcome: ${{ steps.maven-build.outcome }}
     steps:
       - name: Check out Git repository
@@ -52,6 +54,11 @@ jobs:
             echo "::error::Tracked files are not normalized according to .gitattributes"
             exit 1
           fi
+
+      - name: Test release policies
+        run: |
+          bash .github/scripts/resolve-release-version.test.sh
+          bash .github/scripts/resolve-release-publication.test.sh
 
       - name: Validate agent documentation graph
         run: |
@@ -72,7 +79,11 @@ jobs:
         id: existing_tag
         run: |
           tag=$(git tag --points-at "$GITHUB_SHA" --sort=-version:refname \
-            | awk '/^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$/ { print; exit }')
+            | awk '/^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$/ { print }')
+          if [[ "$tag" == *$'\n'* ]]; then
+            echo "Multiple release tags point at $GITHUB_SHA; refusing ambiguous publication" >&2
+            exit 1
+          fi
           previous_tag=""
           if [ -n "$tag" ]; then
             previous_tag=$(git tag --merged "$GITHUB_SHA" --sort=-version:refname \
@@ -87,35 +98,19 @@ jobs:
         env:
           RELEASE_BRANCH: ${{ github.ref_name }}
           REQUESTED_VERSION: ${{ github.event.inputs.version }}
+          EXISTING_TAG: ${{ steps.existing_tag.outputs.tag }}
         run: |
           release_major="$(tr -d '[:space:]' < .github/release-major)"
-          version="$(bash .github/scripts/resolve-release-version.sh \
-            "$RELEASE_BRANCH" "$REQUESTED_VERSION" "$release_major")"
-
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          if [[ "$version" == *-* ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "javadoc_destination=javadoc/$version" >> "$GITHUB_OUTPUT"
-            echo "package_channel_tag=2.0-prerelease" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "javadoc_destination=javadoc" >> "$GITHUB_OUTPUT"
-            echo "package_channel_tag=latest" >> "$GITHUB_OUTPUT"
-          fi
+          bash .github/scripts/resolve-release-publication.sh \
+            "$RELEASE_BRANCH" "$REQUESTED_VERSION" "$release_major" "$EXISTING_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Expose release version
         id: tag_version
         env:
-          EXISTING_TAG: ${{ steps.existing_tag.outputs.tag }}
           RESOLVED_VERSION: ${{ steps.release_version.outputs.version }}
         run: |
-          version="${EXISTING_TAG:-$RESOLVED_VERSION}"
-          if [ -z "$version" ]; then
-            echo "No release version was resolved" >&2
-            exit 1
-          fi
-          echo "new_version=$version" >> "$GITHUB_OUTPUT"
-          echo "new_tag=$version" >> "$GITHUB_OUTPUT"
+          echo "new_version=$RESOLVED_VERSION" >> "$GITHUB_OUTPUT"
+          echo "new_tag=$RESOLVED_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
         id: release_notes
@@ -333,6 +328,7 @@ jobs:
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
+          make_latest: ${{ needs.build-and-test.outputs.make-latest }}
           fail_on_unmatched_files: true
           files: |
             release-assets/project-java.zip
@@ -343,7 +339,7 @@ jobs:
   # Job 5: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:
     needs: build-and-test
-    if: needs.build-and-test.outputs.prerelease != 'true'
+    if: needs.build-and-test.outputs.notify-site == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Create fluxzero-site app token

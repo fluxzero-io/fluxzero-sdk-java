@@ -98,6 +98,19 @@ and the README's Versioned Defaults table, plus the affected feature documentati
 defaults version, an older version, the exact threshold, a newer version, and explicit overrides in both directions.
 For wire or persisted formats, also test old-data reads and new-data round trips.
 
+## Maintenance Releases
+
+- When asked to fix or backport an issue on `1.x`, complete the work through a verified 1.x patch release,
+  unless the user explicitly limits the task to investigation, local changes, or no publication.
+- Keep `.github/release-major` at `1` on `1.x`. Choose an unused explicit patch version after inspecting the
+  latest published 1.x tag. Preserve protected-branch checks and release only the merged, qualified commit.
+- Trigger `Deploy` explicitly on `1.x` with that version; ordinary maintenance-branch pushes do not publish.
+  Run the release version and publication policy checks, including validation of any existing tag on reruns.
+- Maintenance releases use package channel `1.x` and Javadoc destination `javadoc/1.x`. Never move the main
+  `latest` image channel, mark a maintenance release as GitHub Latest, or dispatch the public SDK website update.
+- Verify the completed workflow, immutable tag, artifacts and release contents before reporting publication.
+  Confirm that the released commit contains the backport. Keep the fix on the active major as well when applicable.
+
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.

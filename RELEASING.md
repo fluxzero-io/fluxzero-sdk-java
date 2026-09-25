@@ -1,39 +1,44 @@
 # Releasing the Fluxzero SDK
 
-Fluxzero uses an update train rather than a long-lived minor/patch distinction.
-The branch declares the active stable major in [`.github/release-major`](.github/release-major), while
-`.github/scripts/resolve-release-version.sh` is the executable owner of allowed branch/version combinations.
+`main` is the active 2.x line; `1.x` is the maintenance branch. Each branch declares its major in
+[`.github/release-major`](.github/release-major). The scripts
+[resolve-release-version.sh](.github/scripts/resolve-release-version.sh) and
+[resolve-release-publication.sh](.github/scripts/resolve-release-publication.sh) enforce allowed versions
+and publication destinations, including existing tags on reruns.
 
-## Before 2.0 GA
+## Maintenance patches
 
-- `main` publishes the next stable 1.x update automatically after every accepted change.
-- `next/2.0` receives `main` regularly and is the integration branch for 2.0.
-- A milestone or release candidate is started manually from `next/2.0` with an explicit version such as
-  `2.0.0-M1` or `2.0.0-RC1`.
-- Prereleases are published under their immutable Maven, GitHub and package-image version. The moving package tag is
-  `2.0-prerelease`; `latest`, the stable Javadoc destination and the public SDK-site signal remain untouched.
+A completed 1.x fix or backport includes its patch publication unless the requested scope explicitly excludes it.
 
-Run the SDK milestone before the matching Runtime milestone so the Runtime can build from the immutable SDK tag.
-Normal changes flow from `main` to `next/2.0`; only deliberately selected 2.0 fixes flow back.
+1. Inspect the latest published 1.x tag and choose the next unused patch version on that minor line, for example
+   `1.292.1` after `1.292.0`. Keep the maintenance branch's release major at `1`.
+2. Qualify the fix and merge through the required `build-pr` check into `1.x`.
+3. Start `Deploy` with `workflow_dispatch`, ref `1.x` and the explicit patch version. Ordinary pushes to `1.x`
+   do not publish. The resolver rejects missing versions, 2.x versions, non-patch versions and a conflicting
+   existing tag. Multiple release tags on the same commit are rejected as ambiguous.
+4. Verify all workflow jobs, the immutable tag and the published artifacts, including that the tag contains the fix.
+   A reserved tag can be reused only on the same commit and with a matching requested version.
 
-## 2.0 GA
+Maintenance publishes normal stable Maven artifacts and a GitHub release, but never takes over the active major's
+channels: package images use `1.x`, Javadoc uses `javadoc/1.x`, GitHub `make_latest` is false and the public SDK website
+is not dispatched. Direct Javadoc dispatches from `1.x` must also explicitly select `javadoc/1.x`.
 
-1. Make sure the final 1.x release is green and `next/2.0` contains that exact `main` tip.
-2. Create and protect `1.x` from the final 1.x tip. Ordinary pushes to this branch never publish.
-3. Merge `next/2.0`, including `.github/release-major` set to `2`, into `main`.
-4. The resulting `main` run publishes `2.0.0`, because no stable major-2 tag exists yet.
-5. Remove `next/2.0` only after the SDK and Runtime GA releases and downstream checks are green.
+## Active-major and historical prerelease workflows
 
-Subsequent accepted changes on `main` publish `2.1.0`, `2.2.0`, and so on. An exceptional critical 1.x repair is
-published manually from `1.x` with an explicit patch version such as `1.247.1`; it is then forward-ported to `main`.
+Accepted changes on `main` use the active major's automatic version policy, package channel `latest`, the general
+Javadoc destination and public SDK website signal. Deliberately forward-port maintenance fixes where needed; do not
+merge the 1.x release-major declaration into `main`.
 
-## Local policy check
+The historical `next/2.0` workflow accepts explicit `2.0.0-Mn` or `2.0.0-RCn` prereleases. It publishes immutable
+artifacts, package channel `2.0-prerelease` and version-scoped Javadoc, without GitHub Latest or a website signal.
+Run an SDK release before a matching Runtime release so Runtime can pin the immutable SDK version.
 
-Run:
+## Local policy checks
 
 ```bash
 bash .github/scripts/resolve-release-version.test.sh
+bash .github/scripts/resolve-release-publication.test.sh
 ```
 
-This validates the update train, first-major release, milestones, release candidates and exceptional maintenance
-patches without creating tags or publishing artifacts.
+These checks exercise valid releases and reruns, rejected branch/version/tag combinations and isolation of maintenance
+publication destinations. They do not create tags or publish artifacts.
