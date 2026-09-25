@@ -62,6 +62,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          check-latest: true
           cache: maven
           server-id: fluxzero
           server-username-env-var: MAVEN_USERNAME
@@ -276,6 +277,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+          check-latest: true
           cache: maven
           server-id: central
           server-username-env-var: MAVEN_USERNAME

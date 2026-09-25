@@ -48,6 +48,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '25'
+          check-latest: true
           cache: 'maven'
           server-id: github
           server-username-env-var: GITHUB_ACTOR

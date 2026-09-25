@@ -39,7 +39,7 @@ See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility)
 
 ## Work on the SDK
 
-The SDK is a Maven multi-module project. Building from source requires Java 25+ and Python 3.9+.
+The SDK is a Maven multi-module project. Building from source requires Java 25.0.3+ and Python 3.9+.
 
 ```shell
 git clone https://github.com/fluxzero-io/fluxzero-sdk-java.git

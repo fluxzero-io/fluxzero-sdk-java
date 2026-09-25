@@ -28,6 +28,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '25'
+          check-latest: true
           cache: 'maven'
 
       - name: Test release version policy

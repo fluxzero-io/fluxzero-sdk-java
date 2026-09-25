@@ -503,7 +503,8 @@
                                     <version>[3.9.0,)</version>
                                 </requireMavenVersion>
                                 <requireJavaVersion>
-                                    <version>[25,)</version>
+                                    <version>[25.0.3,)</version>
+                                    <message>Build with JDK 25.0.3 or newer. Older Java 25 builds have a virtual-thread timer bug (JDK-8370887). Use mise install, then mise exec -- ./mvnw, or select an updated JDK in IntelliJ.</message>
                                 </requireJavaVersion>
                             </rules>
                         </configuration>

@@ -112,7 +112,7 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.
-- SDK v2 requires Java 25 or newer and compiles with `maven.compiler.release=25`; CI and Docker images use Java 25.
+- SDK v2 compiles with `maven.compiler.release=25`; building requires Java 25.0.3 or newer to avoid JDK-8370887. Use the JDK pinned in `mise.toml` with `mise exec -- ./mvnw`; CI and Docker images use updated Java 25 builds.
 - Packaging the agent documentation ZIP also requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.
