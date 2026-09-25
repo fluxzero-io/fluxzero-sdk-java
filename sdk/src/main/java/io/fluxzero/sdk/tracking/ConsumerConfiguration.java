@@ -25,7 +25,6 @@ import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
-import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -64,7 +63,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
  * @see io.fluxzero.sdk.configuration.FluxzeroBuilder#addConsumerConfiguration
  */
 @Value
-@Builder(builderClassName = "Builder", toBuilder = true)
+@lombok.Builder(builderClassName = "Builder", toBuilder = true)
 public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
@@ -93,7 +92,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
 
     /**
      * Configures the default complete serialized message byte limit per tracking fetch. Consumers can override this
-     * default with the {@link Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
+     * default with the {@code Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
      */
     public static final String MAX_FETCH_BYTES_PROPERTY = "fluxzero.tracking.maxFetchBytes";
 
