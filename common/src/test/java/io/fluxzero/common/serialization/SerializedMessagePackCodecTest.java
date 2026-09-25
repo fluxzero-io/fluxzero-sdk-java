@@ -71,6 +71,23 @@ class SerializedMessagePackCodecTest {
         assertThrows(IllegalArgumentException.class, () -> SerializedMessagePackCodec.decode(bytes));
     }
 
+    @Test
+    void failureAndConcurrentReadsDoNotLeakReusableInput() throws Exception {
+        byte[] bytes;
+        try (MessageBufferPacker packer = MessagePack.newDefaultBufferPacker()) {
+            pack(packer, message(1L, "one"));
+            bytes = packer.toByteArray();
+        }
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var tasks = java.util.stream.IntStream.range(0, 16).mapToObj(i -> executor.submit(() -> {
+                assertThrows(IllegalArgumentException.class,
+                        () -> SerializedMessagePackCodec.decode(new byte[]{(byte) 0xc0}));
+                assertEquals("one", SerializedMessagePackCodec.decode(bytes).getFirst().getSource());
+            })).toList();
+            for (var task : tasks) task.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
     private static void pack(MessagePacker packer, SerializedMessage message) throws IOException {
         packer.packInt(-2);
         byte[] payload = message.getData().getValue();

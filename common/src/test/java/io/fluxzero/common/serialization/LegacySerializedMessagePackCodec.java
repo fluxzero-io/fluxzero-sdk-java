@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+// Frozen compatibility oracle from 78d08f06b8d:common/src/main/java/io/fluxzero/common/serialization/SerializedMessagePackCodec.java.
+// Only the class name were adapted; retain the original codec calls.
 package io.fluxzero.common.serialization;
 
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
+import org.msgpack.core.MessagePack;
+import org.msgpack.core.MessageUnpacker;
+import org.msgpack.core.buffer.ArrayBufferInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,14 +38,18 @@ import java.util.Map;
  * This codec deliberately owns only the read contract needed by compact model-event responses. Event-store writes
  * remain owned by the runtime.
  */
-public final class SerializedMessagePackCodec {
+public final class LegacySerializedMessagePackCodec {
 
     private static final byte[] EMPTY = new byte[0];
     private static final int MAXIMUM_VALUE_SIZE = 512 * 1024 * 1024;
+    private static final MessagePack.UnpackerConfig UNPACKER_CONFIG =
+            new MessagePack.UnpackerConfig()
+                    .withBufferSize(8_192)
+                    .withStringDecoderBufferSize(1_024);
     private static final ThreadLocal<ReusableUnpacker> UNPACKERS =
             ThreadLocal.withInitial(ReusableUnpacker::new);
 
-    private SerializedMessagePackCodec() {
+    private LegacySerializedMessagePackCodec() {
     }
 
     /**
@@ -65,7 +74,7 @@ public final class SerializedMessagePackCodec {
         }
         ReusableUnpacker reusable = UNPACKERS.get();
         try {
-            MessagePackIO.Reader unpacker =
+            MessageUnpacker unpacker =
                     reusable.reset(
                             bytes, offset, length);
             List<SerializedMessage> result = new ArrayList<>();
@@ -81,7 +90,7 @@ public final class SerializedMessagePackCodec {
         }
     }
 
-    private static SerializedMessage decodeMessage(MessagePackIO.Reader unpacker) throws IOException {
+    private static SerializedMessage decodeMessage(MessageUnpacker unpacker) throws IOException {
         int version = unpacker.unpackInt();
         if (version >= 0) {
             return decodeVersionZero(unpacker, version);
@@ -106,13 +115,13 @@ public final class SerializedMessagePackCodec {
                 null);
     }
 
-    private static Metadata unpackSerializedMetadata(MessagePackIO.Reader unpacker) throws IOException {
+    private static Metadata unpackSerializedMetadata(MessageUnpacker unpacker) throws IOException {
         byte[] value = unpacker.readPayload(unpacker.unpackInt());
         return Metadata.fromData(new Data<>(value, Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
     }
 
     private static SerializedMessage decodeVersionZero(
-            MessagePackIO.Reader unpacker, int payloadSize) throws IOException {
+            MessageUnpacker unpacker, int payloadSize) throws IOException {
         return new SerializedMessage(
                 new Data<>(
                         unpacker.readPayload(payloadSize),
@@ -130,7 +139,7 @@ public final class SerializedMessagePackCodec {
                 null);
     }
 
-    private static Metadata unpackMetadata(MessagePackIO.Reader unpacker) throws IOException {
+    private static Metadata unpackMetadata(MessageUnpacker unpacker) throws IOException {
         int size = unpacker.unpackInt();
         if (size == 0) {
             return Metadata.empty();
@@ -142,36 +151,49 @@ public final class SerializedMessagePackCodec {
         return Metadata.ofStrings(values);
     }
 
-    private static Integer unpackInt(MessagePackIO.Reader unpacker) throws IOException {
-        if (unpacker.tryUnpackNil()) {
+    private static Integer unpackInt(MessageUnpacker unpacker) throws IOException {
+        if (unpacker.getNextFormat().getValueType().isNilType()) {
+            unpacker.unpackNil();
             return null;
         }
         return unpacker.unpackInt();
     }
 
-    private static Long unpackLong(MessagePackIO.Reader unpacker) throws IOException {
-        if (unpacker.tryUnpackNil()) {
+    private static Long unpackLong(MessageUnpacker unpacker) throws IOException {
+        if (unpacker.getNextFormat().getValueType().isNilType()) {
+            unpacker.unpackNil();
             return null;
         }
         return unpacker.unpackLong();
     }
 
-    private static String unpackString(MessagePackIO.Reader unpacker) throws IOException {
-        if (unpacker.tryUnpackNil()) {
+    private static String unpackString(MessageUnpacker unpacker) throws IOException {
+        if (unpacker.getNextFormat().getValueType().isNilType()) {
+            unpacker.unpackNil();
             return null;
         }
         return unpacker.unpackString();
     }
 
     private static final class ReusableUnpacker {
-        private final MessagePackIO.Reader unpacker = new MessagePackIO.Reader(EMPTY);
+        private final ArrayBufferInput input = new ArrayBufferInput(EMPTY);
+        private final MessageUnpacker unpacker = UNPACKER_CONFIG.newUnpacker(input);
 
-        private MessagePackIO.Reader reset(byte[] bytes, int offset, int length) {
-            return unpacker.reset(bytes, offset, length);
+        private MessageUnpacker reset(
+                byte[] bytes, int offset, int length)
+                throws IOException {
+            input.reset(bytes, offset, length);
+            unpacker.reset(input);
+            return unpacker;
         }
 
         private void clear() {
-            unpacker.close();
+            try {
+                input.reset(EMPTY);
+                unpacker.reset(input);
+            } catch (IOException e) {
+                UNPACKERS.remove();
+            }
         }
     }
 }

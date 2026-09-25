@@ -13,14 +13,19 @@
  *
  */
 
+// Frozen compatibility oracle from 78d08f06b8d:common/src/main/java/io/fluxzero/common/search/DefaultDocumentSerializer.java.
+// Only the class name were adapted; retain the original codec calls.
 package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.search.Document.Entry;
 import io.fluxzero.common.search.Document.Path;
-import io.fluxzero.common.serialization.MessagePackIO;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import lombok.SneakyThrows;
+import org.msgpack.core.MessageBufferPacker;
+import org.msgpack.core.MessagePack;
+import org.msgpack.core.MessagePacker;
+import org.msgpack.core.MessageUnpacker;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -53,10 +58,13 @@ import java.util.Map;
  * @see Document
  * @see Data
  */
-public enum DefaultDocumentSerializer {
+public enum LegacyDocumentSerializer {
     INSTANCE;
 
     private static final int currentVersion = 0;
+
+    private static final MessagePack.UnpackerConfig smallDocumentUnpackerConfig =
+            MessagePack.DEFAULT_UNPACKER_CONFIG.withStringDecoderBufferSize(1024);
 
     /**
      * Serializes the given {@link Document} into a compressed binary {@link Data} container.
@@ -66,7 +74,7 @@ public enum DefaultDocumentSerializer {
      * @throws IllegalArgumentException if the document cannot be serialized
      */
     public Data<byte[]> serialize(Document document) {
-        try (MessagePackIO.Writer packer = new MessagePackIO.Writer()) {
+        try (MessageBufferPacker packer = MessagePack.newDefaultBufferPacker()) {
             Map<Entry, List<Path>> map = document.getEntries();
             packer.packInt(currentVersion).packString(document.getId());
             packTimestamp(document.getTimestamp(), packer);
@@ -101,7 +109,7 @@ public enum DefaultDocumentSerializer {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
-        try (MessagePackIO.Reader unpacker = newDocumentUnpacker(
+        try (MessageUnpacker unpacker = newDocumentUnpacker(
                 CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
             int version = unpacker.unpackInt();
             if (version != 0) {
@@ -128,8 +136,11 @@ public enum DefaultDocumentSerializer {
         }
     }
 
-    private static MessagePackIO.Reader newDocumentUnpacker(byte[] bytes) {
-        return new MessagePackIO.Reader(bytes);
+    private static MessageUnpacker newDocumentUnpacker(byte[] bytes) {
+        // MessagePack allocates its string scratch buffer even for contiguous array input. A complete small
+        // document cannot need more characters than its byte length; keep the default for larger documents.
+        return bytes.length <= 1024 ? smallDocumentUnpackerConfig.newUnpacker(bytes)
+                : MessagePack.newDefaultUnpacker(bytes);
     }
 
     /**
@@ -146,7 +157,7 @@ public enum DefaultDocumentSerializer {
      * Writes a timestamp into the MessagePack stream, using {@code packLong(epochMillis)} or {@code packNil()} if null.
      */
     @SneakyThrows
-    private static void packTimestamp(Instant value, MessagePackIO.Writer packer) {
+    private static void packTimestamp(Instant value, MessagePacker packer) {
         if (value == null) {
             packer.packNil();
         } else {
@@ -161,8 +172,9 @@ public enum DefaultDocumentSerializer {
      * @return the unpacked {@link Instant}, or {@code null} if the field is missing
      */
     @SneakyThrows
-    private static Instant unpackTimestamp(MessagePackIO.Reader unpacker) {
-        if (unpacker.tryUnpackNil()) {
+    private static Instant unpackTimestamp(MessageUnpacker unpacker) {
+        if (unpacker.getNextFormat().getValueType().isNilType()) {
+            unpacker.unpackNil();
             return null;
         } else {
             return Instant.ofEpochMilli(unpacker.unpackLong());
@@ -176,8 +188,9 @@ public enum DefaultDocumentSerializer {
      * @return the unpacked long value, or {@code null} if the field is missing
      */
     @SneakyThrows
-    private static Long unpackLong(MessagePackIO.Reader unpacker) {
-        if (unpacker.tryUnpackNil()) {
+    private static Long unpackLong(MessageUnpacker unpacker) {
+        if (unpacker.getNextFormat().getValueType().isNilType()) {
+            unpacker.unpackNil();
             return null;
         } else {
             return unpacker.unpackLong();
