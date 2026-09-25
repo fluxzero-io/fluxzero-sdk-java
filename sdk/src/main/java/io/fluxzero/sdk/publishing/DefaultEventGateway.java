@@ -58,7 +58,7 @@ public class DefaultEventGateway extends AbstractNamespaced<EventGateway> implem
 
     @Override
     public void publish(Object... messages) {
-        publish(Guarantee.NONE, messages);
+        publish(Guarantee.DEFAULT, messages);
     }
 
     @Override

@@ -47,23 +47,32 @@ public interface EventGateway extends Namespaced<EventGateway>, HasLocalHandlers
 
     /**
      * Publishes the given event object. If the object is not already a {@link Message}, it will be wrapped in one. The
-     * event is published with no delivery guarantee.
+     * event uses the owning application's {@link Guarantee#DEFAULT} delivery guarantee.
      * <p>
-     * If local handlers are registered, they will be invoked synchronously.
+     * If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited
+     * by this call; a participating tracking completion scope awaits them before committing the consumer position; see
+     * {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.
+     * Outside tracking, use a future-returning overload when delivery confirmation is required.
      *
      * @param event the event object to publish
      * @throws RuntimeException if an error occurs during publishing
      */
     @SneakyThrows
     default void publish(Object event) {
-        publish(Message.asMessage(event), Guarantee.NONE).get();
+        CompletableFuture<Void> completion = publish(Message.asMessage(event), Guarantee.DEFAULT);
+        if (completion.isDone()) {
+            completion.get();
+        }
     }
 
     /**
      * Publishes an event with the specified payload and metadata. The event is wrapped into a {@link Message}. The
-     * event is published with no delivery guarantee.
+     * event uses the owning application's {@link Guarantee#DEFAULT} delivery guarantee.
      * <p>
-     * If local handlers are registered, they will be invoked synchronously.
+     * If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited
+     * by this call; a participating tracking completion scope awaits them before committing the consumer position; see
+     * {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.
+     * Outside tracking, use a future-returning overload when delivery confirmation is required.
      *
      * @param payload  the event payload
      * @param metadata the associated metadata
@@ -71,7 +80,10 @@ public interface EventGateway extends Namespaced<EventGateway>, HasLocalHandlers
      */
     @SneakyThrows
     default void publish(Object payload, Metadata metadata) {
-        publish(new Message(payload, metadata), Guarantee.NONE).get();
+        CompletableFuture<Void> completion = publish(new Message(payload, metadata), Guarantee.DEFAULT);
+        if (completion.isDone()) {
+            completion.get();
+        }
     }
 
     /**
@@ -86,7 +98,7 @@ public interface EventGateway extends Namespaced<EventGateway>, HasLocalHandlers
 
     /**
      * Publishes one or more event messages. Each message may be a raw payload or a {@link Message} instance. Events are
-     * published with no delivery guarantee.
+     * published using the owning application's {@link Guarantee#DEFAULT} delivery guarantee.
      * <p>
      * This method does not block for completion or acknowledgments.
      *

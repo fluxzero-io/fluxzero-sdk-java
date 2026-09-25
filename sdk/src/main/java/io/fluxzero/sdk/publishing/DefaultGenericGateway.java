@@ -95,6 +95,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     };
     private volatile PreparedDispatchEntry lastPreparedDispatch;
 
+    private Guarantee defaultGuarantee = Guarantee.NONE;
+
     private Supplier<Duration> shutdownTimeout = () -> Duration.ofSeconds(2);
 
     private final Map<String, CompletableFuture<?>> callbacks = new ConcurrentHashMap<>();
@@ -124,6 +126,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 : new DefaultGenericGateway(clientForNamespace, clientForNamespace.getGatewayClient(messageType, topic),
                                             requestHandlerForNamespace, serializer, dispatchInterceptor,
                                             messageType, topic, localHandlerRegistry, responseMapper)
+                        .withDefaultGuarantee(defaultGuarantee)
                         .withShutdownTimeout(shutdownTimeout);
     }
 
@@ -136,6 +139,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @Override
     public CompletableFuture<Void> sendAndForget(Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
                                                  Message... messages) {
+        guarantee = guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
         if (messages.length >= PARALLEL_SERIALIZATION_THRESHOLD) {
             return sendAndForgetParallel(guarantee, interceptor, messages);
         }
@@ -765,6 +769,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         boolean isExternal() {
             return serializedMessage != null;
         }
+    }
+
+    /**
+     * Configures the concrete application delivery default before first use. Namespace gateways inherit this value.
+     * The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.
+     *
+     * @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed
+     * @return this gateway
+     */
+    public DefaultGenericGateway withDefaultGuarantee(Guarantee guarantee) {
+        if (Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
     }
 
     /**

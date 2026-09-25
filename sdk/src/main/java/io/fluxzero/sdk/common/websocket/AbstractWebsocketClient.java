@@ -521,6 +521,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 yield CompletableFuture.completedFuture(null);
             }
             case SENT -> sendAndForget(command);
+            case DEFAULT -> throw new IllegalArgumentException(
+                    "Guarantee.DEFAULT must be resolved by the application gateway before transport");
             default -> send(command).thenApply(r -> null);
         };
     }

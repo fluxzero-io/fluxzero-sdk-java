@@ -58,5 +58,13 @@ public enum Guarantee {
      * This is the highest level of guarantee and ensures that the message won't be lost even if there is a failure
      * after dispatch.
      */
-    STORED
+    STORED,
+
+    /**
+     * Uses the owning application's delivery default for SDK message publication and send-and-forget gateways.
+     * Compatibility mode resolves to {@link #NONE}; applications can opt into {@link #STORED} with their defaults
+     * version or configure a concrete delivery guarantee explicitly. The SDK resolves this value before transport.
+     * This is not a wire guarantee and must not be used in low-level protocol requests.
+     */
+    DEFAULT
 }
