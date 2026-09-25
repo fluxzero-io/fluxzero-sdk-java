@@ -75,16 +75,19 @@ public interface ErrorGateway extends Namespaced<ErrorGateway>, HasLocalHandlers
     }
 
     /**
-     * Reports an error with the given payload and metadata using the default {@link Guarantee#NONE}.
+     * Reports an error with the given payload and metadata using the default {@link Guarantee#DEFAULT}.
      * <p>
-     * This method blocks until the reporting operation is completed or fails.
+     * Remote acknowledgements are awaited by an active tracking completion scope, without blocking this call.
      *
      * @param payload  the error payload
      * @param metadata context metadata for the error
      */
     @SneakyThrows
     default void report(Object payload, Metadata metadata) {
-        report(payload, metadata, Guarantee.NONE).get();
+        CompletableFuture<Void> completion = report(payload, metadata, Guarantee.DEFAULT);
+        if (completion.isDone()) {
+            completion.get();
+        }
     }
 
     /**

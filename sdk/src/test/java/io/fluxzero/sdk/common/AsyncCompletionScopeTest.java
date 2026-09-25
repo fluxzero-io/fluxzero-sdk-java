@@ -17,13 +17,16 @@ package io.fluxzero.sdk.common;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -85,4 +88,43 @@ class AsyncCompletionScopeTest {
         assertThrows(ExecutionException.class, () -> scope.get(1, TimeUnit.SECONDS));
         assertTrue(callbackRan.get());
     }
+    @Test
+    void awaitsRegistrationsMadeByAnOutstandingWorker() throws Exception {
+        CompletableFuture<Void> invocation = new CompletableFuture<>();
+        CompletableFuture<Void> publication = new CompletableFuture<>();
+        AtomicReference<Runnable> worker = new AtomicReference<>();
+        try (var task = new io.fluxzero.common.TestTask(() -> AsyncCompletionScope.runAndAwait(() -> {
+            AsyncCompletionScope.register(invocation);
+            worker.set(AsyncCompletionScope.captureContext(() -> {
+                AsyncCompletionScope.register(publication);
+                invocation.complete(null);
+                return null;
+            })::get);
+        }), () -> {
+            invocation.complete(null);
+            publication.complete(null);
+        })) {
+            task.awaitBlockedIn(AsyncCompletionScope.class, "await", java.time.Duration.ofSeconds(1));
+            worker.get().run();
+            task.awaitBlockedIn(AsyncCompletionScope.class, "await", java.time.Duration.ofSeconds(1));
+            publication.complete(null);
+            task.awaitCompletion(java.time.Duration.ofSeconds(1));
+        }
+    }
+
+    @Test
+    void normalScopePreservesTaskFailureWhileCommitScopePrioritizesCompletionFailure() {
+        RuntimeException taskFailure = new RuntimeException("task failed");
+        RuntimeException deliveryFailure = new RuntimeException("delivery failed");
+        Runnable task = () -> {
+            AsyncCompletionScope.register(CompletableFuture.failedFuture(deliveryFailure));
+            throw taskFailure;
+        };
+        assertSame(taskFailure, assertThrows(RuntimeException.class, () -> AsyncCompletionScope.runAndAwait(task)));
+        CompletionException failure = assertThrows(CompletionException.class,
+                () -> AsyncCompletionScope.runAndAwaitBeforeCommit(task));
+        assertSame(deliveryFailure, failure.getCause().getCause());
+        assertSame(taskFailure, failure.getSuppressed()[0]);
+    }
+
 }

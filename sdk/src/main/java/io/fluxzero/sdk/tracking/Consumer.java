@@ -279,6 +279,11 @@ public @interface Consumer {
      * <p>
      * The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee
      * before tracker progress is committed without each handler explicitly waiting on the returned future.
+     * Worker invocations are awaited so publications started by their handler bodies are included. This does not
+     * await a returned asynchronous result when {@link #awaitAsyncResults()} is disabled; work started later by that
+     * result is outside this batch's completion boundary. Incomplete streaming bodies also remain asynchronous so
+     * later batches can deliver their remaining chunks.
+     * <p>
      * Failures while awaiting are handled by this consumer's error handler like other batch processing failures.
      */
     boolean awaitSendAndForgetFutures() default true;

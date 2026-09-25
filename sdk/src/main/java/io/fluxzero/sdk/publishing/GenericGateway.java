@@ -66,11 +66,17 @@ import static java.util.Arrays.stream;
 public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHandlers, AutoCloseable {
 
     /**
-     * Sends a message asynchronously without waiting for a result or acknowledgement.
+     * Sends a message with the application's {@link Guarantee#DEFAULT} without waiting for a result or remote
+     * acknowledgement. A participating tracking completion scope awaits delivery before committing its consumer position; see
+     * {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.
+     * Outside tracking, use a future-returning overload to observe delivery confirmation or asynchronous failures.
      */
     @SneakyThrows
     default void sendAndForget(Object message) {
-        sendAndForget(asMessage(message), Guarantee.NONE).get();
+        CompletableFuture<Void> completion = sendAndForget(asMessage(message), Guarantee.DEFAULT);
+        if (completion.isDone()) {
+            completion.get();
+        }
     }
 
     /**
@@ -78,7 +84,10 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      */
     @SneakyThrows
     default void sendAndForget(Object payload, Metadata metadata) {
-        sendAndForget(new Message(payload, metadata), Guarantee.NONE).get();
+        CompletableFuture<Void> completion = sendAndForget(new Message(payload, metadata), Guarantee.DEFAULT);
+        if (completion.isDone()) {
+            completion.get();
+        }
     }
 
     /**
@@ -86,7 +95,10 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      */
     @SneakyThrows
     default void sendAndForget(Object payload, Metadata metadata, Guarantee guarantee) {
-        sendAndForget(new Message(payload, metadata), guarantee).get();
+        CompletableFuture<Void> completion = sendAndForget(new Message(payload, metadata), guarantee);
+        if (guarantee != Guarantee.DEFAULT || completion.isDone()) {
+            completion.get();
+        }
     }
 
     /**
@@ -97,10 +109,10 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     }
 
     /**
-     * Sends multiple messages asynchronously with {@link Guarantee#NONE}.
+     * Sends multiple messages asynchronously with {@link Guarantee#DEFAULT}.
      */
     default void sendAndForget(Object... messages) {
-        sendAndForget(Guarantee.NONE, messages);
+        sendAndForget(Guarantee.DEFAULT, messages);
     }
 
     /**

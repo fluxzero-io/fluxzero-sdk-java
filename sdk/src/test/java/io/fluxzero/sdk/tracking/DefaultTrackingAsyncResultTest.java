@@ -17,6 +17,8 @@ package io.fluxzero.sdk.tracking;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.TestTask;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
@@ -27,6 +29,7 @@ import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
+import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -582,7 +585,7 @@ class DefaultTrackingAsyncResultTest {
     }
 
     @Test
-    void asyncHandlingModeDoesNotWaitByDefault() throws Exception {
+    void asyncHandlingModeDoesNotWaitWhenCompletionPoliciesAreDisabled() throws Exception {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);
         when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
@@ -600,6 +603,7 @@ class DefaultTrackingAsyncResultTest {
                     ConsumerConfiguration.builder()
                             .name("web")
                             .handlingMode(ConsumerHandlingMode.ASYNC)
+                            .awaitSendAndForgetFutures(false)
                             .build(),
                     true);
 
@@ -780,7 +784,7 @@ class DefaultTrackingAsyncResultTest {
                             secondStarted.countDown();
                         }
                     })),
-                    asyncConfig(false),
+                    asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(),
                     true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
@@ -819,7 +823,7 @@ class DefaultTrackingAsyncResultTest {
                             otherMessagesStarted.countDown();
                         }
                     })),
-                    asyncConfig(false),
+                    asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(),
                     true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
@@ -848,7 +852,7 @@ class DefaultTrackingAsyncResultTest {
                                 releaseFirst.join();
                             }),
                             handler(message -> secondStarted.countDown())),
-                    asyncConfig(false),
+                    asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(),
                     true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
@@ -896,7 +900,7 @@ class DefaultTrackingAsyncResultTest {
         try {
             tracking.handleBatch(
                     List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
-                    List.of(handler), asyncConfig(false), true);
+                    List.of(handler), asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(), true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
             assertFalse(secondStarted.await(100, TimeUnit.MILLISECONDS));
@@ -959,7 +963,7 @@ class DefaultTrackingAsyncResultTest {
         try {
             tracking.handleBatch(
                     List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
-                    List.of(handler), asyncConfig(false), true);
+                    List.of(handler), asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(), true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
             assertTrue(secondStarted.await(1, TimeUnit.SECONDS));
@@ -1021,6 +1025,109 @@ class DefaultTrackingAsyncResultTest {
             batchCompletion.awaitCompletion(Duration.ofSeconds(1));
         } finally {
             sendCompletion.complete(null);
+            tracking.close();
+        }
+    }
+
+    @Test
+    void asyncInvocationWaitsForLatePublicationWithoutAwaitingReturnedResult() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> releaseInvocation = new CompletableFuture<>();
+        CompletableFuture<Void> publication = new CompletableFuture<>();
+        CompletableFuture<String> result = new CompletableFuture<>();
+        CountDownLatch invocationStarted = new CountDownLatch(1);
+        CountDownLatch published = new CountDownLatch(1);
+        Handler<DeserializingMessage> handler = handlerInvoker(HandlerInvoker.call(() -> {
+            invocationStarted.countDown();
+            releaseInvocation.join();
+            AsyncCompletionScope.register(publication);
+            published.countDown();
+            return result;
+        }));
+
+        try (var batch = new TestTask(() -> tracking.handleBatch(
+                List.of(message(serializer)), List.of(handler), asyncConfig(false), true), () -> {
+            releaseInvocation.complete(null);
+            publication.complete(null);
+            result.complete("done");
+        })) {
+            assertTrue(invocationStarted.await(1, TimeUnit.SECONDS));
+            batch.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(1));
+            releaseInvocation.complete(null);
+            assertTrue(published.await(1, TimeUnit.SECONDS));
+            batch.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(1));
+            publication.complete(null);
+            batch.awaitCompletion(Duration.ofSeconds(1));
+            assertFalse(result.isDone(), "The returned request result is still explicitly unawaited");
+        } finally {
+            result.complete("done");
+            tracking.close();
+        }
+    }
+
+    @Test
+    void incompleteStreamAndSameSegmentFollowerAllowLaterBatchToArrive() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        TestTracking tracking = tracking(MessageType.EVENT, resultGateway, serializer);
+        SerializedMessage firstChunk = new SerializedMessage(new Data<>(new byte[0], byte[].class.getName(), 0, null),
+                Metadata.of(HasMetadata.FIRST_CHUNK, "true", HasMetadata.FINAL_CHUNK, "false",
+                            HasMetadata.CHUNK_INDEX, "0"), "stream", System.currentTimeMillis());
+        firstChunk.setSegment(42);
+        ChunkedDeserializingMessage streaming =
+                new ChunkedDeserializingMessage(firstChunk, MessageType.EVENT, null, serializer);
+        CountDownLatch streamStarted = new CountDownLatch(1);
+        CountDownLatch followerStarted = new CountDownLatch(1);
+        try (var batch = new TestTask(() -> tracking.handleBatch(
+                List.of(streaming, message(serializer, "follower", 42)),
+                List.of(handler(message -> {
+                    if (message == streaming) {
+                        streamStarted.countDown();
+                        streaming.completion().join();
+                    } else {
+                        followerStarted.countDown();
+                    }
+                })), asyncConfig(false), false), () -> streaming.fail(new IllegalStateException("test cleanup")))) {
+            assertTrue(streamStarted.await(1, TimeUnit.SECONDS));
+            batch.awaitCompletion(Duration.ofSeconds(1));
+            assertFalse(streaming.completion().isDone());
+            assertEquals(1L, followerStarted.getCount());
+            SerializedMessage finalChunk = new SerializedMessage(firstChunk.getData(),
+                    Metadata.of(HasMetadata.FIRST_CHUNK, "false", HasMetadata.FINAL_CHUNK, "true",
+                                HasMetadata.CHUNK_INDEX, "1"), firstChunk.getMessageId(), firstChunk.getTimestamp());
+            streaming.appendObservedContinuation(finalChunk);
+            assertTrue(followerStarted.await(1, TimeUnit.SECONDS));
+        } finally {
+            streaming.fail(new IllegalStateException("test cleanup"));
+            tracking.close();
+        }
+    }
+
+    @Test
+    void deliveryFailurePreventsPartialBatchCommitAfterHandlerAbort() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("events")
+                .errorHandler((error, description, retry) -> { throw new BatchProcessingException(2L); })
+                .build();
+        try {
+            CompletionException failure = assertThrows(CompletionException.class, () -> tracking.handleBatch(
+                    List.of(message(serializer, "first", 1), message(serializer, "second", 1)),
+                    List.of(handler(message -> {
+                        if (message.getMessageId().equals("first")) {
+                            AsyncCompletionScope.register(CompletableFuture.failedFuture(
+                                    new IllegalStateException("append failed")));
+                        } else {
+                            throw new BatchProcessingException(2L);
+                        }
+                    })), config, false));
+            assertInstanceOf(BatchProcessingException.class, failure.getSuppressed()[0]);
+            assertInstanceOf(IllegalStateException.class, failure.getCause().getCause());
+        } finally {
             tracking.close();
         }
     }

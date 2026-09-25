@@ -1754,6 +1754,7 @@ public class DefaultFluxzero implements Fluxzero {
             return new DefaultGenericGateway(client, client.getGatewayClient(messageType, topic), requestHandler,
                                              this.serializer, dispatchInterceptors.get(messageType), messageType,
                                              topic, localHandlers, responseMapper)
+                    .withDefaultGuarantee(ApplicationProperties.getDefaultDeliveryGuarantee(propertySource))
                     .withShutdownTimeout(requestHandler instanceof DefaultRequestHandler handler
                                                  ? handler::getShutdownTimeout
                                                  : () -> requestShutdownTimeout(shutdownProperties));
