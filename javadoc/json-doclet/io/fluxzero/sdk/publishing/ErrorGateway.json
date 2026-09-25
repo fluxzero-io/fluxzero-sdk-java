@@ -71,7 +71,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Reports an error with the given payload and metadata using the default {@link Guarantee#NONE}.\n <p>\n This method blocks until the reporting operation is completed or fails.\n\n @param payload  the error payload\n @param metadata context metadata for the error\n"
+    "documentation" : " Reports an error with the given payload and metadata using the default {@link Guarantee#DEFAULT}.\n <p>\n Remote acknowledgements are awaited by an active tracking completion scope, without blocking this call.\n\n @param payload  the error payload\n @param metadata context metadata for the error\n"
   }, {
     "name" : "report",
     "qualifiedName" : "io.fluxzero.sdk.publishing.ErrorGateway#report",

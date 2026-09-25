@@ -2188,7 +2188,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Publishes the given application event. The event may be an instance of a {@link Message} in which case it will be\n published as is. Otherwise the event is published using the passed value as payload without additional metadata.\n\n <p><strong>Note:</strong> These events are <em>not</em> persisted for event sourcing. To publish domain events\n as part of an aggregate lifecycle, apply the events using {@link Entity#apply} after loading an entity.</p>\n\n @see #aggregateRepository() if you're interested in publishing events that belong to an aggregate.\n"
+    "documentation" : " Publishes the given application event. The event may be an instance of a {@link Message} in which case it will be\n published as is. Otherwise the event is published using the passed value as payload without additional metadata.\n Uses {@link Guarantee#DEFAULT} without waiting for remote acknowledgement. Participating tracking scopes await\n delivery before committing their position; see {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()}\n for asynchronous and streaming boundaries. Outside tracking, use {@link EventGateway#publish(Message, Guarantee)}\n to obtain a delivery future.\n\n <p><strong>Note:</strong> These events are <em>not</em> persisted for event sourcing. To publish domain events\n as part of an aggregate lifecycle, apply the events using {@link Entity#apply} after loading an entity.</p>\n\n @see #aggregateRepository() if you're interested in publishing events that belong to an aggregate.\n"
   }, {
     "name" : "publishEvent",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#publishEvent",

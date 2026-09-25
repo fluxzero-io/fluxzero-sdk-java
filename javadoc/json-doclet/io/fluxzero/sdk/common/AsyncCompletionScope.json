@@ -110,6 +110,43 @@
     "varArgs" : false,
     "documentation" : " Runs the supplied task inside a new completion scope and waits for all futures registered in that scope.\n <p>\n If both the task and asynchronous completion fail, the asynchronous failure is added as a suppressed exception\n to the task failure.\n\n @param task the task that may register asynchronous completion work\n"
   }, {
+    "name" : "runAndAwait",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#runAndAwait",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "beforeCommit",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runAndAwaitBeforeCommit",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#runAndAwaitBeforeCommit",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Runs a task and awaits its asynchronous work before committing progress.\n <p>\n Unlike {@link #runAndAwait(Runnable)}, a completion failure takes precedence over a task failure. In particular,\n a task that intentionally stops partway through a batch must not authorize a partial position commit when\n asynchronous work for earlier messages has failed. The task failure is retained as a suppressed exception.\n\n @param task task whose registered asynchronous work must complete successfully before progress is committed\n"
+  }, {
     "name" : "runWithScope",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#runWithScope",
     "returnType" : "T",

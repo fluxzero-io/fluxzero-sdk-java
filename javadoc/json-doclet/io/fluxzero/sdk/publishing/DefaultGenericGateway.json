@@ -58,6 +58,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "dispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.dispatchInterceptor",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
@@ -923,6 +931,22 @@
     "thrownTypes" : [ "java.lang.Throwable" ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withDefaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#withDefaultGuarantee",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultGenericGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures the concrete application delivery default before first use. Namespace gateways inherit this value.\n The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.\n\n @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
   }, {
     "name" : "withShutdownTimeout",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#withShutdownTimeout",

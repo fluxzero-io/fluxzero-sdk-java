@@ -31,7 +31,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Append the given messages to the gateway, applying the given delivery {@link Guarantee}.\n\n @param guarantee the delivery guarantee that should be respected (e.g. at-most-once, at-least-once)\n @param messages  one or more serialized messages to append\n @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery\n fails\n"
+    "documentation" : " Append the given messages to the gateway, applying the given delivery {@link Guarantee}.\n\n @param guarantee a concrete delivery guarantee; SDK gateways resolve {@code DEFAULT} before calling this client\n @param messages  one or more serialized messages to append\n @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery\n fails\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient#close",

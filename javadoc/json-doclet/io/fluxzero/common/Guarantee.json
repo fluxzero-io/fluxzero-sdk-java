@@ -50,6 +50,11 @@
     "documentation" : null
   } ],
   "enumConstants" : [ {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.common.Guarantee.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Uses the owning application's delivery default for SDK message publication and send-and-forget gateways.\n Compatibility mode resolves to {@link #NONE}; applications can opt into {@link #STORED} with their defaults\n version or configure a concrete delivery guarantee explicitly. The SDK resolves this value before transport.\n This is not a wire guarantee and must not be used in low-level protocol requests.\n"
+  }, {
     "name" : "NONE",
     "qualifiedName" : "io.fluxzero.common.Guarantee.NONE",
     "annotations" : [ ],

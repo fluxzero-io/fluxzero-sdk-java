@@ -50,10 +50,26 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "needsLaterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.needsLaterBatch",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "segmentTails",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.segmentTails",
     "type" : "java.util.Map<java.lang.Integer,java.util.concurrent.CompletableFuture<?>>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "streamingSegments",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue.streamingSegments",
+    "type" : "java.util.Set<java.lang.Integer>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -79,6 +95,11 @@
     "parameters" : [ {
       "name" : "segment",
       "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "incompleteBody",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -120,6 +141,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "needsLaterBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking$SegmentedBatchHandlerQueue#needsLaterBatch",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

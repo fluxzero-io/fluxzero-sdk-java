@@ -69,8 +69,8 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "snapshot",
-      "type" : "java.util.List<io.fluxzero.sdk.common.AsyncCompletionScope.Completion>",
+      "name" : "callbacks",
+      "type" : "java.util.List<java.lang.Runnable>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
