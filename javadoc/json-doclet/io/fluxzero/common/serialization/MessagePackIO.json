@@ -1,0 +1,48 @@
+{
+  "name" : "MessagePackIO",
+  "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Internal, bounds-checked MessagePack I/O for Fluxzero's existing storage and transport schemas.\n Supports integers, strings, binary payloads, array headers, booleans and nil; this is not a general object mapper.\n All multi-byte values use MessagePack's big-endian byte order. Instances are reusable but not thread-safe.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EMPTY",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO.EMPTY",
+    "type" : "byte[]",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MessagePackIO",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO#MessagePackIO",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Reader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Writer",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

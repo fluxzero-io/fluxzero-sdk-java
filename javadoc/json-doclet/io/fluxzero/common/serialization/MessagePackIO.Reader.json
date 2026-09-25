@@ -1,0 +1,338 @@
+{
+  "name" : "Reader",
+  "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "A reusable, zero-copy reader of one heap-array range. Closing releases the referenced array. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader.bytes",
+    "type" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "end",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader.end",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "position",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader.position",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Reader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#Reader",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Reader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#Reader",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasNext",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#hasNext",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Indicates whether this range still contains bytes. "
+  }, {
+    "name" : "readByte",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#readByte",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readPayload",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#readPayload",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Copies exactly length unframed bytes, checking the input range before allocating. "
+  }, {
+    "name" : "require",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#require",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reset",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#reset",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Replaces the input without copying or retaining the previous array. "
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#size",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "width",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "throwUnexpected",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#throwUnexpected",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tag",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expected",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryUnpackNil",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#tryUnpackNil",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Consumes nil when present, otherwise leaves the input unchanged. "
+  }, {
+    "name" : "unexpected",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unexpected",
+    "returnType" : "java.io.IOException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tag",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expected",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unpackArrayHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackArrayHeader",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads an array header, rejecting counts outside the Java collection size range. "
+  }, {
+    "name" : "unpackBinaryHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackBinaryHeader",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads a binary or string header, matching historical MessagePack reader defaults. "
+  }, {
+    "name" : "unpackBoolean",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackBoolean",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads a boolean. "
+  }, {
+    "name" : "unpackByte",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackByte",
+    "returnType" : "byte",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads an integer, rejecting values outside the Java byte range. "
+  }, {
+    "name" : "unpackInt",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackInt",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads an integer, rejecting values outside the Java int range. "
+  }, {
+    "name" : "unpackLong",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackLong",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads any MessagePack integer representable as a Java long. "
+  }, {
+    "name" : "unpackString",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unpackString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Reads UTF-8, retaining the previous reader's malformed-input replacement and binary acceptance. "
+  }, {
+    "name" : "unsigned",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#unsigned",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "width",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

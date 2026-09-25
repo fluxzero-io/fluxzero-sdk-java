@@ -1,0 +1,371 @@
+{
+  "name" : "Writer",
+  "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "A reusable heap-array writer. Returned byte arrays are independent snapshots. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "buffer",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer.buffer",
+    "type" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "chunkStart",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer.chunkStart",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "chunks",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer.chunks",
+    "type" : "java.util.List<io.fluxzero.common.serialization.MessagePackIO.Writer.Chunk>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "completedSize",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer.completedSize",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "position",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer.position",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Writer",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addPayload",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#addPayload",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Appends unframed bytes, retaining large arrays until clear/close. Callers must not mutate the array\n before taking the output snapshot. This preserves the historical large-payload copy boundary.\n"
+  }, {
+    "name" : "append",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#append",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "checkSize",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#checkSize",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#clear",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resets the writer and releases completed chunks, retaining only its current small buffer. "
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ensure",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#ensure",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "count",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "finishChunk",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#finishChunk",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getBufferSize",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#getBufferSize",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns written bytes, for bounding writer pools after serialization. "
+  }, {
+    "name" : "number",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#number",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tag",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "packArrayHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packArrayHeader",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes an array header; callers write its elements separately. "
+  }, {
+    "name" : "packBinaryHeader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packBinaryHeader",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "size",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes a binary header; callers write its payload separately. "
+  }, {
+    "name" : "packBoolean",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packBoolean",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes a boolean. "
+  }, {
+    "name" : "packByte",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packByte",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "byte",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes a Java byte in its smallest MessagePack representation. "
+  }, {
+    "name" : "packInt",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packInt",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes a Java integer in its smallest MessagePack representation. "
+  }, {
+    "name" : "packLong",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packLong",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes the smallest signed or unsigned integer representation of a Java long. "
+  }, {
+    "name" : "packNil",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packNil",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes nil. "
+  }, {
+    "name" : "packString",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#packString",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Writes UTF-8, replacing malformed UTF-16 with '?' like the previous writer. "
+  }, {
+    "name" : "toByteArray",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#toByteArray",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns an independent copy of all bytes written since the last clear. "
+  }, {
+    "name" : "writePayload",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer#writePayload",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Copies unframed payload bytes into this writer. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Chunk",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer$Chunk",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

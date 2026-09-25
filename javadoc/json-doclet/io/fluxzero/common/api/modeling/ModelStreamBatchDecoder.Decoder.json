@@ -23,7 +23,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

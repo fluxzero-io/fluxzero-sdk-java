@@ -35,6 +35,26 @@
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils$IgnoreDisablingAnnotationIntrospector",
     "kind" : "class"
   }, {
+    "file" : "MessagePackIO.json",
+    "name" : "MessagePackIO",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO",
+    "kind" : "class"
+  }, {
+    "file" : "MessagePackIO.Reader.json",
+    "name" : "MessagePackIO.Reader",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader",
+    "kind" : "class"
+  }, {
+    "file" : "MessagePackIO.Writer.json",
+    "name" : "MessagePackIO.Writer",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer",
+    "kind" : "class"
+  }, {
+    "file" : "MessagePackIO.Writer.Chunk.json",
+    "name" : "MessagePackIO.Writer.Chunk",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Writer$Chunk",
+    "kind" : "record"
+  }, {
     "file" : "NoOpTypeRegistry.json",
     "name" : "NoOpTypeRegistry",
     "qualifiedName" : "io.fluxzero.common.serialization.NoOpTypeRegistry",

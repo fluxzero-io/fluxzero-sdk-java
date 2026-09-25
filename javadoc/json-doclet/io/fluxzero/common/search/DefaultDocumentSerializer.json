@@ -17,14 +17,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : 0
-  }, {
-    "name" : "smallDocumentUnpackerConfig",
-    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer.smallDocumentUnpackerConfig",
-    "type" : "org.msgpack.core.MessagePack.UnpackerConfig",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DefaultDocumentSerializer",
@@ -72,7 +64,7 @@
   }, {
     "name" : "newDocumentUnpacker",
     "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#newDocumentUnpacker",
-    "returnType" : "org.msgpack.core.MessageUnpacker",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -102,7 +94,7 @@
       "annotations" : [ ]
     }, {
       "name" : "packer",
-      "type" : "org.msgpack.core.MessagePacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Writer",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -137,7 +129,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -156,7 +148,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

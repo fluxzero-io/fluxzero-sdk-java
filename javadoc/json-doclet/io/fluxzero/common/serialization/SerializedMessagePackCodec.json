@@ -33,14 +33,6 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
-  }, {
-    "name" : "UNPACKER_CONFIG",
-    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec.UNPACKER_CONFIG",
-    "type" : "org.msgpack.core.MessagePack.UnpackerConfig",
-    "modifiers" : [ "final", "private", "static" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "SerializedMessagePackCodec",
@@ -104,7 +96,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -120,7 +112,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -141,7 +133,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -157,7 +149,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -173,7 +165,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -189,7 +181,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -205,7 +197,7 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "unpacker",
-      "type" : "org.msgpack.core.MessageUnpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -10,17 +10,9 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
-    "name" : "input",
-    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker.input",
-    "type" : "org.msgpack.core.buffer.ArrayBufferInput",
-    "modifiers" : [ "final", "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "unpacker",
     "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker.unpacker",
-    "type" : "org.msgpack.core.MessageUnpacker",
+    "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -51,7 +43,7 @@
   }, {
     "name" : "reset",
     "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec$ReusableUnpacker#reset",
-    "returnType" : "org.msgpack.core.MessageUnpacker",
+    "returnType" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -71,7 +63,7 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
-    "thrownTypes" : [ "java.io.IOException" ],
+    "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
