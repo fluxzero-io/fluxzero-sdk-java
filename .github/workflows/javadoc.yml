@@ -37,6 +37,10 @@ env:
 jobs:
   generate-javadoc:
     runs-on: ubuntu-latest
+    concurrency:
+      group: sdk-javadoc-publication
+      cancel-in-progress: false
+      queue: max
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -84,6 +88,18 @@ jobs:
           <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />\
           <meta http-equiv="Pragma" content="no-cache" />\
           <meta http-equiv="Expires" content="0" />' {} +
+
+      - name: Preserve maintenance Javadoc
+        if: ${{ inputs.destination-dir == 'javadoc' }}
+        shell: bash
+        run: |
+          git fetch --no-tags origin gh-pages
+          if git cat-file -e FETCH_HEAD:javadoc/1.x; then
+            archive_dir=$(mktemp -d)
+            trap 'rm -rf "$archive_dir"' EXIT
+            git archive FETCH_HEAD javadoc/1.x | tar -x -C "$archive_dir"
+            cp -a "$archive_dir/javadoc/1.x" target/site/1.x
+          fi
 
       - name: Publish Javadoc to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
