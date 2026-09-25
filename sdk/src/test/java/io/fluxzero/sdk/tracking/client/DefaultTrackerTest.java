@@ -21,6 +21,8 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
+import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.FlowRegulator;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -506,6 +508,79 @@ class DefaultTrackerTest {
             cancellation.get(1, TimeUnit.SECONDS);
         } finally {
             releaseFirstBatch.countDown();
+            registration.cancel();
+        }
+    }
+
+    @Test
+    void delayedDeliveryDoesNotBlockIndependentTrackerPosition() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(2).build();
+        AtomicInteger reads = new AtomicInteger();
+        CompletableFuture<Void> delivery = new CompletableFuture<>();
+        CountDownLatch slowPublished = new CountDownLatch(1);
+        CountDownLatch independentCommitted = new CountDownLatch(1);
+        CountDownLatch slowCommitted = new CountDownLatch(1);
+        CountDownLatch releaseFetch = new CountDownLatch(1);
+        when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
+            int read = reads.getAndIncrement();
+            if (read < 2) {
+                SerializedMessage message = mock(SerializedMessage.class);
+                when(message.getIndex()).thenReturn(read + 1L);
+                return new MessageBatch(new int[]{read * 64, (read + 1) * 64}, List.of(message), read + 1L,
+                                        Position.newPosition(), true);
+            }
+            releaseFetch.await();
+            return null;
+        });
+        when(trackingClient.storePosition(eq("consumer"), any(), anyLong())).thenAnswer(invocation -> {
+            if ((long) invocation.getArgument(2) == 1L) {
+                slowCommitted.countDown();
+            } else {
+                independentCommitted.countDown();
+            }
+            return CompletableFuture.completedFuture(null);
+        });
+        Registration registration = DefaultTracker.start(messages -> AsyncCompletionScope.runAndAwaitBeforeCommit(() -> {
+            if (messages.getFirst().getIndex() == 1L) {
+                AsyncCompletionScope.register(delivery);
+                slowPublished.countDown();
+            }
+        }), config, trackingClient);
+        try {
+            assertTrue(slowPublished.await(1, TimeUnit.SECONDS));
+            assertTrue(independentCommitted.await(1, TimeUnit.SECONDS));
+            assertEquals(1L, slowCommitted.getCount());
+            verify(trackingClient, never()).storePosition(eq("consumer"), any(), eq(1L));
+            delivery.complete(null);
+            assertTrue(slowCommitted.await(1, TimeUnit.SECONDS));
+        } finally {
+            delivery.complete(null);
+            releaseFetch.countDown();
+            registration.cancel();
+        }
+    }
+
+    @Test
+    void failedDeliveryAndBatchAbortDoNotCommitSuccessfulPrefix() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
+        SerializedMessage first = mock(SerializedMessage.class);
+        SerializedMessage second = mock(SerializedMessage.class);
+        when(first.getIndex()).thenReturn(1L);
+        when(second.getIndex()).thenReturn(2L);
+        when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
+        when(trackingClient.readAndWait(anyString(), any(), same(config))).thenReturn(
+                new MessageBatch(new int[]{0, 128}, List.of(first, second), 2L, Position.newPosition(), true));
+        Registration registration = DefaultTracker.start(messages -> AsyncCompletionScope.runAndAwaitBeforeCommit(() -> {
+            AsyncCompletionScope.register(CompletableFuture.failedFuture(new IllegalStateException("append failed")));
+            throw new BatchProcessingException(2L);
+        }), config, trackingClient);
+        try {
+            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
+            verify(trackingClient, never()).storePosition(anyString(), any(), anyLong());
+        } finally {
             registration.cancel();
         }
     }

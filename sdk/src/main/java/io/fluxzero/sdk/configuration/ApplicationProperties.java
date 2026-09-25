@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.configuration;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.application.ApplicationEnvironmentPropertiesSource;
 import io.fluxzero.common.application.ApplicationPropertiesSource;
 import io.fluxzero.common.application.DecryptingPropertySource;
@@ -94,6 +95,41 @@ public class ApplicationProperties {
      * {@code FLUXZERO_APPLICATION_VERSION}.
      */
     public static final String APPLICATION_VERSION_PROPERTY = "fluxzero.application.version";
+
+    /**
+     * Application delivery default for message publication and send-and-forget gateways. The conventional environment
+     * variable is {@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}. Values are {@code NONE}, {@code SENT}, and
+     * {@code STORED}; an explicit value overrides the defaults version in either direction.
+     */
+    public static final String DEFAULT_DELIVERY_GUARANTEE_PROPERTY = "fluxzero.publishing.defaultGuarantee";
+
+    private static final LocalDate STORED_DELIVERY_DEFAULTS_VERSION = LocalDate.of(2026, 9, 25);
+
+    /**
+     * Resolves the application delivery default using the owning component's property source.
+     * Without an override, defaults versions from {@code 2026.09.25} use {@link Guarantee#STORED}; older or absent
+     * versions retain {@link Guarantee#NONE}. Invalid values, including the unresolved {@code DEFAULT}, fail.
+     *
+     * @param propertySource application-local properties
+     * @return a concrete delivery guarantee
+     */
+    public static Guarantee getDefaultDeliveryGuarantee(PropertySource propertySource) {
+        String configured = propertySource.get(DEFAULT_DELIVERY_GUARANTEE_PROPERTY);
+        if (configured != null) {
+            try {
+                Guarantee result = Guarantee.valueOf(configured.trim().toUpperCase(java.util.Locale.ROOT));
+                if (result != Guarantee.DEFAULT) {
+                    return result;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Report the accepted values consistently, including for DEFAULT and blank overrides.
+            }
+            throw new IllegalArgumentException("Property `" + DEFAULT_DELIVERY_GUARANTEE_PROPERTY
+                                               + "` must be NONE, SENT, or STORED");
+        }
+        return defaultsVersionAtLeast(propertySource, STORED_DELIVERY_DEFAULTS_VERSION)
+                ? Guarantee.STORED : Guarantee.NONE;
+    }
 
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
@@ -176,6 +212,12 @@ public class ApplicationProperties {
      *         <td>{@code fluxzero.eventsourcing.maxFetchBytes = 104857600}</td>
      *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications
      *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.25}</td>
+     *         <td>{@code fluxzero.publishing.defaultGuarantee = STORED}</td>
+     *         <td>Message publication and send-and-forget gateways resolve {@code Guarantee.DEFAULT} to durable
+     *         storage acknowledgement. Set the property to {@code NONE} to retain compatibility behavior.</td>
      *     </tr>
      * </table>
      * <p>

@@ -356,6 +356,10 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Publishes the given application event. The event may be an instance of a {@link Message} in which case it will be
      * published as is. Otherwise the event is published using the passed value as payload without additional metadata.
+     * Uses {@link Guarantee#DEFAULT} without waiting for remote acknowledgement. Participating tracking scopes await
+     * delivery before committing their position; see {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()}
+     * for asynchronous and streaming boundaries. Outside tracking, use {@link EventGateway#publish(Message, Guarantee)}
+     * to obtain a delivery future.
      *
      * <p><strong>Note:</strong> These events are <em>not</em> persisted for event sourcing. To publish domain events
      * as part of an aggregate lifecycle, apply the events using {@link Entity#apply} after loading an entity.</p>

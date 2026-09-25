@@ -1582,7 +1582,11 @@
         "@Trigger",
         "Fluxzero.publishEvent(...)",
         "@Consumer",
-        "storeOnly"
+        "storeOnly",
+        "Guarantee.DEFAULT",
+        "Guarantee.STORED",
+        "fluxzero.publishing.defaultGuarantee",
+        "awaitSendAndForgetFutures"
       ],
       "links": [
         {

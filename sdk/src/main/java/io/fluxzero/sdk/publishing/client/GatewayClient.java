@@ -57,7 +57,7 @@ public interface GatewayClient extends AutoCloseable, Monitored<List<SerializedM
     /**
      * Append the given messages to the gateway, applying the given delivery {@link Guarantee}.
      *
-     * @param guarantee the delivery guarantee that should be respected (e.g. at-most-once, at-least-once)
+     * @param guarantee a concrete delivery guarantee; SDK gateways resolve {@code DEFAULT} before calling this client
      * @param messages  one or more serialized messages to append
      * @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery
      * fails

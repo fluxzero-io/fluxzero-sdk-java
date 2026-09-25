@@ -327,3 +327,11 @@ The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixe
 the same HTTP response generator as application responses. These options do not change their
 payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
 same environment settings apply to Java and Kotlin applications.
+
+### Publication delivery default
+
+Configure `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) before building the
+application: `NONE`, `SENT`, or `STORED`. Without this override, `fluxzero.defaults.version >= 2026.09.25` selects
+`STORED`; older or absent versions keep `NONE`. This governs `Guarantee.DEFAULT` in publication/send-and-forget
+APIs. It does not change explicit concrete guarantees or operation-specific persistence/telemetry defaults.
+See the sending rules for consumer-position and asynchronous completion boundaries.

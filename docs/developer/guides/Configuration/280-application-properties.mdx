@@ -117,6 +117,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
+| `>= 2026.09.25` | `fluxzero.publishing.defaultGuarantee = STORED` | Publication and send-and-forget defaults await durable delivery at the consumer batch boundary. Set `NONE` for compatibility or `SENT` for transport completion. |
 
 For example:
 

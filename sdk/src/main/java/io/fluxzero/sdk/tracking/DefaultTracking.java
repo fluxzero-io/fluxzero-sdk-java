@@ -609,7 +609,7 @@ public class DefaultTracking implements Tracking {
 
     private static void runInSendAndForgetCompletionScope(ConsumerConfiguration config, Runnable task) {
         if (config.awaitSendAndForgetFutures()) {
-            AsyncCompletionScope.runAndAwait(task);
+            AsyncCompletionScope.runAndAwaitBeforeCommit(task);
         } else {
             task.run();
         }
@@ -633,7 +633,7 @@ public class DefaultTracking implements Tracking {
         try {
             DeserializingMessage.forEachInBatch(messages, m -> {
                 if (currentQueue != null) {
-                    currentQueue.beginMessage(m.getSerializedObject().getSegment());
+                    currentQueue.beginMessage(m.getSerializedObject().getSegment(), needsMoreChunks(m));
                 }
                 try {
                     CompletionStage<Void> completion = tryHandle(m, handlers, config, reportResult);
@@ -895,7 +895,7 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(message, () -> doHandle(message, h, handler, config));
+            return handleAsync(message, () -> doHandle(message, h, handler, config), config);
         }
         return doHandle(message, h, handler, config);
     }
@@ -904,7 +904,7 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerMethod<? super DeserializingMessage> h,
                             Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(message, () -> doHandle(message, h, handler, config));
+            return handleAsync(message, () -> doHandle(message, h, handler, config), config);
         }
         return doHandle(message, h, handler, config);
     }
@@ -913,12 +913,24 @@ public class DefaultTracking implements Tracking {
         return message instanceof ChunkedDeserializingMessage || config.getHandlingMode() == ASYNC;
     }
 
-    private <T> CompletableFuture<T> handleAsync(DeserializingMessage message, Supplier<T> task) {
+    private <T> CompletableFuture<T> handleAsync(
+            DeserializingMessage message, Supplier<T> task, ConsumerConfiguration config) {
         Supplier<T> contextAwareTask = message.captureContext().wrap(task);
         SegmentedBatchHandlerQueue queue = batchHandlerQueue.get();
-        return queue == null
+        CompletableFuture<T> invocation = queue == null
                 ? supplyAsync(contextAwareTask, messageHandlerExecutor)
                 : queue.submit(contextAwareTask, messageHandlerExecutor);
+        // Reserve the invocation before the batch scope drains: the worker can register publications after dispatch.
+        // Do not flatten a returned CompletionStage; awaiting application results remains a separate consumer option.
+        // An incomplete streaming body needs subsequent batches to arrive before its handler can finish.
+        boolean needsLaterBatch = needsMoreChunks(message)
+                                  || (queue != null && queue.needsLaterBatch());
+        return config.awaitSendAndForgetFutures() && !needsLaterBatch
+                ? AsyncCompletionScope.register(invocation) : invocation;
+    }
+
+    private static boolean needsMoreChunks(DeserializingMessage message) {
+        return message instanceof ChunkedDeserializingMessage chunked && !chunked.completion().isDone();
     }
 
     private static class SegmentedBatchHandlerQueue {
@@ -929,12 +941,20 @@ public class DefaultTracking implements Tracking {
         private CompletableFuture<?> currentStart;
         private CompletableFuture<?> currentCompletion;
         private List<CompletableFuture<?>> additionalCompletions;
+        private Set<Integer> streamingSegments;
+        private boolean needsLaterBatch;
 
-        void beginMessage(Integer segment) {
+        void beginMessage(Integer segment, boolean incompleteBody) {
             currentSegment = segment;
             currentStart = segment == null ? null : segmentTails.getOrDefault(segment, completedHandling);
+            needsLaterBatch = incompleteBody || (streamingSegments != null && streamingSegments.contains(segment)
+                                                && !currentStart.isDone());
             currentCompletion = null;
             additionalCompletions = null;
+        }
+
+        boolean needsLaterBatch() {
+            return needsLaterBatch;
         }
 
         <T> CompletableFuture<T> submit(Supplier<T> task, ExecutorService executor) {
@@ -949,6 +969,14 @@ public class DefaultTracking implements Tracking {
         void endMessage() {
             if (currentSegment != null) {
                 segmentTails.put(currentSegment, combinedCompletion());
+                if (needsLaterBatch) {
+                    if (streamingSegments == null) {
+                        streamingSegments = new HashSet<>();
+                    }
+                    streamingSegments.add(currentSegment);
+                } else if (streamingSegments != null) {
+                    streamingSegments.remove(currentSegment);
+                }
             }
             currentSegment = null;
             currentStart = null;
