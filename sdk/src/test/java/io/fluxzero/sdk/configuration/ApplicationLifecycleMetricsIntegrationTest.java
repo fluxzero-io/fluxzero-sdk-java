@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.api.ApplicationLifecycleEvent.Phase.STARTED;
 import static io.fluxzero.common.api.ApplicationLifecycleEvent.Phase.STOPPING;
@@ -58,7 +59,11 @@ class ApplicationLifecycleMetricsIntegrationTest {
     void publishesOneLifecyclePairForEveryRealFluxzeroInstance() throws Exception {
         LocalClient client = LocalClient.newInstance(null);
         List<SerializedMessage> metrics = new CopyOnWriteArrayList<>();
-        client.monitorDispatch((type, topic, namespace, messages) -> metrics.addAll(messages), MessageType.METRICS);
+        AtomicReference<Thread> startupPublisher = new AtomicReference<>();
+        client.monitorDispatch((type, topic, namespace, messages) -> {
+            startupPublisher.compareAndSet(null, Thread.currentThread());
+            metrics.addAll(messages);
+        }, MessageType.METRICS);
         Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableAutomaticTracking()
                 .disableTrackingMetrics()
@@ -67,8 +72,14 @@ class ApplicationLifecycleMetricsIntegrationTest {
                 .disableKeepalive()
                 .build(client);
 
-        awaitSize(metrics, 1);
-        fluxzero.close(true);
+        try {
+            awaitSize(metrics, 1);
+            // Local dispatch is synchronous: observing STARTED precedes completion of its publication.
+            // Wait for the owning publisher before shutdown, which skips STOPPING while startup is pending.
+            assertTrue(startupPublisher.get().join(Duration.ofSeconds(1)), "Startup publication did not finish");
+        } finally {
+            fluxzero.close(true);
+        }
         awaitSize(metrics, 2);
 
         JacksonSerializer serializer = new JacksonSerializer();
