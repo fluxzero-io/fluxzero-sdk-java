@@ -9,7 +9,23 @@
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.common.application.EnvironmentVariablesSource>",
   "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "MAX_CACHED_NAME_LENGTH",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource.MAX_CACHED_NAME_LENGTH",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 256
+  }, {
+    "name" : "normalizedNames",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource.normalizedNames",
+    "type" : "java.util.concurrent.atomic.AtomicReferenceArray<io.fluxzero.common.application.EnvironmentVariablesSource.Names>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
   "constructors" : [ {
     "name" : "EnvironmentVariablesSource",
     "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#EnvironmentVariablesSource",
@@ -56,6 +72,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retrieves the value of the given property name from the system environment. Exact environment variable names have\n priority over their normalized variants.\n\n @param name the name of the environment variable or property-style key\n @return the value, or {@code null} if the variable is not defined\n"
+  }, {
+    "name" : "names",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#names",
+    "returnType" : "io.fluxzero.common.application.EnvironmentVariablesSource.Names",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "shouldSeparateCamelCase",
     "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource#shouldSeparateCamelCase",
@@ -170,5 +202,11 @@
     "documentation" : null
   } ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "Names",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource$Names",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

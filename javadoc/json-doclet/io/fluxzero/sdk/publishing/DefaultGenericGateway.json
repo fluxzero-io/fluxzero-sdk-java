@@ -141,6 +141,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "shutdownTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.shutdownTimeout",
+    "type" : "java.util.function.Supplier<java.time.Duration>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "topic",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.topic",
     "type" : "java.lang.String",
@@ -915,6 +923,22 @@
     "thrownTypes" : [ "java.lang.Throwable" ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withShutdownTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#withShutdownTimeout",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultGenericGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "timeout",
+      "type" : "java.util.function.Supplier<java.time.Duration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the response grace period supplier before first use; namespace-specific gateways inherit it when created.\n This is a programmatic alternative to {@link DefaultRequestHandler#SHUTDOWN_TIMEOUT_PROPERTY}.\n\n @param timeout supplies a non-negative response grace period when closing; zero skips waiting for outstanding responses\n @return this gateway\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

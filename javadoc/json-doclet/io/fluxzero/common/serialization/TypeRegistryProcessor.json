@@ -209,17 +209,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "isNewProcess",
-    "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#isNewProcess",
-    "returnType" : "boolean",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "isPackage",
     "qualifiedName" : "io.fluxzero.common.serialization.TypeRegistryProcessor#isPackage",
     "returnType" : "boolean",

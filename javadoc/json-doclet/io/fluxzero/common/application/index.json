@@ -30,6 +30,11 @@
     "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource",
     "kind" : "enum"
   }, {
+    "file" : "EnvironmentVariablesSource.Names.json",
+    "name" : "EnvironmentVariablesSource.Names",
+    "qualifiedName" : "io.fluxzero.common.application.EnvironmentVariablesSource$Names",
+    "kind" : "record"
+  }, {
     "file" : "FluxzeroAdditionalPropertiesSource.json",
     "name" : "FluxzeroAdditionalPropertiesSource",
     "qualifiedName" : "io.fluxzero.common.application.FluxzeroAdditionalPropertiesSource",

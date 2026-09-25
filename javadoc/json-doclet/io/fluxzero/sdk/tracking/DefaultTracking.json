@@ -37,6 +37,30 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "closed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.closed",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "closing",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.closing",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "closingThread",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.closingThread",
+    "type" : "java.lang.Thread",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "completedReport",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.completedReport",
     "type" : "java.util.concurrent.CompletionStage<java.lang.Void>",
@@ -88,6 +112,14 @@
     "name" : "handlerInitializer",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.handlerInitializer",
     "type" : "java.util.function.BiConsumer<java.lang.Object,io.fluxzero.sdk.tracking.ConsumerConfiguration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "incompleteMessages",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking.incompleteMessages",
+    "type" : "java.util.Set<io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -359,15 +391,23 @@
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
       "values" : {}
-    }, {
-      "annotationType" : "lombok.Synchronized",
-      "values" : {}
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Shuts down all started trackers and waits briefly for asynchronous results (e.g. command responses) to complete.\n"
+    "documentation" : " Shuts down all started trackers and waits briefly for asynchronous results (e.g. command responses) to complete.\n Incomplete chunked payloads fail before trackers are joined, releasing handlers waiting for missing input.\n Fully received payloads and ordinary asynchronous results retain their normal completion grace period.\n"
+  }, {
+    "name" : "closeOnFailure",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#closeOnFailure",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "conditionalExclusivityDecorator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#conditionalExclusivityDecorator",
@@ -697,6 +737,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "doClose",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#doClose",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "doHandle",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#doHandle",
     "returnType" : "java.lang.Object",
@@ -841,6 +892,22 @@
     "parameters" : [ {
       "name" : "handlers",
       "type" : "java.util.List<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "failIncompleteMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#failIncompleteMessage",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1407,6 +1474,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "registerIncompleteMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#registerIncompleteMessage",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registrationWithHandlerTypes",
     "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#registrationWithHandlerTypes",
     "returnType" : "io.fluxzero.common.Registration",
@@ -1799,6 +1882,20 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "takeShutdownRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#takeShutdownRegistration",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Synchronized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

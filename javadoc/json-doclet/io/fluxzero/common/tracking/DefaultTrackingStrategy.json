@@ -668,6 +668,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "expireWaitingRequest",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#expireWaitingRequest",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "emptyBatch",
+      "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "filter",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#filter",
     "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
@@ -928,22 +954,6 @@
     "parameters" : [ {
       "name" : "delay",
       "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "removeWaitingTracker",
-    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#removeWaitingTracker",
-    "returnType" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.WaitingTracker",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "tracker",
-      "type" : "io.fluxzero.common.tracking.Tracker",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -316,7 +316,7 @@
     "name" : "fail",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#fail",
     "returnType" : "void",
-    "modifiers" : [ "public" ],
+    "modifiers" : [ "public", "synchronized" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -327,7 +327,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Fails the stream and any pending aggregated deserialization with the given error.\n"
+    "documentation" : " Fails an incomplete stream and pending aggregated deserialization with the given error.\n A body whose final chunk has already arrived remains readable.\n"
   }, {
     "name" : "getAggregatedPayloadBytes",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage#getAggregatedPayloadBytes",

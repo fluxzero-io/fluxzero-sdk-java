@@ -5,9 +5,6 @@
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ {
-    "annotationType" : "lombok.RequiredArgsConstructor",
-    "values" : {}
-  }, {
     "annotationType" : "lombok.extern.slf4j.Slf4j",
     "values" : {}
   } ],
@@ -16,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "clock",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.clock",
+    "type" : "java.time.Clock",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "http",
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier.http",
     "type" : "java.net.http.HttpClient",
@@ -78,7 +83,32 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "jwksUrl",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a verifier using the system clock to validate token timestamps.\n\n @param jwksUrl the endpoint providing trusted public keys\n"
+  }, {
+    "name" : "JwtVerifier",
+    "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#JwtVerifier",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "jwksUrl",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

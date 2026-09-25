@@ -311,7 +311,7 @@
   }, {
     "name" : "ProxyRequestHandler",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#ProxyRequestHandler",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {

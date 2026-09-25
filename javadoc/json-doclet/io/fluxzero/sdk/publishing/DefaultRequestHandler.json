@@ -24,6 +24,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "SHUTDOWN_TIMEOUT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.SHUTDOWN_TIMEOUT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Maximum wait per request component for outstanding responses during shutdown, in milliseconds.\n Configure {@code fluxzero.shutdown.requestTimeoutMillis} (environment variable\n {@code FLUXZERO_SHUTDOWN_REQUEST_TIMEOUT_MILLIS}); the application default is 2000. Zero skips only the\n response grace period, retaining callback completion and resource cleanup. Resolved by the application builder.\n",
+    "constantValue" : "fluxzero.shutdown.requestTimeoutMillis"
+  }, {
     "name" : "callbacks",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.callbacks",
     "type" : "java.util.Map<java.lang.Integer,io.fluxzero.sdk.publishing.DefaultRequestHandler.ResponseCallback>",
@@ -92,6 +100,14 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.resultType",
     "type" : "io.fluxzero.common.MessageType",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "shutdownTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler.shutdownTimeout",
+    "type" : "java.util.function.Supplier<java.time.Duration>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -252,6 +268,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getShutdownTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#getShutdownTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the current configured response grace period for gateways owned by this handler. "
   }, {
     "name" : "handleResults",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#handleResults",
@@ -525,6 +552,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withShutdownTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultRequestHandler#withShutdownTimeout",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultRequestHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "timeout",
+      "type" : "java.util.function.Supplier<java.time.Duration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sets the response grace period supplier before first use; namespace-specific handlers inherit it when created.\n This is a programmatic alternative to {@link #SHUTDOWN_TIMEOUT_PROPERTY}.\n\n @param timeout supplies a non-negative response grace period when closing; zero still completes pending callbacks and closes resources\n @return this handler\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

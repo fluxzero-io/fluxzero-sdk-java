@@ -2151,6 +2151,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "requestShutdownTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#requestShutdownTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "resetResolvedConsumerConfigurations",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#resetResolvedConsumerConfigurations",
     "returnType" : "void",
