@@ -60,8 +60,8 @@ record ApplyLabels(ItemId itemId, List<String> labels) {
 ```
 
 Expanded updates run their matching immediate assertions and apply methods sequentially in encounter order in the
-same loaded aggregate/member context; later updates observe state
-produced by earlier ones. This gives one aggregate update batch, not an atomic transaction across aggregate roots.
+same loaded Model/member context; later updates observe state
+produced by earlier ones. This gives one Model update batch, part of one atomic Model operation when they remain payload updates; separately routed Messages and external effects have their own boundaries.
 
 ## Parameter and side-effect rules
 

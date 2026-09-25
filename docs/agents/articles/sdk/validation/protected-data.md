@@ -11,8 +11,7 @@ retained values; applies must tolerate erased (`null`) private data, while vault
 Protection does not extend to secrets copied into Model state, documents, or snapshots. JSON aliases and configured
 property naming are respected; custom serializers must expose their serialized property paths.
 
-The aggregate example below remains a compatibility example. For new Model state, a trusted explicit handler can
-derive the permitted value and call `Fluxzero.assertAndApply(new TicketOpened(...))` instead. The update's pure
+A trusted explicit handler can derive the permitted value and apply a Model update. The update's pure
 `@Apply` must persist only that safe derived value. `@LocalOnly` prevents external command dispatch, not durable Model
 writes inside the handler; those events still require protected references.
 
@@ -43,15 +42,14 @@ final class TicketOpeningHandler {
     @DropProtectedData
     void handle(OpenSupportTicket command) {
         String pseudonym = pseudonym(command.rawContactAddress());
-        Fluxzero.<SupportTicket>loadAggregate(command.ticketId())
-                .assertAndApply(new TicketOpened(command.ticketId(), pseudonym));
+        Fluxzero.assertAndApply(new TicketOpened(command.ticketId(), pseudonym));
     }
 }
 ```
 
-`assertAndApply(...)` is an `Entity` operation. Do not call it on `TicketOpened` or another event record. The explicit `loadAggregate(...)` above supplies the aggregate target, and `@Component` makes this standalone handler discoverable in a Spring application. Outside Spring, register the handler instance with the configured `Fluxzero.registerHandlers(...)` API.
+`TicketOpened` carries the typed Ticket ID and a pure `@Apply` that creates the safe Model state. The SDK resolves that target. `@Component` makes this standalone handler discoverable in a Spring application. Outside Spring, register the handler instance with the configured `Fluxzero.registerHandlers(...)` API.
 
-The durable update, aggregate state, logs, results, events, and metrics must contain only a derived safe value, never the
+The durable update, Model state, logs, results, events, and metrics must contain only a derived safe value, never the
 raw protected value. Nested protection is not an arbitrary recursive scan: every segment of a nested path must itself
 be annotated with `@ProtectData`.
 

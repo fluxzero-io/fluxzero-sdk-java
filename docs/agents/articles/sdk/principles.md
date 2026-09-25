@@ -33,11 +33,10 @@ Core rules for agents:
 - Use `TestFixture` as the main verification boundary and do not use Mockito for core Fluxzero behavior.
 - Implement only the commands, queries, endpoints, and abstractions required by the product behavior. Do not add speculative admin operations, wrapper annotations, or planning artifacts to the finished application.
 
-Handlers, queries, and `@AssertLegal` methods may load entities, query, or search when that is part of orchestration or legality. Keep that work out of `@Apply`, because apply methods are replayed to rebuild aggregate state.
+Handlers, queries, and `@AssertLegal` methods may load entities, query, or search when that is part of orchestration or legality. Keep that work out of `@Apply`, because apply methods are replayed to rebuild Model state.
 
-`Fluxzero.publishEvent(...)` publishes an explicit event message for handlers and projections. It does not mutate an event-sourced aggregate; aggregate history is created when an update is applied through the entity path.
+`Fluxzero.publishEvent(...)` publishes an explicit event message for handlers and projections. It does not mutate a Model; Model history is created by applying a state transition.
 
 When unsure, follow parent links before inventing a new pattern.
 
-For new v2 state use automatic Model `@Apply` handling and atomic multi-Model commits. The entity/aggregate loading
-route is retained for legacy state. Do not add a ceremonial command handler to a Model update.
+For domain state use automatic Model `@Apply` handling and atomic multi-Model commits. Do not add a ceremonial command handler to a Model update.

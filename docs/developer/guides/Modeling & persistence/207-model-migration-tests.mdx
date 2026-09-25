@@ -24,7 +24,7 @@ a materialized Graph only when the queries under test require those representati
 JSON resources. Register casters first. It applies the supplied events with current code and creates fresh commits,
 documents and relations. It skips original command assertions/interceptors, but its Given work can still publish
 events and notify observers. A new default fixture creates new local stores. Neither re-seeding it nor continuing
-with `.andThen()` proves a persistence restart. Keep `givenAppliedEvents` for existing Aggregates.
+with `.andThen()` proves a persistence restart.
 
 ## Preserve the original fields
 
@@ -251,11 +251,9 @@ Migrate internal sources before rebuilding Graph projections, observe consumer c
 separately for all three roles. Reindex each affected child's source too: rewriting only the root does not migrate
 child predicates. Verify a fresh reader can still load current state and historical `previous()` values afterward.
 
-Storage/configuration changes are separate migrations: this does not automatically backfill internal sources from
-older shared DOCUMENT storage, retire renamed collections, or migrate changes to persistence/name/path settings.
-The retained-storage example qualifies an old **schema** written in the separate-role format; it is not a blanket
-upgrade guarantee for older 2.0 candidates. Keep legacy data backed up and qualify its explicit migration/rebuild
-before upgrading. Do not infer that a new schema upcaster creates missing source documents.
+Storage/configuration changes are separate migrations: a schema upcaster does not retire renamed collections,
+change persistence/name/path settings, or create missing source documents. Qualify those changes separately from
+the application-schema evolution shown here.
 
 
 During a staged rollout, retain the old predicates, deliberately query both paths, or wait for migration before

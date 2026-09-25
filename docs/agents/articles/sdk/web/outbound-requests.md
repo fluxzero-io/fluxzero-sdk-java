@@ -233,7 +233,7 @@ request processing still normally produces and appends a `WebResponse` to the We
 - `Guarantee.SENT` confirms local delivery or successful sending to the runtime.
 - `Guarantee.STORED` waits for durable runtime storage and is the safer default when a tracked business workflow must not advance its consumer position before the request is durably recorded.
 
-`Guarantee.STORED` does not commit an aggregate and does not make state plus HTTP publication atomic. Never call this gateway immediately after `assertAndApply(...).get()` in the same aggregate handler. Persist the request intent first, then publish from a registered tracked post-commit consumer so correlation aliases exist before a fast response can arrive; read aggregate commit and effect boundaries.
+`Guarantee.STORED` does not commit a Model and does not make state plus HTTP publication atomic. Explicit independent Model applies await durability, but a process may still stop between commit and HTTP dispatch. Persist request intent and dispatch it from a registered tracked consumer when delivery must survive that gap; read Model commit and effect boundaries.
 
 Tracked consumers await send-and-forget futures started during a batch by default (`awaitSendAndForgetFutures = true`). Keep that default unless independent completion is intentional.
 

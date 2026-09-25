@@ -38,7 +38,7 @@ The default fixture wrapper returns the system user when no active user is prese
 
 Neither a constructed user nor a user ID proves HTTP credential establishment: `...ByUser` helpers add or resolve `$user` directly. When a frontend signs in with a cookie or bearer token, use HTTP authentication boundary testing and at least one raw `whenWebRequest(...)` carrying that credential.
 
-For ownership rules, dispatch as a named user, observe the state in a later step so aggregate reconstruction is exercised, then try the follow-up command as both the owner and another user. Fix time-dependent scenarios with `atFixedTime(...)` or fixture time movement; never make a test depend on the machine's current date.
+For ownership rules, dispatch as a named user, observe the state in a later step so Model reconstruction is exercised, then try the follow-up command as both the owner and another user. Fix time-dependent scenarios with `atFixedTime(...)` or fixture time movement; never make a test depend on the machine's current date.
 
 When a product brief asks for a frontend-callable API, use a two-layer test matrix:
 

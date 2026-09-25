@@ -1,4 +1,4 @@
-Deploy only a verified, immutable application artifact. Fluxzero Cloud owns the registry, cluster, runtime, scaling, and rollout mechanics; the application agent owns the code, configuration contract, tests, and observable acceptance criteria.
+Deploy only a verified, immutable application artifact. Fluxzero owns the registry, cluster, runtime, scaling, and rollout mechanics; the application agent owns the code, configuration contract, tests, and observable acceptance criteria.
 
 Use a separately available authenticated Fluxzero deployment tool or the repository's approved delivery workflow. Supply the exact artifact reference returned by publishing and the intended application/environment identifiers. Do not guess internal command types, HTTP endpoints, namespaces, service accounts, credential formats, or cluster objects.
 

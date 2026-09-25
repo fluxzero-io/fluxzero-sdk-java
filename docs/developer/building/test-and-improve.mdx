@@ -1,0 +1,92 @@
+---
+title: Test and improve your app
+description: Give useful feedback, check product rules and permissions, and keep working versions as your app evolves.
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+A running preview gives you something to discuss. Your job as the builder is to decide whether it does what your
+users need. Your agent can investigate how it works, make changes, and write tests that keep checking those decisions.
+Use this guide after [building your first feature](/docs/building/first-feature) or trying an
+[example app](/docs/building/example-apps).
+
+<CardGrid>
+  <Card title="Try the experience" icon="laptop">
+    Can a user finish the flow? Is the next action clear? Does the result make sense on a phone too?
+  </Card>
+  <Card title="Verify the behavior" icon="approve-check">
+    Do the rules hold when requests compete, time passes, or something fails? Ask your agent to show the scenarios.
+  </Card>
+</CardGrid>
+
+## Turn an idea into a checkable change
+
+Describe who is doing something, what they need, and what a good result looks like. Include a situation where the
+action should be refused or handled differently. For a waiting list, that could be:
+
+> When a workshop is full, let a signed-in visitor join its waiting list once. If a place becomes available, offer
+> it to the first person in line for one hour. If they do not accept, offer it to the next person. Show people whether
+> they are waiting or have an offer, and test expiry and cancellation as well as a successful booking.
+
+Ask the agent to explain any open product choices before implementing them. Does cancelling remove someone from
+the list? Can a person decline an offer? These decisions belong to your app; there is no need to express them as code.
+
+For a larger change, agree on the first complete flow to try. Keep later improvements visible in **Progress** so
+you can distinguish delivered behavior from a future intention.
+
+## Check the experience and the rules
+
+Use **App preview** to check what users can see and do. Use **Tests** to inspect the scenarios checked automatically.
+Both matter: a rule may be tested while its screen is confusing, and a screen may look right while a rule is missing.
+
+| Check | Example |
+| --- | --- |
+| A successful flow | Book a place, refresh, and find the saved booking. |
+| A boundary | The last available place can be booked, but an extra booking is refused. |
+| A repeated action | Clicking twice does not create two bookings or payments. |
+| Different people | A visitor cannot change another person's booking; an organizer has the intended extra permissions. |
+| Time and failure | An expired offer releases its place; an email or payment failure leaves an understandable result. |
+| The actual screen | On a phone, the date, price, next action, and any error are readable and usable. |
+
+Ask your agent to connect each important rule to a test. Green tests tell you the checked scenarios passed; you still
+need to decide whether those scenarios represent your product. A demo integration also does not prove that a real
+provider account is configured correctly. Try that connection in the provider's test environment before relying on it.
+
+Fluxzero's test tools let your agent check deadlines by advancing time in a test. You do not need to wait a day to
+find out whether tomorrow's reminder will be scheduled correctly.
+
+## Give the agent a reproducible problem
+
+Describe the steps, the result you saw, and the result you expected. Mention which screen and kind of user you used.
+For example:
+
+> In my local preview, I signed in as a visitor, booked the last place, then cancelled from My bookings. After
+> refreshing, the workshop still showed “Fully booked”. I expected the place to become available again.
+> Please trace what happened, fix the cause, and add a test that catches it.
+
+Fluxzero records the request and the interactions it causes, so your agent can trace a failure back to its source.
+Use Devboard for this during local development and the Fluxzero dashboard for a published app. [Understand your app](/docs/building/monitoring)
+shows how to use every monitoring view. Your agent can use this evidence and test results to investigate. Ask it to explain its finding
+in product terms and tell you exactly what to try after the fix. If a build failed, the preview may still show the
+last working version; **Workspace** and the agent's build status help distinguish that from an application problem.
+
+## Decide who may see and change information
+
+Sign-in tells the app who someone is. It does not decide what they may do. State those rules explicitly, even when
+the first version has only a few users:
+
+> Visitors can see only their own bookings. Organizers can see bookings for workshops they manage. An organizer
+> of a different workshop must not be able to view or cancel them. Test these rules even when someone bypasses the UI.
+
+Ask your agent to enforce the rules in the application as well as the screens. Hiding a button is only part of the
+experience; the underlying action must make the same decision.
+
+## Keep changes small enough to review
+
+After an improvement, repeat its main flow and ask the agent to run the relevant tests, including existing scenarios
+that the change could affect. Have it save a working code checkpoint in Git and explain any known gaps. A Git commit
+records code; changing back to older code does not undo changes to stored user data or external services.
+
+Before publishing, check the app's main flows, access rules, and real integration configuration. After publishing,
+try the same main flow at the live address. Continue with [Publishing your app](/docs/tutorials/cloud-deployment)
+to publish on Fluxzero.

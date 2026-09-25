@@ -77,11 +77,7 @@ record Account(@EntityId AccountId accountId, Money balance) {
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
 
-For remote Runtimes, the SDK pages aggregate histories by event count. Applications using
-`fluxzero.defaults.version >= 2026.09.10` also request a 100 MiB serialized payload limit per page; configure
-`fluxzero.eventsourcing.maxFetchBytes` explicitly to tune it or use `0` for count-only compatibility behavior. A single
-larger event is allowed through to guarantee progress, and later pages resume at the exact next aggregate sequence.
-Runtimes predating this optional request field ignore it and continue to return count-only pages.
+
 
 The set supports exactly the meaningful combinations:
 
@@ -444,13 +440,11 @@ writer does not inject a Graph, since another transaction may have read the affe
 Custom repositories must construct SDK Graph views (for example with `Graphs.compose`) for transactional navigation.
 Opaque custom Graph implementations fail explicitly; ordinary non-transactional custom reads remain supported.
 
-Upgrade the Runtime before using the matching post-RC8 SDK: relationship-aware commits use a distinct wire request that
-older Runtimes reject rather than ignore. Upgrade all Runtime instances first. Existing SDK requests remain supported.
-New JDBC indexes and an identity-free erasure-cleanup position do not change stored Model payloads or require
-graph materialization to record read dependencies.
+Relationship-aware commits require the corresponding Runtime protocol support. Graph materialization is not
+required to protect relationship reads.
 
-This is intentionally not the organizing principle of the model API. It is an optional consistency policy for the
-uncommon case where multiple writers race on the same model.
+The default conflict policy protects concurrent Model operations. Choose an explicit override only when the
+application needs different conflict behavior.
 
 ## Logical and physical deletion
 
@@ -479,11 +473,5 @@ Direct model commits are optimized around IDs:
 - current and historical graph loads batch nodes by storage segment;
 - ordinary direct loads do no relationship work.
 
-Use a model with embedded `@Member` values when one small object graph genuinely belongs in one stream and document.
+Use plain value objects for details owned entirely by one Model. Independent child lifecycles belong in separate Models.
 Split independently changing or searchable children into their own models.
-
-<Aside type="note" title="Legacy aggregate persistence">
-`@Aggregate` persists an older shared-root representation. It remains compatible so existing streams keep loading,
-but new manuals and examples use `@Model` exclusively. It remains the compatibility boundary for existing persisted
-aggregate state rather than a pattern for new domain code.
-</Aside>

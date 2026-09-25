@@ -49,12 +49,6 @@ proof that the operation succeeded; correlate it with its result, an error signa
 
 | Payload | Meaning |
 | --- | --- |
-| `AppendEvents.Metric` | Aggregate event batches were appended. |
-| `GetEvents` / `GetEventsResult.Metric` | An aggregate event stream was requested and returned. |
-| `DeleteEvents` | The event stream for an aggregate was deleted through the low-level event-store client. |
-| `UpdateRelationships` | Entity-to-aggregate relationships were changed. |
-| `RepairRelationships` | Stored relationships were replaced from reconstructed aggregate state. |
-| `GetAggregateIds` / `GetAggregateIdsResult` | Aggregate owners for an entity ID were requested and returned. |
 | `GetRelationships` / `GetRelationshipsResult` | Relationship records were requested and returned. |
 
 ### Scheduling

@@ -48,12 +48,12 @@ runtime base URL, which must point to the desired deployment.
 
 ---
 
-SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+The SDK uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
 It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
 native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
 outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
 supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
-GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+GZIP and NONE WebSocket configurations remain available. These compression defaults are not gated by
 `fluxzero.defaults.version`.
 
 ## Client configuration (ClientConfig)
@@ -92,14 +92,7 @@ jitter over capped exponential ceilings of 1, 2, 4, 8, then 16 seconds. A succes
 cycle. Set the dedicated property to `false` to keep fixed retries on a newer defaults profile. The conventional
 environment-variable name is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
 
-Aggregate histories use count-bounded pages of at most 8,192 events. Set
-`fluxzero.eventsourcing.maxFetchBytes` or `ClientConfig.aggregateHistoryMaxFetchBytes(...)` to add a cumulative
-serialized payload-byte bound per page; `fluxzero.defaults.version >= 2026.09.10` selects 100 MiB when neither is set.
-The property accepts `0` to retain count-only paging and is also available as
-`FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES`. Metadata, the response envelope, and WebSocket compression are outside this
-payload measure. One individually oversized event still flows on its own, and the client continues after short
-byte-limited pages until the Runtime returns an empty page. A Runtime from before this protocol extension ignores the
-optional byte request and remains count-bounded only; the SDK still reads its pages correctly.
+
 
 ---
 

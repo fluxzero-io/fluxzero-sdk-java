@@ -1,0 +1,56 @@
+---
+title: The Fluxzero toolkit
+description: How the SDK, agent plugins, CLI, Dev Server, and identity provider help you build and run apps on Fluxzero.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+
+**Fluxzero is the cloud that runs your product.** It hosts your frontend and backend and brings data, messaging,
+security, recovery, and observability together. You and your agent use the tools below to build for that cloud,
+try the complete application locally, and publish it when it is ready.
+
+<Card title="Your product runs on Fluxzero" icon="rocket">
+Publish your checked application from GitHub. Fluxzero runs it for your users, stores its data, routes requests,
+and records what happens. You manage the product through the [Fluxzero dashboard](https://dashboard.fluxzero.io).
+The [publishing guide](/docs/tutorials/cloud-deployment) takes you through the steps.
+</Card>
+
+## Tools for building your app
+
+<CardGrid>
+  <Card title="Agent plugins" icon="pencil">
+Give your coding agent Fluxzero instructions, SDK documentation, and tools to build and inspect your app.
+
+[Set up your agent](/get-started) · [Repository](https://github.com/fluxzero-io/fluxzero-agent-plugins)
+  </Card>
+  <Card title="SDK" icon="document">
+Connect your Java or Kotlin application to Fluxzero. Your agent writes product rules, actions, data, and tests using
+the cloud's programming model.
+
+[Developer Guides](/docs/guides) · [Repository](https://github.com/fluxzero-io/fluxzero-sdk-java)
+  </Card>
+  <Card title="CLI" icon="laptop">
+Create a project and start or manage its local environment. The `fz` command gives you and your agent the same tools
+for working on an app for Fluxzero.
+
+[CLI repository](https://github.com/fluxzero-io/fluxzero-cli)
+  </Card>
+  <Card title="Dev Server and Devboard" icon="laptop">
+Build changes, run tests, and preview the whole app on your computer. Devboard shows the running app, progress,
+tests, and monitoring in your browser.
+
+[Local development](/docs/building/local-development) · [Repository](https://github.com/fluxzero-io/fluxzero-dev-server)
+  </Card>
+</CardGrid>
+
+## Identity for your users
+
+Fluxzero's **identity provider (IDP)** supplies sign-in so your application can recognize people. You define what each
+person may see or do; the application enforces those rules using the SDK. The local development environment supports
+trying sign-in flows before you publish. Developers can find the details in the
+[authentication guide](/docs/guides/messaging/role-based-access-control).
+
+<Aside type="tip" title="One route from idea to live product">
+Describe a feature → build and test locally → try it in Devboard → publish on Fluxzero.
+You can follow that route on your own or with a team. Developers can work directly in the same codebase at any point.
+</Aside>

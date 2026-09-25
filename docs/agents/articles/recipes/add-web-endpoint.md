@@ -2,7 +2,7 @@ Only add a web endpoint after command/query behavior exists.
 
 Use `@Path` at class level for a stable base path and `@HandleGet`, `@HandlePost`, `@HandlePut`, or related annotations at method level. Read web routing and parameter binding when package and class paths compose: a relative child `@Path` appends, while a child `@Path` beginning with `/` resets the inherited prefix. Put `@PathParam`, `@QueryParam`, and other web injection annotations on handler method parameters, not request-record components.
 
-Before writing the adapter, make a small field map from the product request to the endpoint DTO, command/query, aggregate identity, and response. Preserve every product-relevant field across that path.
+Before writing the adapter, make a small field map from the product request to the endpoint DTO, command/query, Model identity, and response. Preserve every product-relevant field across that path.
 
 For nested records and collections, read request DTO validation and OpenAPI contracts. `@Valid` cascades into a present value but does not make the outer field, list, or list item required; keep runtime constraints and generated required arrays aligned at every DTO level.
 

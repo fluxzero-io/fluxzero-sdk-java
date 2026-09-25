@@ -2,22 +2,22 @@ Use this for reconstruction from a serialized historical event, whether one old 
 several. Keep the caster pure and test the registered event deserialization path with a legacy `SerializedMessage`, not
 only an already-current Java object.
 
-For new v2 Models, start with the Model example in the reconstruction article: register casters, then call
+For Models, start with the Model example in the reconstruction article: register casters, then call
 `givenModelEvents(id, oldSerializedEvent, ...)`. It also decodes input as an event stream before applying current
-events. The aggregate examples below remain for existing aggregate workflows. Neither Given route preserves an
+events. The Model examples below remain for existing Model workflows. Neither Given route preserves an
 old writer's stored bytes; the Model migration article describes the retained-store test for that stronger claim.
 
-For this TestFixture setup, `givenAppliedEvents(..., SerializedMessage)` and `givenEvents(SerializedMessage)` deserialize the input as an event stream and flatten every result from a one-to-many upcaster.
+For this TestFixture setup, `givenModelEvents(..., SerializedMessage)` and `givenEvents(SerializedMessage)` deserialize the input as an event stream and flatten every result from a one-to-many upcaster.
 
 ## Choose the proof boundary
 
 `whenUpcasting(...)` directly verifies a caster result. It does not prove that serialized legacy event data passes
-through the registered caster chain and reconstructs the aggregate. Manually calling `serializer().deserialize(...)`
+through the registered caster chain and reconstructs the Model. Manually calling `serializer().deserialize(...)`
 and then applying the returned current Java object is also narrower because the fixture did not receive the historical
 event envelope.
 
 For a one-to-one change, use an ordinary `ObjectNode` or `Data<JsonNode>` upcaster and pass a revision-old
-`SerializedMessage` to `givenAppliedEvents(...)`. The fixture deserializes it as `MessageType.EVENT`, runs the registered
+`SerializedMessage` to `givenModelEvents(...)`. The fixture deserializes it as `MessageType.EVENT`, runs the registered
 caster chain, and applies the single current result. The same path flattens an ordered `Stream<Data<?>>` for the split
 case described below.
 
@@ -79,14 +79,14 @@ static SerializedMessage legacyAssetJobCreated() {
 
 Register the caster before entering the Given phase. Passing raw `Data<?>` or a current plain object is useful for other fixture setup, but it does not prove this `SerializedMessage` event-stream flattening path.
 
-## Prove aggregate reconstruction for one or many results
+## Prove Model reconstruction for one or many results
 
-`givenAppliedEvents` applies every split result to the selected aggregate. Query or load the reconstructed aggregate after the Given phase and assert the combined state:
+`givenModelEvents` applies every split result to the selected Model. Query or load the reconstructed Model after the Given phase and assert the combined state:
 
 ```java
 TestFixture.create(AssetJob.class)
         .registerCasters(new LegacyAssetJobUpcaster())
-        .givenAppliedEvents(new AssetJobId("asset-job-42"), legacyAssetJobCreated())
+        .givenModelEvents(new AssetJobId("asset-job-42"), legacyAssetJobCreated())
         .whenQuery(new GetAssetJob(new AssetJobId("asset-job-42")))
         .verifyResult(result -> {
             assertEquals("asset-7", result.assetKey());
@@ -96,7 +96,7 @@ TestFixture.create(AssetJob.class)
 
 For a one-to-one caster, use the same fixture shape and assert the current state produced by the single current event.
 For a split caster, this proves more than `whenUpcasting(...)` alone: every resulting event must deserialize, retain its
-order, target the aggregate, and combine into the expected current state.
+order, target the Model, and combine into the expected current state.
 
 ## Prove published-event fan-out
 
@@ -112,4 +112,4 @@ TestFixture.create(new AssetJobEventProjection())
                 new AssetJobTagged("asset-job-42", "priority")));
 ```
 
-Do not use a When-phase `expectEvents(...)` assertion for these historical Given events. Assert reconstructed aggregate state for `givenAppliedEvents`, or downstream handler/projection state for `givenEvents`. Keep a focused caster unit test over `split(...)` that asserts the ordered output `Data<?>` types and revisions; the two fixture shapes above prove their integration effects. For a negative row, make an output deliberately incompatible with its target and assert the exact deserialization failure; a chain that merely stops at another revision can still deserialize when that payload already fits the target shape.
+Do not use a When-phase `expectEvents(...)` assertion for these historical Given events. Assert reconstructed Model state for `givenModelEvents`, or downstream handler/projection state for `givenEvents`. Keep a focused caster unit test over `split(...)` that asserts the ordered output `Data<?>` types and revisions; the two fixture shapes above prove their integration effects. For a negative row, make an output deliberately incompatible with its target and assert the exact deserialization failure; a chain that merely stops at another revision can still deserialize when that payload already fits the target shape.

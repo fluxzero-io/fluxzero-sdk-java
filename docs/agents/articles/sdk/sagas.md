@@ -55,7 +55,7 @@ consumer and durable continuation do not provide atomic external execution or ex
 Keep these rules explicit and domain-sized. Share small wire/failure helpers where useful; do not build an application
 workflow engine, duplicate next-action selection, or mistake an in-memory after-save callback for crash recovery.
 
-Use `@Stateful` when a workflow needs its own persisted memory, explicit correlation keys, timers, or a lifecycle that is not naturally owned by one aggregate. Use a stateless Spring `@Component` when the handler can derive progress from aggregates or queries every time.
+Use `@Stateful` when a workflow needs its own persisted memory, explicit correlation keys, timers, or a lifecycle that is not naturally owned by one Model. Use a stateless Spring `@Component` when the handler can derive progress from Models or queries every time.
 
 Default path:
 
@@ -104,7 +104,7 @@ return null;
 
 `Fluxzero.publishEvent(...)` uses `Guarantee.NONE`, and the saga deletion happens only after the method returns. Publication can succeed before deletion or tracker completion fails, so retry can publish a duplicate. Conversely, the no-guarantee publication can be lost while deletion succeeds.
 
-If completion needs an outgoing effect, retain a durable terminal or pending-effect state until the effect protocol has completed instead of deleting the saga in the same invocation. Returning that marker does not make it visible during the current method body: arrange a separate retryable dispatcher or later durable trigger that reloads the stored marker before sending. Give the effect a stable business or correlation key and make its receiver idempotent. If a committed aggregate transition is the source of truth, use the registered post-commit consumer pattern from aggregate commit/effect guidance instead of publishing from pre-commit code. Never claim exactly-once behavior across stateful document persistence and a separately published message.
+If completion needs an outgoing effect, retain a durable terminal or pending-effect state until the effect protocol has completed instead of deleting the saga in the same invocation. Returning that marker does not make it visible during the current method body: arrange a separate retryable dispatcher or later durable trigger that reloads the stored marker before sending. Give the effect a stable business or correlation key and make its receiver idempotent. If a committed Model transition is the source of truth, use the registered post-commit consumer pattern from Model commit/effect guidance instead of publishing from pre-commit code. Never claim exactly-once behavior across stateful document persistence and a separately published message.
 
 Test both failure windows: failure after the outgoing call but before tracker/state completion must not create a second logical effect on retry, and failure before durable publication must leave enough state for recovery. Synthetically
 reconstruct the stateful instance in a new fixture and prove terminal, pending-effect, and deletion behavior
@@ -130,4 +130,4 @@ public record PaymentSaga(@EntityId PaymentId paymentId) {
 }
 ```
 
-Avoid loading data or searching inside saga state transition logic. If the workflow is better expressed as aggregate state plus events, keep it stateless. Ordinary cancellation, expiry, and rejection compensation belongs in the workflow state machine; it is separate from error-stream correction.
+Avoid loading data or searching inside saga state transition logic. If the workflow is better expressed as Model state plus events, keep it stateless. Ordinary cancellation, expiry, and rejection compensation belongs in the workflow state machine; it is separate from error-stream correction.

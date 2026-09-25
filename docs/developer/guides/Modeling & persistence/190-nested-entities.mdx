@@ -27,13 +27,13 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, an order line belongs to an order and has a non-owning relation to a product:
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 record Order(
         @EntityId OrderId orderId,
         String customerName) {
 }
 
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -52,19 +52,13 @@ to the line; deleting the product does not. Both relations support typed Graph n
 rule separately when deletion must be refused while references exist. `@Parent` is not an unrestricted foreign-key
 annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
 
-`LineItem` has its own persistence and lifecycle boundary, with independently configurable stream, cache, snapshots
-and direct search document. Updating it does not load or
-rewrite the order. The explicit `DOCUMENT` persistence here supports the direct searches later in this guide;
-neither relation requires it.
-
-The child does not need a direct public document. With the default `EVENT_SOURCED` persistence, the explicit
-`@Parent(pathInParent = "lines")` still retains a private current document for Graph composition; only the child's own
-public search collection is absent.
+`LineItem` has its own lifecycle and history. Updating it does not load or rewrite the order.
+The named parent path lets Fluxzero include it in the order’s composed Graph.
 
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
@@ -167,7 +161,7 @@ When `pathInParent` is omitted, Fluxzero still stores and traverses the relation
 that edge into a search or serialized graph document. Typed `Graph` traversal and parent-deletion lifecycle handling
 still follow it. This keeps package and class renames from silently changing public document structure.
 
-Current graphs can be assembled on demand:
+When you need to find whole order Graphs, enable `@Model(materializeGraph = true)` on Order:
 
 ```java
 Graph<Order> order = Fluxzero.searchGraph(Order.class)
@@ -228,6 +222,11 @@ void assertBillingOrder(
 ```
 
 ## Searching across relations
+
+For the direct Model searches below, add `ModelPersistence.DOCUMENT` alongside the default
+`ModelPersistence.EVENT_SOURCED` to the searched types and the related types whose contents are filtered.
+This setting is needed for direct document queries, not for navigating relationships. See the
+[query guide](../model-query-guide) for the storage requirements.
 
 Current relation-backed search can match children using parent or grandparent documents:
 
@@ -349,9 +348,3 @@ Fluxzero.get().modelRepository().deleteModel(plan).join();
 
 Detached descendants retain enough former-parent information for lifecycle and GDPR cleanup even after their parent
 has been deleted. Globally published audit events are outside the model-stream hard-delete boundary.
-
-<Aside type="note" title="Legacy aggregate trees">
-`@Aggregate`, `loadEntity(...)` and `loadAggregateFor(...)` describe the old shared-root storage model. They remain
-supported for existing persisted applications but should not be used for new trees. Use `@Model` with optional embedded
-`@Member` values instead; the aggregate API remains the compatibility boundary for existing aggregate state.
-</Aside>

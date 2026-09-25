@@ -109,21 +109,6 @@ runtime when a client connects or disconnects a WebSocket session.
 | `GetModelAncestors` | Resolves bounded temporal ancestor dependencies. |
 | `PlanModelDeletion` / `DeleteModel` | Plans or executes model hard deletion. |
 
-### Legacy aggregate events and relationships
-
-| Metric                 | Meaning |
-|:-----------------------|:--------|
-| `AppendEvents`         | Legacy aggregate events were appended. |
-| `GetEvents`            | Requests legacy aggregate events. |
-| `GetEventsResult$Metric` | Runtime response metrics for `GetEvents`. |
-| `DeleteEvents`         | Deletes legacy aggregate events. |
-| `UpdateRelationships`  | Updates legacy entity-root relationships. |
-| `RepairRelationships`  | Repairs relationship consistency. |
-| `GetAggregateIds`      | Requests aggregate IDs for an entity. |
-| `GetAggregateIdsResult` | Returns aggregate IDs for an entity. |
-| `GetRelationships`    | Requests relationships for an entity. |
-| `GetRelationshipsResult` | Returns relationships for an entity. |
-
 ### Scheduling
 
 | Metric                 | Meaning |

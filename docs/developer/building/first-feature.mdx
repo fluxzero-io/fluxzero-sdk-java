@@ -1,0 +1,94 @@
+---
+title: Build your first feature
+description: Take a workshop booking idea from an instruction to a working flow you can try, without writing code.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+In this tutorial, you build the first part of a workshop booking app with your coding agent. At the end, a visitor
+can find a workshop, book a place, and cancel it. You will try that flow locally and check its rules in Devboard.
+You do not need to read code or the Developer Guides.
+
+<Aside type="tip" title="Build locally, run on Fluxzero">
+This is an application for Fluxzero, the cloud that provides its data, messaging, security, and execution.
+The local tools let you build and check the whole product before publishing it for real users.
+</Aside>
+
+Prefer exploring something that already works? Start with one of the [example apps](/docs/building/example-apps).
+
+## 1. Set up your agent
+
+Open [Get started](/get-started), choose your coding agent, and follow the setup instruction. This gives the agent
+the Fluxzero plugin, development tools, and its own documentation. Work in a folder for your new project.
+
+## 2. Describe one useful flow
+
+Tell the agent who the app is for, what they should be able to do, and which rules matter. For this app, use:
+
+> Build a workshop booking app with Fluxzero. Start with one complete flow: a visitor sees upcoming workshops,
+> signs in, books one place, and can cancel their own booking. Show their bookings on a “My bookings” page.
+> Each workshop has a title, date, and maximum number of places. A person can have only one active booking per
+> workshop, and the app must never accept more bookings than available places. Cancelling makes that place available
+> again. Prepare local demo workshops, including one with only two places. Add automated tests for these rules.
+> Start the app and open it in Devboard. We will add payments and reminders later.
+
+Your agent may ask about a choice that changes the product, such as whether visitors can browse before signing in.
+Answer in terms of what the visitor should experience. Ask the agent to handle technical setup using Fluxzero's
+usual defaults and explain any product decision that still needs your input.
+
+The first useful result is the whole booking flow: screens, saved bookings, enforced rules, and tests. You can
+improve the visual design as you try it.
+
+## 3. Use the app yourself
+
+When the agent reports that the app is running, open its **App preview** link. Devboard runs locally on your computer;
+you have not published the app yet. If you need the link again, ask “Open Devboard” or use `/fluxzero:devboard` in an
+agent that supports the plugin's slash commands.
+
+Try this sequence:
+
+1. Open the workshop with two places and check that its date and availability are clear.
+2. Sign in with a local demo user and book a place. Find it on **My bookings**, then refresh the page.
+3. Try booking the same workshop again. The app should explain that you already have a booking.
+4. Cancel the booking. Check that it disappears from your active bookings and the place becomes available again.
+
+Ask your agent which demo accounts it prepared and how to switch between them. These are local test users; you will
+choose the live sign-in setup before publishing.
+
+If the screen does something different from the rules you described, tell the agent what you did, what happened,
+and what you expected. For example:
+
+> I cancelled my booking, but the workshop still says one place is taken after I refresh. Please investigate the
+> complete flow, add a test for the problem, and show me the corrected result.
+
+## 4. Check the rules you cannot see in one visit
+
+Open Devboard's **Tests** page. Ask your agent to point out the scenarios for a full workshop, duplicate bookings,
+cancellation, and a user trying to cancel someone else's booking. Request any missing scenario:
+
+> Show me the tests proving these booking rules. Also test two people trying to book the last place at the same
+> time: exactly one should succeed. Explain the result without requiring me to read code.
+
+You can try the two demo accounts yourself to check what each person sees. Automated tests complement that manual
+check: they exercise rules repeatedly, including competing actions that are hard to reproduce by clicking.
+
+## 5. Make one improvement
+
+Now change the app based on what you learned. For example:
+
+> Show “Fully booked” when no places remain and make the booking button unavailable. Keep the availability check
+> when accepting a booking too, because another person may take the last place while I am looking at the page.
+> Update the tests and show me the result in App preview.
+
+Try the change with both an available workshop and a full one. Use **Progress** to see what was delivered and what
+is still planned. You decide when the feature does what you need.
+
+## 6. Keep a working version
+
+Once the flow works, ask your agent to save a Git commit and summarize what that version includes. A commit is a
+checkpoint of the application's code, so you can review later changes and return to a known version. It does not
+back up the app's data or publish it.
+
+Next you might add a waiting list, organizer tools, or reminders. Add each around a concrete scenario and keep
+checking the booking rules you already rely on. Use [Test and improve your app](/docs/building/test-and-improve)
+for that loop, or continue to [Publishing your app](/docs/tutorials/cloud-deployment) when it is ready to share.

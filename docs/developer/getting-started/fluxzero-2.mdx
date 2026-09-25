@@ -54,6 +54,14 @@ collects the settings in one place. Use the page's contents to jump between sect
 
 </Aside>
 
+## Explore complete applications
+
+The public [Home and Ticketing examples](/docs/building/example-apps) show these ideas in working products.
+[Home](https://github.com/fluxzero-io/fluxzero-sample-home) connects rooms, devices, scenes, and routines;
+[Ticketing](https://github.com/fluxzero-io/fluxzero-sample-ticketing) connects venues, performances, reservations,
+payments, and tickets. Both include a UI and application tests. Run one with your agent, try a flow, and then follow
+its Models and Graphs through the code. The example page explains where to start and suggests features to extend.
+
 ## Coming from Fluxzero 1.x
 
 The biggest change is the move from **`@Aggregate` as the persistence root to `@Model` as an independent
@@ -1242,6 +1250,81 @@ This route follows the **document projection**, which can skip superseded interm
 for individual published transitions, documents for the stored view and its
 [schema evolution](#evolving-stored-graphs-with-handledocument).
 
+
+### Watch the Graph evolve
+
+Imagine opening a project's activity view. A task appears, is completed, and is later removed. You want to show what
+changed at each step, including its surrounding project, even if you process that activity tomorrow.
+
+Select a step to follow the same graph through time:
+
+<Tabs>
+  <TabItem label="1 · Created">
+
+```mermaid
+flowchart TD
+    P[Project: Website launch] --> A[Task A: Write copy · open]
+```
+
+The project has one task. A creation handler sees Task A; it has no previous value.
+
+  </TabItem>
+  <TabItem label="2 · Added">
+
+```mermaid
+flowchart TD
+    P[Project: Website launch] --> A[Task A: Write copy · open]
+    P --> B[Task B: Review copy · open]
+    style B stroke:#198754,stroke-width:3px
+```
+
+Task B was added. In the Project's graph-change handler, the current children contain A and B;
+the children of `project.previous()` contain only A.
+
+  </TabItem>
+  <TabItem label="3 · Changed">
+
+```mermaid
+flowchart TD
+    P[Project: Website launch] --> A[Task A: Write copy · completed]
+    P --> B[Task B: Review copy · open]
+    style A stroke:#0077cc,stroke-width:3px
+```
+
+Task A changed. Its value before this transition was open; afterward it is completed.
+The Project itself didn't need a new field or update just because a task changed.
+
+  </TabItem>
+  <TabItem label="4 · Removed">
+
+```mermaid
+flowchart TD
+    P[Project: Website launch] --> A[Task A: Write copy · completed]
+    B[Task B: Review copy · removed]
+    style B stroke:#c0392b,stroke-width:2px,stroke-dasharray:5 5
+```
+
+Task B was logically deleted. It is absent from the current children, but the previous graph still contains it.
+The detached dashed node illustrates the removal; it is not part of the current graph.
+
+  </TabItem>
+</Tabs>
+
+These are snapshots, not four copies of your domain model. The same Model identities are reconstructed at different
+committed boundaries. Relationships belong to those boundaries too: if a task moves, its historical parent is the
+project it belonged to then.
+
+This is useful for an activity timeline, an audit explanation, or understanding why a rule fired. It also lets a
+handler detect a transition such as “all tasks have now completed” by comparing the before and after views. You do
+not need an extra generic `ProjectChanged` event to discover every kind of child change.
+
+Outside a complete graph-change handler, `previous()` walks the selected Model's revisions. A Project revision
+list is **not** a list of every update to all its tasks. Use complete graph-change handlers for each published tree
+transition, or select a known committed boundary with `atStateIndex(...)` for a historical view.
+
+See [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for navigation, before/after comparisons,
+and the history needed to make those views reliable.
+
 ### 6. Share relationships without sharing every application's implementation
 
 Typed Graph navigation selects locally known matching types without reconstructing unrelated children.
@@ -2149,6 +2232,21 @@ For new Models, enable SDK annotation processing in each contract module (Kotlin
 Model indexes when assembling a shaded JAR; one module's index must not overwrite another's. Rebuild shared
 contract libraries so discovery works from a cold start.
 
+### Aggregate is a migration API
+
+Treat `@Aggregate` as deprecated for application design, although the Java annotation does not yet carry
+`@Deprecated`. Use `@Model` for domain state. Keeping the Aggregate API available lets existing stored applications
+continue to work while their owners plan a data migration; it is not a second recommended modeling style.
+
+`@Member` has a narrower role: embedded state whose creation, changes, history, retention and deletion all belong
+to its owner. Plain details values need no such annotation. Prefer independent Models joined by `@Parent` for
+recognizable child lifecycles; a collection field alone is not a reason to choose members.
+
+Applications that used prerelease member handling should reconstruct affected Model state from events if snapshots
+were produced while member handlers were skipped. Correct replay does not retroactively repair those snapshots.
+Likewise, a schema upcaster cannot backfill storage representations absent from a prerelease's stored format;
+qualify that storage transition separately before switching writers.
+
 ### Migrate an aggregate deliberately—not by renaming its annotation
 
 An aggregate's embedded children, stream, snapshots and documents do not become independent Models by
@@ -2226,7 +2324,7 @@ events and checkpoints progress. Include Project reconstruction and every subseq
 deletion too. Preserve legacy serialized types and required upcasters rather than inventing new event
 identities for replay. The earlier command examples alone are not a mapping for different legacy event types.
 
-[`PublishedEventModelMigration`](/docs/guides/modeling-and-persistence/entity-loading#backfilling-models-from-legacy-events)
+`PublishedEventModelMigration`
 then supplies the replay runner. In the new application's migration entry point:
 
 <Tabs syncKey="language">

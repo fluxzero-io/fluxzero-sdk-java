@@ -1,4 +1,4 @@
-Use a custom topic when a durable message flow does not fit commands, queries, aggregate events, metrics, schedules, or
+Use a custom topic when a durable message flow does not fit commands, queries, Model events, metrics, schedules, or
 web requests and benefits from its own retention, replay, and consumer positions. Do not use a custom topic merely to
 avoid defining the correct domain message type.
 

@@ -84,5 +84,5 @@ final class UserQueries {
 
 Test two different zero-component queries in the same fixture configuration and assert each typed result. This catches a broad handler answering the wrong query and causing a late `ClassCastException`. In fixture setup, explicitly register external handler components and annotation-driven class handlers that need registration; do not collect every ordinary local self-handling payload class into the handler list.
 
-These examples assume `@Model` state. For existing persisted aggregates, keep their aggregate loading API until a
+These examples assume `@Model` state. For existing persisted Models, keep their Model loading API until a
 deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.

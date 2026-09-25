@@ -1,5 +1,5 @@
 ---
-title: Guides overview
+title: Developer Guides
 slug: docs/guides
 sidebar:
    order: 10
@@ -8,9 +8,16 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import UnderConstruction from '~/components/UnderConstruction.astro';
 
-# Fluxzero guides
+# Developer Guides
 
-These guides explain the technical model behind a Fluxzero product. They give your coding agent precise implementation guidance and help you understand what the application and cloud handle. They are grouped into focused categories, each covering a key area:
+Fluxzero is the cloud for your application. These guides explain its SDK and the APIs you use to build for it,
+for developers working directly in Java or Kotlin and anyone who wants a technical reference.
+They are optional when you build with a coding agent. Agents use their own SDK documentation set and development
+workflows; you can focus on your product and follow [Building with Fluxzero](/docs/getting-started/introduction).
+
+Start with [Core concepts](/docs/getting-started/core-concepts) for the building blocks, or work through the
+[to-do tutorial](/docs/tutorials/first-app). [Fluxzero 2.0](/docs/fluxzero-2) explains the release and
+migration. The guides below cover individual capabilities in depth.
 
 ## Messaging
 
@@ -26,8 +33,9 @@ This section explains how Fluxzero handles messages — the core of how data flo
 
 ## Modeling & Persistence
 
-For the complete 2.0 design, start with [Fluxzero 2.0](/docs/fluxzero-2): why independent Models replace a
-single growing persistence boundary, how Graphs bring them together, and how to migrate from 1.x.
+Start with [Model state](/docs/guides/modeling-and-persistence/model-state) to choose domain boundaries, then
+[relationships](/docs/guides/modeling-and-persistence/nested-entities) to connect Models and
+[temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) to explore their history.
 The chapter includes Java and Kotlin examples; the focused guides below provide the detailed contracts.
 
 This section focuses on your domain model and how Fluxzero stores and loads data. Topics include:

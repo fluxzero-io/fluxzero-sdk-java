@@ -63,5 +63,5 @@ the handler implementation's normal absence mechanism.
 
 Keep the unwrapped value type consistent across self-handling and standalone handlers, `Fluxzero.queryAndWait(...)`, fixture assertions, and endpoint response mapping. A handler exception is an exceptional result and belongs under `expectExceptionalResult(...)`; it is not an absent normal value.
 
-These examples assume `@Model` state. For existing persisted aggregates, keep their aggregate loading API until a
+These examples assume `@Model` state. For existing persisted Models, keep their Model loading API until a
 deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.

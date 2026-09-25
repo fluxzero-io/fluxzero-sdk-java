@@ -213,7 +213,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
     automatically reused for the event.
 19. **Model History**: View current Model history through `Graph.previous()`, `revisions()` and
     `playBackToCondition(...)`. This removes the need for second-class events like `BalanceChanged` after a
-    `DepositMoney` command solely to see what changed. Reserve `Entity<T>` for legacy Aggregate and persistence code.
+    `DepositMoney` command solely to see what changed. Use `Graph<T>` for history and relationship context.
 20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
     system that updates whenever source documents change.
 21. **The Consistency Window**: Direct Model documents selected by including `DOCUMENT` in the persistence set
@@ -348,9 +348,10 @@ If a pattern is not documented, ask the user for clarification rather than guess
 
 ## What is Fluxzero?
 
-Fluxzero is a cloud-native runtime and SDK that simplifies backend development by treating all interactions—commands,
-queries, and web traffic—as **messages**. This eliminates boilerplate like plumbing, infrastructure configuration, 
-and complex framework wiring.
+Fluxzero is the European cloud for AI-built apps. Its SDK connects application code to the cloud by treating
+commands, queries, and web traffic as **messages**. The CLI, Dev Server, and agent plugins support building and
+testing these applications locally before publishing them on Fluxzero. This eliminates boilerplate like plumbing,
+infrastructure configuration, and complex framework wiring.
 
 The system utilizes event sourcing and a built-in search engine to manage state and data retrieval automatically.
 Verification is handled by a streamlined test fixture that simulates message flows without requiring external mocks

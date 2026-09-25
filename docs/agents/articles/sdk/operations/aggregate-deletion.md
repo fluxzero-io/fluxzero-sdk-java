@@ -1,35 +1,28 @@
-Use `AggregateRepository.deleteAggregate(...)` when the intent is to remove all persisted state owned by one aggregate.
-This is destructive application data management inside the configured namespace and requires explicit approval for
-the concrete aggregate identifier and environment.
+# Model erasure
+
+Use a domain command returning `null` for logical deletion that retains history. Permanent erasure is a separate,
+destructive operation through `ModelRepository` in the selected namespace. Confirm the intended identity, environment
+and retention scope before execution.
+
+For exactly one Model:
 
 ```java
-CompletableFuture<Void> deletion = Fluxzero.get()
-        .aggregateRepository()
-        .deleteAggregate(aggregateId);
-deletion.join();
+ModelDeletionResult result = Fluxzero.get().modelRepository()
+        .deleteModel(modelId, ModelDeletionCascade.NONE).join();
 ```
 
-The repository-level operation evicts the aggregate cache and coordinates event storage, relationships, stored
-snapshots, and the searchable representation where applicable. Prefer a typed `Id<?>` or otherwise unambiguous
-identifier so the repository can resolve the aggregate type and collection correctly.
+Use `io.fluxzero.common.api.modeling.ModelDeletionCascade` and `ModelDeletionResult`.
 
-Before deletion:
+For descendants, first create a non-mutating plan with `planDeletion(modelId, ModelDeletionCascade.DESCENDANTS)`.
+Inspect the plan and confirm that exact scope before calling `deleteModel(plan)`. A descendant cascade without a
+confirmed plan is rejected. Use the overload accepting a stable deletion ID when the procedure needs resumable,
+idempotent execution.
 
-1. Confirm that the request means permanent data removal, not a reversible domain transition such as deactivation.
-2. Resolve the aggregate through its primary ID and inspect dependent entities, aliases, projections, schedules, and
-   external records.
-3. Decide whether downstream projections must receive an explicit domain event before physical removal.
-4. Capture only the minimum audit evidence permitted by the data-protection policy.
-5. Define after-state checks for events, snapshot/search state, relationships, public queries, and scheduled work.
+Erasure removes owned Model persistence, direct documents, cache and relationships. It does not remove globally
+published events or undo an external effect. Inspect dependent projections, schedules, vault data and external
+records separately. Logical cascades retain deleted-parent lineage for planning; earlier ordinary moves/detachments
+are not silently included in that deleted tree.
 
-After the future completes, run those checks. Eventually consistent consumers may still hold a derived view until
-their own deletion/update signal is handled; repository deletion cannot retract an already completed external effect.
-
-## Avoid partial low-level deletion
-
-`Fluxzero.get().client().getEventStoreClient().deleteEvents(aggregateId)` deletes only the event stream. It does not by
-itself express removal of snapshots, searchable documents, schedules, or all relationship state. Use it only for an
-advanced recovery or data-protection procedure that explicitly manages every remaining artifact. Do not call raw
-`DeleteEvents` protocol payloads.
-
-Never implement aggregate deletion by manipulating managed tables, storage partitions, or Kubernetes workloads.
+Verify the returned result and public after-state, including descendants and the absence of stale projections that
+could mislead readers. Never approximate Model erasure by deleting an event log, editing managed storage tables, or
+removing a runtime workload. Read the Model deletion article for lifecycle and retained-history boundaries.

@@ -158,11 +158,8 @@ Migrate internal sources before rebuilding Graph projections, observe consumer c
 separately for all three roles. Reindex each affected child's source too: rewriting only the root does not migrate
 child predicates. Verify a fresh reader can still load current state and historical `previous()` values afterward.
 
-Storage/configuration changes are separate migrations: this does not automatically backfill internal sources from
-older shared DOCUMENT storage, retire renamed collections, or migrate changes to persistence/name/path settings.
-The retained-storage example qualifies an old **schema** written in the separate-role format; it is not a blanket
-upgrade guarantee for older 2.0 candidates. Keep legacy data backed up and qualify its explicit migration/rebuild
-before upgrading. Do not infer that a new schema upcaster creates missing source documents.
+Storage/configuration changes are separate migrations. Schema upcasters do not rename collections, change
+persistence/name/path settings, or create missing source documents. Qualify these changes separately.
 
 
 ## Preserve historical meaning and name the remaining limits

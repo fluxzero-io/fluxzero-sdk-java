@@ -1,4 +1,4 @@
-Fluxzero lets developers build backend applications with domain messages instead of hand-written infrastructure plumbing. Navigate these docs like a graph: choose the closest topic, then follow parent, sibling, or detail links only when they help the current edit.
+Fluxzero is the European cloud for AI-built apps. Its SDK lets application code express product behavior with domain messages, while the cloud provides the managed execution and data services. Agent plugins, the CLI, and the Dev Server support building and testing those applications locally before publishing them on Fluxzero. Navigate these docs like a graph: choose the closest topic, then follow parent, sibling, or detail links only when they help the current edit.
 
 This is the SDK documentation graph. Its content can be read locally or served through MCP; transport authentication and development controls belong to the hosting tool. Documentation does not itself grant login, package-publication or deployment capabilities. Select the graph matching the project SDK and reuse unchanged articles rather than loading the entire corpus.
 
@@ -10,5 +10,4 @@ For application work, prefer this order:
 4. Add search/read models and thin web endpoints.
 5. Read cloud pages only when the user asks about publishing or demo deployment.
 
-This checkout documents SDK v2 (Java 25+). For new state, start with Models and Graphs. Retained aggregate articles
-serve existing persisted state; they are not a recommendation to introduce aggregates in new v2 code.
+This checkout documents SDK v2 (Java 25+). For new state, start with Models and Graphs.

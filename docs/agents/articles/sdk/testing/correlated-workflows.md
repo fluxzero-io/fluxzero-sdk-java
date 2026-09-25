@@ -45,7 +45,7 @@ Alias-prefix-only coverage is insufficient. Give the typed primary ID a disjoint
 
 Pin start time. Assert pending immediately before the deadline and expired at the exact deadline. Confirm/fail/cancel before the deadline and prove cancellation of the active schedule; then deliver a stale deadline and assert no change.
 
-Finally create a new default fixture from recorded aggregate events or a stateful document plus supplied schedules.
+Finally create a new default fixture from recorded Model events or a stateful document plus supplied schedules.
 Verify primary lookup, every alias/association independently, deadline behavior, and absence of setup side effects. This
 is synthetic reconstruction because the fixture uses new in-memory stores and the test supplies every artifact. Read
 reconstruction testing for the correct Given APIs and the separate persistence-backed restart boundary.

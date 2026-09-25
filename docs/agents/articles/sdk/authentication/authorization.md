@@ -34,7 +34,7 @@ public record Sender(UserId userId, Role userRole) implements User {
 }
 ```
 
-Use `User.id()` wherever application behavior needs the stable actor identity. SDK 2.0 requires an explicit `id()`
+Use `User.id()` wherever application behavior needs the stable actor identity. The SDK requires an explicit `id()`
 implementation; there is no identity fallback to a name. `User` remains a `Principal`, but `getName()` is optional and
 defaults to `id()`. A separate principal/display name must stay outside identity comparisons. Recompile older
 getName-only implementations after adding `id()`.
@@ -102,7 +102,7 @@ Register a `SenderProvider`. The code fragment below maps an already validated i
 - Then read the BFF session cookie through `AppSessionStore.sender(metadata)`.
 - Optionally accept `Authorization: Bearer ...` for API-style calls.
 - Validate bearer tokens with `TokenValidators` and the same `OidcTenantConfig`.
-- Refresh the user by loading the app's user aggregate/read model so role changes take effect. The application owns this mapping; the IDP client does not own domain roles.
+- Refresh the user by loading the app's user Model/read model so role changes take effect. The application owns this mapping; the IDP client does not own domain roles.
 - Return a system user for trusted internal commands.
 
 If the application creates domain users, the provider is incomplete until `getUserById(...)` resolves those users from application state. A provider that recognizes only the system user and returns `null` for every created user makes successful user-creation commands useless to real signed-in requests.
@@ -120,7 +120,7 @@ final class SenderProvider extends AbstractUserProvider
     public User getUserById(Object rawUserId) {
         UserId userId = rawUserId instanceof UserId typed
                 ? typed : new UserId(rawUserId.toString());
-        UserProfile profile = Fluxzero.loadAggregate(userId, UserProfile.class).get();
+        UserProfile profile = Fluxzero.loadModel(userId, UserProfile.class).get();
         return profile == null ? null : new Sender(profile.userId(), profile.role());
     }
 
@@ -136,7 +136,7 @@ final class SenderProvider extends AbstractUserProvider
 }
 ```
 
-A missing aggregate is represented by an empty `Entity`, and `Entity.get()` returns `null`; the `profile == null` branch above is the normal absence path. Do not wrap `Fluxzero.loadAggregate(...).get()` in `catch (RuntimeException)` and translate every failure to `null`. That would erase the distinction between normal absence and storage, serialization, `TechnicalException`, or programming failures. Preserve the original failure in provider code and instrument that boundary. During initial request authentication, the current `AuthenticatingInterceptor` converts an exception thrown by `fromMessage(...)` to no user, so do not claim that the HTTP caller will observe the technical exception; test and monitor provider failures separately. If malformed raw identifiers are deliberately treated as unknown callers, catch only the exact identifier-conversion failure before loading application state.
+A missing Model is represented by an empty `Entity`, and `Entity.get()` returns `null`; the `profile == null` branch above is the normal absence path. Do not wrap `Fluxzero.loadModel(...).get()` in `catch (RuntimeException)` and translate every failure to `null`. That would erase the distinction between normal absence and storage, serialization, `TechnicalException`, or programming failures. Preserve the original failure in provider code and instrument that boundary. During initial request authentication, the current `AuthenticatingInterceptor` converts an exception thrown by `fromMessage(...)` to no user, so do not claim that the HTTP caller will observe the technical exception; test and monitor provider failures separately. If malformed raw identifiers are deliberately treated as unknown callers, catch only the exact identifier-conversion failure before loading application state.
 
 Spring registers a `UserProvider` bean with the Fluxzero builder. Outside Spring, register it explicitly with `DefaultFluxzero.builder().registerUserProvider(...)`. Use `RefreshingUserProvider` when persisted role or profile changes must affect later requests instead of trusting stale role data embedded in an earlier session.
 

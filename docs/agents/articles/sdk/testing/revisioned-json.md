@@ -16,7 +16,7 @@ runs the revision upcasters, then resolves historical type aliases. The plain `r
 Do not use a field named `revision` as a substitute for `@revision`.
 
 Test a caster directly with `TestFixture.whenUpcasting(...)`. For a production behavior claim, also pass the historical
-resource through the relevant fixture command/event/aggregate boundary. Follow the split-upcaster article when one
+resource through the relevant fixture command/event/Model boundary. Follow the split-upcaster article when one
 historical event expands into several events; asserting only the direct caster result does not prove reconstruction.
 
 ## Untyped versus typed JSON reads

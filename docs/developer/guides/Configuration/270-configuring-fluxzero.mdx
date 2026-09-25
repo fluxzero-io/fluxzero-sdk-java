@@ -84,7 +84,7 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
 
 ### Caching and snapshotting
 
-- `replaceCache(...)` and `withAggregateCache(...)` to plug in custom caching backends.
+- `replaceCache(...)` to plug in a custom caching backend.
 - `replaceRelationshipsCache(...)` for customizing the cache used in association-based message routing.
 - `replaceSnapshotSerializer(...)` if you want to store snapshots differently from events.
 
@@ -143,7 +143,6 @@ These methods disable internal features as needed:
 | `disableMessageCorrelation()`        | Skips automatic correlation ID injection                           |
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
-| `disableAutomaticAggregateCaching()` | Legacy: skips 1.x aggregate cache setup                            |
 | `disableScheduledCommandHandler()`   | Removes default handler for scheduled commands                     |
 | `disableTrackingMetrics()`           | Prevents emitting metrics during message tracking                  |
 | `disableCacheEvictionMetrics()`      | Disables cache eviction telemetry                                  |
@@ -233,7 +232,6 @@ Fluxzero exposes several core components as Spring beans, making them easy to in
 | `ErrorGateway`        | Report errors manually                        |
 | `ResultGateway`       | Manually publish results from async flows     |
 | `MessageScheduler`    | Schedule commands or other messages           |
-| `AggregateRepository` | Legacy 1.x aggregate persistence compatibility |
 | `DocumentStore`       | Search, filter, and persist document models   |
 | `KeyValueStore`       | Access key-value persisted state              |
 

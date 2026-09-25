@@ -65,12 +65,6 @@ applications should use template/auto-configuration and supplied connection prop
 protocol clients inside domain code.
 ## Bound transport work with versioned defaults
 
-`fluxzero.eventsourcing.maxFetchBytes` bounds serialized payload per aggregate-history page; it is independent of
-`fluxzero.tracking.maxFetchBytes` for consumer fetches. Compatibility mode retains count-only history pages;
-`fluxzero.defaults.version >= 2026.09.10` selects 100 MiB. An explicit `0` keeps count-only pages. One oversized event
-is still returned to make progress, and older Runtimes ignore the optional byte limit. Read history fetching before
-treating this as a strict memory cap.
-
 `fluxzero.websocket.reconnectBackoff.enabled` enables capped exponential equal-jitter retries instead of fixed
 one-second retries. The versioned default enables it from `2026.09.09`; an explicit value overrides the default.
 Read WebSocket recovery for client/task identity and bounded diagnostics.

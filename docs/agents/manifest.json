@@ -249,7 +249,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -282,7 +282,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -310,7 +310,7 @@
           "path": "/docs/sdk/messages"
         },
         {
-          "description": "Model aggregates, entities, typed IDs, persisted state, and business invariants",
+          "description": "Model Models, entities, typed IDs, persisted state, and business invariants",
           "path": "/docs/sdk/entities"
         },
         {
@@ -322,7 +322,7 @@
           "path": "/docs/sdk/sagas"
         },
         {
-          "description": "Coordinate multi-aggregate workflows, correlation, and ordinary business compensation",
+          "description": "Coordinate multi-Model workflows, correlation, and ordinary business compensation",
           "path": "/docs/sdk/workflows"
         },
         {
@@ -404,7 +404,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -893,7 +893,7 @@
     {
       "path": "/docs/sdk/project-setup/java/sdk-imports",
       "title": "Java SDK Imports And Ambiguous Symbols",
-      "summary": "Use exact Fluxzero FQNs for aggregate transitions, routing, metadata, tracking, HTTP, scheduling, and TestFixture phases instead of guessing packages.",
+      "summary": "Use exact Fluxzero FQNs for Model transitions, routing, metadata, tracking, HTTP, scheduling, and TestFixture phases instead of guessing packages.",
       "source": "articles/sdk/project-setup/java/sdk-imports.md",
       "symbols": [
         "io.fluxzero.sdk.persisting.eventsourcing.Apply",
@@ -1524,7 +1524,7 @@
     {
       "path": "/docs/sdk/authentication/authorization",
       "title": "Authorization",
-      "summary": "Map validated identity claims to application-owned Sender objects, roles, user aggregates, and package-level security defaults.",
+      "summary": "Map validated identity claims to application-owned Sender objects, roles, user Models, and package-level security defaults.",
       "source": "articles/sdk/authentication/authorization.md",
       "symbols": [
         "Sender",
@@ -1577,7 +1577,7 @@
           "path": "/docs/recipes/add-authenticated-frontend"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         }
       ]
@@ -1605,11 +1605,11 @@
           "path": "/docs/sdk/principles"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
@@ -1641,13 +1641,12 @@
     {
       "path": "/docs/sdk/messages/commands",
       "title": "Commands",
-      "summary": "Commands express user or system intent to change state and usually apply to an aggregate.",
+      "summary": "Commands express user or system intent to change state and usually apply to an Model.",
       "source": "articles/sdk/messages/commands.md",
       "symbols": [
         "@HandleCommand",
         "@TrackSelf",
         "@Consumer",
-        "Fluxzero.loadAggregate(...)",
         "assertAndApply",
         "skipExpiredRequests",
         "Request<R>",
@@ -1659,7 +1658,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -1667,7 +1666,7 @@
           "path": "/docs/sdk/messages"
         },
         {
-          "description": "Apply event-sourced aggregate and entity state changes",
+          "description": "Apply event-sourced Model and entity state changes",
           "path": "/docs/sdk/entities/apply"
         },
         {
@@ -1675,7 +1674,7 @@
           "path": "/docs/sdk/entities/assert-legal"
         },
         {
-          "description": "serialize global business-key claims across aggregate roots",
+          "description": "serialize global business-key claims across Model roots",
           "path": "/docs/sdk/entities/global-invariants"
         },
         {
@@ -1722,7 +1721,7 @@
       ],
       "links": [
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
@@ -1764,7 +1763,7 @@
       "links": [
         {
           "path": "/docs/sdk/models",
-          "description": "Load v2 Models or lazy Graphs; retain aggregates only for existing state"
+          "description": "Load Models and lazy Graphs"
         },
         {
           "description": "Choose command query event web or schedule semantics",
@@ -1787,7 +1786,7 @@
           "path": "/docs/sdk/messages/queries/result-contracts"
         },
         {
-          "description": "Exact primary-ID aggregate lookup mapped to a public view",
+          "description": "Exact primary-ID Model lookup mapped to a public view",
           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
         },
         {
@@ -1816,7 +1815,7 @@
       "links": [
         {
           "path": "/docs/sdk/models",
-          "description": "Load v2 Models or lazy Graphs; retain aggregates only for existing state"
+          "description": "Load Models and lazy Graphs"
         },
         {
           "description": "Model typed read-only requests and deliberate handler placement",
@@ -1861,7 +1860,7 @@
       "links": [
         {
           "path": "/docs/sdk/models",
-          "description": "Load v2 Models or lazy Graphs; retain aggregates only for existing state"
+          "description": "Load Models and lazy Graphs"
         },
         {
           "description": "Model typed read-only requests and deliberate handler placement",
@@ -1880,7 +1879,7 @@
           "path": "/docs/sdk/reference/test-fixture-signatures"
         },
         {
-          "description": "exact aggregate lookup with ordinary absence",
+          "description": "exact Model lookup with ordinary absence",
           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
         },
         {
@@ -1891,13 +1890,12 @@
     },
     {
       "path": "/docs/sdk/messages/queries/exact-aggregate-lookup",
-      "title": "Exact Aggregate Lookup Query",
-      "summary": "Load one event-sourced aggregate by primary ID, map it to a public view, return ordinary absence for an unknown ID, and prove terminal lookup after reconstruction.",
+      "title": "Exact Model Lookup Query",
+      "summary": "Load one event-sourced Model by primary ID, map it to a public view, return ordinary absence for an unknown ID, and prove terminal lookup after reconstruction.",
       "source": "articles/sdk/messages/queries/exact-aggregate-lookup.md",
       "symbols": [
         "query exact lookup aggregate state",
         "exact lookup by job identifier",
-        "Fluxzero.loadAggregate(primaryId)",
         "Request<AssetJobView>",
         "AssetJobView",
         "expectNoResult()",
@@ -1967,11 +1965,10 @@
     },
     {
       "path": "/docs/sdk/entities",
-      "title": "Legacy aggregates and entities",
-      "summary": "Maintain already persisted aggregate state; use Models for new v2 state and deliberate migration for existing data.",
+      "title": "Domain Models and identity",
+      "summary": "Choose immutable domain Models, typed identities, independent relationships and atomic actions.",
       "source": "articles/sdk/entities/index.md",
       "symbols": [
-        "@Aggregate",
         "@EntityId",
         "@Member",
         "@Alias",
@@ -1981,11 +1978,11 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -2001,7 +1998,7 @@
           "path": "/docs/sdk/handlers"
         },
         {
-          "description": "namespaced aggregate aliases and durable multi-key routing",
+          "description": "namespaced Model aliases and durable multi-key routing",
           "path": "/docs/sdk/workflows/correlation"
         },
         {
@@ -2013,7 +2010,7 @@
           "path": "/docs/sdk/entities/assert-legal"
         },
         {
-          "description": "Commit aggregate events before scheduling or publishing effects",
+          "description": "Commit Model events before scheduling or publishing effects",
           "path": "/docs/sdk/entities/commit-effect-boundary"
         },
         {
@@ -2021,7 +2018,7 @@
           "path": "/docs/sdk/entities/disjoint-identity-namespaces"
         },
         {
-          "description": "Route global business uniqueness by the invariant key across aggregate roots",
+          "description": "Route global business uniqueness by the invariant key across Model roots",
           "path": "/docs/sdk/entities/global-invariants"
         },
         {
@@ -2033,7 +2030,7 @@
           "path": "/docs/sdk/entities/composite-identities"
         },
         {
-          "description": "Permanently remove complete aggregate-owned persistent state",
+          "description": "Permanently remove complete Model-owned persistent state",
           "path": "/docs/sdk/operations/aggregate-deletion"
         },
         {
@@ -2041,7 +2038,7 @@
           "path": "/docs/sdk/operations/relationship-repair"
         },
         {
-          "description": "Transform an update before aggregate legality and state application",
+          "description": "Transform an update before Model legality and state application",
           "path": "/docs/sdk/entities/intercept-apply"
         },
         {
@@ -2052,7 +2049,7 @@
     },
     {
       "path": "/docs/sdk/entities/global-invariants",
-      "title": "Global Business Invariants Across Aggregates",
+      "title": "Global Business Invariants Across Models",
       "summary": "Serialize a globally unique business key through one tracked consumer, derive its routing identity through one trusted path, and prove the named loser leaves no state or durable effects.",
       "source": "articles/sdk/entities/global-invariants.md",
       "symbols": [
@@ -2077,11 +2074,11 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2113,7 +2110,7 @@
     {
       "path": "/docs/sdk/entities/apply",
       "title": "Apply Methods",
-      "summary": "@Apply methods create, update, or delete aggregate/member state and are reused during event sourcing.",
+      "summary": "@Apply methods create, update, or delete Model/member state and are reused during event sourcing.",
       "source": "articles/sdk/entities/apply.md",
       "symbols": [
         "@Apply",
@@ -2128,11 +2125,11 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2140,11 +2137,11 @@
           "path": "/docs/sdk/entities/assert-legal"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
-          "description": "aggregate commit versus external-effect boundary",
+          "description": "Model commit versus external-effect boundary",
           "path": "/docs/sdk/entities/commit-effect-boundary"
         },
         {
@@ -2155,18 +2152,15 @@
     },
     {
       "path": "/docs/sdk/entities/commit-effect-boundary",
-      "title": "Aggregate Commit And Effect Boundary",
-      "summary": "Treat assertAndApply(...).get() as in-memory state, commit before effects, and explicitly route ordered post-commit intents through one consumer and aggregate-ID segment.",
+      "title": "Model Commit And Effect Boundary",
+      "summary": "Treat assertAndApply(...).get() as in-memory state, commit before effects, and explicitly route ordered post-commit intents through one consumer and Model-ID segment.",
       "source": "articles/sdk/entities/commit-effect-boundary.md",
       "symbols": [
         "assertAndApply(...).get() is not persistence",
         "aggregate commit effect boundary",
-        "ModifiableAggregateRoot",
         "post-commit consumer",
         "shared workflow effect consumer",
         "effect ordering",
-        "AggregateEventRouting.AGGREGATE_ID",
-        "AggregateEventRouting.MESSAGE_ROUTING_KEY",
         "aggregate event routing segment",
         "relationship indexing",
         "alias visible after commit",
@@ -2176,15 +2170,15 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
-          "description": "pure aggregate apply methods",
+          "description": "pure Model apply methods",
           "path": "/docs/sdk/entities/apply"
         },
         {
@@ -2212,7 +2206,7 @@
     {
       "path": "/docs/sdk/entities/disjoint-identity-namespaces",
       "title": "Disjoint Primary And Alias Identity Namespaces",
-      "summary": "Keep durable workflow correlation, secondary keys, and multiple aggregate aliases collision-safe by prefixing the typed primary repository ID separately from every alias family.",
+      "summary": "Keep durable workflow correlation, secondary keys, and multiple Model aliases collision-safe by prefixing the typed primary repository ID separately from every alias family.",
       "source": "articles/sdk/entities/disjoint-identity-namespaces.md",
       "symbols": [
         "disjoint internal repository key namespaces",
@@ -2237,11 +2231,11 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2253,7 +2247,7 @@
           "path": "/docs/sdk/workflows/correlation"
         },
         {
-          "description": "exact aggregate lookup from the public ID",
+          "description": "exact Model lookup from the public ID",
           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
         },
         {
@@ -2277,15 +2271,15 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
-          "description": "Apply event-sourced aggregate and entity state changes",
+          "description": "Apply event-sourced Model and entity state changes",
           "path": "/docs/sdk/entities/apply"
         },
         {
@@ -2311,11 +2305,11 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2365,11 +2359,11 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2423,7 +2417,7 @@
           "path": "/docs/sdk"
         },
         {
-          "description": "Model aggregate state identities and legal transitions",
+          "description": "Model Model state identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2431,7 +2425,7 @@
           "path": "/docs/sdk/sagas"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
@@ -2555,7 +2549,7 @@
           "path": "/docs/sdk/tracking"
         },
         {
-          "description": "aggregate post-commit effect pattern and failure tests",
+          "description": "Model post-commit effect pattern and failure tests",
           "path": "/docs/sdk/entities/commit-effect-boundary"
         },
         {
@@ -2563,7 +2557,7 @@
           "path": "/docs/sdk/search"
         },
         {
-          "description": "aggregate aliases versus stateful associations",
+          "description": "Model aliases versus stateful associations",
           "path": "/docs/sdk/workflows/correlation"
         },
         {
@@ -2579,7 +2573,7 @@
     {
       "path": "/docs/sdk/workflows",
       "title": "Durable Workflows",
-      "summary": "Choose aggregate aliases or stateful associations for durable multi-key correlation, then emit ordinary business compensation exactly once per logical transition.",
+      "summary": "Choose Model aliases or stateful associations for durable multi-key correlation, then emit ordinary business compensation exactly once per logical transition.",
       "source": "articles/sdk/workflows/index.md",
       "symbols": [
         "durable workflow",
@@ -2603,7 +2597,7 @@
           "path": "/docs/sdk/runtime-interaction"
         },
         {
-          "description": "Service-owned references, aggregate aliases, and stateful associations",
+          "description": "Service-owned references, Model aliases, and stateful associations",
           "path": "/docs/sdk/workflows/correlation"
         },
         {
@@ -2614,30 +2608,14 @@
     },
     {
       "path": "/docs/sdk/workflows/correlation",
-      "title": "Durable Multi-Key Correlation",
-      "summary": "Resolve secondary processor identifiers with a namespaced alias plus post-load field guard, then serialize durable mutations through one primary-ID transition consumer.",
+      "title": "Durable correlation",
+      "summary": "Choose Model aliases or stateful associations and handle callbacks with stable identity and recoverable effects.",
       "source": "articles/sdk/workflows/correlation.md",
       "symbols": [
-        "correlation routing message by secondary identifier",
-        "saga association reference",
-        "@Alias(prefix = ...)",
-        "Fluxzero.loadEntity(prefixedAlias)",
-        "post-load equality guard",
-        "fully-prefixed primary ID",
-        "AggregateEventRouting.AGGREGATE_ID",
-        "RecordProcessorDecision",
-        "@RoutingKey AssetJobId",
-        "asset-job-transitions",
-        "singleTracker = true",
-        "@Association",
-        "service-owned reference",
-        "duplicate start first wins",
-        "processor reference",
-        "captionJobReference",
-        "artworkJobReference",
-        "Fluxzero.getDocument(...)",
-        "io.fluxzero.sdk.publishing.routing.RoutingKey",
-        "io.fluxzero.common.api.Metadata"
+        "Alias",
+        "Association",
+        "Stateful",
+        "Fluxzero.loadModel"
       ],
       "links": [
         {
@@ -2645,7 +2623,7 @@
           "path": "/docs/sdk/workflows"
         },
         {
-          "description": "aggregate and entity aliases",
+          "description": "Model and entity aliases",
           "path": "/docs/sdk/entities"
         },
         {
@@ -2661,11 +2639,11 @@
           "path": "/docs/sdk/messages/commands/self-handling"
         },
         {
-          "description": "commit aggregate aliases before publishing effects",
+          "description": "commit Model aliases before publishing effects",
           "path": "/docs/sdk/entities/commit-effect-boundary"
         },
         {
-          "description": "exact public aggregate lookup by primary ID",
+          "description": "exact public Model lookup by primary ID",
           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
         },
         {
@@ -2936,11 +2914,11 @@
           "path": "/docs/sdk/scheduling/tracked-effect-reconciliation"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
-          "description": "same-key ordering for global invariants across aggregates",
+          "description": "same-key ordering for global invariants across Models",
           "path": "/docs/sdk/entities/global-invariants"
         },
         {
@@ -3151,7 +3129,7 @@
         "namespace maintenance",
         "destructive operation",
         "operational safety",
-        "Fluxzero Cloud operations"
+        "Fluxzero deployment operations"
       ],
       "links": [
         {
@@ -3171,11 +3149,11 @@
           "path": "/docs/sdk/operations/search-maintenance"
         },
         {
-          "description": "Permanently remove every persisted artifact owned by one aggregate",
+          "description": "Permanently remove every persisted artifact owned by one Model",
           "path": "/docs/sdk/operations/aggregate-deletion"
         },
         {
-          "description": "Rebuild stale entity-to-aggregate relationships from reconstructed state",
+          "description": "Rebuild stale entity-to-Model relationships from reconstructed state",
           "path": "/docs/sdk/operations/relationship-repair"
         },
         {
@@ -3262,7 +3240,7 @@
           "path": "/docs/sdk/search/manual-indexing"
         },
         {
-          "description": "Permanently remove complete aggregate-owned persistent state",
+          "description": "Permanently remove complete Model-owned persistent state",
           "path": "/docs/sdk/operations/aggregate-deletion"
         },
         {
@@ -3273,17 +3251,14 @@
     },
     {
       "path": "/docs/sdk/operations/aggregate-deletion",
-      "title": "Complete Aggregate Deletion",
-      "summary": "Delete aggregate-owned events or document state, relationships, snapshots, and searchable representation through AggregateRepository instead of partial storage operations.",
+      "title": "Model erasure",
+      "summary": "Plan and execute Model erasure with explicit scope and verify retained external artifacts.",
       "source": "articles/sdk/operations/aggregate-deletion.md",
       "symbols": [
-        "AggregateRepository.deleteAggregate",
-        "deleteAggregate(Object)",
-        "EventStoreClient.deleteEvents",
-        "deleteEvents(String)",
-        "complete aggregate deletion",
-        "physical data removal",
-        "snapshot deletion"
+        "ModelRepository.deleteModel",
+        "ModelRepository.planDeletion",
+        "ModelDeletionCascade",
+        "ModelDeletionResult"
       ],
       "links": [
         {
@@ -3291,7 +3266,7 @@
           "path": "/docs/sdk/operations"
         },
         {
-          "description": "Model aggregates members identities and searchable state",
+          "description": "Model Models members identities and searchable state",
           "path": "/docs/sdk/entities"
         },
         {
@@ -3299,7 +3274,7 @@
           "path": "/docs/sdk/operations/search-maintenance"
         },
         {
-          "description": "Rebuild stale entity-to-aggregate relationships from reconstructed state",
+          "description": "Rebuild stale entity-to-Model relationships from reconstructed state",
           "path": "/docs/sdk/operations/relationship-repair"
         },
         {
@@ -3310,18 +3285,14 @@
     },
     {
       "path": "/docs/sdk/operations/relationship-repair",
-      "title": "Aggregate Relationship Repair",
-      "summary": "Reconstruct an aggregate and replace stale entity, member, and alias relationships through AggregateRepository with before-and-after lookup verification.",
+      "title": "Diagnose Model relationships",
+      "summary": "Inspect identity, scope, temporal boundaries and projections before changing relationship data.",
       "source": "articles/sdk/operations/relationship-repair.md",
       "symbols": [
-        "AggregateRepository.repairRelationships",
-        "repairRelationships(Id<?>)",
-        "repairRelationships(Entity<?>)",
-        "EventStoreClient.repairRelationships",
-        "RepairRelationships",
-        "relationship repair",
-        "getAggregatesFor",
-        "loadFor"
+        "Parent",
+        "Alias",
+        "Graph.current",
+        "Graph.children"
       ],
       "links": [
         {
@@ -3329,7 +3300,7 @@
           "path": "/docs/sdk/operations"
         },
         {
-          "description": "Model member alias and aggregate identity relationships",
+          "description": "Model member alias and Model identity relationships",
           "path": "/docs/sdk/entities"
         },
         {
@@ -3337,7 +3308,7 @@
           "path": "/docs/sdk/entities/disjoint-identity-namespaces"
         },
         {
-          "description": "Permanently remove complete aggregate-owned persistent state",
+          "description": "Permanently remove complete Model-owned persistent state",
           "path": "/docs/sdk/operations/aggregate-deletion"
         },
         {
@@ -3388,7 +3359,7 @@
     {
       "path": "/docs/sdk/operations/low-level-clients",
       "title": "Low-Level Runtime Clients",
-      "summary": "Use Client subsystem access for justified advanced operations while preserving namespace, topic, guarantee, correlation, and high-level aggregate or document semantics.",
+      "summary": "Use Client subsystem access for justified advanced operations while preserving namespace, topic, guarantee, correlation, and high-level Model or document semantics.",
       "source": "articles/sdk/operations/low-level-clients.md",
       "symbols": [
         "Fluxzero.get().client()",
@@ -3418,7 +3389,7 @@
           "path": "/docs/sdk/operations/tracker-positions"
         },
         {
-          "description": "Permanently delete aggregate state through the complete repository operation",
+          "description": "Permanently delete Model state through the complete repository operation",
           "path": "/docs/sdk/operations/aggregate-deletion"
         },
         {
@@ -3567,7 +3538,7 @@
           "path": "/docs/sdk/workflows/business-compensation"
         },
         {
-          "description": "publish only after aggregate commit",
+          "description": "publish only after Model commit",
           "path": "/docs/sdk/entities/commit-effect-boundary"
         },
         {
@@ -4058,7 +4029,6 @@
         "persistence-backed restart",
         "LocalClient in-memory stores",
         "TestFixture.createAsync(FluxzeroBuilder, Client, Object...)",
-        "givenAppliedEvents",
         "givenStateful",
         "givenScheduledCommands",
         "givenSchedules",
@@ -4101,7 +4071,7 @@
           "path": "/docs/sdk/scheduling"
         },
         {
-          "description": "Apply event-sourced aggregate and entity state changes",
+          "description": "Apply event-sourced Model and entity state changes",
           "path": "/docs/sdk/entities/apply"
         },
         {
@@ -4109,7 +4079,7 @@
           "path": "/docs/sdk/sagas"
         },
         {
-          "description": "exact aggregate lookup after reconstruction",
+          "description": "exact Model lookup after reconstruction",
           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
         },
         {
@@ -4363,7 +4333,7 @@
           "path": "/docs/sdk/testing"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
@@ -4657,7 +4627,6 @@
         "DataProtectionInterceptor.METADATA_KEY",
         "$protectedData",
         "Fluxzero.keyValueStore()",
-        "Fluxzero.loadAggregate(...).assertAndApply(...)",
         "@Component",
         "Fluxzero.registerHandlers(...)",
         "MissingProtectedDataPolicy",
@@ -4802,14 +4771,14 @@
     {
       "path": "/docs/sdk/serialization/split-event-upcasters",
       "title": "Testing Legacy And Split Event Upcasters",
-      "summary": "Seed a revision-old SerializedMessage so one-to-one or one-to-many event upcasters reconstruct current aggregate or projection state through the registered caster chain.",
+      "summary": "Seed a revision-old SerializedMessage so one-to-one or one-to-many event upcasters reconstruct current Model or projection state through the registered caster chain.",
       "source": "articles/sdk/serialization/split-event-upcasters.md",
       "symbols": [
         "one-to-one legacy event upcaster",
         "one-to-many event upcaster",
         "split event upcaster",
         "Stream<Data<JsonNode>>",
-        "givenAppliedEvents SerializedMessage",
+        "givenModelEvents SerializedMessage",
         "givenEvents SerializedMessage",
         "asEventMessages",
         "deserializeMessages EVENT",
@@ -4879,7 +4848,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -5271,7 +5240,7 @@
           "path": "/docs/sdk/project-setup/local-run"
         },
         {
-          "description": "Build a first aggregate command and fixture test",
+          "description": "Build a first Model command and fixture test",
           "path": "/docs/recipes/create-app"
         }
       ]
@@ -5571,7 +5540,7 @@
     },
     {
       "path": "/docs/sdk/entities/intercept-apply",
-      "title": "Intercepting Aggregate Application",
+      "title": "Intercepting Model Application",
       "summary": "Use @InterceptApply for a narrow pre-legality transformation while keeping ordinary state transitions in @Apply methods.",
       "source": "articles/sdk/entities/intercept-apply.md",
       "symbols": [
@@ -5586,15 +5555,15 @@
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregates entities identities and legal transitions",
+          "description": "Model Models entities identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
-          "description": "Implement pure deterministic aggregate state transitions",
+          "description": "Implement pure deterministic Model state transitions",
           "path": "/docs/sdk/entities/apply"
         },
         {
@@ -5626,7 +5595,7 @@
           "path": "/docs/sdk/sagas"
         },
         {
-          "description": "Choose stateful associations versus aggregate aliases",
+          "description": "Choose stateful associations versus Model aliases",
           "path": "/docs/sdk/workflows/correlation"
         },
         {
@@ -5859,7 +5828,7 @@
           "path": "/docs/sdk/validation"
         },
         {
-          "description": "Validate deterministic aggregate business invariants",
+          "description": "Validate deterministic Model business invariants",
           "path": "/docs/sdk/entities/assert-legal"
         },
         {
@@ -5916,7 +5885,6 @@
       "summary": "Map application-facing SDK and common symbols to exact packages while excluding internal wire-protocol types.",
       "source": "articles/sdk/reference/public-symbols.md",
       "symbols": [
-        "AggregateRepository",
         "Entity",
         "Apply",
         "InterceptApply",
@@ -5940,7 +5908,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -6063,28 +6031,23 @@
     },
     {
       "path": "/docs/sdk/entities/publication-and-history",
-      "title": "Event Publication And Entity History",
-      "summary": "Choose stored and published update behavior, understand apply compatibility checks, and inspect reconstructed previous entity state.",
+      "title": "Model publication and history",
+      "summary": "Choose event publication policies and inspect retained Graph history.",
       "source": "articles/sdk/entities/publication-and-history.md",
       "symbols": [
         "EventPublication",
         "EventPublicationStrategy",
-        "STORE_AND_PUBLISH",
-        "STORE_ONLY",
-        "PUBLISH_ONLY",
-        "@Apply(disableCompatibilityCheck = true)",
-        "Entity.ALREADY_EXISTS_EXCEPTION",
-        "Entity.NOT_FOUND_EXCEPTION",
-        "Entity.previous()",
-        "playBackToCondition"
+        "Graph.previous",
+        "Graph.previousValue",
+        "Graph.hasChanged"
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model aggregates entities identities and legal transitions",
+          "description": "Model Models entities identities and legal transitions",
           "path": "/docs/sdk/entities"
         },
         {
@@ -6092,7 +6055,7 @@
           "path": "/docs/sdk/entities/apply"
         },
         {
-          "description": "Separate aggregate commit from post-commit effects",
+          "description": "Separate Model commit from post-commit effects",
           "path": "/docs/sdk/entities/commit-effect-boundary"
         },
         {
@@ -6100,7 +6063,7 @@
           "path": "/docs/sdk/testing/behavior-matrices"
         },
         {
-          "description": "Reconstruct supplied aggregate history in new fixtures",
+          "description": "Reconstruct supplied Model history in new fixtures",
           "path": "/docs/sdk/testing/reconstruction"
         },
         {
@@ -6252,7 +6215,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -6304,7 +6267,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -6350,7 +6313,7 @@
       ],
       "links": [
         {
-          "description": "Use v2 Models, automatic commands and lazy Graphs for new state",
+          "description": "Use Models, automatic commands and lazy Graphs",
           "path": "/docs/sdk/models"
         },
         {
@@ -6358,7 +6321,7 @@
           "path": "/docs/recipes"
         },
         {
-          "description": "Build a first aggregate command and fixture test",
+          "description": "Build a first Model command and fixture test",
           "path": "/docs/recipes/create-app"
         },
         {
@@ -6366,11 +6329,11 @@
           "path": "/docs/recipes/add-query"
         },
         {
-          "description": "Model state-changing intent and aggregate transitions",
+          "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
         },
         {
-          "description": "Apply event-sourced aggregate and entity state changes",
+          "description": "Apply event-sourced Model and entity state changes",
           "path": "/docs/sdk/entities/apply"
         },
         {
@@ -6661,11 +6624,11 @@
     },
     {
       "path": "/docs/cloud",
-      "title": "Fluxzero Cloud",
+      "title": "Publishing on Fluxzero",
       "summary": "Prepare, hand off, and verify Fluxzero applications while treating registry, cluster, runtime, database, and credential administration as managed platform concerns.",
       "source": "articles/cloud/index.md",
       "symbols": [
-        "Fluxzero Cloud",
+        "Fluxzero",
         "package publishing",
         "application deployment",
         "deployment verification"
@@ -6943,20 +6906,16 @@
     },
     {
       "path": "/docs/sdk/entities/history-fetching",
-      "title": "Bounded Aggregate History Fetching",
-      "summary": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+      "title": "Reconstructing Model history efficiently",
+      "summary": "Bound historical traversal and measure snapshots, cold replay and independent Model streams.",
       "source": "articles/sdk/entities/history-fetching.md",
       "symbols": [
-        "fluxzero.eventsourcing.maxFetchBytes",
-        "FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES",
-        "aggregate history",
-        "100 MiB",
-        "oversized event",
-        "GetEvents"
+        "Graph.revisions",
+        "Model.snapshotPeriod"
       ],
       "links": [
         {
-          "description": "Distinguish transactional Model/Graph reads from legacy aggregate checks",
+          "description": "Protect invariants with transactional Model/Graph reads",
           "path": "/docs/sdk/models/conflicts"
         },
         {
@@ -6975,7 +6934,7 @@
     },
     {
       "path": "/docs/sdk/models",
-      "title": "Models and Graphs in SDK v2",
+      "title": "Models and Graphs",
       "summary": "Start new Java/Kotlin state with Models: details and status, lifecycle, validated commands, atomic commits and lazy Graphs.",
       "source": "articles/sdk/models/index.md",
       "symbols": [
@@ -7008,7 +6967,7 @@
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model deletion and aggregate migration",
+          "description": "Model deletion and Model migration",
           "path": "/docs/sdk/models/migration"
         },
         {
@@ -7024,20 +6983,20 @@
           "path": "/docs/sdk/models/graphs-kotlin"
         },
         {
-          "description": "Maintain legacy aggregate state without an implicit migration",
+          "description": "Find the SDK upgrade and stored-data migration guide",
           "path": "/docs/sdk/entities"
         },
         {
           "path": "/docs/sdk/entities/relationships",
-          "description": "Independent Model Relationships — supplementary examples"
+          "description": "Independent Model Relationships \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/graphs",
-          "description": "Loading Models And Temporal Graphs — supplementary examples"
+          "description": "Loading Models And Temporal Graphs \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/graph-events",
-          "description": "Graph Change Subscriptions — supplementary examples"
+          "description": "Graph Change Subscriptions \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/graph-search",
@@ -7045,19 +7004,19 @@
         },
         {
           "path": "/docs/sdk/entities/legacy-migration",
-          "description": "Legacy Aggregate Migration — supplementary examples"
+          "description": "Legacy Model Migration \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/testing/model-transitions",
-          "description": "Testing Model Transitions — supplementary examples"
+          "description": "Testing Model Transitions \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/search/model-relationships",
-          "description": "Search Through Model Relationships — supplementary examples"
+          "description": "Search Through Model Relationships \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/kotlin-models",
-          "description": "Kotlin Models And Updates — supplementary examples"
+          "description": "Kotlin Models And Updates \u2014 supplementary examples"
         },
         {
           "path": "/docs/sdk/models/migration-testing",
@@ -7078,6 +7037,14 @@
         {
           "path": "/docs/sdk/models/recipes-kotlin",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/temporal-graphs",
+          "description": "Navigate Graph history and compare complete changes"
+        },
+        {
+          "path": "/docs/sdk/models/configuration",
+          "description": "Introduce optional settings only when required"
         }
       ]
     },
@@ -7088,11 +7055,8 @@
       "source": "articles/sdk/models/state-java.md",
       "symbols": [
         "@Model",
-        "ModelPersistence",
         "@Member",
         "@EntityId",
-        "@DocumentProjection",
-        "parentScoped",
         "java",
         "ProjectDetails",
         "RenameProject",
@@ -7138,13 +7102,17 @@
         {
           "path": "/docs/sdk/models/recipes-java",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/configuration",
+          "description": "Introduce optional settings only when required"
         }
       ]
     },
     {
       "path": "/docs/sdk/models/actions-java",
       "title": "Model commands and atomic commits (Java)",
-      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for SDK v2 java applications.",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Java applications.",
       "source": "articles/sdk/models/actions-java.md",
       "symbols": [
         "@Apply",
@@ -7275,15 +7243,13 @@
     },
     {
       "path": "/docs/sdk/models/migration",
-      "title": "Model deletion and aggregate migration",
-      "summary": "Logical deletion, parent cascade, physical erasure and deliberate migration of existing aggregate state.",
+      "title": "Model deletion and erasure",
+      "summary": "Logically delete Models, follow configured cascades and plan permanent erasure.",
       "source": "articles/sdk/models/migration.md",
       "symbols": [
-        "PublishedEventModelMigration",
-        "deleteModel",
-        "planDeletion",
-        "deleteOnParentDeletion",
-        "followPublishedEventMigration"
+        "ModelDeletionCascade",
+        "ModelRepository.deleteModel",
+        "ModelRepository.planDeletion"
       ],
       "links": [
         {
@@ -7303,11 +7269,8 @@
       "source": "articles/sdk/models/state-kotlin.md",
       "symbols": [
         "@Model",
-        "ModelPersistence",
         "@Member",
         "@EntityId",
-        "@DocumentProjection",
-        "parentScoped",
         "kotlin",
         "ProjectDetails",
         "RenameProject",
@@ -7353,13 +7316,17 @@
         {
           "path": "/docs/sdk/models/recipes-kotlin",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/configuration",
+          "description": "Introduce optional settings only when required"
         }
       ]
     },
     {
       "path": "/docs/sdk/models/actions-kotlin",
       "title": "Model commands and atomic commits (Kotlin)",
-      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for SDK v2 kotlin applications.",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Kotlin applications.",
       "source": "articles/sdk/models/actions-kotlin.md",
       "symbols": [
         "@Apply",
@@ -7499,6 +7466,10 @@
         {
           "path": "/docs/sdk/models/graphs-java",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/temporal-graphs",
+          "description": "Explore temporal navigation and before/after views"
         }
       ],
       "title": "Loading Models And Temporal Graphs",
@@ -7519,6 +7490,10 @@
         {
           "path": "/docs/sdk/models/graphs-java",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/temporal-graphs",
+          "description": "Explore temporal navigation and before/after views"
         }
       ],
       "title": "Graph Change Subscriptions",
@@ -7565,7 +7540,7 @@
       "path": "/docs/sdk/entities/legacy-migration",
       "source": "articles/sdk/entities/legacy-migration.md",
       "symbols": [
-        "PublishedEventModelMigration"
+        "SDK upgrade"
       ],
       "links": [
         {
@@ -7577,8 +7552,8 @@
           "description": "Read the current detailed Model contract and compatibility boundaries"
         }
       ],
-      "title": "Legacy Aggregate Migration",
-      "summary": "Legacy Aggregate Migration for this SDK version."
+      "title": "SDK upgrade guidance",
+      "summary": "Find the dedicated SDK upgrade chapter and distinguish storage migration from schema evolution."
     },
     {
       "path": "/docs/sdk/testing/model-transitions",
@@ -7658,6 +7633,56 @@
         {
           "path": "/docs/sdk/models/state-kotlin",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/temporal-graphs",
+      "title": "Temporal Graphs",
+      "summary": "Navigate related Models through time, compare added/removed/changed nodes and distinguish Model revisions from whole-graph transitions.",
+      "source": "articles/sdk/models/temporal-graphs.md",
+      "symbols": [
+        "Graph.previous",
+        "Graph.revisions",
+        "Graph.atStateIndex",
+        "Graph.current",
+        "Graph.previousValue",
+        "Graph.hasChanged"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model and Graph overview"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/configuration",
+      "title": "Model configuration",
+      "summary": "Keep Model defaults; opt into storage, search projections, caching and publication settings only for concrete requirements.",
+      "source": "articles/sdk/models/configuration.md",
+      "symbols": [
+        "@Model",
+        "ModelPersistence",
+        "materializeGraph",
+        "DocumentProjection",
+        "GraphProjection",
+        "snapshotPeriod",
+        "eventPublication",
+        "commitPolicy"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Start with independent Models"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Choose search and Graph capabilities"
+        },
+        {
+          "path": "/docs/sdk/models/state-boundaries",
+          "description": "Understand persistence and protection"
         }
       ]
     }

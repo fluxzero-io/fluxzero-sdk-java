@@ -1,57 +1,36 @@
 ---
 title: Core concepts
-description: How Fluxzero keeps product behavior visible through commands, models, messages and tests.
+description: The messages, models, handlers and tests that make up a Fluxzero application.
 sidebar:
     order: 11
 ---
 
-import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
+import {Tabs, TabItem} from '@astrojs/starlight/components';
 
-# How product behavior becomes code
+This Developer Guide is an optional look inside the code. You do not need to write or read code to build with an agent.
+For the practical building process, see [the introduction](/docs/getting-started/introduction).
 
-Fluxzero applications are built from plain messages, immutable models and small handler methods. Fluxzero supplies
-delivery, persistence, routing, retries, observability and scaling.
+Fluxzero is the cloud that runs your application. Its SDK lets you describe what your product does: the actions people can take, the information it remembers,
+and the rules it follows. Your coding agent can build this in Java or Kotlin, or you can write the code yourself.
 
-Your coding agent can write this as ordinary Java or Kotlin code that you can inspect, test and extend.
-The application defines your product's messages, logic and state; Fluxzero supplies the foundation.
+The main building blocks are **commands**, **queries**, **models**, **handlers**, and **tests**.
+Fluxzero handles message delivery and persistence around them.
 
-The most important building blocks are:
+## Commands
 
-| Concept | Purpose | Example |
-|---|---|---|
-| Command | Requests a state change | `RenameProject` |
-| Model | Independently stored domain state | `Project`, `Task` |
-| Query | Requests information | `FindOpenTasks` |
-| Event | Announces an accepted model update | `RenameProject` |
-| Handler | Reacts to a message or HTTP request | `@HandleEvent`, `@HandleGet` |
-| Test fixture | Tests behavior without infrastructure code | `fixture.whenCommand(...)` |
+A command asks the application to do something: create a project, complete a task, or send a notification.
+It is a plain object containing the information needed for that action.
 
-## Start with actions
-
-For the full Model/Graph design and a comparison with 1.x Aggregates, read [Fluxzero 2.0](/docs/fluxzero-2).
-
-Model what a user or process wants to do as a command. A command can own validation, authorization, assertions and its
-state transition:
+For an action that changes stored state, an `@Apply` method describes the change:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            @NotBlank String name) {
-    @AssertLegal
-    void assertOwner(Project project, Sender sender) {
-        if (!project.ownerId().equals(sender.userId())) {
-            throw new UnauthorizedException("Not allowed to rename project");
-        }
-    }
-
+public record CompleteTask(TaskId taskId) {
     @Apply
-    Project apply(Project project) {
-        return new Project(
-                projectId,
-                project.details().withName(name),
-                project.ownerId());
+    Task complete(Task task) {
+        return task.withCompleted(true);
     }
 }
 ```
@@ -60,53 +39,36 @@ public record RenameProject(ProjectId projectId,
   <TabItem label="Kotlin">
 
 ```kotlin
-data class RenameProject(
-    val projectId: ProjectId,
-    @field:NotBlank val name: String
-) {
-    @AssertLegal
-    fun assertOwner(project: Project, sender: Sender) {
-        if (project.ownerId != sender.userId()) {
-            throw UnauthorizedException("Not allowed to rename project")
-        }
-    }
-
+data class CompleteTask(val taskId: TaskId) {
     @Apply
-    fun apply(project: Project) =
-        Project(
-            projectId,
-            project.details.copy(name = name),
-            project.ownerId
-        )
+    fun complete(task: Task) = task.copy(completed = true)
 }
 ```
 
   </TabItem>
 </Tabs>
 
-Publishing this command is enough. Because Fluxzero can resolve its `ProjectId`, its required `Project` parameter and
-its `@Apply` return type, no ceremonial command handler is needed:
-
-```java
-Project renamed = Fluxzero.sendCommandAndWait(
-        new RenameProject(projectId, "Launch"));
-```
-
-Use an explicit `@HandleCommand` when the action needs orchestration around the model update. Such a handler can call
-`Fluxzero.assertAndApply(update)` once.
+Fluxzero finds the task using its typed ID and applies the command. Input constraints such as `@NotBlank` validate
+what came in; `@AssertLegal` methods express business rules such as “only the assignee may complete this task”.
+If the action is rejected, its state change is not stored.
 
 ## Models
 
-`@Model` marks independently stored domain state:
+A model is information your application remembers, such as a task, a booking, or a customer. It has an identity and
+can change over time. `@Model` tells Fluxzero to store it:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
 @Model
-public record Project(@EntityId ProjectId projectId,
-                      ProjectDetails details,
-                      UserId ownerId) {
+public record Task(@EntityId TaskId taskId, String name, @With boolean completed) {
+}
+
+public final class TaskId extends Id<Task> {
+    public TaskId(String id) {
+        super(id);
+    }
 }
 ```
 
@@ -115,253 +77,208 @@ public record Project(@EntityId ProjectId projectId,
 
 ```kotlin
 @Model
-data class Project(
-    @EntityId val projectId: ProjectId,
-    val details: ProjectDetails,
-    val ownerId: UserId
+data class Task(
+    @EntityId val taskId: TaskId,
+    val name: String,
+    val completed: Boolean
 )
+
+class TaskId(id: String) : Id<Task>(id)
 ```
 
   </TabItem>
 </Tabs>
 
-`ProjectId` is the application's typed `Id<Project>`. Descriptive business data belongs in an immutable
-`ProjectDetails` value even if it initially contains only `name`. Keep identity, relations and simple status separate.
-Java uses a generated `withName` (Lombok `@With`); Kotlin uses `copy`. The rename retains every other detail, rather
-than replacing the whole value with only a new name. See [Designing Model state](/docs/guides/modeling-and-persistence/model-state)
-for field-selection criteria and the complete Java/Kotlin definitions, creation, validation and targeted update.
+Models are immutable: an update returns a new value. Java's `@With` comes from Lombok; Kotlin data classes provide `copy`.
+By default, Fluxzero remembers their accepted changes as events
+and uses those events to reconstruct state. This is called **event sourcing**.
 
-Each model ID is its own persistence and lifecycle boundary. Its event stream, cache, snapshots and direct search
-document are enabled independently through `@Model` settings. The exact
-`Id.toString()` value is its persisted identity. Start with plain `@Model`: event sourcing without a direct document
-or periodic snapshots. Choose extra storage only for a concrete query or replay-cost requirement using
-[the Model and Graph query guide](/docs/guides/modeling-and-persistence/model-query-guide).
+Models can be related. A task can point to a project using `@Parent`, while remaining a model in its own right.
+For example, adding a parent ID connects each task to a project:
 
-Models are event-sourced by default. Select `DOCUMENT` when the current document should be the durable representation
-and authoritative load source. Updates are still stored and published as Model events according to
-`eventPublication` and `publicationStrategy`.
-
-```java
-@Model(persistence = ModelPersistence.DOCUMENT)
-public record Product(@EntityId ProductId productId,
-                      ProductDetails details) {
-}
-```
-
-Direct documents are updated as part of model-commit completion. A successful command is therefore immediately
-visible through direct model loading and search.
-
-## Create, update and delete
-
-An `@Apply` method returns the target model state:
-
-```java
-public record CreateProject(ProjectId projectId,
-                            ProjectDetails details) {
-    @Apply
-    Project apply(Sender sender) {
-        return new Project(projectId, details, sender.userId());
-    }
-}
-
-public record DeleteProject(ProjectId projectId) {
-    @Apply
-    Project apply(Project project) {
-        return null;
-    }
-}
-```
-
-- A factory without the current model creates it.
-- A method receiving the current model updates it.
-- Returning `null` logically deletes it and still stores the update event.
-- `void` model applies are rejected; model transitions are immutable and explicit.
-
-`@AssertLegal` and `@InterceptApply` run before `@Apply`. All applicable methods participate in one commit. If an
-assertion fails, no model event, document or relationship update is committed.
-
-Keep `@Apply` deterministic. It is also used when Fluxzero event-sources the model later. Do I/O and external side
-effects in message handlers, not in state transitions.
-
-## One action, multiple models
-
-An action may read or update unrelated models without placing them in one permanent object tree:
-
-```java
-public record ReserveItem(OrderId orderId,
-                          InventoryId inventoryId,
-                          int quantity) {
-    @AssertLegal
-    void inventoryAvailable(Inventory inventory) {
-        if (inventory.available() < quantity) {
-            throw new IllegalStateException("Insufficient stock");
-        }
-    }
-
-    @Apply
-    Order apply(Order order) {
-        return order.reserve(quantity);
-    }
-
-    @Apply
-    Inventory apply(Inventory inventory) {
-        return inventory.reserve(quantity);
-    }
-}
-```
-
-Fluxzero resolves direct targets from typed IDs and commits the resulting events, current documents, snapshots and
-relationship deltas as one model commit. If the payload contains two IDs of the same model type, qualify the parameter:
-
-```java
-@Apply
-Account debit(@Association("sourceId") Account source) { ... }
-```
-
-## Relationships instead of ownership
-
-Use `@Parent` when independently stored models form a navigable graph:
+<Tabs>
+  <TabItem label="Java">
 
 ```java
 @Model
-public record Task(@EntityId TaskId taskId,
-                   @Parent(pathInParent = "tasks") ProjectId projectId,
-                   TaskDetails details,
-                   boolean completed) {
+public record Task(@EntityId TaskId taskId, @Parent ProjectId projectId,
+                   String name, @With boolean completed) {
+}
+
+@Model
+public record Project(@EntityId ProjectId projectId, String name) {
+}
+
+public final class ProjectId extends Id<Project> {
+    public ProjectId(String id) { super(id); }
 }
 ```
 
-Changing only `projectId` moves a task. The parent, siblings and children do not need to be loaded. The stable
-`pathInParent` is optional; without it, Fluxzero still stores the relation but does not automatically place the child
-in a stitched tree document.
+  </TabItem>
+  <TabItem label="Kotlin">
 
-Parents and further ancestors can be injected into model assertions, apply interceptors and applies. Use
-`@Association("path")` when more than one relation could match:
+```kotlin
+@Model
+data class Task(
+    @EntityId val taskId: TaskId,
+    @Parent val projectId: ProjectId,
+    val name: String,
+    val completed: Boolean
+)
+
+@Model
+data class Project(@EntityId val projectId: ProjectId, val name: String)
+
+class ProjectId(id: String) : Id<Project>(id)
+```
+
+  </TabItem>
+</Tabs>
+
+A **Graph** lets you explore related models together, for example a project and its tasks.
+
+## Queries
+
+A query asks for information without changing it. Like a command, it is a plain object. Its handler returns the answer:
+
+<Tabs>
+  <TabItem label="Java">
 
 ```java
-@AssertLegal
-void assertProjectOpen(Task task,
-                       @Association("tasks") Project project) {
-    if (project.closed()) {
-        throw new IllegalStateException("Project is closed");
+public record GetTask(TaskId taskId) implements Request<Task> {
+    @HandleQuery
+    Task handle() {
+        return Fluxzero.loadModel(taskId).get();
     }
 }
 ```
 
-Search can follow current relationships in either direction. This Task's explicit composition path supplies an indexed
-component for `search(Task.class).whereParent(projectId)` without `DOCUMENT`. Selecting projects by their contents
-would additionally require a current document for Project; a known project ID does not.
+  </TabItem>
+  <TabItem label="Kotlin">
 
-## Embedded members
-
-Not every value needs an independent lifecycle. Use `@Member` inside a model for state that really lives, loads,
-searches and disappears with that model:
-
-```java
-@Model
-public record Invoice(@EntityId InvoiceId invoiceId,
-                      @Member List<InvoiceLine> lines) {
-}
-
-public record InvoiceLine(@EntityId LineId lineId,
-                          String description,
-                          BigDecimal amount) {
+```kotlin
+data class GetTask(val taskId: TaskId) : Request<Task> {
+    @HandleQuery
+    fun handle(): Task? = Fluxzero.loadModel(taskId).get()
 }
 ```
 
-The invoice and lines above intentionally share one stream, cache entry, document and lifecycle. Prefer a separate
-`@Model` plus `@Parent` as soon as a child is independently updated, searched, moved, retained or erased.
+  </TabItem>
+</Tabs>
 
-## Loading and exact event state
+`Request<Task>` declares the result type. Queries can also search and filter many models, for example to find your
+open tasks. A handler can check who is asking before returning information.
 
-Load current state by typed ID:
+## Handlers
 
-```java
-Project project = Fluxzero.loadModel(projectId).get();
-Graph<Project> graph = Fluxzero.loadGraph(projectId);
-```
+Handlers are methods that respond to messages. Their annotation says what they handle:
 
-In an event or notification handler, a directly affected model can be injected:
+| Annotation | Responds to |
+|---|---|
+| `@HandleCommand` | A request to perform an action |
+| `@HandleQuery` | A request for information |
+| `@HandleEvent` | Something that has happened |
+| `@HandleGet`, `@HandlePost` | An HTTP request |
+| `@HandleSchedule` | A scheduled message becoming due |
+
+A model command with `@Apply` already has automatic handling. Add an explicit command handler when an action needs
+other work, such as calling an external service.
+
+### Events
+
+After an accepted model change, Fluxzero normally publishes the applied command payload as an **event**.
+The command asked for the change; the event tells other parts of the application it happened.
+
+For example, a handler can react when a task is completed:
+
+<Tabs>
+  <TabItem label="Java">
 
 ```java
 @HandleEvent
-void on(RenameProject event,
-        Project project,
-        Graph<Project> graph) {
-    // Both represent the project exactly after this event's model-commit substep.
+void on(CompleteTask event, Task task) {
+    Fluxzero.sendCommand(new NotifyAssignee(task.taskId()));
 }
 ```
 
-This is historical event-boundary injection, not an arbitrary current-state lookup. It only applies to events carrying
-a model-commit boundary. `Graph<T>` is useful for logical delete events because it can represent an absent value and
-exposes `previous()`; a bare non-null `T` only matches while the model exists. Relationship traversal on a graph is
-lazy, so injecting it does not load parents or descendants unless the handler requests them.
+  </TabItem>
+  <TabItem label="Kotlin">
 
-## Queries and search
+```kotlin
+@HandleEvent
+fun on(event: CompleteTask, task: Task) {
+    Fluxzero.sendCommand(NotifyAssignee(task.taskId))
+}
+```
 
-Queries are plain request objects handled with `@HandleQuery`. This particular query searches across all projects,
-so first add a public direct document to Project with
-`@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`. That extra representation serves
-this list screen; it was unnecessary for the identity-based examples above.
+  </TabItem>
+</Tabs>
+
+Several handlers can react to the same event. This lets you add behavior without putting it all in the original
+command. The injected task represents the state at that event.
+
+### HTTP and scheduled work
+
+An HTTP endpoint is a handler too:
+
+<Tabs>
+  <TabItem label="Java">
 
 ```java
-public record FindProjects(String term) {
-}
-
-public final class ProjectQueries {
-    @HandleQuery
-    CompletableFuture<List<Project>> handle(FindProjects query) {
-        return Fluxzero.search(Project.class)
-                .lookAhead(query.term(), "details/name")
-                .fetchAsync(50);
-    }
+@HandleGet("/hello")
+String hello() {
+    return "Hello, world!";
 }
 ```
 
-The direct collection of a Model whose persistence set contains `DOCUMENT` is synchronous with its Model
-commit. A whole-tree Graph projection is a separate read optimization and is asynchronous by default. Choose
-`GraphProjectionCompletion.AWAIT` for an operation whose result must not be released until affected root projections
-have crossed its state boundary.
+  </TabItem>
+  <TabItem label="Kotlin">
 
-## Events and handlers
-
-Every accepted update returned by `@Apply` is the model event. Fluxzero stores it in each affected modelstream and
-publishes it once to the global event log when configured to publish:
-
-```java
-public final class ProjectNotifications {
-    @HandleEvent
-    void on(RenameProject event, Project project) {
-        // Call an external system or publish another message here.
-    }
-}
+```kotlin
+@HandleGet("/hello")
+fun hello() = "Hello, world!"
 ```
 
-An event that targets several models is not globally duplicated. Each stream gets a membership to the same action
-payload.
+  </TabItem>
+</Tabs>
+
+Fluxzero handles routing and response formatting. A handler can send a command or query to expose your app's behavior.
+
+Scheduled messages use the same idea: schedule a reminder for tomorrow and handle it with `@HandleSchedule` when it
+is due. You can cancel or replace a schedule when the user's plans change.
+
+Register separate handler objects with your application; Spring applications can use `@Component` for discovery.
+The [configuration guide](/docs/guides/configuration/configuring-fluxzero) explains registration.
 
 ## Tests
 
-`TestFixture` runs the same assertions, applies and handlers as production:
+`TestFixture` runs your commands and handlers locally. Tests describe a **given → when → then** flow, without setting
+up a database or mocking the platform. Inputs and expected results can live in reusable JSON files:
+
+<Tabs>
+  <TabItem label="Java">
 
 ```java
 TestFixture.create()
-        .givenCommands(new CreateProject(
-                projectId, new ProjectDetails("Initial")))
-        .whenCommand(new RenameProject(projectId, "Launch"))
-        .expectThat(fluxzero -> assertEquals(
-                "Launch",
-                Fluxzero.loadModel(projectId)
-                        .get().details().name()))
-        .expectEvents(new RenameProject(projectId, "Launch"));
+        .givenCommands("/task/create-task.json")
+        .whenCommand("/task/complete-task.json")
+        .expectEvents("/task/complete-task.json");
 ```
 
-Use `whenCommand(...)` for end-to-end behavior and `whenApplying(...)` for direct SDK operations. Integration tests can
-run the same flow against a real Fluxzero runtime.
+  </TabItem>
+  <TabItem label="Kotlin">
 
-## Legacy applications
+```kotlin
+TestFixture.create()
+    .givenCommands("/task/create-task.json")
+    .whenCommand("/task/complete-task.json")
+    .expectEvents("/task/complete-task.json")
+```
 
-Fluxzero continues to support `@Aggregate` and its loading APIs for existing persisted applications. New applications
-and new domain state should use `@Model`; `@Model` with `@Member` covers the intentional single-stream case too. The
-aggregate API remains the compatibility boundary for existing state because migrating aggregate streams is a
-persistence migration, not a source-only annotation change.
+  </TabItem>
+</Tabs>
+
+Tests can also query the resulting state, check failures, call HTTP endpoints, or advance time to trigger scheduled
+work. The [to-do tutorial](/docs/tutorials/first-app) builds each of these pieces step by step, including the JSON files.
+
+For more detail on any building block, continue with the [technical guides](/docs/guides).

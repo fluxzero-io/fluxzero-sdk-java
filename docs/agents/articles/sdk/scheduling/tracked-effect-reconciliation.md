@@ -166,6 +166,3 @@ Keep reconstruction claims separate. `givenScheduledCommands(...)` and `givenSch
 they do not prove another application instance recovered persisted schedules. Ordinary Model event reconstruction
 requires `EVENT_SOURCED`; `DOCUMENT` alone keeps no previous versions. In particular, **to use `previous()` for
 historical values, keep event sourcing enabled**. Current-intent reconciliation above does not need `previous()`.
-
-An existing `@Aggregate` workflow can apply the same principle with its current aggregate load. New Model workflows use
-the Model/Graph API shown here; do not cross over to `loadAggregate` for Model state.

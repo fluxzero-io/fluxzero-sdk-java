@@ -129,7 +129,6 @@ identity and deadline for predicate assertions.
 | Setup call | It proves | It does not prove |
 | --- | --- | --- |
 | `givenSchedules(...)` / `givenScheduledCommands(...)` | Behavior from the scheduler artifacts supplied by this test | That instance A stored them or instance B recovered them |
-| `givenAppliedEvents(...)` | Aggregate reconstruction from the history supplied by this test | Retained event persistence across application instances |
 | `givenModelEvents(Id<?>, Object...)` / `givenModelEvents(String, Class<?>, Object...)` | Current Model replay/application from supplied events, including old serialized JSON after caster registration | Untouched old commits/documents/indexes, cross-SDK storage or process restart |
 
 If a Given call supplies the exact schedule later asserted, describe the test as synthetic reconstruction from supplied

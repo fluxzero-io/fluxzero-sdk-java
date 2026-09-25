@@ -25,13 +25,13 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 
 | Objective | Public symbol |
 | --- | --- |
-| aggregate/entity annotations | `io.fluxzero.sdk.modeling.Aggregate`, `EntityId`, `Member`, `Alias`; `io.fluxzero.sdk.tracking.handling.Association` |
+| Model/entity annotations | `io.fluxzero.sdk.modeling.Model`, `EntityId`, `Parent`, `Alias`; `io.fluxzero.sdk.tracking.handling.Association` |
 | entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
 | Model graph and metadata selection | `io.fluxzero.sdk.modeling.Graph`, `Graphs`; `children`, `namedChildren`, `descendants`, `namedDescendants`, `modelName`, `knownType` |
 | legality/apply | `io.fluxzero.sdk.modeling.AssertLegal`, `io.fluxzero.sdk.persisting.eventsourcing.Apply` |
 | update interception | `io.fluxzero.sdk.persisting.eventsourcing.InterceptApply` |
-| event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy`, `AggregateEventRouting` |
-| aggregate repository | `io.fluxzero.sdk.persisting.repository.AggregateRepository` |
+| event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy` |
+| Model repository | `io.fluxzero.sdk.persisting.repository.ModelRepository` |
 | event store | `io.fluxzero.sdk.persisting.eventsourcing.EventStore` |
 | search document store | `io.fluxzero.sdk.persisting.search.DocumentStore` |
 | search builder | `io.fluxzero.sdk.persisting.search.Search` |

@@ -19,9 +19,9 @@ Use `priority` and `afterHandler` only when assertion ordering changes behavior.
 
 Throw domain errors built from Fluxzero `FunctionalException` helpers/constants so callers receive functional failures instead of infrastructure errors.
 
-Security annotations are good coarse gates. Put state-dependent authorization, ownership, quota, and cross-aggregate legality in `@AssertLegal` so the rule is tested with the domain behavior.
+Security annotations are good coarse gates. Put state-dependent authorization, ownership, quota, and cross-Model legality in `@AssertLegal` so the rule is tested with the domain behavior.
 
-Use Jakarta validation for payload shape, nullability, and scalar constraints. Use `@AssertLegal` for rules that depend on existing state, user context, other aggregates, or current search/query results.
+Use Jakarta validation for payload shape, nullability, and scalar constraints. Use `@AssertLegal` for rules that depend on existing state, user context, other Models, or current search/query results.
 
 For Models, injected state and actual Graph navigation participate in the evaluation read set. Use `RETRY` or `FAIL`
 for assertion invariants; `ACCEPT` retains apply dependencies only. Empty child scopes count, whereas arbitrary

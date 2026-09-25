@@ -19,11 +19,6 @@ state, parents, descendants, functional and repository identity, previous revisi
 turning those Models into one persistence boundary. As the sole parameter of an event or notification handler, it is
 also a subscription to durable changes anywhere below that root.
 
-### Aggregate (legacy)
-
-The Fluxzero 1.x shared-root persistence API. Keep it for existing persisted state only. New code uses `@Model`;
-`@Model` with `@Member` covers the intentional shared-stream case.
-
 ### Apply (@Apply)
 
 The mechanism for evolving model state. An `@Apply` method is a pure function that takes the current state

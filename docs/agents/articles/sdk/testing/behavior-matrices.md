@@ -49,7 +49,7 @@ Write the truth table before choosing representative users. For a `VIEWER < EDIT
 | Add/import | deny | allow | allow by inheritance |
 | Create users | deny | deny | allow |
 
-Cover each distinct boundary: exact-role allow, inherited-role allow, adjacent-role deny, and the top-level allow. Add unauthenticated and authenticated-roleless rows when the product distinguishes them. Use different aggregate IDs in allowed rows so duplicate-state errors cannot mask authorization.
+Cover each distinct boundary: exact-role allow, inherited-role allow, adjacent-role deny, and the top-level allow. Add unauthenticated and authenticated-roleless rows when the product distinguishes them. Use different Model IDs in allowed rows so duplicate-state errors cannot mask authorization.
 
 `@RequiresUser` proves that a caller has an identity; `@RequiresUser` does not require `VIEWER`. If every base operation belongs only to the workspace role hierarchy, protect it with `@RequiresAnyRole("VIEWER")` or the application's equivalent role meta-annotation, then test it. Role inheritance is defined by `User.hasRole(...)`; prove it through routed `whenCommandByUser`, `whenQueryByUser`, or web calls rather than only unit-testing an enum.
 

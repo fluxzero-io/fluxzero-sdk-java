@@ -11,7 +11,7 @@ record the target identifiers and current state, and define a success check.
 
 Prefer the highest-level SDK API that represents the complete intent:
 
-- use `AggregateRepository.deleteAggregate(...)` instead of deleting only an event stream;
+- use `ModelRepository.deleteModel(...)` instead of deleting only an event stream;
 - use a new `@Consumer` name for a new projection instead of resetting an existing consumer;
 - use `DocumentStore` and `Search` operations instead of constructing search protocol commands;
 - use `Client` subsystem access only when no application-level facade expresses the operation.
@@ -25,8 +25,8 @@ managed database or runtime deployment to approximate an SDK operation.
 | Class | Examples | Default agent behavior |
 | --- | --- | --- |
 | Observe | read metrics, inspect a position, read a bounded log range | Safe when credentials and output handling are appropriate |
-| Recover | disconnect a tracker, repair relationships, replay into a new consumer | Explain effect and verify after execution |
-| Destructive | reset a live consumer, delete an aggregate or collection, truncate a custom log | Require explicit approval, preserve before-state evidence, and check for dependent effects |
+| Recover | disconnect a tracker, diagnose relationships, replay into a new consumer | Explain effect and verify after execution |
+| Destructive | reset a live consumer, erase a Model or collection, truncate a custom log | Require explicit approval, preserve before-state evidence, and check for dependent effects |
 
-Keep operational code out of aggregate `@Apply` methods and ordinary request handlers. Put repeatable maintenance in a
+Keep operational code out of Model `@Apply` methods and ordinary request handlers. Put repeatable maintenance in a
 dedicated operator command, controlled job, or one-off tool with explicit authorization and audit output.

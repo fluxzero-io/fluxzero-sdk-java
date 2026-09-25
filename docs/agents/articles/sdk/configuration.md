@@ -62,10 +62,10 @@ Runtime namespace defaults to `public` when no namespace is supplied and normali
 
 Runtime health and readiness are different: `/health` means the process is up, while `/ready` includes availability/database readiness and should be used for deployment readiness checks.
 
-SDK 2.0 uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
+The SDK uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
 It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
 native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
 outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
 supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
-GZIP and NONE WebSocket configurations remain available. These SDK 2.0 defaults are not gated by
+GZIP and NONE WebSocket configurations remain available. These compression defaults are not gated by
 `fluxzero.defaults.version`.

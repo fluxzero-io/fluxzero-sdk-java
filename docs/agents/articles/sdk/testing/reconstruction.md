@@ -1,4 +1,4 @@
-Use reconstruction tests when behavior depends on Model events, legacy aggregate events, stateful documents, associations, aliases, or
+Use reconstruction tests when behavior depends on Model events, stateful documents, associations, aliases, or
 schedules that are treated as durable inputs. Continuing with `.andThen()` on one fixture is useful multi-step behavior
 coverage, but it does not cross a reconstruction boundary because the same registry, stores, and caches remain alive.
 
@@ -21,9 +21,7 @@ reconstruction**, not a persistence restart.
 
 Apply an assumption audit before naming the test: if `givenScheduledCommands(...)` supplies the same schedule ID,
 payload, and deadline later asserted as “restored,” that assertion verifies the supplied seed. It does not verify that
-the application derived, persisted, or recovered the schedule. Likewise, `givenAppliedEvents(...)` verifies aggregate
-interpretation from supplied history, not that another application instance found that history in retained storage.
-The same distinction applies to `givenModelEvents(...)`: it interprets supplied serialized events using the current SDK
+the application derived, persisted, or recovered the schedule. The same distinction applies to `givenModelEvents(...)`: it interprets supplied serialized events using the current SDK
 and current `@Apply` methods, then creates new commits/documents/relations. It is not an import of untouched old storage.
 For persistence-backed restart, instance B must observe the artifacts written by instance A without either Given call.
 
@@ -34,7 +32,7 @@ needed to reconstruct state first; add integration observers after seeding when 
 observers must already be registered, explicitly account for and assert every Given-phase publication, index update,
 document notification, schedule, and outbound effect.
 
-## Model reconstruction: the default v2 route
+## Model reconstruction
 
 Use `givenModelEvents(Id<?>, Object...)` or `givenModelEvents(String, Class<?>, Object...)` for independent Models.
 Supply the **historical event payload**, not a serialized Model state and not a command that only resembles it.
@@ -117,27 +115,7 @@ storage, not a version archive, even if some events are also stored/published by
 
 The Model migration article supplies the stronger separate-writer/retained-store recipe and before/after index checks.
 
-## Existing aggregate and stateful workflows
-
-For event-sourced aggregates already in use:
-
-```java
-TestFixture reconstructed = TestFixture.createAsync(AssetJobUpdate.class, DeadlineHandler.class)
-        .givenAppliedEvents(assetJobId,
-                recordedStart,
-                recordedCaptionConfirmation)
-        .givenScheduledCommands(new Schedule(
-                new ExpireAssetJob(assetJobId), deadlineId, deadline));
-```
-
-Use `givenAppliedEvents(...)` for aggregate history. It skips the original command/creation handler, but applying the recorded events can still publish aggregate events, update indexes, and notify registered observers. Use
-`givenScheduledCommands(...)` when the persisted item is dispatched as a command at its deadline; use
-`givenSchedules(...)` for ordinary `@HandleSchedule` payloads. Do not interchange those APIs.
-
-When the recorded input is historical serialized data, pass a revision-old `SerializedMessage` directly to
-`givenAppliedEvents(...)` after registering the caster. That exercises the event deserializer and caster chain before
-the current event is applied. `whenUpcasting(...)`, manual deserialization, and applying an already-current Java object
-are useful narrower checks, but do not prove serialized aggregate reconstruction.
+## Stateful workflows
 
 For `@Stateful` workflows:
 
@@ -164,8 +142,7 @@ On the reconstructed fixture, verify independently:
 - no startup re-emission of processing, compensation, or notification requests.
 
 For Models use `Fluxzero.loadModel(id)` and `Fluxzero.loadGraph(id)`; check the actual alias and typed/path-based child
-selection the application uses as separate assertions. For existing aggregates, exact lookup uses
-`Fluxzero.loadAggregate(primaryId)`, while aliases use `Fluxzero.loadEntity(prefixedAlias)`. For stateful documents,
+selection the application uses as separate assertions. For stateful documents,
 exact lookup uses `Fluxzero.getDocument(primaryId, ProcessType.class)` and correlation uses `@Association` routing.
 Do not prove only one secondary key and infer that all others were reconstructed.
 
@@ -175,19 +152,19 @@ This preference applies specifically to a synthetic reconstruction boundary. In 
 `givenCommands(...)` when setup should pass through the real business handlers and their resulting events or effects.
 `givenCommands(...)` and `givenEvents(...)` run registered handlers fully as Given work. That is useful when setup
 behavior matters, but at a reconstruction boundary it can recreate network requests or schedules that do not result
-from passive production loading. Prefer direct durable setup APIs (`givenAppliedEvents`, `givenStateful`,
-`givenSchedules`, `givenScheduledCommands`) for synthetic reconstruction, while remembering that aggregate application
+from passive production loading. Prefer direct durable setup APIs (`givenStateful`,
+`givenSchedules`, `givenScheduledCommands`) for synthetic reconstruction, while remembering that Model application
 and document indexing can still wake registered observers. Stage observer registration where possible; otherwise
 capture or assert setup effects before making one new When action. Include `givenModelEvents` in this same caution.
 These APIs prove application behavior from supplied
 artifacts; they do not prove that the artifacts survived outside the fixture.
 
-This fixture behavior is different from passive production aggregate loading. `givenAppliedEvents(...)` applies and
+This fixture behavior is different from passive production Model loading. `givenModelEvents(...)` applies and
 commits fixture updates, so already-registered event consumers may run during Given; those Given effects are not
 collected by the next Then phase. Production loading reconstructs state from stored events without recommitting them or
 intentionally republishing transition metrics. For a negative replay-metrics test, store serialized history, register
-the production observer, load or query the aggregate in When, and assert no matching custom metric. If using
-`givenAppliedEvents(...)`, seed first and register the observer afterward so hidden setup publications do not masquerade
+the production observer, load or query the Model in When, and assert no matching custom metric. If using
+seed first and register the observer afterward so hidden setup publications do not masquerade
 as production replay.
 
 ## Add persistence-backed restart evidence when required
@@ -196,7 +173,7 @@ as production replay.
 owns shutdown of that client. Use that seam only
 when the retained runtime/store is itself part of the test: application instance A writes the durable state, instance A
 is closed, and a separately constructed instance B reconnects through a **new client to the same retained store and
-namespace** without calling `givenModelEvents(...)`, `givenAppliedEvents(...)`, `givenStateful(...)`,
+namespace** without calling `givenModelEvents(...)`, `givenStateful(...)`,
 `givenSchedules(...)`, or `givenScheduledCommands(...)`. Do not reuse a closed client. Drive a public
 query, correlated message, and due schedule through instance B. If no retained runtime/store participates, keep the
 claim at synthetic reconstruction.

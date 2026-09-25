@@ -224,7 +224,7 @@ Fluxzero applications typically integrate with external identity providers (like
 `UserProvider`.
 
 - **UserProvider**: A Spring bean that resolves the current user from the message metadata or thread context.
-- **User identity**: SDK 2.0 requires `override fun id(): String`. Use it for ownership, audit, and identity
+- **User identity**: The SDK requires `override fun id(): String`. Use it for ownership, audit, and identity
   comparisons; never infer identity from a principal/display name. `User` remains a `Principal`, whose optional
   `getName()` defaults to `id()`. Recompile getName-only implementations after adding `id()`. The existing complete-user
   versus ID metadata setting is unchanged; providers must explicitly resolve earlier stored identities if IDs change

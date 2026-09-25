@@ -1,8 +1,5 @@
 # Models and state
 
-For the complete 2.0 design, Java/Kotlin examples and migration from 1.x, see
-[Fluxzero 2.0](https://fluxzero.io/docs/fluxzero-2).
-
 For complete companion, derived-preference and execution examples, read [Model recipes](model-recipes.md).
 
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
@@ -20,8 +17,7 @@ It also requires a matching Runtime and a document whose body/head proof was cap
 materialization/adoption. Older unproven documents and ordinary search overwrites are not silently accepted.
 Use injected Models/Graphs for invariants; `loadCurrentGraph` still uses the authoritative load path, not this API.
 
-Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs remain the
-compatibility boundary for already persisted aggregate state.
+Use `@Model` for persisted domain state.
 
 ## Core rules
 
@@ -532,9 +528,6 @@ The loaded member determines its handlers and Model/Graph dependencies, includin
 Those dependencies use the same commit boundary; replay loads their historical values.
 Automatic command subscriptions still require a discoverable payload/declared/sealed handler contract: registering
 an owner does not scan the classpath for arbitrary implementations of an open member interface.
-The corrected member replay also applies to existing RC event history. Previously produced snapshots may retain
-the old, incomplete state: reconstruct affected RC data from its event history rather than treating those snapshots
-as equivalent to a fresh replay.
 
 ## Loading and event parameters
 
@@ -777,8 +770,7 @@ they cannot publish a successful result from state that was rejected.
 
 Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
-Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8
-SDK/Runtime. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through
+Do not replace graph invariants with an extra guard Model solely to detect membership races with the supported Model/Graph commit protocol. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through
 every rebase. Complete reads within evaluation, including joined parallel scans. Historical views, external search and
 unrelated repository reads are not implicitly transactional. Types sharing a path share a conservative dependency;
 remapped paths protect all source paths, and physical erasure invalidates older Graph reads namespace-wide.
@@ -831,28 +823,3 @@ TestFixture.create()
 
 Cover direct search, relationship movement, modelstream reconstruction, logical/hard deletion, event-boundary
 injection and a real runtime integration flow where relevant.
-
-## Legacy note
-
-Do not migrate an existing `@Aggregate` by changing only its annotation: streams, documents, lifecycle and identity
-boundaries change. Keep old persisted aggregate code on the 1.x compatibility API until a deliberate data migration.
-For an event-sourced backfill, configure `PublishedEventModelMigration` with a stable name, isolated client, legacy
-serializer/upcasters and the replacement Model packages or types. Run it without arguments for replay and as
-`adopt <cutover-event-index>` for cutover. The SDK-owned consumer is always global, synchronous, single-tracker and
-fail-fast; it completes each Model commit before advancing its durable position, and replicas with the same name
-provide failover. Replay runs payload then Model `@Apply`, retains the original event index and message ID, does not
-republish, and is idempotent. It does not recover legacy `STORE_ONLY` events. A listener application that gradually
-moves legacy event handlers to Model/Graph injection should configure its owning repository with
-`followPublishedEventMigration(theSameName)`. Mapped events stay on the ordinary read path; only a missing mapping waits
-for the durable consumer and then retries exactly. Keep legacy Aggregates as the sole write owner during this read
-phase, and do not let moved listeners apply changes back to them.
-Document-backed Models are rebuilt in invisible staging; adoption through the owning `ModelRepository` upcasts and
-compares every staged and production value, atomically adopts only unchanged equal results without rewriting existing
-documents, and rebuilds declared materialized Graphs.
-The accepted normalized source remains isolated from later staging until the first ordinary Model write, so resumed
-legacy traffic can be caught up and re-adopted without using unverified document content in materialized Graph
-composition. Repeat the plural operation to resume a partial cutover. Switch command ownership only after catch-up,
-exact state and Graph comparisons, converted listeners and representative performance all report `GO`. The first
-ordinary Model write makes recovery forward-only; durable Model commit history may feed an application-specific
-emergency legacy projection, but there is no generic post-write rollback contract.
-All new examples and implementations should use `@Model`.

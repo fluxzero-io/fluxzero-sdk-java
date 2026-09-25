@@ -7,11 +7,13 @@ Put `@Facet` on the field/getter whose exact path should appear in facet results
 ```java
 import io.fluxzero.common.search.Facet;
 import io.fluxzero.common.search.Sortable;
-import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.EntityId;
 
-@Aggregate(searchable = true)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record KnowledgeArticle(
-        ArticleId articleId,
+        @EntityId ArticleId articleId,
         @Sortable String title,
         String description,
         @Facet Set<String> tags,

@@ -1,5 +1,5 @@
 `DocumentStore` and `Search` expose namespaced document maintenance without database access. Use these operations for
-application-owned projections, read models, and audit collections. They do not delete the aggregate events or other
+application-owned projections, read models, and audit collections. They do not delete the Model events or other
 sources from which a projection may later be rebuilt.
 
 ## Targeted document operations
@@ -61,5 +61,5 @@ any dependent public query or socket snapshot.
 history is pruned according to its retention. A null retention delegates retention choice to the runtime. Treat audit
 retention as a data-governance decision and do not copy a platform default into application assumptions.
 
-Deleting a search collection is not complete domain-data deletion. To remove a persisted aggregate including its
-events, snapshot, relationships, and searchable representation, use aggregate deletion instead.
+Deleting a search collection is not complete domain-data deletion. To remove a persisted Model including its
+events, snapshot, relationships, and searchable representation, use Model deletion instead.

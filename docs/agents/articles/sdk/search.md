@@ -56,7 +56,7 @@ Supported indexing choices:
 | --- | --- | --- |
 | Model state | Include `ModelPersistence.DOCUMENT`; successful Model commits maintain the public direct document synchronously | Independent current domain state |
 | Stateful projection | `@Stateful` is searchable and maintains its projection document | Event-driven read models with explicit lifecycle/state |
-| Plain read-model record | Add `@Searchable` plus `@EntityId` and call `Fluxzero.index(value)`, or call `Fluxzero.index(value, stableId, collection)` with an explicit ID and collection | Release notes, denormalized views, and durable query projections that do not need aggregate behavior |
+| Plain read-model record | Add `@Searchable` plus `@EntityId` and call `Fluxzero.index(value)`, or call `Fluxzero.index(value, stableId, collection)` with an explicit ID and collection | Release notes, denormalized views, and durable query projections that do not need Model behavior |
 | Transient socket update | Send through `SocketSession`; do not index it unless the product also requires searchable history | Live delivery only |
 
 Plain records are supported indexing targets. Give them a stable document ID so later updates replace the intended document instead of creating accidental duplicates. `@Searchable` supplies default collection/timestamp metadata; it does not publish a plain record by itself. The two-argument overload `Fluxzero.index(value, secondArgument)` treats the second argument as the collection, not the document ID. Read manual indexing before choosing an overload, deciding how handler completion observes storage failure, or testing replay-safe replacement. Use `@SearchExclude` and `@SearchInclude` to control indexed shape.

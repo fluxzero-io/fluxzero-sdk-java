@@ -57,10 +57,10 @@ Notes:
 - Enable kapt. Gradle templates use `kapt("io.fluxzero:common")`; Maven templates configure the Kotlin kapt execution with `io.fluxzero:sdk` as annotation processor path.
 - Prefer Kotlin data classes for value objects and simple payloads, but keep Fluxzero command/query naming conventions the same as Java.
 - For no-field query payloads, use a small placeholder such as a `Unit` default so serialization and request typing stay explicit.
-- For aggregate shapes that need Java-style builder ergonomics, define that builder manually rather than relying on Lombok-style generation.
+- For Model shapes that need Java-style builder ergonomics, define that builder manually rather than relying on Lombok-style generation.
 - Generate typed IDs before constructing commands, usually in an endpoint or command boundary, not in `@Apply`.
 
-For a new SDK v2 application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
+For a new application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
 
 ```properties
 fluxzero.defaults.version=2026.09.10

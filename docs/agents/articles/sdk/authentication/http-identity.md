@@ -64,7 +64,7 @@ final class SenderProvider extends AbstractUserProvider
     public User getUserById(Object rawUserId) {
         UserId userId = rawUserId instanceof UserId typed
                 ? typed : new UserId(rawUserId.toString());
-        UserProfile profile = Fluxzero.loadAggregate(userId, UserProfile.class).get();
+        UserProfile profile = Fluxzero.loadModel(userId, UserProfile.class).get();
         return profile == null ? null : new Sender(profile.userId(), profile.role());
     }
 

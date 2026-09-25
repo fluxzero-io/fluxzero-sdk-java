@@ -4,8 +4,8 @@ This is the canonical agent documentation graph for applications built with this
 [`docs/developer`](../developer) documentation. Read the graph selectively: start at `/docs`, search titles, summaries
 and symbols for the task, then read the relevant articles and follow links only for missing detail.
 
-On SDK v2, start new persisted state at `/docs/sdk/models`: Java 25+, independent Model lifecycle, automatic commands,
-atomic commits and lazy Graph reads. The retained entity topics serve existing aggregate state, not new v2 modeling.
+Start persisted domain state at `/docs/sdk/models`: Java 25+, independent Model lifecycle, automatic commands,
+atomic commits and lazy Graph reads. The graph explains the SDK version shipped with this archive.
 
 ## Graph contract
 

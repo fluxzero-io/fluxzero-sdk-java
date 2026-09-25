@@ -22,10 +22,15 @@ record RequestArtworkCancellation(AssetJobId assetJobId) {
     }
 }
 
-// In the handler that already loaded the target aggregate:
-return job.assertAndApply(List.of(
-        processorDecision,
-        new RequestArtworkCancellation(job.get().assetJobId()))).get();
+record RecordDecisionAndCompensation(AssetJobId assetJobId, Object decision) {
+    @InterceptApply
+    List<Object> expand() {
+        return List.of(decision, new RequestArtworkCancellation(assetJobId));
+    }
+}
+
+// Submit one composite action; both payload updates belong to that Model operation.
+Fluxzero.assertAndApply(new RecordDecisionAndCompensation(jobId, processorDecision));
 
 @Component
 @Consumer(name = "asset-job-effects")
@@ -39,12 +44,17 @@ final class ArtworkCancellationSender {
 }
 ```
 
-Apply the internal `RequestArtworkCancellation` update with `entity.assertAndApply(...)` on the aggregate that the domain
-decision handler already loaded. Passing the decision and intent in one update collection keeps them in the same aggregate update batch; later updates see the state produced by earlier ones. `@InterceptApply` suppresses the intent
-unless the preceding decision made compensation newly necessary. With `EventPublication.IF_MODIFIED`, only the first
-false-to-true update publishes the `RequestArtworkCancellation` event that the sender handles.
+The composite action expands inside one Model operation: the decision runs first, then the intent interceptor
+sees that resulting state. If either update fails, the operation does not commit. Do not replace this with
+`Graph.assertAndApply(List.of(...))`: that convenience performs separate durable Model commits in order.
 
-The returned `.get()` is only the in-memory updated state. Do not call `sendArtworkCancellation(...)` from that aggregate handler. The registered tracked `ArtworkCancellationSender` handles the intent event after aggregate commit; this keeps state and new aliases durable before the effect starts. Use the same `asset-job-effects` consumer for initial processing publication, deadline creation/cancellation, and every component compensation handler. Configure the aggregate with `eventRouting = AggregateEventRouting.AGGREGATE_ID`, or give every applied intent payload the same primary-ID `@RoutingKey`, so the effect consumer observes each job's intents on one segment and in order. Event-source storage does not make aggregate-ID message routing the default. A separate `artwork-compensation` consumer would have an independent position and could compensate before an older processing publication runs. Read aggregate commit and effect boundaries for the full ordering rule, failure/retry tests, and stable idempotency requirements.
+`@InterceptApply` suppresses the intent unless the decision made compensation newly necessary. With
+`EventPublication.IF_MODIFIED`, only the false-to-true update publishes its intent event. The tracked sender observes
+that durable event and uses a stable remote idempotency key. Explicit `Fluxzero.assertAndApply(...)` returns after
+commit; a tracked consumer additionally closes the process-crash gap between recording intent and dispatching it.
+
+Keep ordered effects in one consumer and give every intent the same primary-ID `@RoutingKey`. Different consumer
+names have independent positions. When independent consumers are necessary, design reconciliation explicitly.
 
 Sending `RequestArtworkCancellation` as a separate tracked command is an intentional extra ordering and completion
 boundary. Use that only when separate application/consumer ownership is required, and test the partial-progress and
@@ -66,7 +76,7 @@ For each component, the first processor decision wins:
 
 At the initial terminal transition, create compensation intents only for components already confirmed. A still-pending component is handled later by its own first decision. Store separate intent flags/keys per component.
 
-`EventPublication.IF_MODIFIED` can suppress events for unchanged aggregate state, but it cannot repair a handler that sends before determining whether a transition is new. Decide and persist idempotency in domain state.
+`EventPublication.IF_MODIFIED` can suppress events for unchanged Model state, but it cannot repair a handler that sends before determining whether a transition is new. Decide and persist idempotency in domain state.
 
 ## Keep error correction separate
 

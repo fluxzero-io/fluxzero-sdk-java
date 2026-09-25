@@ -44,5 +44,5 @@ upcaster does not backfill existing documents by itself.
 ## Destructive maintenance
 
 Targeted delete/move/bulk operations and collection deletion belong to search maintenance. Before deletion, count and
-preview the exact constrained set; after the stored acknowledgement, query again. Deleting a searchable aggregate's
-document does not delete its event-sourced aggregate. Use aggregate deletion when the aggregate itself must disappear.
+preview the exact constrained set; after the stored acknowledgement, query again. Deleting a searchable Model's
+document does not delete its event-sourced Model. Use Model deletion when the Model itself must disappear.

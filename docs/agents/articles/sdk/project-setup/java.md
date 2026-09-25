@@ -61,7 +61,7 @@ Notes:
 
 Annotation processing must be enabled in the build. In Maven use `maven-compiler-plugin` with `io.fluxzero:sdk` in `annotationProcessorPaths`. In Gradle add both `annotationProcessor(platform("io.fluxzero:fluxzero-bom:$fluxzeroVersion"))` and `annotationProcessor("io.fluxzero:sdk")`; without the annotation-processor BOM or an explicit version, plain Gradle projects can fail to resolve the SDK processor.
 
-For a new SDK v2 application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
+For a new application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
 
 ```properties
 fluxzero.defaults.version=2026.09.10

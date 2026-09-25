@@ -1,102 +1,52 @@
-This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
-and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+# Model commits and external effects
 
-Use this whenever a command both changes an event-sourced aggregate and intends to schedule, cancel, publish, or send an external effect.
+A Model commit atomically stores its Model changes and associated documents/relations. A schedule, command sent to
+another consumer, or remote HTTP write is a separate effect. `Guarantee.STORED` on that outgoing message does not
+make it atomic with the Model operation.
 
-## `assertAndApply(...).get()` is not persistence
+## Record intent before acting on it
 
-Inside a command handler, `Entity.assertAndApply(...)` updates the handler's `ModifiableAggregateRoot`. Calling `.get()` reads that in-memory updated state. The aggregate repository commits the collected events only after normal handler/batch completion; relationship and alias indexing follows that commit boundary.
-
-This is unsafe:
-
-```java
-AssetJob updated = Fluxzero.<AssetJob>loadAggregate(command.assetJobId())
-        .assertAndApply(new RecordAssetJob(...))
-        .get();
-
-Fluxzero.scheduleCommand(new ExpireAssetJob(updated.assetJobId()), updated.deadline());
-webRequestGateway.sendAndForget(Guarantee.STORED, processingRequest(updated));
-```
-
-The schedule or `WebRequest` can be dispatched before the aggregate event is stored and before new aliases are queryable. A fast processor decision can then miss its correlation. If the handler later fails or aggregate commit conflicts, an external effect can remain even though the state transition did not commit. `Guarantee.STORED` applies to the outgoing message; it does not commit the aggregate first or make the two writes atomic.
-
-The same rule applies to `apply(...)`, `assertAndApply(Collection<?>)`, schedule cancellation, command publication, and compensation. Never infer persistence from the updated `Entity` value.
-
-## Persist intent, then perform effects post-commit
-
-Let the command handler validate and apply a state transition only. Publish the applied payload as an aggregate event, then handle that event in a tracked consumer after it is stored:
+A safe integration starts with an accepted domain transition, then uses a registered tracked event handler to act on
+that durable intent:
 
 ```java
-import io.fluxzero.sdk.Fluxzero;
-import io.fluxzero.sdk.modeling.Aggregate;
-import io.fluxzero.sdk.modeling.AggregateEventRouting;
-import io.fluxzero.sdk.modeling.Entity;
-import io.fluxzero.sdk.modeling.EventPublication;
-import io.fluxzero.sdk.scheduling.Schedule;
-import io.fluxzero.sdk.tracking.Consumer;
-import io.fluxzero.sdk.tracking.handling.HandleCommand;
-import io.fluxzero.sdk.tracking.handling.HandleEvent;
-import org.springframework.stereotype.Component;
-
-@Aggregate(
-        eventPublication = EventPublication.IF_MODIFIED,
-        eventRouting = AggregateEventRouting.AGGREGATE_ID)
-record AssetJob(/* persisted state */) {
-}
-
-@Component
-@Consumer(name = "asset-job-transitions")
-final class StartAssetJobHandler {
-    @HandleCommand
-    AssetJob handle(StartAssetJob command) {
-        Entity<AssetJob> job = Fluxzero.loadAggregate(command.assetJobId());
-        if (job.isPresent()) {
-            return job.get();
-        }
-        return job.assertAndApply(RecordAssetJob.accept(command, newReferences())).get();
-    }
-}
-
-@Component
-@Consumer(name = "asset-job-effects")
-final class AssetJobAcceptedEffects {
+@Consumer(name = "booking-effects")
+public class BookingEffects {
     @HandleEvent
-    void on(RecordAssetJob event) {
-        AssetJob committed = Fluxzero.<AssetJob>loadAggregate(event.assetJobId()).get();
-        if (committed == null) {
-            throw new IllegalStateException("committed job is missing");
-        }
-        Fluxzero.scheduleCommand(
-                new Schedule(new ExpireAssetJob(event.assetJobId()),
-                        "asset-job-deadline-" + event.assetJobId(), committed.deadline()), true);
-        publishProcessingJobs(committed);
+    void on(ConfirmBooking event, Booking booking) {
+        Fluxzero.scheduleCommand(new RemindGuest(booking.bookingId()),
+                "booking-reminder-" + booking.bookingId(), booking.reminderAt());
     }
 }
 ```
 
-In a Spring application, `@Component` makes the tracked event handler discoverable. Outside Spring, register `AssetJobAcceptedEffects` explicitly with the Fluxzero builder. An unregistered post-commit handler provides no effect delivery.
+Register this handler in the application and fixture. The injected Booking is the state at the event, useful for
+explaining and executing that accepted intent. Use `loadCurrentGraph` deliberately when the job is to reconcile the
+latest desired schedule instead. A delayed old event must not recreate a deadline that current state cancelled.
 
-Put every ordered post-commit effect for the workflow—initial requests and deadline creation, deadline cancellation, and compensation—under the same named consumer, here `@Consumer(name = "asset-job-effects")`. Also route every published intent for one aggregate to the same message segment. The explicit aggregate-level rule above is the least fragile option: `eventRouting = AggregateEventRouting.AGGREGATE_ID` routes every event published from that aggregate by its aggregate ID.
+When effects depend on event order, route every relevant intent by the same stable Model ID with `@RoutingKey` and
+use one named consumer. Different consumers have independent positions. A shared consumer name without a shared
+segment is not per-Model ordering. Do not rely on automatic routing for a multi-target action; choose the effect's
+ordering key explicitly.
 
-Do not confuse event-source storage with tracked-event routing. Fluxzero stores an event-sourced update against its aggregate, but the default published-event routing is `AggregateEventRouting.MESSAGE_ROUTING_KEY`. Under that default, an applied payload's own `@RoutingKey` determines the message segment; without one, the aggregate ID is not automatically the segment key. Either configure `AGGREGATE_ID` once on the aggregate, or put the same primary-ID `@RoutingKey` on every applied payload that the effect consumer handles. Test the configured alternative explicitly. A single named consumer gives the handlers one tracking position, while the shared segment keeps one workflow on one tracker when that consumer has multiple threads. `singleTracker = true` is a global-order alternative when a safe segment key is unavailable, at the cost of parallelism.
+A handler failure can occur after one external effect succeeded. Use stable schedule IDs, remote idempotency keys
+where supported, and `@Stateful` execution records when retries or compensation need durable progress. The Model's
+atomicity does not make a series of remote calls atomic or exactly-once.
 
-Do not give component senders independent names such as `caption-jobs`, `artwork-cancellation`, and `asset-job-deadlines`. Independent consumers have independent tracking positions: a cancellation can run before the older processing publication, or deadline cancellation can run before deadline creation, leaving an orphan effect. Separate effect consumers require an explicit reconciliation design that tolerates reordering and repairs the final external state; naming them separately does not provide per-job ordering.
+## Explicit commit completion
 
-Use a stable schedule ID with `ifAbsent = true` and stable processor idempotency references so replay after a tracked-handler failure does not intentionally create a second logical effect. Keep transition-delta flags in committed state for compensation and cancellation; the post-commit consumer acts only on newly persisted intent. If several effects must be independently recoverable, persist separate intent events/messages rather than relying on one in-memory sequence to be atomic.
+Automatic Model handling completes its result after its commit. An explicit `Fluxzero.assertAndApply(...)` or independent `Graph.assertAndApply(...)` returns after its durable
+commit; its async counterpart completes then. By contrast, `Graph.update(...)` / `delete()` can produce staged
+views whose `get()` value alone does not prove durability. `Fluxzero.commit()` can explicitly flush pending automatic Model work and returns its
+completion future. Compose later work after that future; never wait on it inside `@Apply`, which has not returned its
+change yet. A forced commit creates a real boundary: failure afterward cannot undo it or a completed external effect.
 
-An alternative is a separate durable primary-ID command handled after the first event is stored. It must still re-load committed state, re-check the expected transition/reference, and use a delivery guarantee plus stable idempotency keys. Merely calling `sendAndForgetCommand(...)` later in the original aggregate handler does not move it past commit.
+Prefer a tracked durable-intent consumer when the effect must survive a process crash between commit and dispatch.
+Explicitly awaiting a commit prevents early dispatch but does not itself close that crash window.
 
-## Test the boundary
+## Verify failure and recovery
 
-Keep these rows explicit:
-
-- a successful command commits the event before a tracked effect consumer can load the aggregate by primary ID and its new alias;
-- the post-commit consumer creates exactly one active deadline and the exact outbound requests;
-- a command that fails before handler completion publishes no aggregate event, schedule, request, cancellation, or compensation;
-- replay/retry uses the same schedule ID and processor reference and does not intentionally create another logical effect;
-- a new fixture synthetically reconstructed from recorded events and schedules emits no setup effect;
-- a fast correlated decision after acceptance resolves the newly committed alias and enters the primary-ID transition consumer.
-- acceptance followed immediately by cancellation is observed in order by the shared effect consumer and leaves no orphan active deadline or processing effect.
-- with a multi-threaded effect consumer, all published intents for one aggregate retain one routing segment; prove `eventRouting = AGGREGATE_ID` or an equivalent primary-ID `@RoutingKey` instead of assuming the default.
-
-Use exact `TestFixture` event, command, active-schedule, and `WebRequest` assertions. Do not paper over a race with sleeps.
+Test rejection before commit, commit failure, effect failure, duplicate delivery and immediate cancellation after
+acceptance. Assert exact remaining Models, events, active schedules and outbound requests. Verify a fast response can
+resolve the committed primary ID and aliases. Use an asynchronous fixture or Runtime test for claims about tracked
+ordering; a synchronous local fixture alone cannot prove that boundary.

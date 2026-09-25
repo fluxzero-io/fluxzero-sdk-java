@@ -1,4 +1,4 @@
-Use manual indexing for plain projections, release notes, and other search documents whose lifecycle is not maintained automatically by an aggregate or `@Stateful` handler. Choose the document identity before writing the handler: replaying the same logical update should normally address the same document.
+Use manual indexing for plain projections, release notes, and other search documents whose lifecycle is not maintained automatically by a Model or `@Stateful` handler. Choose the document identity before writing the handler: replaying the same logical update should normally address the same document.
 
 ## Know the overloads
 

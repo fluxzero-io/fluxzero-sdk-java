@@ -1,0 +1,245 @@
+# Temporal Graphs
+
+A `Graph<T>` combines a Model with relationships at one read boundary. It lets you answer “what did this task and
+its project look like when the change happened?” without mixing today's Project with yesterday's Task.
+
+Use this for activity feeds, audit explanations, before/after notifications, and investigating business decisions.
+A historical graph is a read of retained history; it does not roll the application back or undo external effects.
+
+## Navigate through related Models
+
+Suppose `Task` has a typed `TaskId` and a `@Parent(pathInParent = "tasks") ProjectId projectId`.
+Both Task and Project use event-sourced `@Model` persistence.
+
+Java:
+
+```java
+Graph<Project> project = Fluxzero.loadGraph(projectId);
+for (Graph<Task> task : project.children(Task.class)) {
+    Task value = task.get();
+    Project owner = task.ancestorModel(Project.class).orElse(null);
+    // Render a task together with its project at this graph's boundary.
+}
+```
+
+
+
+Kotlin:
+
+```kotlin
+val project: Graph<Project> = Fluxzero.loadGraph(projectId)
+for (task in project.children(Task::class.java)) {
+    val value: Task? = task.get()
+    val owner: Project? = task.ancestorModel(Project::class.java).orElse(null)
+    // Render a task together with its project at this graph's boundary.
+}
+```
+
+
+
+
+Each returned child is another Graph, with its own identity, value and navigation. Use `children(...)` for immediate
+children, `descendants(...)` for deeper traversal, and `parent()` or typed ancestor methods to walk toward a root.
+Use `childModels(...)` when only the values are needed. Explicit paths select a particular relationship when several
+branches contain the same type.
+
+Navigation is lazy. Constructing a typed Graph doesn't load the whole tree. State is read when you request values or
+relationships, and the selected boundary stays fixed. Reading more children later does not silently include commits
+that happened after that boundary. Relationship placement is independent of storing a child list in the parent.
+
+## Inspect the change that triggered a handler
+
+An event carrying a Model-commit boundary can inject the exact affected Model as a Graph:
+
+Java:
+
+```java
+@HandleEvent
+void on(CompleteTask event, Graph<Task> task) {
+    Task after = task.get();
+    Task before = task.previousValue(t -> t);
+    boolean completionChanged = task.hasChanged(Task::completed);
+    Project projectThen = task.ancestorModel(Project.class).orElse(null);
+    // Use before/after to explain this completion, even during catch-up.
+}
+```
+
+
+
+Kotlin:
+
+```kotlin
+@HandleEvent
+fun on(event: CompleteTask, task: Graph<Task>) {
+    val after = task.get()
+    val before = task.previousValue { it }
+    val completionChanged = task.hasChanged { it.completed }
+    val projectThen = task.ancestorModel(Project::class.java).orElse(null)
+    // Use before/after to explain this completion, even during catch-up.
+}
+```
+
+
+
+
+`previousValue(selector)` reads a property from the preceding value, or returns `null` when no value exists.
+`hasChanged(selector)` compares that property, treating an absent before or after value as `null`.
+A deleted Model can still arrive as an empty `Graph<T>`; a required bare `T` parameter would not match its absence.
+
+A handler that explicitly names `CompleteTask` only receives that payload type. To observe every published change in
+a Project and its descendants, use a Graph as the **sole** parameter:
+
+Java:
+
+```java
+@HandleEvent
+void projectChanged(Graph<Project> project) {
+    Graph<Project> before = project.previous();
+    List<Task> oldTasks = before == null ? List.of()
+            : before.childModels("tasks", Task.class);
+    List<Task> newTasks = project.childModels("tasks", Task.class);
+    // Compare by taskId: new IDs were added, missing IDs removed,
+    // and unequal values with the same ID were changed.
+}
+```
+
+
+
+Kotlin:
+
+```kotlin
+@HandleEvent
+fun projectChanged(project: Graph<Project>) {
+    val oldTasks = project.previous()?.childModels("tasks", Task::class.java) ?: emptyList()
+    val newTasks = project.childModels("tasks", Task::class.java)
+    // Compare by taskId: new IDs were added, missing IDs removed,
+    // and unequal values with the same ID were changed.
+}
+```
+
+
+
+
+Here `previous()` represents the graph immediately before the triggering change, including when only a descendant
+changed. This is what makes an activity view possible without maintaining a list of every task command.
+
+| Transition | Current graph | Previous graph |
+|---|---|---|
+| Create root | Root exists | `null` |
+| Add child | Includes child | Does not include child |
+| Update child | Child has new value | Child has preceding value |
+| Move child | Old root loses child; new root gains it | Each root retains its own before view |
+| Logically delete root | Empty root | Deleted root and its pre-deletion graph |
+
+Each affected root is delivered once per committed substep. One commit can contain several substeps; they must not
+be flattened into one final state when explaining individual events. Normal retries can deliver a handler invocation
+again, so external notifications still need their own retry/idempotency design.
+
+Logical deletion cascades follow the configured parent ownership. A cascaded child's own before view precedes that
+child's deletion substep; an ancestor deleted earlier in the same commit is already absent there. Physical erasure
+and suppressed event publication do not create domain notifications.
+
+## Walk Model revisions or choose a boundary
+
+For a Model's own revision history, walk backward with `previous()` or stream with `revisions()`:
+
+Java:
+
+```java
+Graph<Task> task = Fluxzero.loadGraph(taskId);
+task.revisions().limit(20).forEach(revision -> {
+    Task value = revision.get();
+    long sequence = revision.sequenceNumber();
+    // Display a bounded page of this Task's revisions, newest first.
+});
+
+Graph<Task> before = task.previous();
+Graph<Task> selected = task.atStateIndex(savedStateIndex);
+```
+
+
+
+Kotlin:
+
+```kotlin
+val task: Graph<Task> = Fluxzero.loadGraph(taskId)
+task.revisions().limit(20).forEach { revision ->
+    val value = revision.get()
+    val sequence = revision.sequenceNumber()
+    // Display a bounded page of this Task's revisions, newest first.
+}
+
+val before = task.previous()
+val selected = task.atStateIndex(savedStateIndex)
+```
+
+
+
+
+`previous()` returns `null` when there is no preceding revision. `revisions()` starts with the current view and then
+follows those preceding revisions. Limit traversal for an interactive screen; a long history can require replay and I/O.
+
+A root's revision stream does **not** enumerate every descendant change. Adding Task B need not create another
+Project value revision. The sole-Graph event handler above supplies a special before boundary for the whole affected
+graph. For arbitrary recorded points, `atStateIndex(savedStateIndex)` reconstructs values and relationships at the
+requested durable boundary, without overlaying pending current writes.
+
+`stateIndex()` identifies the graph's read boundary; `revisionStateIndex()` identifies when that node's revision
+became effective. `sequenceNumber()` counts that Model's revisions. These are different coordinates: do not use a
+Model sequence number as a global state index, or assume a wall-clock timestamp identifies a unique commit.
+
+Use `playBackToCondition(...)` or `playBackToEvent(...)` when selecting a retained revision by a condition or an event.
+These return an `Optional`, because a matching revision may not be available.
+
+## Ask for current intent explicitly
+
+An old event may explain a task's completion correctly while being unsuitable for deciding whether to send a reminder
+now. The task might since have been reopened, cancelled or assigned to someone else.
+
+Java:
+
+```java
+Graph<Task> eventView = task;
+Graph<Task> now = eventView.current();
+Task currentTask = now.get();
+```
+
+
+
+Kotlin:
+
+```kotlin
+val eventView = task
+val now = eventView.current()
+val currentTask = now.get()
+```
+
+
+
+
+Outside a mutation, `current()` opens a new current boundary for the same identity and repository. It leaves the
+original Graph intact and does not make either view live. `Fluxzero.loadCurrentGraph(taskId)` serves the same deliberate
+current-intent use case. Reapply any response filters or context to the new view.
+
+Inside a Model mutation, current reads join that attempt's boundary and staged changes. They do not open an unrelated
+snapshot halfway through a business decision. Use injected Models/Graphs and their tracked dependencies for invariants;
+an arbitrary search result or detached historical Graph is not a transaction readset.
+
+## Retain the history you intend to inspect
+
+Every node whose historical value you inspect needs reconstructible event-sourced history. Plain `@Model` supplies
+that. Adding `DOCUMENT` alongside `EVENT_SOURCED` keeps it; choosing only `DOCUMENT` retains current state rather than
+durable document versions. A larger cache cannot supply missing historical data after restart.
+
+Logical deletion retains history. Physical erasure, missing payload types, unavailable encryption keys or pruned
+source data can make a historical view unavailable. Decide retention and access rules for an audit feature before
+promising users that any past date can be reconstructed.
+
+Materialized Graph documents are read optimizations. Document tracking may coalesce superseded versions, so it is
+appropriate for reconciling a current view. It is not a substitute for the event stream when every individual
+transition matters.
+
+Test history with cold reconstruction as well as a warm fixture: create a graph, add and change children, move one,
+and logically delete one. Check both values and membership before and after each boundary. Include a move between
+two roots and the first revision's `null` previous value. The Model schema-evolution testing article (`/docs/sdk/models/migration-testing`)
+show how to exercise a fresh reader over retained data.

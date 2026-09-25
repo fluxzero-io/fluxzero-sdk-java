@@ -171,8 +171,7 @@ List<Preferences> preferences = Fluxzero.search(Preferences.class).whereParent(u
 ```
 
 That can retrieve values, but adding `.match("dark", "theme")` cannot select it through the missing text summary.
-It has no summary/facet/sortable indexes. RC10's LocalClient could over-match positive text predicates by scanning the
-retained entries; the corrected LocalClient excludes those hits where a summary is required, like JDBC.
+It has no summary/facet/sortable indexes.
 
 Missing indexes do **not** ban every possible content test: operators such as `exists("theme")`, unindexed range
 predicates and certain substring patterns can deliberately fall back to entry scans. These are not equivalent to

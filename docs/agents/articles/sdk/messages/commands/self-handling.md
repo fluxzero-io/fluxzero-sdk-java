@@ -1,6 +1,5 @@
-For SDK v2 Model commands, applicable `@Apply` methods already provide automatic handling. Do not add the legacy
-pass-through interface below. This article covers explicit local/tracked `@HandleCommand` payloads and existing
-aggregate workflows; retain their production registration when maintaining those flows.
+Model commands with applicable `@Apply` methods are handled automatically. This article covers explicit payload
+handlers for local operations or tracked orchestration, such as external integrations.
 
 Use this article when command behavior is implemented on the command payload itself. Decide whether the command is local or tracked from the production delivery contract, not from whichever fixture happens to pass.
 
@@ -17,7 +16,8 @@ A command payload with `@HandleCommand` but no `@TrackSelf` is handled immediate
 public record RecalculateQuote(QuoteId quoteId) {
     @HandleCommand
     void handle() {
-        Fluxzero.loadAggregate(quoteId).assertAndApply(this);
+        // Orchestrate the recalculation, then apply its Model changes.
+        Fluxzero.assertAndApply(this);
     }
 }
 ```
@@ -37,9 +37,7 @@ public interface ShipmentUpdate {
 
     @HandleCommand
     default Shipment handle() {
-        return Fluxzero.loadAggregate(shipmentId())
-                .assertAndApply(this)
-                .get();
+        return Fluxzero.<Shipment>loadGraph(shipmentId()).assertAndApply(this).get();
     }
 }
 ```
@@ -76,14 +74,14 @@ HandlerInterceptor captureActualPayload = (next, invoker) -> message -> {
 TestFixture.createAsync(DefaultFluxzero.builder()
                 .addHandlerInterceptor(
                         captureActualPayload, MessageType.COMMAND))
-        .givenAppliedEvents(shipmentId, createShipment)
+        .givenCommands(createShipment)
         .whenCommand(command)
         .expectEvents(command)
         .expectThat(fc -> assertEquals(
                 "shipment-command", actualConsumer.get()));
 ```
 
-Use `TestFixture.create(...)` for deterministic aggregate rules and `createAsync(...)` for the separate claim that the
+Use `TestFixture.create(...)` for deterministic domain rules and `createAsync(...)` for the separate claim that the
 real command is tracked. Fixture auto-discovery proves the payload's tracked semantics, not that a production Spring
 application scans its package; keep a package/registration smoke check for that boundary. Do not add `@TrackSelf`
 merely to fix broad fixture registration or a zero-parameter handler collision; constrain handler matching instead.

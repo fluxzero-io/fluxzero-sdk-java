@@ -7,12 +7,12 @@ Use the exact `io.fluxzero:fluxzero-bom` version resolved by the project and its
 | Purpose | Exact Java type |
 | --- | --- |
 | static SDK facade | `io.fluxzero.sdk.Fluxzero` |
-| aggregate annotation | `io.fluxzero.sdk.modeling.Aggregate` |
-| aggregate published-event routing policy | `io.fluxzero.sdk.modeling.AggregateEventRouting` |
-| aggregate/entity ID | `io.fluxzero.sdk.modeling.EntityId` |
+| Model annotation | `io.fluxzero.sdk.modeling.Model` |
+| Model persistence strategy | `io.fluxzero.sdk.modeling.ModelPersistence` |
+| Model/entity ID | `io.fluxzero.sdk.modeling.EntityId` |
 | alternate persisted ID | `io.fluxzero.sdk.modeling.Alias` |
-| loaded aggregate/entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
-| aggregate event publication policy | `io.fluxzero.sdk.modeling.EventPublication` |
+| loaded Model/entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
+| Model event publication policy | `io.fluxzero.sdk.modeling.EventPublication` |
 | state transition method | `io.fluxzero.sdk.persisting.eventsourcing.Apply` |
 | transition interceptor | `io.fluxzero.sdk.persisting.eventsourcing.InterceptApply` |
 | command/query/event handlers | `io.fluxzero.sdk.tracking.handling.HandleCommand`, `HandleQuery`, `HandleEvent` |
@@ -31,7 +31,7 @@ Use the exact `io.fluxzero:fluxzero-bom` version resolved by the project and its
 | unhandled local-only request | `io.fluxzero.sdk.publishing.LocalOnlyDispatchException` |
 | registered wire/JSON type names | `io.fluxzero.common.serialization.RegisterType` |
 
-The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. `AggregateEventRouting` is a modeling enum; use `AGGREGATE_ID` when every event published from an aggregate must share its aggregate-ID message segment. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
+The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. Use an explicit `@RoutingKey` when related published intents must share one message segment; automatic single-Model routing has its own configured eligibility rules. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
 
 For the correlation-to-primary-command pattern, the complete sensitive import set is:
 

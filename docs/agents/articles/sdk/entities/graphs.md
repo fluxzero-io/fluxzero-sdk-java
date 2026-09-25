@@ -45,7 +45,7 @@ Use `optional()`, `map(...)`, `mapIfPresent(...)` or `filterPresent()` for wrapp
 relationships. `stream()` walks every placement lazily in deterministic order; `find(idOrAlias)` and
 `find(idOrAlias, ModelType.class)` search primary IDs and `@Alias` values without hard-coding paths. For event-driven
 before/after logic, use `previous()`, `hasChanged(selector)`, `previousValue(selector)` or `revisions()`. These APIs keep
-`Entity<T>` as a persistence/legacy-aggregate detail rather than a normal handler parameter.
+`Graph<T>` for history and relationship context rather than injecting a persistence wrapper.
 
 Returning a `Graph<T>` from a handler serializes the current model plus all explicitly named relationship paths.
 Pathless relations remain queryable through the typed graph API but are intentionally absent from that JSON shape.

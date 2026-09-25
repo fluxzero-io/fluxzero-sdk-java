@@ -45,8 +45,7 @@ remains a service error; the SDK never guesses from error text. Older SDKs ignor
 
 Injected and synchronous manually loaded Graph reads inside a Model mutation count: values/type/alias/revision reads protect Model heads; child collections (including empty
 ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
-Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8
-SDK/Runtime. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through
+Do not replace graph invariants with an extra guard Model solely to detect membership races with the supported Model/Graph commit protocol. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through
 every rebase. Complete reads within evaluation, including joined parallel scans. Historical views, external search and
 unrelated repository reads are not implicitly transactional. Types sharing a path share a conservative dependency;
 remapped paths protect all source paths, and physical erasure invalidates older Graph reads namespace-wide.
@@ -67,7 +66,7 @@ affixes and parent scope. No Model is loaded and no apply is executed to find th
 multi-apply commands do not receive this inferred route. An event affecting exactly one Model gets the corresponding
 fallback from its actual committed target. Explicit segments, `@RoutingKey` fields and type-level metadata/property
 declarations win, including declarations whose value is absent. Multiple targets never select an arbitrary first ID.
-Set `fluxzero.model.automaticRouting=false` to disable both fallbacks. Aggregate routing is unchanged. A command's
+Set `fluxzero.model.automaticRouting=false` to disable both fallbacks. A command's
 segment is not blindly inherited: external producers or interceptors may have assigned it for a different key.
 
 Dedicated overrides win in both directions. Their conventional environment-variable names are `FLUXZERO_MODEL_AUTOMATIC_ROUTING`

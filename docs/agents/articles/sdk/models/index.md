@@ -1,8 +1,6 @@
-# Models and Graphs in SDK v2
+# Models and Graphs
 
-For the design as a whole, Java/Kotlin examples and the upgrade path from 1.x, see the developer chapter
-[Fluxzero 2.0](https://github.com/fluxzero-io/fluxzero-sdk-java/blob/f15b89d8110ba6d0314016e570767edd931093e1/docs/developer/getting-started/fluxzero-2.mdx).
-Use the focused articles below for individual contracts.
+Use the focused articles below for state, commands, relationships and history.
 
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
 (Kotlin: kapt) in every Model contract module; Model declarations contribute
@@ -19,18 +17,17 @@ It also requires a matching Runtime and a document whose body/head proof was cap
 materialization/adoption. Older unproven documents and ordinary search overwrites are not silently accepted.
 Use injected Models/Graphs for invariants; `loadCurrentGraph` still uses the authoritative load path, not this API.
 
-Use `@Model` for new persisted domain state in Java and Kotlin. Keep existing `@Aggregate` state on its
-compatibility API until a deliberate data migration; changing only its annotation is not a migration.
-SDK v2 requires Java 25 or newer and a matching v2 Runtime for standalone Models.
+Use `@Model` for persisted domain state in Java and Kotlin.
+The SDK requires Java 25 or newer and a compatible Runtime for standalone Models.
 
 Choose the focused state, actions or Graph article for the application's language:
 
-- State: immutable Models, details versus settings/status, validated creation and targeted edits, persistence,
-  typed identity and intentional embedded members.
+- State: immutable Models, details versus settings/status, validated creation and targeted edits, and typed identity.
+- Configuration: optional storage, search projections and operational settings; start with plain `@Model`.
 - Actions: automatic `@Apply` command handling, recursive assertions, interception and atomic multi-Model commits.
 - Graphs: independent children via `@Parent`, lazy navigation, exact event-state injection and graph search/projections.
 - Conflicts: read dependencies, empty collections, `RETRY`/`FAIL`/`ACCEPT` and the cost of actual navigation.
-- Migration: deletion, cascade, physical erasure and migration of already persisted aggregates.
+- Deletion: logical deletion, cascading lifecycles and planned physical erasure.
 
 First distinguish business state from workflow memory: provider correlation, retries and pending external effects
 usually belong in `@Stateful`, not in a business Model solely because an attempt has its own lifecycle.
@@ -43,8 +40,8 @@ Keep configuration, identity, relationships, current status and execution bookke
 value is neither a separate Model nor a Member. The language-specific state articles explain the field-selection
 criteria and show creation plus `RenameProject(id, name)` without losing other details.
 
-A command with applicable Model `@Apply` methods is handled automatically. Do not add a pass-through
-`@HandleCommand`/`loadAggregate(...)` interface from an old example. A real orchestration handler can call
+A command with applicable Model `@Apply` methods is handled automatically. No pass-through
+command handler is needed. A real orchestration handler can call
 `Fluxzero.assertAndApply(command)` once. Keep applies deterministic and free of external effects.
 
 A successful multi-Model commit covers all its Model events, direct documents and relationship deltas. Separate
@@ -56,6 +53,3 @@ For an invariant over children, inject `Graph<Parent>` and inspect the required 
 An unambiguous typed parent ID needs no `@Association`; qualify only ambiguous targets or paths. Unused/value-only
 Graphs resolved directly by ID add no relationship query. Indirect ancestor selection does protect its navigation.
 Writers retain relationship-change evidence even when they do not themselves inject a Graph.
-
-The retained entity articles describe legacy aggregate workflows unless explicitly identified as shared APIs.
-Use the Model articles for new v2 behavior, and the legacy articles to maintain already persisted aggregate code.

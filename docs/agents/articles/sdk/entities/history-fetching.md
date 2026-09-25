@@ -1,24 +1,16 @@
-This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
-and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
+# Reconstructing Model history efficiently
 
-Aggregate reconstruction fetches historical events in pages. Use a payload-byte bound when large events would make a
-count-only page too large; this changes transport page size, not the aggregate's event ordering or logical history.
+An event-sourced Model loads from its cache, an applicable snapshot/checkpoint, then the required suffix of its own
+stream. Independent children keep separate streams: loading one task does not replay its project's entire lifetime.
 
-```properties
-fluxzero.eventsourcing.maxFetchBytes=104857600
-```
+Snapshots trade extra writes/storage for shorter cold replay. Configure them only after measuring representative
+histories. They are an optimization, not a replacement for the event history needed for arbitrary historical views.
+A cache entry is likewise not durable historical storage.
 
-The conventional environment variable is `FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES`. Compatibility mode keeps
-count-only paging. `fluxzero.defaults.version >= 2026.09.10` selects a 100 MiB serialized-event-payload limit;
-an explicit property overrides that default. Set `0` to retain count-only pages.
+Reconstruction pages events and can prefetch a bounded following page while applying the current page. Paging does
+not change event order or application semantics. Avoid materializing an entire `revisions()` stream for a history
+screen: select a boundary or bound the number of revisions presented.
 
-The existing event-count page bound still applies. A page returns one oversized event when necessary to make
-progress, so this is not an absolute process-memory limit or a rule rejecting large individual events. Older Runtimes
-ignore the optional byte bound; byte-bounded paging requires runtime support as well as the updated SDK.
-
-Keep this separate from `fluxzero.tracking.maxFetchBytes`, which controls consumer tracking fetches. Increasing or
-reducing one does not configure the other. Configure through `ApplicationProperties`; do not introduce a custom
-environment-variable reader in an aggregate loader.
-
-Test reconstruction and ordering across page boundaries with large payloads. Include an event larger than the bound
-and verify progress. The same event stream must reconstruct the same state regardless of the page size.
+Measure cold loads, warm loads, concurrent reconstruction and large payloads separately. Verify the same final state
+with snapshots enabled and disabled, and after clearing caches. Include retained `STORE_ONLY` transitions and child
+moves so optimized reconstruction is checked against both values and relationships.

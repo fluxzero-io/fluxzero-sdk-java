@@ -40,8 +40,8 @@ final class MetricsSink {
 
 `@Component` is the Spring discovery mechanism; `@Consumer` configures tracked consumption but does not itself create a Spring bean. Outside Spring, register both instances explicitly on the configured `Fluxzero` client. A fixture that receives handler instances proves test registration only, not production discovery.
 
-For a metric that describes a successful aggregate transition, publish from an event handler for the already-applied
-update. Do not publish from `@Apply`: apply methods must remain pure and run again during aggregate reconstruction.
+For a metric that describes a successful Model transition, publish from an event handler for the already-applied
+update. Do not publish from `@Apply`: apply methods must remain pure and run again during Model reconstruction.
 Publishing from the command handler before `assertAndApply(...)` can also report a transition that later fails.
 
 Keep sensitive or protected request values out of the metric. Prefer stable IDs, transition names, counts, and elapsed
@@ -76,11 +76,11 @@ it is usually too broad for an asynchronous fixture.
 ## Separate fixture seeding from production replay
 
 Given-phase effects are fully processed but are not collected by the next Then phase. In particular,
-`givenAppliedEvents(...)` applies and commits its supplied updates; event observers registered at that time can run and
-publish hidden setup metrics. If the test is meant to prove that passive production aggregate loading emits no custom
-metric, seed serialized history first, register the metrics observer afterward, then load or query the aggregate in
+`givenModelEvents(...)` applies and commits its supplied updates; event observers registered at that time can run and
+publish hidden setup metrics. If the test is meant to prove that passive production Model loading emits no custom
+metric, seed serialized history first, register the metrics observer afterward, then load or query the Model in
 When.
 
-Do not describe `givenAppliedEvents(...)` itself as passive event-store replay. A literal production-replay test stores
-serialized historical events, starts the production observers, loads the aggregate in When, and asserts that loading
+Do not describe `givenModelEvents(...)` itself as passive event-store replay. A literal production-replay test stores
+serialized historical events, starts the production observers, loads the Model in When, and asserts that loading
 does not publish the custom metric.

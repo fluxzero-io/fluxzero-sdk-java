@@ -65,7 +65,7 @@ fixture().whenPostByUser(viewerId, "/api/projects",
         .expectWebResponse(response -> response.getStatus() == 401);
 ```
 
-The helper returns a fresh fixture for each scenario and seeds the aggregate-backed profiles before passing their IDs to a routed call. Do not reuse a scenario that already created the same aggregate, and do not pass an unresolved ID to a configured provider.
+The helper returns a fresh fixture for each scenario and seeds the Model-backed profiles before passing their IDs to a routed call. Do not reuse a scenario that already created the same Model, and do not pass an unresolved ID to a configured provider.
 
 Keep the explicit `<Project>` witness before `getPayloadAs(Project.class)` whenever a domain method is chained. The
 SDK accepts `Type`, not `Class<R>`, so the class argument alone leaves the static return type as `Object`.

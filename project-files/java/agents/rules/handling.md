@@ -562,7 +562,7 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   default `apiReferencePath` is `docs`, resolved relative to the same `@Path`; enabling this also serves the OpenAPI
   JSON document. The default renderer is Redoc; `ApiReferenceRenderer.SCALAR` and `SWAGGER_UI` are also available.
   Renderer assets are referenced by URL and are not bundled by the SDK; use `apiReferenceScriptUrl` and
-  `apiReferenceStylesheetUrl` for self-hosted assets.
+  `apiReferenceStylesheetUrl` for custom stylesheet assets.
 - Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
   where possible, including required flags, numeric bounds, sizes, patterns, and email format. `@Size` maps to
   length constraints for text, item constraints for arrays/collections, and property constraints for maps.
@@ -704,7 +704,7 @@ Routing safety notes:
   `<path>/index.html`, and then the configured fallback file. Set `cleanUrls = false` to disable this behavior.
 - Recommended convention: keep HTTP APIs under `/api` and reserve non-`/api` paths for SPA/static routes.
 - If you use a different API prefix, set `ignorePaths` explicitly.
-- In Fluxzero Cloud, you can still expose a separate API host through proxy mapping (for example
+- In Fluxzero, you can still expose a separate API host through proxy mapping (for example
   `api.domain.com -> domain.com/api`).
 
 [//]: # (@formatter:off)

@@ -19,7 +19,7 @@ mvn wrapper:wrapper -Dmaven=3.9.9
 
 Commit `mvnw`, `mvnw.cmd`, and `.mvn/wrapper/maven-wrapper.properties` together, plus the wrapper JAR when the chosen wrapper mode requires it. Inspect `distributionUrl`: the wrapper plugin version is not the Maven distribution version. Do not create a shell script that only runs `mvn "$@"`, and do not leave an empty `.mvn` directory: that silently uses whichever Maven version happens to be installed on the machine and makes the build non-reproducible. Read reproducible Maven model guidance before choosing Spring Boot parent versus parentless BOM management.
 
-SDK v2 requires Java 25 or newer. Keep a supported declared toolchain; use matching 1.x documentation for an older SDK rather than automatically upgrading it.
+The SDK requires Java 25 or newer. Keep the declared toolchain and read the documentation matching the project’s installed SDK.
 
 After selecting the concrete, Fluxzero Packages-verified `fluxzero.version`, use it for dependency management:
 

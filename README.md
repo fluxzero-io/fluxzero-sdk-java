@@ -2,7 +2,7 @@
 
 # Fluxzero SDK
 
-This is the SDK for building applications on [Fluxzero](https://fluxzero.io). It supports both Java and Kotlin.
+This is the SDK for building applications on [Fluxzero](https://fluxzero.io), the European cloud for AI-built apps. It supports both Java and Kotlin.
 
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
 [![Packages](https://img.shields.io/badge/packages-releases-blue)](https://packages.fluxzero.io)

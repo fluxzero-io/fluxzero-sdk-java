@@ -1,6 +1,6 @@
 Fluxzero apps communicate through the runtime, not by direct app-to-app calls. Use this page when a feature crosses handler, consumer, namespace, or replay boundaries.
 
-SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. This does not replace application-supplied executors or the caller-controlled `AggregateEventStream.parallel()` contract. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
+SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. Application-supplied executors retain their own lifecycle. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
 
 Command/result flow:
 
@@ -10,7 +10,7 @@ Command/result flow:
 4. App B appends a result targeted back to App A.
 5. App A's request consumer receives the result and completes the pending call.
 
-For command handlers that update aggregates, the SDK waits for asynchronous after-handler aggregate commits by default before returning the handler result. A command followed by a query can often read the committed aggregate/search state. Do not rely on this for downstream projections or event-handler side effects; return needed state from the command or wait for the projection's own signal.
+For command handlers that update Models, the SDK waits for asynchronous after-handler Model commits by default before returning the handler result. A command followed by a query can often read the committed Model/search state. Do not rely on this for downstream projections or event-handler side effects; return needed state from the command or wait for the projection's own signal.
 
 Handler delivery is effectively at-least-once. A tracker fetches a batch, processes it, then commits position. If it crashes before committing, some messages can be processed again.
 

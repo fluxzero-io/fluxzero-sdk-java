@@ -1,6 +1,6 @@
 `Fluxzero.get().client()` exposes the configured low-level `Client`. It is a supported advanced boundary for runtime
 capabilities that have no complete application-level facade, but it also makes partial and destructive operations
-possible. Prefer `aggregateRepository()`, `documentStore()`, message gateways, schedulers, and `Fluxzero.search(...)`
+possible. Prefer `modelRepository()`, `documentStore()`, message gateways, schedulers, and `Fluxzero.search(...)`
 whenever they express the full intent.
 
 Public subsystems include:

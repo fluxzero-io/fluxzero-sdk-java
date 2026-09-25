@@ -1,4 +1,4 @@
-Use serialization guidance before changing a payload, document, aggregate state, or stateful handler type that may already be stored. Historical messages are immutable; compatibility is handled during deserialization.
+Use serialization guidance before changing a payload, document, Model state, or stateful handler type that may already be stored. Historical messages are immutable; compatibility is handled during deserialization.
 
 Polymorphic ID properties (`Id<?>` / Kotlin `Id<*>`, or abstract ID classes) retain a discriminator automatically:
 Model IDs use `{"name":"project","id":"owner-a"}` with their logical Model name; non-Model IDs use

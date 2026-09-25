@@ -21,5 +21,5 @@ Prefer dedicated query payloads over static utility methods for reusable reads. 
 
 For lightweight local caching in self-handling commands or queries, use `Fluxzero.memoize(...)` or `Fluxzero.memoizeIfAbsent(...)` instead of ad hoc static caches.
 
-These examples assume `@Model` state. For existing persisted aggregates, keep their aggregate loading API until a
+These examples assume `@Model` state. For existing persisted Models, keep their Model loading API until a
 deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.

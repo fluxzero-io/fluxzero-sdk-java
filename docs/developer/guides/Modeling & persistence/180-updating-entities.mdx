@@ -59,7 +59,7 @@ An update that has enough information to identify its target models can be handl
 Publishing `RenameProduct` as a command automatically executes the model commit. Fluxzero determines the target from
 `ProductId`, loads only that product, runs the assertions and applies, and commits the returned model.
 
-No `loadAggregate`, command-to-event translation handler or marker interface is required.
+No forwarding command handler or marker interface is required.
 
 Expected business refusals must be `FunctionalException` subclasses, not `IllegalStateException`,
 `IllegalArgumentException` or Kotlin `require`/`check`. Use `IllegalCommandException` for an invalid domain action,
@@ -269,7 +269,7 @@ committed target as fallback, including targets selected after interception. Mul
 
 Explicit segments and routing annotations always take precedence. A field or metadata/property explicitly designated
 by `@RoutingKey` suppresses fallback even if its value is absent. `fluxzero.model.automaticRouting=false` disables both
-fallbacks. Aggregate event routing and local dispatch behavior remain unchanged. Routing reduces write contention but
+fallbacks. Explicit routing and local dispatch retain their own behavior. Routing reduces write contention but
 does not eliminate conflicts on shared read dependencies or imply ordering across consumers. A source command segment
 is not assumed to represent the Model ID when its routing provenance is unknown.
 
@@ -384,11 +384,6 @@ Do not perform irreversible external work inside an apply. It may run again duri
 Publish follow-up messages from handlers or event handlers instead.
 </Aside>
 
-<Aside type="note" title="Legacy aggregate API">
-Existing persisted applications may continue to use `@Aggregate` and
-`Fluxzero.loadAggregate(...).assertAndApply(...)`. New code should use Model commits; the aggregate API remains the
-compatibility boundary for existing aggregate state.
-</Aside>
 
 ## Dynamic write targets
 

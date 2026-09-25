@@ -64,7 +64,7 @@ java {
 }
 ```
 
-SDK v2 requires Java 25 or newer. Install and use that declared toolchain for the generated project instead of lowering it to whatever the host already has. For an existing project, keep Java 25+ unless the user explicitly wants to change the toolchain. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
+The SDK requires Java 25 or newer. Install and use that declared toolchain for the generated project instead of lowering it to whatever the host already has. For an existing project, keep Java 25+ unless the user explicitly wants to change the toolchain. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
 
 Kotlin setup adds kapt and Kotlin Spring support:
 

@@ -23,12 +23,12 @@ documents with the same business value do not move between pages.
 ## Keep the indexed shape explicit
 
 Put `@Sortable` on the exact property path used by each sort instruction. For a derived technical key, the most
-portable model is an ordinary serializable property of the searchable aggregate or projection:
+portable model is an ordinary serializable property of the searchable Model or projection:
 
 ```java
-@Aggregate(searchable = true)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record KnowledgeArticle(
-        @Sortable ArticleId articleId,
+        @EntityId @Sortable ArticleId articleId,
         @Sortable int editorialRank,
         @Sortable String title,
         String body) {

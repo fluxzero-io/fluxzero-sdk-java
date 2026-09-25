@@ -90,7 +90,7 @@ preserves its canonical value. Then run the real routed duplicate/concurrency sc
 while two adversarial but distinct tuples must both remain valid.
 
 Also invoke every public construction path with a deliberately mismatched derived value. Prove rejection before routing
-and prove that no aggregate, alias, document, schedule, or outbound effect exists under either the source-derived or
+and prove that no Model, alias, document, schedule, or outbound effect exists under either the source-derived or
 supplied identity.
 
 Do not rely on a record's generated `toString()` as a durable encoding. Renaming the record or its components changes
