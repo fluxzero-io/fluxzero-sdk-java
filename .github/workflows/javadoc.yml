@@ -37,6 +37,10 @@ env:
 jobs:
   generate-javadoc:
     runs-on: ubuntu-latest
+    concurrency:
+      group: sdk-javadoc-publication
+      cancel-in-progress: false
+      queue: max
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
