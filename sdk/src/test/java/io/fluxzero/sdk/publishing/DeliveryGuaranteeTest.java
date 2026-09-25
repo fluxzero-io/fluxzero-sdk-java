@@ -22,6 +22,7 @@ import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.test.TestFixture;
@@ -81,6 +82,29 @@ class DeliveryGuaranteeTest {
             // Namespace gateways are created after the second application and must still inherit the first's policy.
             first.eventGateway().forNamespace("other").publish("namespaced");
             verify(other).append(eq(Guarantee.STORED), any(SerializedMessage[].class));
+        }
+    }
+
+    @Test
+    void lazyCustomGatewayRetainsDefaultAfterBuilderReuse() {
+        var builder = DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(
+                Map.of(DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "STORED")));
+        try (var first = application(builder)) {
+            builder.replacePropertySource(ignored -> new SimplePropertySource(
+                    Map.of(DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "NONE")));
+            try (var second = application(builder)) {
+                List<Guarantee> writes = new ArrayList<>();
+                GatewayClient transport = first.client().getGatewayClient(MessageType.CUSTOM, "topic");
+                doAnswer(invocation -> {
+                    writes.add(invocation.getArgument(0));
+                    return CompletableFuture.completedFuture(null);
+                }).when(transport).append(any(), any(SerializedMessage[].class));
+                second.apply(f -> {
+                    first.customGateway("topic").sendAndForget("event");
+                    return null;
+                });
+                assertEquals(List.of(Guarantee.STORED), writes);
+            }
         }
     }
 
@@ -154,6 +178,10 @@ class DeliveryGuaranteeTest {
     }
 
     private static Fluxzero application(Map<String, String> properties) {
+        return application(DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(properties)));
+    }
+
+    private static Fluxzero application(FluxzeroBuilder builder) {
         LocalClient client = spy(LocalClient.newInstance());
         Map<String, GatewayClient> gateways = new java.util.HashMap<>();
         doAnswer(invocation -> gateways.computeIfAbsent(String.valueOf((Object) invocation.getArgument(0))
@@ -175,7 +203,6 @@ class DeliveryGuaranteeTest {
                 .append(any(), any(SerializedMessage[].class));
         doReturn(namespacedGateway).when(namespaced).getGatewayClient(any(), any());
         doReturn(namespaced).when(client).forNamespace("other");
-        return DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(properties))
-                .disableShutdownHook().build(client);
+        return builder.disableShutdownHook().build(client);
     }
 }
