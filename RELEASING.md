@@ -1,6 +1,6 @@
 # Releasing the Fluxzero SDK
 
-Fluxzero uses an update train rather than a long-lived minor/patch distinction.
+Fluxzero derives automatic stable versions from Conventional Commits since the latest reachable stable tag.
 The branch declares the active stable major in [`.github/release-major`](.github/release-major), while
 `.github/scripts/resolve-release-version.sh` is the executable owner of allowed branch/version combinations.
 
@@ -40,7 +40,17 @@ Normal changes flow from `main` to `next/2.0`; only deliberately selected 2.0 fi
 4. The resulting `main` run publishes `2.0.0`, because no stable major-2 tag exists yet.
 5. Remove `next/2.0` only after the SDK and Runtime GA releases and downstream checks are green.
 
-Subsequent accepted changes on `main` publish `2.1.0`, `2.2.0`, and so on. An exceptional critical 1.x repair is
+Subsequent accepted changes on `main` use `fix`, `perf`, `deps` and `revert` for a patch bump;
+`feat` takes precedence and produces a minor bump. Other commit types do not raise a detected patch bump.
+When no release-bearing type is present, the historical minor fallback remains. Both scoped and unscoped
+subjects are supported. A `!` subject or `BREAKING CHANGE:`/`BREAKING-CHANGE:` footer stops automatic
+publication within the declared major; make the major transition explicitly through `.github/release-major`.
+The first release of a newly declared major remains `<major>.0.0`. Existing tags on the current commit are reused
+for reruns. Prerelease tags and stable tags outside the current history do not select the base; a conflicting
+version already reserved elsewhere fails instead of overwriting it.
+
+For example, a fix after `2.1.0` produces `2.1.1`; a feature produces `2.2.0`.
+Explicit dispatch versions remain subject to the branch's major/prerelease restrictions. An exceptional critical 1.x repair is
 published manually from `1.x` with an explicit patch version such as `1.247.1`; it is then forward-ported to `main`.
 
 ## Local policy check
@@ -51,5 +61,5 @@ Run:
 bash .github/scripts/resolve-release-version.test.sh
 ```
 
-This validates the update train, first-major release, milestones, release candidates and exceptional maintenance
+This validates commit-based patch/minor selection, breaking-change guards, first-major releases, reruns, milestones, release candidates and exceptional maintenance
 patches without creating tags or publishing artifacts.

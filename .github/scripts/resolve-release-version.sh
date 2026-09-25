@@ -20,27 +20,7 @@ stable_version() {
 }
 
 next_stable_version() {
-  local latest_minor=-1
-  local tag minor
-
-  while IFS= read -r tag; do
-    if [[ "$tag" =~ ^${release_major}\.([0-9]+)\.([0-9]+)$ ]]; then
-      minor="${BASH_REMATCH[1]}"
-      if (( 10#$minor > latest_minor )); then
-        latest_minor=$((10#$minor))
-      fi
-    fi
-  done < <(if [[ -n "${AVAILABLE_RELEASE_TAGS:-}" ]]; then
-             printf '%s\n' "$AVAILABLE_RELEASE_TAGS"
-           else
-             git tag --list
-           fi)
-
-  if (( latest_minor < 0 )); then
-    printf '%s.0.0\n' "$release_major"
-  else
-    printf '%s.%s.0\n' "$release_major" "$((latest_minor + 1))"
-  fi
+  python3 "$(dirname -- "${BASH_SOURCE[0]}")/next-stable-version.py" "$release_major"
 }
 
 case "$branch" in
