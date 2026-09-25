@@ -311,3 +311,7 @@ Automatic JUnit `TestFixture` cleanup defaults this value to `0` only after its 
 was explicitly configured. Cleanup is still awaited and failures belong to the test outcome. Calling
 `fixture.getFluxzero().close()` yourself retains the ordinary application grace period; this also permits tests of
 responses arriving during graceful shutdown. Request timeouts, timeout metadata and cancellation semantics are unchanged.
+
+When tracking closes, incomplete chunked payloads fail before tracker termination. This releases handlers waiting for
+missing input. Fully received bodies remain readable, and ordinary asynchronous handler results keep their shutdown
+grace period. The rule is the same for Java and Kotlin handlers.

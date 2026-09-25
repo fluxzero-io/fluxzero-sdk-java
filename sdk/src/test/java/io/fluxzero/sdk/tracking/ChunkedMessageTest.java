@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.TestTask;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
@@ -25,6 +26,7 @@ import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.publishing.RequestHandler;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.test.TestFixture;
@@ -32,13 +34,17 @@ import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -289,6 +295,80 @@ class ChunkedMessageTest {
             assertThrows(IOException.class, stream::read);
             return null;
         });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void closingReleasesIncompleteStreamEvenWhenTrackerAwaitsHandler(boolean awaitAsyncResults) throws Exception {
+        CompletableFuture<ChunkedDeserializingMessage> started = new CompletableFuture<>();
+        CompletableFuture<IOException> failed = new CompletableFuture<>();
+        var fixture = TestFixture.createAsync(DefaultFluxzero.builder().configureDefaultConsumer(
+                MessageType.EVENT, c -> c.toBuilder().awaitAsyncResults(awaitAsyncResults).threads(2).build()),
+                new Object() {
+                    @HandleEvent
+                    void handle(DeserializingMessage message) throws Exception {
+                        InputStream stream = message.getPayloadAs(InputStream.class);
+                        assertEquals("hello ", new String(stream.readNBytes(6), StandardCharsets.UTF_8));
+                        started.complete((ChunkedDeserializingMessage) message);
+                        failed.complete(assertThrows(IOException.class, stream::read));
+                    }
+                });
+        fixture.whenExecuting(fc -> {
+            SerializedMessage first = chunk(fc, "hello ", null, true, false, 0);
+            fc.client().getGatewayClient(MessageType.EVENT).append(Guarantee.SENT, first).get();
+            var message = started.get(5, TimeUnit.SECONDS);
+            var tracking = fc.tracking(MessageType.EVENT);
+            message.completion().whenComplete((ignored, error) -> tracking.close());
+            try (var close = new TestTask(tracking::close, () -> message.fail(new IllegalStateException("test cleanup")))) {
+                close.awaitCompletion(Duration.ofSeconds(5));
+            }
+            assertTrue(failed.get(5, TimeUnit.SECONDS).getCause().getMessage().contains("Tracking closed"));
+            assertTrue(message.completion().isCompletedExceptionally());
+            tracking.close();
+        }).expectSuccessfulResult();
+    }
+
+    @Test
+    void closeReleasesTypedPayloadAndPreservesCompleteBodies() {
+        TestFixture.create().whenExecuting(fc -> {
+            DefaultTracking tracking = new DefaultTracking(MessageType.EVENT, mock(ResultGateway.class),
+                    List.of(), List.of(), fc.serializer(), mock(HandlerFactory.class));
+            var active = new ConcurrentHashMap<String, ChunkedDeserializingMessage>();
+            var first = chunk(fc, "hello ", null, true, false, 0);
+            var completeFirst = chunk(fc, "complete ", null, true, false, 0);
+            var completeFinal = chunk(fc, "body", completeFirst.getMessageId(), false, true, 1);
+            var messages = tracking.deserializeMessageList(List.of(first, completeFirst, completeFinal), null,
+                    mock(TrackingClient.class), active, 10);
+            var incomplete = (ChunkedDeserializingMessage) messages.getFirst();
+            var complete = (ChunkedDeserializingMessage) messages.getLast();
+            try (var reader = new TestTask(
+                    () -> assertThrows(CompletionException.class, incomplete::getAggregatedPayloadBytes),
+                    () -> incomplete.fail(new IllegalStateException("test cleanup")))) {
+                reader.awaitBlockedIn(ChunkedDeserializingMessage.class, "awaitCompletion", Duration.ofSeconds(5));
+                tracking.close();
+                reader.awaitCompletion(Duration.ofSeconds(5));
+            }
+            complete.fail(new IllegalStateException("late failure"));
+            assertEquals("complete body", new String(complete.getAggregatedPayloadBytes(), StandardCharsets.UTF_8));
+            assertEquals("complete body", new String(complete.<InputStream>getPayloadAs(InputStream.class).readAllBytes(),
+                    StandardCharsets.UTF_8));
+            var finalChunk = chunk(fc, "late final", first.getMessageId(), false, true, 1);
+            first.setIndex(0L);
+            finalChunk.setIndex(1L);
+            var recoveryClient = mock(TrackingClient.class);
+            when(recoveryClient.readRange(anyLong(), anyLong(), eq(10))).thenReturn(List.of(first));
+            var lateContinuation = tracking.deserializeMessageList(List.of(finalChunk), null,
+                    recoveryClient, active, 10);
+            assertTrue(lateContinuation.isEmpty(), "A cancelled stream must not be recovered and handled again");
+            verify(recoveryClient, never()).readRange(anyLong(), anyLong(), eq(10));
+            assertTrue(active.isEmpty());
+            // A batch that was already entering deserialization when close began must not escape cleanup.
+            var late = (ChunkedDeserializingMessage) tracking.deserializeMessageList(
+                    List.of(chunk(fc, "late", null, true, false, 0)), null,
+                    mock(TrackingClient.class), active, 10).getFirst();
+            assertTrue(late.completion().isCompletedExceptionally());
+            assertTrue(active.values().stream().allMatch(m -> m.completion().isCompletedExceptionally()));
+        }).expectSuccessfulResult();
     }
 
     private static SerializedMessage chunk(Fluxzero fluxzero, String payload, String messageId, boolean first,

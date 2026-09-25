@@ -151,6 +151,10 @@ public class DefaultTracking implements Tracking {
             new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, DocumentMessageReader> documentReaders = new ConcurrentHashMap<>();
+    private final AtomicBoolean closing = new AtomicBoolean();
+    private final CompletableFuture<Void> closed = new CompletableFuture<>();
+    private volatile Thread closingThread;
+    private final Set<ChunkedDeserializingMessage> incompleteMessages = ConcurrentHashMap.newKeySet();
     private final Set<CompletableFuture<?>> outstandingRequests = ConcurrentHashMap.newKeySet();
     private final ExecutorService messageHandlerExecutor = newWorkerPool("tracking-message-handler", 8);
     private final ThreadLocal<SegmentedBatchHandlerQueue> batchHandlerQueue = new ThreadLocal<>();
@@ -195,6 +199,9 @@ public class DefaultTracking implements Tracking {
     @Override
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
+        if (closing.get()) {
+            throw new IllegalStateException("Tracking is closed");
+        }
         return fluxzero.apply(fc -> {
             List<?> trackingTargets = expandTrackingTargets(handlers);
             if (handlerFactory instanceof DefaultHandlerFactory defaultHandlerFactory) {
@@ -820,7 +827,8 @@ public class DefaultTracking implements Tracking {
             if (!message.firstChunk()) {
                 String key = chunkKey(topic, message);
                 ChunkedDeserializingMessage chunkedMessage = activeChunkedMessages.get(key);
-                if (chunkedMessage == null) {
+                if (chunkedMessage == null && !closing.get()) {
+                    // Shutdown must not reconstruct a stream that it just failed and removed from the active map.
                     chunkedMessage = recoverChunkedMessage(topic, trackingClient, message, recoveryMaxFetchSize)
                             .orElse(null);
                     if (chunkedMessage != null) {
@@ -848,6 +856,9 @@ public class DefaultTracking implements Tracking {
         }
         flushNonChunkedMessages(pendingNonChunkedMessages, topic, result, documentReader);
         pendingContinuations.values().stream().flatMap(Collection::stream).forEach(this::logSkippedContinuation);
+        // Register only after reconstructing the entire batch: a final chunk in this batch must still be consumed.
+        result.stream().filter(ChunkedDeserializingMessage.class::isInstance)
+                .map(ChunkedDeserializingMessage.class::cast).forEach(this::registerIncompleteMessage);
         return result;
     }
 
@@ -863,6 +874,21 @@ public class DefaultTracking implements Tracking {
             result.addAll(deserializeNonChunkedMessages(messages, topic, reader));
             messages.clear();
         }
+    }
+
+    private void registerIncompleteMessage(ChunkedDeserializingMessage message) {
+        if (!message.completion().isDone()) {
+            incompleteMessages.add(message);
+            message.completion().whenComplete((ignored, error) -> incompleteMessages.remove(message));
+            // Pair add/check with close's flag/snapshot so a concurrently arriving body cannot escape cleanup.
+            if (closing.get() && incompleteMessages.remove(message)) {
+                failIncompleteMessage(message);
+            }
+        }
+    }
+
+    private static void failIncompleteMessage(ChunkedDeserializingMessage message) {
+        message.fail(new IllegalStateException("Tracking closed before the final payload chunk was received"));
     }
 
     private String chunkKey(String topic, SerializedMessage message) {
@@ -1265,7 +1291,7 @@ public class DefaultTracking implements Tracking {
                     if (completion != null) {
                         completion.completeExceptionally(t);
                     } else {
-                        close();
+                        closeOnFailure();
                     }
                 }
             }));
@@ -1292,12 +1318,12 @@ public class DefaultTracking implements Tracking {
                 completion.completeExceptionally(
                         publicationFailure);
             } else {
-                close();
+                closeOnFailure();
             }
         } finally {
             outstandingRequests.remove(resultFuture);
             if (resultFailure != null) {
-                close();
+                closeOnFailure();
             }
         }
     }
@@ -1387,12 +1413,47 @@ public class DefaultTracking implements Tracking {
 
     /**
      * Shuts down all started trackers and waits briefly for asynchronous results (e.g. command responses) to complete.
+     * Incomplete chunked payloads fail before trackers are joined, releasing handlers waiting for missing input.
+     * Fully received payloads and ordinary asynchronous results retain their normal completion grace period.
      */
     @Override
-    @Synchronized
     public void close() {
-        shutdownFunction.get().merge(() -> waitForResults(Duration.ofSeconds(2), outstandingRequests))
-                .merge(messageHandlerExecutor::shutdown)
-                .cancel();
+        if (closing.compareAndSet(false, true)) {
+            doClose();
+        } else if (Thread.currentThread() != closingThread) {
+            closed.join();
+        }
+    }
+
+    private void closeOnFailure() {
+        // A tracker/error callback must not wait for another closer that may itself be joining that tracker.
+        if (closing.compareAndSet(false, true)) {
+            doClose();
+        }
+    }
+
+    private void doClose() {
+        closingThread = Thread.currentThread();
+        try {
+            Registration shutdown = takeShutdownRegistration();
+            List<ChunkedDeserializingMessage> abandoned = List.copyOf(incompleteMessages);
+            incompleteMessages.removeAll(abandoned);
+            // Release incomplete bodies before joining trackers: awaitAsyncResults consumers may be waiting on them.
+            abandoned.forEach(DefaultTracking::failIncompleteMessage);
+            shutdown.merge(() -> waitForResults(Duration.ofSeconds(2), outstandingRequests))
+                    .merge(messageHandlerExecutor::shutdown)
+                    .cancel();
+            closed.complete(null);
+        } catch (RuntimeException | Error e) {
+            closed.completeExceptionally(e);
+            throw e;
+        } finally {
+            closingThread = null;
+        }
+    }
+
+    @Synchronized
+    private Registration takeShutdownRegistration() {
+        return shutdownFunction.getAndSet(Registration.noOp());
     }
 }

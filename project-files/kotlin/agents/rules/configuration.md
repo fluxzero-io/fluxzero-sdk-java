@@ -346,3 +346,8 @@ fallback, and new clients continue to read old replies. No stored data changes o
 only the SDK cannot repair an old Runtime that omits substeps. Zero-only responses and Graph-embedded event pages
 retain their existing representation. Request count and payload-byte limits retain their existing meaning; metadata
 still contributes to total response size.
+
+## Tracking shutdown
+
+When tracking closes, incomplete chunked payloads fail so their handlers cannot remain blocked waiting for missing
+input. A fully received body remains readable, and ordinary asynchronous handler results retain their shutdown grace.
