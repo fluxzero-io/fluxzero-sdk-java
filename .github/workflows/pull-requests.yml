@@ -31,7 +31,9 @@ jobs:
           cache: 'maven'
 
       - name: Test release version policy
-        run: bash .github/scripts/resolve-release-version.test.sh
+        run: |
+          bash .github/scripts/resolve-release-version.test.sh
+          bash .github/scripts/resolve-release-publication.test.sh
 
       - name: Validate agent documentation graph
         run: |

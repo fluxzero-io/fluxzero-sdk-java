@@ -43,6 +43,16 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v7
 
+      - name: Validate maintenance Javadoc destination
+        env:
+          RELEASE_BRANCH: ${{ github.ref_name }}
+          DESTINATION: ${{ inputs.destination-dir }}
+        run: |
+          if [[ "$RELEASE_BRANCH" == "1.x" && "$DESTINATION" != "javadoc/1.x" ]]; then
+            echo "Branch 1.x may publish Javadoc only to javadoc/1.x" >&2
+            exit 1
+          fi
+
       - name: Install Java and Maven
         uses: actions/setup-java@v6
         with:
