@@ -13,6 +13,28 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
+        with:
+          # The PR merge commit and its parents are enough to inspect the complete merged diff.
+          fetch-depth: 2
+
+      - name: Classify PR changes
+        id: changes
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_MERGE: ${{ github.sha }}
+        run: python3 .github/scripts/classify-changes.py "$PR_BASE" "$PR_MERGE" >> "$GITHUB_OUTPUT"
+
+      - name: Validate documentation-only changes
+        if: steps.changes.outputs.documentation_only == 'true'
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_MERGE: ${{ github.sha }}
+        run: |
+          git diff --check "$PR_BASE" "$PR_MERGE"
+          echo "Only documentation changed; full SDK build is unnecessary." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Test PR change classification
+        run: python3 .github/scripts/classify-changes.test.py
 
       - name: Verify repository normalization
         run: |
@@ -24,6 +46,7 @@ jobs:
           fi
 
       - name: Install Java and Maven
+        if: steps.changes.outputs.documentation_only != 'true'
         uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
@@ -41,9 +64,11 @@ jobs:
           python3 .github/scripts/build-agent-docs.test.py
 
       - name: Run Maven build
+        if: steps.changes.outputs.documentation_only != 'true'
         run: ./mvnw -B install
 
       - name: Verify standard Maven publication and release attachments
+        if: steps.changes.outputs.documentation_only != 'true'
         run: |
           repository="$RUNNER_TEMP/maven-publication"
           ./mvnw -B -Dgpg.skip -DskipTests deploy \

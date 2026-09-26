@@ -136,6 +136,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Build And Test
 
+- For changes confined to repository instructions (`AGENTS.md`) or README prose, review the diff and links and run
+  `git diff --check`; do not run the full Maven build solely for those edits. Documentation consumed by builds,
+  executable examples, or release artifacts still requires its relevant validation.
 - Use the Maven wrapper: `./mvnw`.
 - Packaging the agent documentation ZIP also requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
 - The project compiles with `maven.compiler.release=21`; CI and Docker images currently run on Temurin/Distroless Java 25.
@@ -164,6 +167,12 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Commit Messages
 
+- Use ordinary Conventional Commit messages for documentation; do not add `[skip ci]`. Markdown/MDX, similar
+  documentation text, documentation images and the agent graph manifest use lightweight PR validation, including
+  graph and archive checks. Source resources, fixtures, scripts, configuration and mixed changes keep full SDK
+  qualification. `.github/scripts/classify-changes.py` owns the exact boundary.
+- Ordinary pushes to `1.x` still do not publish or refresh the stable website. Versioned documentation and legacy
+  ZIPs incorporate edits at the next explicitly authorized maintenance release; existing artifacts stay immutable.
 - Use Conventional Commits with a clear domain scope for human-authored commits.
 - Format: `<type>(<domain>): <short imperative summary>`.
 - Good examples: `fix(tracking): avoid negative pause sleeps`, `refactor(handling): simplify payload resolver ordering`, `test(logging): cover async appender shutdown`.
