@@ -69,7 +69,7 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
     }
 
     public static List<DownstreamModel> fetchAcrossCollections() {
-        return Fluxzero.search(DownstreamModel.class, "archived-downstream-models").fetchAll();
+        return Fluxzero.<DownstreamModel>search(DownstreamModel.class, "archived-downstream-models").fetchAll();
     }
 
     @Model

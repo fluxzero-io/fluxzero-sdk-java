@@ -3,6 +3,8 @@ package io.fluxzero.sdk.modeling
 import io.fluxzero.sdk.Fluxzero
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository
+import io.fluxzero.sdk.persisting.search.Search
+import io.fluxzero.sdk.persisting.search.Searchable
 import io.fluxzero.sdk.test.TestFixture
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -46,6 +48,26 @@ class ModelKotlinTest {
         assertContentEquals(arrayOf(ModelPersistence.DOCUMENT), annotation.persistence)
         assertEquals("kotlin-models", annotation.document.collection)
         assertEquals(1, KotlinModel("model", emptyList()).rename(RenameKotlinModel("new")).parts.size)
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun searchesHeterogeneousCollectionsWithExplicitAndTargetTypes(async: Boolean) {
+        val fixture = if (async) TestFixture.createAsync() else TestFixture.create()
+        fixture.givenDocument(SearchAlpha("alpha"))
+            .givenDocument(SearchBeta("beta"))
+            .whenExecuting { _ ->
+                val expected = listOf("SearchAlpha", "SearchBeta")
+                val search: Search<Any> = Fluxzero.search(SearchAlpha::class.java, SearchBeta::class.java)
+                assertEquals(expected, search.fetchAll().map { it.javaClass.simpleName }.sorted())
+                assertEquals(expected, Fluxzero.search<Any>(SearchAlpha::class.java, "search-beta")
+                    .fetchAsync(10).join().map { it.javaClass.simpleName }.sorted())
+                assertEquals(expected, Fluxzero.search<Any>("search-alpha", "search-beta")
+                    .stream().map { it.javaClass.simpleName }.sorted().toList())
+                assertEquals("alpha", Fluxzero.search(SearchAlpha::class.java).fetchFirstOrNull().id)
+                assertEquals(listOf(SearchAlpha("alpha")),
+                    Fluxzero.search<SearchAlpha>(SearchAlpha::class.java, "archive").fetchAll())
+            }.expectSuccessfulResult().expectNoErrors()
     }
 
     @Suppress("unused")
@@ -93,3 +115,9 @@ data class KotlinChild(
     @Parent(pathInParent = "children") val parentId: KotlinParentId,
     @Parent(value = KotlinParent::class, pathInParent = "externalChildren") val externalParentId: String,
 )
+
+@Searchable(collection = "search-alpha")
+data class SearchAlpha(@EntityId val id: String)
+
+@Searchable(collection = "search-beta")
+data class SearchBeta(@EntityId val id: String)

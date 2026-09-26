@@ -119,6 +119,12 @@ For response shaping, prefer search projections instead of post-processing in ap
 
 Access the search engine via `Fluxzero.search(Project::class.java)` or by providing a collection name.
 
+A single class retains its result type: `Fluxzero.search(Project::class.java)` returns `Search<Project>`.
+Multiple collections may contain different types. Use `Fluxzero.search<Any>(Project::class.java, Task::class.java)`
+or assign the search to `Search<Any>`; the first class only identifies a collection. Each result still uses its
+stored document type. For collections known to share one type, use
+`Fluxzero.search<Project>(Project::class.java, "archived-projects")`. Explicit terminal result classes remain supported.
+
 <a name="basic-constraints"></a>
 
 ### Basic Constraints

@@ -121,6 +121,14 @@ For response shaping, prefer search projections instead of post-processing in ap
 
 Access the search engine via `Fluxzero.search(Class<T>)` or by providing a collection name.
 
+A single class retains its result type: `Fluxzero.search(Project.class)` returns `Search<Project>`.
+Multiple collections may contain different types. `Fluxzero.search(Project.class, Task.class)` therefore defaults
+to `Search<Object>` in a Java fluent chain; each result still uses its stored document type. For collections known
+to share one type, choose it explicitly: `Fluxzero.<Project>search(Project.class, "archived-projects")`.
+A typed `Search<Project>` assignment also supplies that type. Recompile existing multi-collection callers after
+upgrading so they no longer retain casts inferred from the first class. Explicit terminal classes such as
+`fetchAll(JsonNode.class)` still select an alternative result representation.
+
 <a name="basic-constraints"></a>
 
 ### Basic Constraints
