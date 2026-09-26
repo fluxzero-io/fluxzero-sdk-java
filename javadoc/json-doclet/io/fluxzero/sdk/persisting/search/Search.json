@@ -300,7 +300,28 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes all matching documents in the current search, using the requested batch size to control how many\n documents are removed by each delete statement.\n <p>\n The batch size does not limit the total number of documents that are deleted. For a positive batch size, the\n runtime repeatedly selects and deletes at most that many matching documents until no matches remain. This keeps\n individual statements and their locks shorter, at the cost of executing multiple statements.\n <ul>\n     <li>{@code 0} lets the runtime choose its default batch size;</li>\n     <li>a positive value sets the maximum number of documents processed per batch;</li>\n     <li>a negative value requests deletion with one unbounded statement.</li>\n </ul>\n Each batch may be committed independently. If a later batch fails, documents removed by earlier batches remain\n deleted. The returned future completes only after all matching documents have been processed, or completes\n exceptionally when a batch fails.\n\n @param batchSize requested delete batch size\n @return a future that completes when deletion has finished\n"
+    "documentation" : " Deletes all matching documents in the current search, using the requested batch size to control how many\n documents are removed by each delete statement.\n <p>\n The batch size does not limit the total number of documents that are deleted. For a positive batch size, the\n runtime repeatedly selects and deletes at most that many matching documents until no matches remain. This keeps\n individual statements and their locks shorter, at the cost of executing multiple statements.\n <ul>\n     <li>{@code 0} lets the runtime choose its default batch size;</li>\n     <li>a positive value sets the maximum number of documents processed per batch;</li>\n     <li>a negative value requests deletion with one unbounded statement.</li>\n </ul>\n Each batch may be committed independently. If a later batch fails, documents removed by earlier batches remain\n deleted. The returned future follows {@link Guarantee#DEFAULT}: with STORED it completes after all matching documents\n have been processed or a batch fails; NONE and SENT do not confirm completion of server-side deletion.\n\n @param batchSize requested delete batch size\n @return a future that completes when the selected delivery guarantee has been reached\n"
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deletes matching documents with an explicit delivery guarantee. Legacy custom searches retain their existing\n durable deletion implementation for STORED; other concrete guarantees require implementation support.\n"
   }, {
     "name" : "escapeMetadataKey",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#escapeMetadataKey",
@@ -777,7 +798,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Moves all matching documents in the current search to the given collection.\n\n @param targetCollection the collection to move to\n"
+    "documentation" : " Moves all matching documents in the current search to the given collection using {@link Guarantee#DEFAULT}.\n\n @param targetCollection the collection to move to\n"
   }, {
     "name" : "not",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#not",

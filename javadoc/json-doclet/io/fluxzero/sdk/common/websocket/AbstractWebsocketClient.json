@@ -226,6 +226,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultObjectMapper",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.defaultObjectMapper",
     "type" : "com.fasterxml.jackson.databind.ObjectMapper",
@@ -2277,6 +2285,38 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "requireConcreteGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#requireConcreteGuarantee",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#resolveGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves standalone client defaults once configured at client construction. "
+  }, {
     "name" : "responseTimingMetadata",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#responseTimingMetadata",
     "returnType" : "io.fluxzero.common.api.Metadata",
@@ -2687,6 +2727,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Releases prepared requests per selected session in one queue operation. "
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultContext",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "sendUntracked",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendUntracked",

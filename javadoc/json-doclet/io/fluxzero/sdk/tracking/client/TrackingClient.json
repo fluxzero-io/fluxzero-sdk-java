@@ -76,7 +76,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Disconnects the specified tracker from its segment and optionally sends an empty final batch.\n <p>\n Default implementation uses {@link Guarantee#SENT}.\n\n @param consumer            the name of the consumer group\n @param trackerId           the ID of the tracker thread being disconnected\n @param sendFinalEmptyBatch whether to send an empty batch to flush tracking state\n @return a future indicating disconnection\n"
+    "documentation" : " Disconnects the specified tracker from its segment and optionally sends an empty final batch.\n <p>\n Default implementation uses {@link Guarantee#DEFAULT}.\n\n @param consumer            the name of the consumer group\n @param trackerId           the ID of the tracker thread being disconnected\n @param sendFinalEmptyBatch whether to send an empty batch to flush tracking state\n @return a future indicating disconnection\n"
   }, {
     "name" : "disconnectTracker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#disconnectTracker",

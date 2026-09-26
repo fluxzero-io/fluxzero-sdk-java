@@ -5,7 +5,7 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " A simple interface for storing, retrieving, and removing key-value pairs.\n <p>\n This interface provides basic persistence operations such as storing values (with optional guarantees),\n retrieving them by key, conditionally storing only if absent, and deleting by key.\n\n <p><strong>Note:</strong> This API is considered legacy in the Fluxzero Runtime. It is recommended\n to use the more advanced and flexible {@code DocumentStore} instead, which supports structured querying,\n indexing, updates, and document lifecycle features.\n\n <p>This interface is still supported internally for backward compatibility and simple data use cases.\n\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
+  "documentation" : " A simple interface for storing, retrieving, and removing key-value pairs.\n <p>\n This interface provides basic persistence operations such as storing values (with optional guarantees),\n retrieving them by key, conditionally storing only if absent, and deleting by key.\n Writes return futures and do not block. Use an explicit {@link Guarantee#STORED} and await its future when\n another operation depends on durable storage. Active tracking batches await registered write completions.\n\n <p><strong>Note:</strong> This API is considered legacy in the Fluxzero Runtime. It is recommended\n to use the more advanced and flexible {@code DocumentStore} instead, which supports structured querying,\n indexing, updates, and document lifecycle features.\n\n <p>This interface is still supported internally for backward compatibility and simple data use cases.\n\n @see io.fluxzero.sdk.persisting.search.DocumentStore\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.keyvalue.KeyValueStore>" ],
@@ -14,8 +14,8 @@
   "methods" : [ {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#delete",
-    "returnType" : "void",
-    "modifiers" : [ "abstract", "public" ],
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -26,7 +26,28 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Removes the value associated with the given key.\n\n @param key the key to delete\n"
+    "documentation" : " Removes the value associated with the given key.\n\n @param key the key to delete\n @return completion according to the application default\n"
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes a value asynchronously with the specified delivery guarantee.\n @param key the key to delete\n @param guarantee concrete guarantee or DEFAULT\n @return completion according to the selected guarantee\n"
   }, {
     "name" : "forNamespace",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#forNamespace",
@@ -65,7 +86,7 @@
   }, {
     "name" : "store",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#store",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "default", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -82,11 +103,11 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Stores a value under the given key with the default {@link Guarantee#SENT} delivery guarantee.\n\n @param key   the key to store the value under\n @param value the value to store\n"
+    "documentation" : " Stores a value under the given key with the default {@link Guarantee#DEFAULT} delivery guarantee.\n\n @param key   the key to store the value under\n @param value the value to store\n @return delivery completion according to the application default\n"
   }, {
     "name" : "store",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#store",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -108,11 +129,11 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Stores a value under the given key with the specified delivery guarantee.\n\n @param key       the key to store the value under\n @param value     the value to store\n @param guarantee the delivery guarantee (e.g., SENT, STORED)\n"
+    "documentation" : " Stores a value under the given key with the specified delivery guarantee.\n\n @param key       the key to store the value under\n @param value     the value to store\n @param guarantee the delivery guarantee (DEFAULT, NONE, SENT, or STORED)\n @return completion according to the selected guarantee\n"
   }, {
     "name" : "storeIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.KeyValueStore#storeIfAbsent",
-    "returnType" : "boolean",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -129,7 +150,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Stores a value only if there is no existing value for the specified key.\n\n @param key   the key to store the value under\n @param value the value to store\n @return {@code true} if the value was stored, {@code false} if the key already had a value\n"
+    "documentation" : " Stores a value only if there is no existing value for the specified key. This always requests a stored\n result; the application delivery default does not weaken the conditional operation.\n\n @param key   the key to store the value under\n @param value the value to store\n @return a future with {@code true} if the value was stored, {@code false} if the key already had a value\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

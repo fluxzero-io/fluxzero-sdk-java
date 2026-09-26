@@ -61,6 +61,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "disconnectGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.disconnectGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "flowRegulator",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker.flowRegulator",
     "type" : "io.fluxzero.sdk.tracking.FlowRegulator",
@@ -197,6 +205,11 @@
     }, {
       "name" : "trackingClient",
       "type" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "disconnectGuarantee",
+      "type" : "io.fluxzero.common.Guarantee",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -623,6 +636,47 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Starts one or more trackers. Messages will be passed to the given consumer. Once the consumer is done the\n position of the tracker is automatically updated.\n <p>\n Each tracker started is using a single thread. To track in parallel configure the number of trackers using\n {@link ConsumerConfiguration}.\n"
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#start",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.util.function.Consumer<java.util.List<io.fluxzero.common.api.SerializedMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "disconnectGuarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker#start",

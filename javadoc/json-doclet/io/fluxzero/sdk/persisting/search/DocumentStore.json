@@ -90,7 +90,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Configures Fluxzero to use a search collection as a searchable audit trail with the given retention time.\n"
+    "documentation" : " Configures Fluxzero to use a search collection as a searchable audit trail with the given retention time and {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "deleteCollection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#deleteCollection",
@@ -106,7 +106,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes an entire collection of documents.\n"
+    "documentation" : " Deletes an entire collection of documents using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "deleteDocument",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#deleteDocument",
@@ -127,7 +127,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes a document from the collection, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Deletes a document from the collection, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "deleteDocument",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#deleteDocument",
@@ -390,7 +390,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a document with the specified guarantees, metadata, and if-not-exists condition, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a document with the specified guarantee, metadata, and if-not-exists condition.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -444,7 +444,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a document with the specified guarantees, metadata, and if-not-exists condition, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a document with the specified guarantee, metadata, and if-not-exists condition.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -463,7 +463,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes one or more objects using the default configuration, using {@link Guarantee#STORED}. Timestamps,\n collection names, and IDs are inferred from annotations or fallback strategies.\n"
+    "documentation" : " Indexes one or more objects using the default configuration, using {@link Guarantee#DEFAULT}. Timestamps,\n collection names, and IDs are inferred from annotations or fallback strategies.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -487,7 +487,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes one or more objects into the specified collection, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes one or more objects into the specified collection, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -516,7 +516,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a single object with an explicitly provided ID and collection, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a single object with an explicitly provided ID and collection, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -553,7 +553,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a single object at a specific timestamp, using {@link Guarantee#STORED}.\n <p>\n The same value is used as both start and end time of the document.\n"
+    "documentation" : " Indexes a single object at a specific timestamp, using {@link Guarantee#DEFAULT}.\n <p>\n The same value is used as both start and end time of the document.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -595,7 +595,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a single object with a specific start and end time, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a single object with a specific start and end time, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -621,7 +621,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using a function to extract the object ID, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using a function to extract the object ID, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -655,7 +655,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using property paths for ID, start, and end timestamps, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using property paths for ID, start, and end timestamps, using\n {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -694,7 +694,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using property paths for ID, start, and end timestamps, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using property paths for ID, start, and end timestamps, using\n {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -740,7 +740,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using functional accessors for ID and time intervals, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using the supplied ID/time accessors and delivery guarantee.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -761,7 +761,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects into a named collection, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects into a named collection, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -795,7 +795,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using property paths for ID and timestamps, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using property paths for ID and timestamps, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -834,7 +834,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using property paths for ID, start, and end timestamps, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using property paths for ID, start, and end timestamps, using\n {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#index",
@@ -880,7 +880,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a collection of objects using functional accessors for ID and time intervals, using\n {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a collection of objects using the supplied ID/time accessors and delivery guarantee.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -901,7 +901,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}. The given\n object may be a collection of objects.\n"
+    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#DEFAULT}. The given\n object may be a collection of objects.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -927,7 +927,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -961,7 +961,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1000,7 +1000,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes a document only if it is not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1021,7 +1021,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1055,7 +1055,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1094,7 +1094,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1120,7 +1120,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1154,7 +1154,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Indexes documents only if there are not already present in the index, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "indexIfNotExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#indexIfNotExists",
@@ -1219,7 +1219,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes a document from the collection, using {@link Guarantee#STORED}.\n"
+    "documentation" : " Moves a document to the target collection, using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "moveDocument",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#moveDocument",
@@ -1250,7 +1250,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes a document from the collection, using given {@link Guarantee}.\n"
+    "documentation" : " Moves a document to the target collection, using the given {@link Guarantee}.\n"
   }, {
     "name" : "prepareIndex",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStore#prepareIndex",

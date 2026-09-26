@@ -42,7 +42,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Cancel a scheduled message using {@link Guarantee#SENT} as the default guarantee.\n\n @param scheduleId The identifier of the schedule to cancel.\n @return A future that completes when the cancellation request is acknowledged.\n"
+    "documentation" : " Cancel a scheduled message using {@link Guarantee#DEFAULT} as the default guarantee.\n\n @param scheduleId The identifier of the schedule to cancel.\n @return A future that completes when the selected delivery guarantee is reached.\n"
   }, {
     "name" : "cancelSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.SchedulingClient#cancelSchedule",
@@ -63,7 +63,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Cancel a scheduled message using the provided delivery guarantee.\n\n @param scheduleId The identifier of the schedule to cancel.\n @param guarantee  Delivery guarantee for the cancellation request.\n @return A future that completes when the cancellation is processed.\n"
+    "documentation" : " Cancel a scheduled message using the provided delivery guarantee.\n\n @param scheduleId The identifier of the schedule to cancel.\n @param guarantee  Delivery guarantee for the cancellation request.\n @return A future that completes when the selected delivery guarantee is reached.\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.SchedulingClient#close",
@@ -130,7 +130,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Schedule one or more serialized schedules with a specified {@link Guarantee}.\n\n @param guarantee Delivery guarantee to apply (e.g., none, sent, stored).\n @param schedules One or more schedules to register.\n @return A future that completes when the scheduling is acknowledged.\n"
+    "documentation" : " Schedule one or more serialized schedules with a specified {@link Guarantee}.\n\n @param guarantee Delivery guarantee to apply (e.g., none, sent, stored).\n @param schedules One or more schedules to register.\n @return A future that completes when the selected delivery guarantee is reached.\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.SchedulingClient#schedule",
@@ -146,7 +146,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Schedule one or more serialized schedules using {@link Guarantee#SENT} as the default delivery guarantee.\n\n @param schedules One or more schedules to add.\n @return A future that completes when the schedules have been sent or persisted (depending on the\n underlying implementation).\n"
+    "documentation" : " Schedule one or more serialized schedules using {@link Guarantee#DEFAULT} as the default delivery guarantee.\n\n @param schedules One or more schedules to add.\n @return A future that completes when the schedules have been sent or persisted (depending on the\n underlying implementation).\n"
   }, {
     "name" : "scheduleBoundToParents",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.SchedulingClient#scheduleBoundToParents",

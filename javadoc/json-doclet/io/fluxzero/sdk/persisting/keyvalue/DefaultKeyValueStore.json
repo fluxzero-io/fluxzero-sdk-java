@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "keyValueClient",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore.keyValueClient",
     "type" : "io.fluxzero.sdk.persisting.keyvalue.client.KeyValueClient",
@@ -82,7 +90,7 @@
   }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore#delete",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -92,6 +100,11 @@
     "parameters" : [ {
       "name" : "key",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -120,7 +133,7 @@
   }, {
     "name" : "store",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore#store",
-    "returnType" : "void",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -149,7 +162,7 @@
   }, {
     "name" : "storeIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore#storeIfAbsent",
-    "returnType" : "boolean",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
     "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.lang.Override",
@@ -170,6 +183,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withDefaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore#withDefaultGuarantee",
+    "returnType" : "io.fluxzero.sdk.persisting.keyvalue.DefaultKeyValueStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures the concrete application delivery default before first use; namespace stores inherit it. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

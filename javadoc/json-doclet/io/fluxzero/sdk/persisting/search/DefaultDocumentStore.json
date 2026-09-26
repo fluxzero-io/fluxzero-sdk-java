@@ -32,6 +32,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "handlerRegistry",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.handlerRegistry",
     "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
@@ -94,61 +102,6 @@
   "constructors" : [ {
     "name" : "DefaultDocumentStore",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "client",
-      "type" : "io.fluxzero.sdk.configuration.client.Client",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "serializer",
-      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "handlerRegistry",
-      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "DefaultDocumentStore",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "client",
-      "type" : "io.fluxzero.sdk.configuration.client.Client",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "serializer",
-      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "handlerRegistry",
-      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "modelNamePrefix",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "DefaultDocumentStore",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -160,6 +113,11 @@
     }, {
       "name" : "serializer",
       "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultGuarantee",
+      "type" : "io.fluxzero.common.Guarantee",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -180,6 +138,61 @@
     }, {
       "name" : "modelTypesSupplier",
       "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultDocumentStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerRegistry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultDocumentStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#DefaultDocumentStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerRegistry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HasLocalHandlers",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelNamePrefix",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -690,6 +703,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#resolveGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#search",
     "returnType" : "io.fluxzero.sdk.persisting.search.Search<T>",
@@ -770,6 +799,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withDefaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#withDefaultGuarantee",
+    "returnType" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures the concrete application delivery default before first use; namespace copies inherit it. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

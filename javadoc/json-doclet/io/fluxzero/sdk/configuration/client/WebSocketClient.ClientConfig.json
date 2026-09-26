@@ -211,6 +211,17 @@
     "documentation" : " How long a websocket connection attempt may take before it times out. Defaults to {@code 10 seconds}.\n",
     "constantValue" : null
   }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Concrete DEFAULT guarantee for direct client calls. Application gateways pass their own resolved policy.\n Configured by {@code fluxzero.publishing.defaultGuarantee} ({@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}).\n",
+    "constantValue" : null
+  }, {
     "name" : "disableMetrics",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.disableMetrics",
     "type" : "boolean",

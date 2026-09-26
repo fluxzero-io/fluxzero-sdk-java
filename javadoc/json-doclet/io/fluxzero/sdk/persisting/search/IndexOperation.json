@@ -208,7 +208,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Executes the indexing operation with a default guarantee of {@link Guarantee#STORED}.\n"
+    "documentation" : " Executes the indexing operation with a default guarantee of {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "index",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#index",
@@ -238,7 +238,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Executes the indexing operation with a {@link Guarantee#NONE} guarantee and does not wait for completion.\n"
+    "documentation" : " Executes the indexing operation with a {@link Guarantee#DEFAULT} guarantee and does not wait for completion.\n"
   }, {
     "name" : "indexAndWait",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.IndexOperation#indexAndWait",

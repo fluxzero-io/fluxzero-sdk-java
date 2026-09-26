@@ -31,7 +31,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
-    "documentation" : " Append the given messages to the gateway, applying the given delivery {@link Guarantee}.\n\n @param guarantee a concrete delivery guarantee; SDK gateways resolve {@code DEFAULT} before calling this client\n @param messages  one or more serialized messages to append\n @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery\n fails\n"
+    "documentation" : " Append the given messages to the gateway, applying the given delivery {@link Guarantee}.\n\n @param guarantee delivery guarantee; SDK gateways resolve DEFAULT using their application policy; direct WebSocket calls\n                  resolve it using their immutable client configuration\n @param messages  one or more serialized messages to append\n @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery\n fails\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient#close",
@@ -66,7 +66,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes once the retention setting is updated\n"
+    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.publishing.client.GatewayClient#truncate",
@@ -82,7 +82,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Truncates the underlying gateway's message log and clears its tracking positions.\n\n @param guarantee the delivery guarantee to apply to the truncate operation\n @return a {@link CompletableFuture} that completes once the log is truncated\n"
+    "documentation" : " Truncates the underlying gateway's message log and clears its tracking positions.\n\n @param guarantee the delivery guarantee to apply to the truncate operation\n @return a {@link CompletableFuture} that completes according to the selected delivery guarantee\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

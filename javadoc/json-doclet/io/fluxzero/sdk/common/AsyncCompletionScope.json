@@ -30,6 +30,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "await",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#await",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.util.function.Supplier<java.util.concurrent.CompletableFuture<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts and synchronously awaits an operation whose completion is owned by the caller. Nested transport attempts\n are not independently added to the surrounding scope: a caller may catch the failure and retry the operation.\n Other registered side effects remain attached to the batch. Waiting is interruptible; interruption preserves\n the thread interrupt flag and is reported as a {@link CompletionException}.\n\n @param operation operation whose complete lifecycle is represented by its returned future\n @param <T> result type\n @return the completed result\n"
+  }, {
     "name" : "captureContext",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#captureContext",
     "returnType" : "java.util.function.Supplier<T>",
@@ -167,6 +183,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "takeOwnership",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#takeOwnership",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.util.function.Supplier<java.util.concurrent.CompletableFuture<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an operation whose returned future will be awaited or registered by its caller. Only that exact future\n is removed from automatic batch registration. Other work started by local handlers, interceptors or captured\n worker contexts remains attached to the enclosing scope.\n\n @param operation operation whose returned completion is owned by the caller\n @param <T> completion result type\n @return the operation's future, which the caller must await or register\n"
   }, {
     "name" : "throwUnchecked",
     "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope#throwUnchecked",
