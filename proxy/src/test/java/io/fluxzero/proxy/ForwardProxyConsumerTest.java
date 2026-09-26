@@ -61,6 +61,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -550,14 +551,12 @@ class ForwardProxyConsumerTest {
         Client client = mockForwardingClient();
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<byte[]> response = httpResponse(200, "ok");
-        List<String> started = new ArrayList<>();
+        var started = new LinkedBlockingQueue<String>();
         List<CompletableFuture<HttpResponse<byte[]>>> attempts = List.of(
                 new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>());
         AtomicInteger attempt = new AtomicInteger();
         when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
-            synchronized (started) {
-                started.add(invocation.<HttpRequest>getArgument(0).uri().getPath());
-            }
+            started.add(invocation.<HttpRequest>getArgument(0).uri().getPath());
             return attempts.get(attempt.getAndIncrement());
         });
         ForwardProxyConsumer consumer = new ForwardProxyConsumer(
@@ -575,19 +574,21 @@ class ForwardProxyConsumerTest {
 
         verify(httpClient, timeout(1_000).times(2))
                 .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
-        synchronized (started) {
-            assertEquals(List.of("/first", "/other-segment"), started);
-        }
+        // Mockito records an invocation before its answer publishes the observed request.
+        assertEquals("/first", started.poll(1, TimeUnit.SECONDS));
+        assertEquals("/other-segment", started.poll(1, TimeUnit.SECONDS));
+        assertNull(started.poll());
         attempts.get(1).complete(response);
         verify(httpClient, times(2)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         attempts.getFirst().complete(response);
         verify(httpClient, timeout(1_000).times(3))
                 .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
-        synchronized (started) {
-            assertEquals(List.of("/first", "/other-segment", "/same-segment"), started);
-        }
+        assertEquals("/same-segment", started.poll(1, TimeUnit.SECONDS));
+        assertNull(started.poll());
         attempts.get(2).complete(response);
         consumer.awaitActiveRequests();
+        verify(httpClient, times(3)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        assertNull(started.poll());
     }
 
     @Test
