@@ -40,7 +40,7 @@ Normal changes flow from `main` to `next/2.0`; only deliberately selected 2.0 fi
 4. The resulting `main` run publishes `2.0.0`, because no stable major-2 tag exists yet.
 5. Remove `next/2.0` only after the SDK and Runtime GA releases and downstream checks are green.
 
-Subsequent accepted changes on `main` use `fix`, `perf`, `deps` and `revert` for a patch bump;
+Subsequent accepted changes on `main` use `fix`, `perf`, `deps`, `revert`, `docs`, `chore` and `test` for a patch bump;
 `feat` takes precedence and produces a minor bump. Other commit types do not raise a detected patch bump.
 When no release-bearing type is present, the historical minor fallback remains. Both scoped and unscoped
 subjects are supported. A `!` subject or `BREAKING CHANGE:`/`BREAKING-CHANGE:` footer stops automatic
@@ -53,12 +53,36 @@ For example, a fix after `2.1.0` produces `2.1.1`; a feature produces `2.2.0`.
 Explicit dispatch versions remain subject to the branch's major/prerelease restrictions. An exceptional critical 1.x repair is
 published manually from `1.x` with an explicit patch version such as `1.247.1`; it is then forward-ported to `main`.
 
+## Documentation-only changes
+
+PRs and pushes classify the complete changed-file set with `.github/scripts/classify-changes.py`. Markdown,
+MDX, Markdown-text alternatives (`.markdown`, `.rst`, `.adoc`), plain text under `docs/` and conventional
+README/license/changelog text files, `LICENSE`, `NOTICE`, documentation images
+and diagrams under `docs/`, and `docs/agents/manifest.json` use lightweight validation. Files under `src/` or
+`fixtures/` retain full validation even with those extensions: runtime and test inputs need not be compiled.
+Known text build inputs such as `requirements.txt` and `CMakeLists.txt` remain on the full route.
+Other files, including scripts, build configuration and mixed code/documentation changes, keep the full build.
+Both sides of renames count; pushes compare the whole pushed range and PRs compare the merged result with its base.
+
+The required `build-pr` check still runs. Agent graph validation and archive tests run on the lightweight route,
+but Java setup, Maven and executable artifact qualification are skipped. Use ordinary commit messages without
+`[skip ci]`. Documentation-only pushes do not create SDK versions or publish packages, Javadoc or release ZIPs.
+Versioned agent documentation and legacy project ZIPs incorporate edits at the next SDK release; existing release
+assets remain immutable. Skipped commits remain in history and participate in the next release's version selection.
+
+Validated documentation-only pushes affecting `docs/developer/` still send `fluxzero-sdk-updated` to the website
+with the exact SDK SHA and before/after range, without inventing an SDK version. The website refreshes changed
+pages and assets from that commit. Stable SDK releases retain their existing website notification. Manual Deploy
+dispatch always keeps the complete release path and requires explicit publication authorization. Deploy runs queue
+instead of replacing pending releases when a later documentation-only push arrives.
+
 ## Local policy check
 
 Run:
 
 ```bash
 bash .github/scripts/resolve-release-version.test.sh
+python3 .github/scripts/classify-changes.test.py
 ```
 
 This validates commit-based patch/minor selection, breaking-change guards, first-major releases, reruns, milestones, release candidates and exceptional maintenance
