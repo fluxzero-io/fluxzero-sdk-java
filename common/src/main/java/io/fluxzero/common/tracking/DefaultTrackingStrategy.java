@@ -35,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -82,6 +83,57 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private final Registration sourceRegistration;
 
     private volatile boolean stopped;
+    private final ReentrantReadWriteLock handoverLock = new ReentrantReadWriteLock(true);
+    private volatile boolean frozenForHandover;
+
+    /**
+     * Freezes ownership before an elected Runtime relinquishes its lease. Concurrent admitted reads finish
+     * registering before the snapshot; later reads remain retryable. Socket cleanup cannot erase frozen claims.
+     * The caller must persist this snapshot before making the successor available.
+     */
+    public List<TrackerClaim> freezeForHandover() {
+        return freezeForHandover(Duration.ofSeconds(5));
+    }
+
+    /**
+     * Freezes ownership, allowing at most {@code timeout} for an admitted storage scan to release its lock.
+     * Failure leaves the caller responsible for retaining leadership or treating shutdown as a failed handover.
+     */
+    public List<TrackerClaim> freezeForHandover(Duration timeout) {
+        try {
+            if (!handoverLock.writeLock().tryLock(timeout.toNanos(), java.util.concurrent.TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Timed out waiting for admitted tracking reads to finish");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while freezing tracking ownership", e);
+        }
+        try {
+            frozenForHandover = true;
+            // Pending long polls are Runtime requests, not batches running in a client. Cancel them without
+            // disconnecting the active owners whose reservations the successor still needs.
+            closeOpenRequests(t -> true, false);
+            return clusters.values().stream().flatMap(c -> c.activeClaims().stream()).toList();
+        } finally {
+            handoverLock.writeLock().unlock();
+        }
+    }
+
+    /** Restores exact active ranges before any successor read is admitted. */
+    public void restoreClaims(List<TrackerClaim> claims) {
+        handoverLock.writeLock().lock();
+        try {
+            if (frozenForHandover || !clusters.isEmpty()) {
+                throw new IllegalStateException("Reservations must be restored before tracking starts");
+            }
+            var restored = claims.stream().collect(java.util.stream.Collectors.groupingBy(TrackerClaim::consumer))
+                    .entrySet().stream().collect(java.util.stream.Collectors.toMap(
+                            java.util.Map.Entry::getKey, entry -> TrackerCluster.restore(segments, entry.getValue())));
+            clusters.putAll(restored);
+        } finally {
+            handoverLock.writeLock().unlock();
+        }
+    }
 
     public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore) {
         this(source, positionStore, DEFAULT_INITIAL_POSITION_LAG);
@@ -165,85 +217,95 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     protected void getBatch(Tracker tracker, TrackerRequest<MessageBatch> request) {
-        TrackerCluster oldCluster = clusters.get(tracker.getConsumerName());
-        if (request.isDone()) {
-            return;
-        }
-        int[] newSegment = claimSegmentRange(tracker);
-        if (request.isDone()) {
-            disconnectClosedRequest(tracker, request);
-            return;
-        }
+        handoverLock.readLock().lock();
         try {
-            if (newSegment[0] == newSegment[1]) {
-                waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
-                                request);
+            if (frozenForHandover) {
+                cancelRequest(tracker, request);
                 return;
             }
-            int batchSize = adjustMaxSize(tracker, tracker.getMaxSize());
-
-            long updateVersion = updateNotificationVersion.get();
-            MessageStoreBatch batch;
-            Position position;
-            do {
-                position = position(tracker, newSegment);
-                batch = scanBatch(newSegment, position, batchSize, tracker.getMaxBytes(),
-                                  filterPredicate(newSegment, position, tracker),
-                                  tracker.includeDocumentTombstones());
-
-                if (batch.scannedSize() > 0 && batch.messages().isEmpty()) {
-                    long batchIndex = batch.lastScannedIndex();
-
-                    if (batchIndex < indexFromMillis(System.currentTimeMillis() - tracker.maxTimeout())) {
-                        //if the index is old, send back an empty batch.
-                        // Prevents rushing through potentially billions of messages
-                        MessageBatch emptyBatch =
-                                new MessageBatch(newSegment, batch.messages(), batchIndex, position, false);
-                        completeRequest(tracker, request, emptyBatch);
-                        return;
-                    } else {
-                        //update stored position and tracker, otherwise client may stay endlessly waiting
-                        positionStore.storePosition(tracker.getConsumerName(), newSegment, batchIndex);
-                        tracker = tracker.withLastTrackerIndex(batchIndex);
-                    }
-                }
-            } while (batch.scannedSize() > 0 && batch.messages().isEmpty() && !tracker.hasMissedDeadline());
-
-            if (batch.messages().isEmpty()) {
-                MessageBatch messageBatch =
-                        new MessageBatch(newSegment, batch.messages(), batch.lastScannedIndex(), position, true);
-                /*
-                 * A new consumer starts shortly before the current wall clock. Pin that boundary while this
-                 * long-poll request waits. Recomputing it after every update would make the boundary move forward and
-                 * could skip messages that arrived during a long or high-volume first publication.
-                 */
-                Tracker waitingTracker = tracker.getLastTrackerIndex() == null
-                        ? position.lowestIndexForSegment(newSegment)
-                                .map(tracker::withLastTrackerIndex)
-                                .orElse(tracker)
-                        : tracker;
-                waitForMessages(waitingTracker, messageBatch, request);
-                if (updateVersion < updateNotificationVersion.get()) {
-                    var task = waitingTrackers.get(waitingTracker);
-                    if (task != null && task.tracker == waitingTracker && task.request == request) {
-                        task.run();
-                    }
-                }
-            } else {
-                MessageBatch messageBatch = new MessageBatch(
-                        newSegment, batch.messages(),
-                        batch.byteLimited() ? getLastIndex(batch.messages()) : batch.lastScannedIndex(), position,
-                        !batch.byteLimited() && batch.scannedSize() < batchSize);
-                completeRequest(tracker, request, messageBatch);
+            TrackerCluster oldCluster = clusters.get(tracker.getConsumerName());
+            if (request.isDone()) {
+                return;
             }
-        } catch (Throwable e) {
-            log.error("Failed to get a batch for tracker {}", tracker, e);
-            waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), false),
-                            request);
+            int[] newSegment = claimSegmentRange(tracker);
+            if (request.isDone()) {
+                disconnectClosedRequest(tracker, request);
+                return;
+            }
+            try {
+                if (newSegment[0] == newSegment[1]) {
+                    waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
+                                    request);
+                    return;
+                }
+                int batchSize = adjustMaxSize(tracker, tracker.getMaxSize());
+
+                long updateVersion = updateNotificationVersion.get();
+                MessageStoreBatch batch;
+                Position position;
+                do {
+                    position = position(tracker, newSegment);
+                    batch = scanBatch(newSegment, position, batchSize, tracker.getMaxBytes(),
+                                      filterPredicate(newSegment, position, tracker),
+                                      tracker.includeDocumentTombstones());
+
+                    if (batch.scannedSize() > 0 && batch.messages().isEmpty()) {
+                        long batchIndex = batch.lastScannedIndex();
+
+                        if (batchIndex < indexFromMillis(System.currentTimeMillis() - tracker.maxTimeout())) {
+                            //if the index is old, send back an empty batch.
+                            // Prevents rushing through potentially billions of messages
+                            MessageBatch emptyBatch =
+                                    new MessageBatch(newSegment, batch.messages(), batchIndex, position, false);
+                            completeRequest(tracker, request, emptyBatch);
+                            return;
+                        } else {
+                            //update stored position and tracker, otherwise client may stay endlessly waiting
+                            positionStore.storePosition(tracker.getConsumerName(), newSegment, batchIndex);
+                            tracker = tracker.withLastTrackerIndex(batchIndex);
+                        }
+                    }
+                } while (batch.scannedSize() > 0 && batch.messages().isEmpty() && !tracker.hasMissedDeadline());
+
+                if (batch.messages().isEmpty()) {
+                    MessageBatch messageBatch =
+                            new MessageBatch(newSegment, batch.messages(), batch.lastScannedIndex(), position, true);
+                    /*
+                     * A new consumer starts shortly before the current wall clock. Pin that boundary while this
+                     * long-poll request waits. Recomputing it after every update would make the boundary move forward and
+                     * could skip messages that arrived during a long or high-volume first publication.
+                     */
+                    Tracker waitingTracker = tracker.getLastTrackerIndex() == null
+                            ? position.lowestIndexForSegment(newSegment)
+                                    .map(tracker::withLastTrackerIndex)
+                                    .orElse(tracker)
+                            : tracker;
+                    waitForMessages(waitingTracker, messageBatch, request);
+                    if (updateVersion < updateNotificationVersion.get()) {
+                        var task = waitingTrackers.get(waitingTracker);
+                        if (task != null && task.tracker == waitingTracker && task.request == request) {
+                            task.run();
+                        }
+                    }
+                } else {
+                    MessageBatch messageBatch = new MessageBatch(
+                            newSegment, batch.messages(),
+                            batch.byteLimited() ? getLastIndex(batch.messages()) : batch.lastScannedIndex(), position,
+                            !batch.byteLimited() && batch.scannedSize() < batchSize);
+                    completeRequest(tracker, request, messageBatch);
+                }
+            } catch (Throwable e) {
+                log.error("Failed to get a batch for tracker {}", tracker, e);
+                waitForMessages(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), false),
+                                request);
+            } finally {
+                if (oldCluster != null && !Objects.deepEquals(oldCluster.getSegment(tracker), newSegment)) {
+                    onClusterUpdate(oldCluster);
+                }
+            }
+
         } finally {
-            if (oldCluster != null && !Objects.deepEquals(oldCluster.getSegment(tracker), newSegment)) {
-                onClusterUpdate(oldCluster);
-            }
+            handoverLock.readLock().unlock();
         }
     }
 
@@ -256,20 +318,34 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     protected void claimSegment(Tracker tracker, TrackerRequest<ClaimResult> request) {
-        if (request.isDone()) {
-            return;
-        }
-        int[] newSegment = claimSegmentRange(tracker);
-        if (request.isDone()) {
-            disconnectClosedRequest(tracker, request);
-            return;
-        }
-        if (newSegment[0] == newSegment[1]) {
-            waitForUpdate(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
-                          () -> claimSegment(tracker, request), request);
-        } else {
-            completeRequest(tracker, request, new MessageBatch(newSegment, emptyList(), null,
-                                                               position(tracker, newSegment), true));
+        handoverLock.readLock().lock();
+        try {
+            if (frozenForHandover) {
+                cancelRequest(tracker, request);
+                return;
+            }
+            if (request.isDone()) {
+                return;
+            }
+            TrackerCluster oldCluster = clusters.get(tracker.getConsumerName());
+            int[] newSegment = claimSegmentRange(tracker);
+            if (request.isDone()) {
+                disconnectClosedRequest(tracker, request);
+                return;
+            }
+            if (newSegment[0] == newSegment[1]) {
+                waitForUpdate(tracker, new MessageBatch(newSegment, emptyList(), null, newPosition(), true),
+                              () -> claimSegment(tracker, request), request);
+            } else {
+                completeRequest(tracker, request, new MessageBatch(newSegment, emptyList(), null,
+                                                                   position(tracker, newSegment), true));
+            }
+            if (oldCluster != null && !Objects.deepEquals(oldCluster.getSegment(tracker), newSegment)) {
+                onClusterUpdate(oldCluster);
+            }
+
+        } finally {
+            handoverLock.readLock().unlock();
         }
     }
 
@@ -458,50 +534,83 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     @Override
     public Set<Tracker> disconnectTrackers(Predicate<Tracker> predicate, boolean sendFinalEmptyBatch) {
-        Set<Tracker> removed = new HashSet<>();
-        Set<Tracker> removedAndWaiting = new HashSet<>();
-        Set<TrackerCluster> updatedClusters = new HashSet<>();
-        closeOpenRequests(predicate, sendFinalEmptyBatch);
-        waitingTrackers.forEach((tracker, waitingTracker) -> {
-            if ((predicate.test(tracker) || predicate.test(waitingTracker.tracker))
-                && waitingTrackers.remove(tracker, waitingTracker)) {
-                removedAndWaiting.add(waitingTracker.tracker);
+        return disconnectTrackers(predicate, sendFinalEmptyBatch, false);
+    }
+
+    /**
+     * Removes socket-owned trackers during connection cleanup. A frozen handover retains their claims;
+     * explicit client disconnects must use {@link #disconnectTrackers(Predicate, boolean)} and remain retryable.
+     */
+    public Set<Tracker> disconnectTrackersOnClose(Predicate<Tracker> predicate) {
+        return disconnectTrackers(predicate, false, true);
+    }
+
+    private Set<Tracker> disconnectTrackers(Predicate<Tracker> predicate, boolean sendFinalEmptyBatch,
+                                           boolean connectionCleanup) {
+        handoverLock.readLock().lock();
+        try {
+            if (frozenForHandover) {
+                if (connectionCleanup) {
+                    return Set.of();
+                }
+                throw new java.util.concurrent.CancellationException("Tracking ownership is being transferred");
             }
-        });
-        clusters.replaceAll((key, cluster) -> {
-            var updatedCluster = cluster.purgeTrackers(predicate);
-            if (!Objects.equals(updatedCluster, cluster) && !updatedCluster.isEmpty()) {
-                updatedClusters.add(updatedCluster);
-            }
-            var removedTrackers = new HashSet<>(cluster.getTrackers());
-            removedTrackers.removeAll(updatedCluster.getTrackers());
-            removed.addAll(removedTrackers);
-            return updatedCluster;
-        });
-        clusters.values().removeIf(TrackerCluster::isEmpty);
-        updatedClusters.forEach(this::onClusterUpdate);
-        closeOpenRequests(t -> removed.contains(t) || removedAndWaiting.contains(t), sendFinalEmptyBatch);
-        return removed;
+            Set<Tracker> removed = new HashSet<>();
+            Set<Tracker> removedAndWaiting = new HashSet<>();
+            Set<TrackerCluster> updatedClusters = new HashSet<>();
+            closeOpenRequests(predicate, sendFinalEmptyBatch);
+            waitingTrackers.forEach((tracker, waitingTracker) -> {
+                if ((predicate.test(tracker) || predicate.test(waitingTracker.tracker))
+                    && waitingTrackers.remove(tracker, waitingTracker)) {
+                    removedAndWaiting.add(waitingTracker.tracker);
+                }
+            });
+            clusters.replaceAll((key, cluster) -> {
+                var updatedCluster = cluster.purgeTrackers(predicate);
+                if (!Objects.equals(updatedCluster, cluster) && !updatedCluster.isEmpty()) {
+                    updatedClusters.add(updatedCluster);
+                }
+                var removedTrackers = new HashSet<>(cluster.getTrackers());
+                removedTrackers.removeAll(updatedCluster.getTrackers());
+                removed.addAll(removedTrackers);
+                return updatedCluster;
+            });
+            clusters.values().removeIf(TrackerCluster::isEmpty);
+            updatedClusters.forEach(this::onClusterUpdate);
+            closeOpenRequests(t -> removed.contains(t) || removedAndWaiting.contains(t), sendFinalEmptyBatch);
+            return removed;
+
+        } finally {
+            handoverLock.readLock().unlock();
+        }
     }
 
     protected void purgeCeasedTrackers(Duration delay) {
         scheduler.schedule(currentTimeMillis() + delay.toMillis(), () -> {
-            clusters.replaceAll((key, cluster) -> {
-                TrackerCluster after = cluster.purgeTrackers(
-                        t -> t.getPurgeDelay() != null && cluster.getProcessingDuration(t)
-                                .filter(d -> d.toMillis() > t.getPurgeDelay()).isPresent());
-                if (after != cluster) {
-                    Set<Tracker> removed = new HashSet<>(cluster.getTrackers());
-                    removed.removeAll(after.getTrackers());
-                    if (!removed.isEmpty()) {
-                        log.warn("Purged trackers from consumer {} because they have ceased processing: {}", key,
-                                 removed);
-                        return after;
-                    }
+            handoverLock.readLock().lock();
+            try {
+                if (frozenForHandover) {
+                    return;
                 }
-                return cluster;
-            });
-            purgeCeasedTrackers(delay);
+                clusters.replaceAll((key, cluster) -> {
+                    TrackerCluster after = cluster.purgeTrackers(
+                            t -> t.getPurgeDelay() != null && cluster.getProcessingDuration(t)
+                                    .filter(d -> d.toMillis() > t.getPurgeDelay()).isPresent());
+                    if (after != cluster) {
+                        Set<Tracker> removed = new HashSet<>(cluster.getTrackers());
+                        removed.removeAll(after.getTrackers());
+                        if (!removed.isEmpty()) {
+                            log.warn("Purged trackers from consumer {} because they have ceased processing: {}", key,
+                                     removed);
+                            return after;
+                        }
+                    }
+                    return cluster;
+                });
+                purgeCeasedTrackers(delay);
+            } finally {
+                handoverLock.readLock().unlock();
+            }
         });
     }
 
@@ -558,13 +667,22 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     private void expireWaitingRequest(Tracker tracker, TrackerRequest<?> request, MessageBatch emptyBatch) {
-        WaitingTracker waiting = waitingTrackers.get(tracker);
-        // A delayed callback from an earlier request must never remove its replacement.
-        if (waiting != null && waiting.tracker == tracker && waiting.request == request
-            && waitingTrackers.remove(tracker, waiting) && !request.isDone()) {
-            clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
-                    ? cluster.withActiveTracker(tracker) : cluster);
-            completeRequest(tracker, request, emptyBatch);
+        handoverLock.readLock().lock();
+        try {
+            if (frozenForHandover) {
+                return;
+            }
+            WaitingTracker waiting = waitingTrackers.get(tracker);
+            // A delayed callback from an earlier request must never remove its replacement.
+            if (waiting != null && waiting.tracker == tracker && waiting.request == request
+                && waitingTrackers.remove(tracker, waiting) && !request.isDone()) {
+                clusters.compute(tracker.getConsumerName(), (p, cluster) -> cluster != null && cluster.contains(tracker)
+                        ? cluster.withActiveTracker(tracker) : cluster);
+                completeRequest(tracker, request, emptyBatch);
+            }
+
+        } finally {
+            handoverLock.readLock().unlock();
         }
     }
 

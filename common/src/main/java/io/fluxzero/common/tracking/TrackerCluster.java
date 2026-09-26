@@ -93,6 +93,35 @@ public class TrackerCluster {
         this.activeTrackers = activeTrackers;
     }
 
+    static TrackerCluster restore(int segments, List<TrackerClaim> claims) {
+        Map<Tracker, Segment> trackers = new HashMap<>();
+        Map<Tracker, Instant> active = new HashMap<>();
+        for (TrackerClaim claim : claims) {
+            if (claim.end() > segments) {
+                throw new IllegalArgumentException("Tracker reservation exceeds segment space");
+            }
+            Tracker tracker = WebSocketTracker.retained(claim);
+            if (trackers.put(tracker, new Segment(claim.start(), claim.end())) != null) {
+                throw new IllegalArgumentException("Duplicate tracker reservation");
+            }
+            active.put(tracker, Instant.ofEpochMilli(claim.startedAtMillis()));
+        }
+        return new TrackerCluster(segments, trackers, active);
+    }
+
+    List<TrackerClaim> activeClaims() {
+        List<TrackerClaim> result = new ArrayList<>();
+        activeTrackers.forEach((tracker, started) -> {
+            int[] range = ofNullable(trackers.get(tracker)).map(Segment::asArray).orElse(null);
+            if (range != null && range[0] < range[1]) {
+                result.add(new TrackerClaim(tracker.getConsumerName(), tracker.getTrackerId(), tracker.getClientId(),
+                                            range[0], range[1], started.toEpochMilli(), tracker.getPurgeDelay(),
+                                            tracker.singleTracker()));
+            }
+        });
+        return List.copyOf(result);
+    }
+
     /**
      * Marks the given tracker as actively processing messages.
      * If the tracker is not currently in the cluster, it is first added.
