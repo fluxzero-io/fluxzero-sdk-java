@@ -109,14 +109,32 @@ and the README's Versioned Defaults table, plus the affected feature documentati
 defaults version, an older version, the exact threshold, a newer version, and explicit overrides in both directions.
 For wire or persisted formats, also test old-data reads and new-data round trips.
 
+## Delivery And Release Authorization
+
+- By default, deliver fixes, features, backports, and instruction changes as verified local commits in a dedicated
+  worktree, or as a pull request when appropriate to the requested scope. Requests such as "pick up this issue",
+  "fix this", "backport this", "use a separate worktree", or "open a PR" do not authorize merging or publication.
+- Merge pull requests, enable auto-merge, push to release branches, create release tags, trigger deployment workflows,
+  or publish packages, images, documentation, or releases only when the user explicitly authorizes that action and
+  its target release line. A push or PR merge that automatically starts a release is also a publication action.
+  Successful tests, an approved review, or a completed backlog item do not provide release authorization.
+- Apply this boundary equally to the active major and maintenance branches. Preparing a backport does not imply
+  permission to release it, and publication is not required to finish an implementation task unless requested.
+- When the user authorizes publication of a fix affecting both the active major and a maintenance line, coordinate
+  those releases: publish the active-major fix first, then the maintenance patch, unless the user explicitly requests
+  a maintenance-only release or a different order. Do not publish 1.x while the corresponding 2.x fix is still only
+  local or in an unmerged PR merely because the maintenance workflow can be triggered independently.
+- Existing explicit authorization remains valid within its stated scope; do not ask for the same permission again.
+
 ## Maintenance Releases
 
 - For every bug fix on `main`, explicitly assess whether the same defect affects supported `1.x` behavior.
-  If it does, backport the narrow fix to `1.x`, qualify that branch and publish a maintenance patch as part of
-  completing the fix, unless the user explicitly excludes that work. Do not copy unrelated 2.x features or defaults.
-  Record the applicability decision and the backport/release reference in the owning backlog dossier.
-- When asked to fix or backport an issue on `1.x`, complete the work through a verified 1.x patch release,
-  unless the user explicitly limits the task to investigation, local changes, or no publication.
+  If it does, prepare and qualify the narrow backport locally or in a separate PR, without copying unrelated 2.x
+  features or defaults. Record the applicability decision and the local commit or PR reference in the owning backlog
+  dossier. Publish only within the explicit authorization described above.
+- A request to fix or backport an issue on `1.x` normally ends with verified local commits or a PR, just like work on
+  `main`. It does not by itself authorize merging the backport or publishing a maintenance patch.
+- The following release steps apply only after the user has authorized maintenance publication.
 - Keep `.github/release-major` at `1` on `1.x`. Choose an unused explicit patch version after inspecting the
   latest published 1.x tag. Preserve protected-branch checks and release only the merged, qualified commit.
 - Trigger `Deploy` explicitly on `1.x` with that version; ordinary maintenance-branch pushes do not publish.
@@ -124,7 +142,8 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Maintenance releases use package channel `1.x` and Javadoc destination `javadoc/1.x`. Never move the main
   `latest` image channel, mark a maintenance release as GitHub Latest, or dispatch the public SDK website update.
 - Verify the completed workflow, immutable tag, artifacts and release contents before reporting publication.
-  Confirm that the released commit contains the backport. Keep the fix on the active major as well when applicable.
+  Confirm that the released commit contains the backport and record the release reference in the owning backlog
+  dossier. Keep the fix on the active major as well when applicable.
 
 ## Build And Test
 

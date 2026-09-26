@@ -1,5 +1,17 @@
 Use `Fluxzero.search(...)` for indexed read models. Push user-facing filtering, sorting, pagination, and counting into the search builder. Do not fetch an entire collection and then use Java streams to implement browse, search, or count behavior.
 
+A single class retains its result type: `Fluxzero.search(Project.class)` returns `Search<Project>`.
+Multiple collections may contain different types. `Fluxzero.search(Project.class, Task.class)` therefore defaults
+to `Search<Object>` in a Java fluent chain; each result still uses its stored document type. For collections known
+to share one type, choose it explicitly: `Fluxzero.<Project>search(Project.class, "archived-projects")`.
+A typed `Search<Project>` assignment also supplies that type. Recompile existing multi-collection callers after
+upgrading so they no longer retain casts inferred from the first class. Explicit terminal classes such as
+`fetchAll(JsonNode.class)` still select an alternative result representation.
+
+For Kotlin, use `Fluxzero.search<Any>(Project::class.java, Task::class.java)` or a `Search<Any>` variable for
+heterogeneous collections, and `Fluxzero.search<Project>(Project::class.java, "archived-projects")` for a known
+common type. `searchGraph(Project.class)` / `searchGraph(Project::class.java)` retain `Graph<Project>` results.
+
 Co-locate sortable model paths with the query that uses them:
 
 ```java

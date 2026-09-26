@@ -222,6 +222,32 @@ You can also query by class:
   </TabItem>
 </Tabs>
 
+### Searching multiple collections
+
+The first class identifies a collection; it does not establish the result type of a combined search.
+Each document is still deserialized to its stored type. In Java, an unqualified multi-collection chain uses `Object`;
+in Kotlin, supply a type argument or assign the search to a typed `Search` variable.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    List<Object> documents = Fluxzero.search(Project.class, Task.class).fetchAll();
+    List<Project> projects = Fluxzero.<Project>search(Project.class, "archived-projects").fetchAll();
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val documents = Fluxzero.search<Any>(Project::class.java, Task::class.java).fetchAll()
+    val projects = Fluxzero.search<Project>(Project::class.java, "archived-projects").fetchAll()
+    ```
+  </TabItem>
+</Tabs>
+
+Only choose a common result type when every matching document supports it. Single-class searches and Graph searches
+retain their inferred types. Explicit terminal classes such as `fetchAll(JsonNode.class)` remain available for
+alternative representations. Recompile callers after upgrading to remove any casts previously inferred from the
+first class; merely replacing the SDK jar cannot remove those casts from application bytecode.
+
 ### Selecting Models by parent or ancestor
 
 When the related identity is already known, pass its typed ID directly. Fluxzero starts from the durable relationship
