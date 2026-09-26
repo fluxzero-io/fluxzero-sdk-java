@@ -1,0 +1,97 @@
+{
+  "name" : "PendingRead",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead",
+  "packageName" : "io.fluxzero.sdk.tracking.client",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cachedWait",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead.cachedWait",
+    "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead.consumer",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "terminated",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead.terminated",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "trackerId",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead.trackerId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PendingRead",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead#PendingRead",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "terminate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead#terminate",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trackCachedWait",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead#trackCachedWait",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "wait",
+      "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

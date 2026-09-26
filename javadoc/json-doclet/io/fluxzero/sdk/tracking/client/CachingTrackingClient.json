@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "closed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.closed",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.delegate",
     "type" : "io.fluxzero.sdk.tracking.client.TrackingClient",
@@ -63,7 +71,7 @@
   }, {
     "name" : "pendingReads",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.pendingReads",
-    "type" : "java.util.Map<java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>,io.fluxzero.sdk.tracking.client.CachingTrackingClient.TrackerKey>",
+    "type" : "java.util.Map<java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>,io.fluxzero.sdk.tracking.client.CachingTrackingClient.PendingRead>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -540,6 +548,11 @@
       "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "pending",
+      "type" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.PendingRead",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -764,7 +777,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Waits for locally cached messages. Canceling the returned future interrupts this wait's worker;\n remote segment acquisition is completed separately before terminal ownership release.\n"
   }, {
     "name" : "waitUntil",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#waitUntil",
@@ -790,9 +803,9 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "TrackerKey",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$TrackerKey",
-    "kind" : "record",
+    "name" : "PendingRead",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead",
+    "kind" : "class",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
