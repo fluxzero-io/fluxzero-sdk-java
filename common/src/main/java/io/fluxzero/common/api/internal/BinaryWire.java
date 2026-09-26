@@ -216,10 +216,16 @@ public final class BinaryWire {
 
     /** Decodes exactly one native message envelope while retaining zero-copy payload and metadata views. */
     public static SerializedMessage decodeEnvelope(byte[] bytes, int maximumValueSize) throws IOException {
-        if (validateEnvelopeComponents(bytes, 0, bytes.length, maximumValueSize) != bytes.length) {
+        return decodeEnvelope(bytes, 0, bytes.length, maximumValueSize);
+    }
+
+    /** Decodes exactly one envelope from a byte range, retaining zero-copy payload and metadata views. */
+    public static SerializedMessage decodeEnvelope(
+            byte[] bytes, int offset, int length, int maximumValueSize) throws IOException {
+        if (validateEnvelopeComponents(bytes, offset, length, maximumValueSize) != length) {
             throw new IOException("Unexpected trailing binary message envelope");
         }
-        return new EncodedMessage(bytes, 0, bytes.length);
+        return new EncodedMessage(bytes, offset, length);
     }
 
     /** Decodes a sequence while retaining zero-copy payload and metadata views. */

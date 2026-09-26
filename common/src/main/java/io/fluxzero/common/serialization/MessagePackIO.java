@@ -235,6 +235,11 @@ public final class MessagePackIO {
             return this;
         }
 
+        /** Returns the absolute offset of the next unread byte in the input array. */
+        public int position() {
+            return position;
+        }
+
         /** Indicates whether this range still contains bytes. */
         public boolean hasNext() {
             return position < end;
