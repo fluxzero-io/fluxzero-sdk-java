@@ -23,6 +23,10 @@ Adopting the new boundary is a data migration, not an annotation rename. The [mi
 
 ## Why move beyond one growing aggregate?
 
+An Aggregate boundary combines several decisions: which state is loaded as a unit, which values share a history, and which changes can commit together. A Project containing all its Tasks may initially align those decisions well. As Tasks acquire notes, attachments and workflows, that same boundary grows. Moving a Task to another Project or introducing a rule across Projects then crosses a boundary chosen for an earlier set of requirements.
+
+Independent Models let those decisions evolve separately. A Task can keep its identity and history when its parent changes. A new process can attach to it without adding state to Task itself. An operation can inspect and change several Models without making them share one permanent persistence boundary. The scope of a decision follows the state it uses; it does not have to include everything reachable from the same root.
+
 Choose the following boundaries independently, then configure the places where they must interact.
 
 | Boundary | Determined by | Does not by itself imply |
@@ -36,7 +40,9 @@ Choose the following boundaries independently, then configure the places where t
 
 ### Small changes, large persistence boundaries
 
-Updating Task does not inherently load or update Project or sibling Tasks. Once an assertion inspects Project's children, however, that membership becomes a read dependency. Independence of persistence does not exempt a genuinely shared rule from concurrency checks. [Read dependency semantics](#concurrent-decisions-and-the-commit-boundary) distinguish metadata, membership and value reads.
+For an event-sourced Project with embedded Tasks, a cache miss reconstructs the containing Project, including its other embedded state. As that state grows, even a request for one Task can pay the deserialization and memory cost of the larger root. Snapshots reduce the event replay needed to reconstruct the root, but still contain the combined state; caching avoids repeated reconstruction while retaining that larger state in memory.
+
+With an independent Task Model, updating Task does not inherently load or update Project or sibling Tasks. Once an assertion inspects Project's children, however, that membership becomes a read dependency. Independence of persistence does not exempt a genuinely shared rule from concurrency checks. [Read dependency semantics](#concurrent-decisions-and-the-commit-boundary) distinguish metadata, membership and value reads.
 
 ### Short-lived work, long-lived history
 
@@ -52,9 +58,13 @@ Logical deletion removes current state and applies the parent-cascade policy. Ph
 
 ### Move the relationship, not the stored object tree
 
+An embedded Task's events belong to its Project's stream. Removing it from one Project and adding it to another does not transfer that history into a Task-owned stream. The application also has to coordinate the two root changes and preserve any nested state it moves.
+
 Changing a parent reference on a stable-ID Model changes its relationship while retaining its stream. Descendants still reference the same child ID. Parent-scoped identity is a different case: changing the parent also changes that identity and cannot be treated as a stable-ID move. Clearing an optional parent detaches that relationship. The [move example](#move-a-task-by-changing-its-relationship) combines the new relation with a destination-capacity assertion.
 
 ### Atomic changes across independent roots
+
+A new business rule can need state from several existing roots. Combining those roots would also combine their loading and history boundaries; coordinating separate commits would introduce intermediate states and recovery work. A Model operation can instead make the related decision and changes within one commit while each Model retains its own persistence boundary.
 
 A Model operation can change unrelated roots atomically. The guarantee covers its staged Model changes, not separately dispatched commands or external effects. Keep payment calls, outgoing HTTP and other irreversible actions outside retryable assertions/applies. [Multi-Model operations](#2-changing-several-models-atomically) show direct applies and composed payloads.
 
@@ -74,15 +84,21 @@ A Model may declare several edges. Recursive Model types are allowed; cycles bet
 
 ### Extend the domain without expanding the root
 
+A temporary approval process and a long-lived Project need not accumulate state and events in the same stream. Keeping the process independent lets its behavior and retention evolve without enlarging the Project's stored state. The relationship still makes the process available as part of the Project Graph.
+
 A child declaration supplies its relation to the parent; the parent does not need a collection field or knowledge of the child's Java class. Applications sharing relationship metadata may still have different type catalogs. Unknown nodes are available to metadata navigation but cannot be read as locally unavailable classes. Use [scoped Graph reads](#6-share-relationships-without-sharing-every-applications-implementation) deliberately at that boundary.
 
 ### Read views should not dictate write boundaries
+
+A screen may need a Project with Tasks and notes, while an individual Task update needs only that Task. Composing the screen's response does not require storing all those objects inside Project or giving them the same lifecycle. A Model can also appear through more than one declared parent relationship without duplicating its authoritative state.
 
 `loadGraph` navigates authoritative Models and relationships. `searchGraph` reads a composed document representation, live or materialized. A JSON response is another view of those nodes. These paths have different consistency and completion contracts; they are not interchangeable implementations of one transactional read. [Queries and search](#3-querying-model-state-and-related-data) specify the required documents and visibility.
 
 ### Different boundaries for different jobs
 
 Do not infer lifecycle ownership from JSON nesting, or mutation atomicity from a shared parent. Use independent Models for independently changing state and ordinary values for data wholly owned by a Model. `@Member` remains supported for deliberate embedding; `@Aggregate` remains the legacy/migration API.
+
+For the broader design motivation, Sara Pellegrini's *Kill the Aggregate* series examines why [business concepts and consistency boundaries do not always coincide](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-3-the-aggregate-mixes-technical-and-business-aspects.html), how fixed boundaries can introduce [unnecessary coordination](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-6-the-aggregate-could-cause-unecessary-complexity.html), and why coupling event history to those boundaries can make [later refactoring expensive](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-5-event-sourced-aggregate-are-hard-to-refactor.html). The Model and Graph contracts below specify how Fluxzero separates these concerns.
 
 ## An example: home automation
 

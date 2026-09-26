@@ -8,9 +8,13 @@ sidebar:
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Fluxzero 2.0 introduces **independent Models connected through Graphs**. Each Model has its own state, history and lifecycle. A Graph provides access to related Models, and one operation can change several Models atomically.
+With a fixed Aggregate boundary, an application can outgrow the way its state was originally organised. A Project accumulates Tasks, notes and attachments. Reading or updating one small part can require loading an increasingly large whole. Moving a Task to another Project crosses the boundary that owns its history, while a new business rule may span objects stored in separate Aggregates.
 
-For a 1.x application, the main difference is that objects no longer need to share an Aggregate to participate in the same atomic update. Commands, queries, events, `@Apply`, `@AssertLegal`, `@InterceptApply` and `TestFixture` remain familiar. The examples below show the new capabilities; each section links to the detailed behavior and configuration.
+Fluxzero 2.0 starts with a seemingly small change: **related objects no longer need to live inside the same Aggregate**. It introduces **independent Models connected through Graphs**. Each Model has its own state, history and lifecycle. A Graph provides access to related Models, and one operation can change several Models atomically.
+
+You can extend a domain without expanding its roots, change relationships while objects retain their own history, and choose which objects a rule or view needs. Those choices no longer all have to follow the same fixed boundary.
+
+Commands, queries, events, `@Apply`, `@AssertLegal`, `@InterceptApply` and `TestFixture` remain familiar. The examples below show the new capabilities; each section links to the detailed behavior and configuration.
 
 ## Independent state and history
 
@@ -57,7 +61,7 @@ data class Task(
 </TabItem>
 </Tabs>
 
-A Task update can load and change that Task without reconstructing the Project or its other Tasks. Each Model also has its own history and erasure boundary. The examples use typed IDs (`ProjectId`, `TaskId`) and small value objects for details.
+A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, notes or attachments does not make them part of every Task load. Each Model also has its own history and erasure boundary. The examples use typed IDs (`ProjectId`, `TaskId`) and small value objects for details.
 
 [Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2#model-the-lifecycle-then-choose-storage)
 
@@ -138,7 +142,7 @@ The same resolution is available in assertions and applies. The handler does not
 
 ## Moving Models between parents
 
-A Task with a stable ID can move to another Project by changing its parent reference. Its own history remains attached to the Task, and its notes and attachments remain connected to the same Task ID.
+A Task with a stable ID can move to another Project by changing its parent reference. Its own history remains attached to the Task, and its notes and attachments remain connected to the same Task ID. Reorganising the work becomes a change to a relationship, without removing and recreating the Task and its descendants under another root.
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -203,6 +207,8 @@ The Tasks can belong to different Projects. Each command's assertions and applie
 [Deep dive: atomic changes, command composition and ordering](/docs/fluxzero-2#2-changing-several-models-atomically)
 
 ## Business rules across Model boundaries
+
+Suppose a new rule needs both an Order and the Account placing it. They can retain their separate state and histories while the operation checks the Account and creates the Order consistently. The new rule does not require merging their storage boundaries.
 
 An assertion can inspect related Models through a Graph. The inspected state participates in conflict checking even when the operation does not change it. Here, the Task collection is a dependency of the capacity check, so concurrent additions cannot both commit based on the same remaining slot.
 
@@ -321,6 +327,8 @@ A consumer maintaining a Project view does not need a separate handler for each 
 
 ## Composed Graph responses
 
+Keeping Models independent does not require clients to assemble every view themselves. A Project screen can receive its Tasks and notes together, even though each has its own state and lifecycle.
+
 An endpoint can return `Graph<Project>` directly. Serialization combines the Project with its independently stored Tasks at their declared `pathInParent` paths.
 
 <Tabs syncKey="language">
@@ -433,6 +441,8 @@ Task changes update the materialized view automatically; moving a Task updates b
 [Deep dive: materialization, projection completion and schema evolution](/docs/fluxzero-2#automatically-materialize-the-complete-graph)
 
 ## Independent extensions
+
+A new feature can add state around an existing Model without becoming part of every update to that Model. Notes, a temporary approval process or an integration's status can each have their own behavior and history.
 
 A child Model declares its relationship to the parent. The parent needs no additional field or collection and does not need to know the child's class. For example, a device integration can own a lamp's reported status while another application owns the lamp and its desired state.
 
