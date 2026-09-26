@@ -49,18 +49,18 @@ import java.util.concurrent.CompletableFuture;
 public interface IndexOperation {
 
     /**
-     * Executes the indexing operation with a default guarantee of {@link Guarantee#STORED}.
+     * Executes the indexing operation with a default guarantee of {@link Guarantee#DEFAULT}.
      */
     default CompletableFuture<Void> index() {
-        return index(Guarantee.STORED);
+        return index(Guarantee.DEFAULT);
     }
 
     /**
-     * Executes the indexing operation with a {@link Guarantee#NONE} guarantee and does not wait for completion.
+     * Executes the indexing operation with a {@link Guarantee#DEFAULT} guarantee and does not wait for completion.
      */
     @SneakyThrows
     default void indexAndForget() {
-        index(Guarantee.NONE);
+        index(Guarantee.DEFAULT);
     }
 
     /**
@@ -76,7 +76,7 @@ public interface IndexOperation {
      */
     @SneakyThrows
     default void indexAndWait(Guarantee guarantee) {
-        index(guarantee).get();
+        io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(() -> index(guarantee)).get();
     }
 
     /**

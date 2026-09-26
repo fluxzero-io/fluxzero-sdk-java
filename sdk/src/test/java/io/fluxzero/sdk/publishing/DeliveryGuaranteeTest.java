@@ -48,7 +48,7 @@ import static org.mockito.Mockito.*;
 
 class DeliveryGuaranteeTest {
     @ParameterizedTest
-    @CsvSource({",,NONE", "2026.09.24,,NONE", "2026.09.25,,STORED", "2026.09.26,,STORED",
+    @CsvSource({",,STORED", "2026.09.24,,STORED", "2026.09.25,,STORED", "2026.09.26,,STORED",
                 ",STORED,STORED", "2026.09.24,STORED,STORED", "2026.09.26,NONE,NONE",
                 "2026.09.26,SENT,SENT"})
     void resolvesVersionAndOverrides(String version, String override, Guarantee expected) {
@@ -64,7 +64,7 @@ class DeliveryGuaranteeTest {
             assertThrows(IllegalArgumentException.class, () -> getDefaultDeliveryGuarantee(
                     new SimplePropertySource(Map.of(DEFAULT_DELIVERY_GUARANTEE_PROPERTY, value))));
         }
-        assertThrows(IllegalArgumentException.class, () -> getDefaultDeliveryGuarantee(
+        assertEquals(Guarantee.STORED, getDefaultDeliveryGuarantee(
                 new SimplePropertySource(Map.of(DEFAULTS_VERSION_PROPERTY, "invalid"))));
     }
 

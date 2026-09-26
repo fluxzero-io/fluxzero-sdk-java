@@ -22,6 +22,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -75,8 +76,16 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             1, Integer.getInteger("fluxzero.resultBatchSize", 16_384));
     private static final long RESULT_BATCH_COLLECTION_NANOS = Math.max(
             0L, Long.getLong("fluxzero.resultBatchCollectionNanos", 1_000_000L));
+    public DefaultResultGateway(Client client, Serializer serializer, DispatchInterceptor dispatchInterceptor, ResponseMapper responseMapper) {
+        this.client = client;
+        this.serializer = serializer;
+        this.dispatchInterceptor = dispatchInterceptor;
+        this.responseMapper = responseMapper;
+    }
+
     @With
     private final Client client;
+    private Guarantee defaultGuarantee = Guarantee.STORED;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final ResponseMapper responseMapper;
@@ -111,7 +120,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             }
             serializedMessage.setTarget(target);
             serializedMessage.setRequestId(requestId);
-            return getGatewayClient().append(guarantee, serializedMessage);
+            return AsyncCompletionScope.register(getGatewayClient().append(resolveGuarantee(guarantee), serializedMessage));
         } catch (Exception e) {
             String responseDescription = Objects.toString(payload != null && ifClass(payload) == null
                     ? payload.getClass() : payload);
@@ -142,7 +151,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     }
 
     /**
-     * Enqueues an automatically published handler response without allocating an individual completion future.
+     * Enqueues an automatically published handler response without allocating an individual completion future outside an active batch completion scope.
      *
      * <p>The ordered result backlog still waits for the actual transport append before publishing its next batch.
      * This method is intended for consumers that explicitly do not await asynchronous result publication.</p>
@@ -155,19 +164,25 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     private CompletableFuture<Void> enqueueBatched(Object response, String target, Integer requestId,
                                                    ResultPreparationErrorHandler errorHandler,
                                                    boolean trackCompletion) {
+        trackCompletion |= AsyncCompletionScope.isActive();
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         BatchResponse batchResponse = BatchResponse.of(response, target, requestId);
         if (!(getGatewayClient() instanceof WebsocketGatewayClient)) {
             CompletableFuture<Void> result = respond(
-                    batchResponse.payload(), batchResponse.metadata(), target, requestId, Guarantee.NONE);
+                    batchResponse.payload(), batchResponse.metadata(), target, requestId, Guarantee.DEFAULT);
             return trackCompletion ? result : null;
         }
         PreparedResponse prepared = new PreparedResponse(
                 batchResponse.payload(), batchResponse.metadata(), target, requestId, context,
                 CompositeDispatchInterceptor.requiresMonitoring(dispatchInterceptor, RESULT), errorHandler,
-                trackCompletion ? new CompletableFuture<>() : null,
+                trackCompletion ? AsyncCompletionScope.register(new CompletableFuture<>()) : null,
                 FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L);
-        enqueue(prepared);
+        try {
+            enqueue(prepared);
+        } catch (RuntimeException | Error failure) {
+            complete(prepared, failure);
+            throw failure;
+        }
         return prepared.dispatched();
     }
 
@@ -272,7 +287,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         }
         CompletableFuture<Void> result;
         try {
-            result = getGatewayClient().append(Guarantee.NONE, appendBatch);
+            result = getGatewayClient().append(defaultGuarantee, appendBatch);
         } catch (Throwable e) {
             result = CompletableFuture.failedFuture(e);
         }
@@ -474,5 +489,18 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 new IllegalStateException("Result gateway has closed")));
         super.close();
         getResponseBacklog().shutDown();
+    }
+
+    /** Configures the concrete application delivery default before first use; namespace copies inherit it. */
+    public DefaultResultGateway withDefaultGuarantee(Guarantee guarantee) {
+        if (java.util.Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
+    }
+
+    private Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
     }
 }

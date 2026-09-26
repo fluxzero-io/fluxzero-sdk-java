@@ -84,7 +84,7 @@ public class WebsocketSchedulingClient extends AbstractWebsocketClient implement
 
     @Override
     public CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
-        return sendCommand(new Schedule(Arrays.asList(schedules), guarantee));
+        return sendCommand(new Schedule(Arrays.asList(schedules), resolveGuarantee(guarantee)));
     }
 
     @Override
@@ -96,12 +96,12 @@ public class WebsocketSchedulingClient extends AbstractWebsocketClient implement
     @Override
     public CompletableFuture<Void> scheduleBoundToParents(Guarantee guarantee, Map<String, Long> parents,
                                                           SerializedSchedule... schedules) {
-        return sendCommand(new ScheduleWithParents(Arrays.asList(schedules), Map.copyOf(parents), guarantee));
+        return sendCommand(new ScheduleWithParents(Arrays.asList(schedules), Map.copyOf(parents), resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> cancelSchedule(String scheduleId, Guarantee guarantee) {
-        return sendCommand(new CancelSchedule(scheduleId, guarantee));
+        return sendCommand(new CancelSchedule(scheduleId, resolveGuarantee(guarantee)));
     }
 
     @Override

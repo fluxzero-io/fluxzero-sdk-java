@@ -17,11 +17,15 @@ package io.fluxzero.sdk.persisting.keyvalue;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.sdk.common.Namespaced;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * A simple interface for storing, retrieving, and removing key-value pairs.
  * <p>
  * This interface provides basic persistence operations such as storing values (with optional guarantees),
  * retrieving them by key, conditionally storing only if absent, and deleting by key.
+ * Writes return futures and do not block. Use an explicit {@link Guarantee#STORED} and await its future when
+ * another operation depends on durable storage. Active tracking batches await registered write completions.
  *
  * <p><strong>Note:</strong> This API is considered legacy in the Fluxzero Runtime. It is recommended
  * to use the more advanced and flexible {@code DocumentStore} instead, which supports structured querying,
@@ -45,13 +49,14 @@ public interface KeyValueStore extends Namespaced<KeyValueStore> {
     }
 
     /**
-     * Stores a value under the given key with the default {@link Guarantee#SENT} delivery guarantee.
+     * Stores a value under the given key with the default {@link Guarantee#DEFAULT} delivery guarantee.
      *
      * @param key   the key to store the value under
      * @param value the value to store
+     * @return delivery completion according to the application default
      */
-    default void store(String key, Object value) {
-        store(key, value, Guarantee.SENT);
+    default CompletableFuture<Void> store(String key, Object value) {
+        return store(key, value, Guarantee.DEFAULT);
     }
 
     /**
@@ -59,18 +64,20 @@ public interface KeyValueStore extends Namespaced<KeyValueStore> {
      *
      * @param key       the key to store the value under
      * @param value     the value to store
-     * @param guarantee the delivery guarantee (e.g., SENT, STORED)
+     * @param guarantee the delivery guarantee (DEFAULT, NONE, SENT, or STORED)
+     * @return completion according to the selected guarantee
      */
-    void store(String key, Object value, Guarantee guarantee);
+    CompletableFuture<Void> store(String key, Object value, Guarantee guarantee);
 
     /**
-     * Stores a value only if there is no existing value for the specified key.
+     * Stores a value only if there is no existing value for the specified key. This always requests a stored
+     * result; the application delivery default does not weaken the conditional operation.
      *
      * @param key   the key to store the value under
      * @param value the value to store
-     * @return {@code true} if the value was stored, {@code false} if the key already had a value
+     * @return a future with {@code true} if the value was stored, {@code false} if the key already had a value
      */
-    boolean storeIfAbsent(String key, Object value);
+    CompletableFuture<Boolean> storeIfAbsent(String key, Object value);
 
     /**
      * Retrieves the value associated with the given key.
@@ -85,6 +92,17 @@ public interface KeyValueStore extends Namespaced<KeyValueStore> {
      * Removes the value associated with the given key.
      *
      * @param key the key to delete
+     * @return completion according to the application default
      */
-    void delete(String key);
+    default CompletableFuture<Void> delete(String key) {
+        return delete(key, Guarantee.DEFAULT);
+    }
+
+    /**
+     * Removes a value asynchronously with the specified delivery guarantee.
+     * @param key the key to delete
+     * @param guarantee concrete guarantee or DEFAULT
+     * @return completion according to the selected guarantee
+     */
+    CompletableFuture<Void> delete(String key, Guarantee guarantee);
 }

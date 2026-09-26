@@ -111,6 +111,10 @@ complete behavior.
 compatibility behavior when the property is absent. Use `yyyy.MM.dd` values. Each version includes the defaults from
 earlier versions, and each behavior can still be overridden with its dedicated property.
 
+Outgoing delivery is determined by the SDK major version, not a defaults date: 2.x uses `STORED`; 1.x normally uses `NONE`, but retains `SENT` for schedule-client creation and cancellation without an override.
+Override it with `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`), accepting
+`NONE`, `SENT`, or `STORED`. This applies to `Guarantee.DEFAULT` across outgoing operations, not just publication.
+
 Independent Model conflict handling is not version-gated: it defaults to `RETRY` for updates and creations.
 Use `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`) for an explicit `ACCEPT` or `FAIL` policy.
 
@@ -121,7 +125,6 @@ Use `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`) for an ex
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
-| `>= 2026.09.25` | `fluxzero.publishing.defaultGuarantee = STORED` | Publication and send-and-forget defaults await durable delivery at the consumer batch boundary. Set `NONE` for compatibility or `SENT` for transport completion. |
 
 For example:
 

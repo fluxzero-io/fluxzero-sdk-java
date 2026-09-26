@@ -204,7 +204,7 @@ public interface TrackingClient extends AutoCloseable {
     /**
      * Disconnects the specified tracker from its segment and optionally sends an empty final batch.
      * <p>
-     * Default implementation uses {@link Guarantee#SENT}.
+     * Default implementation uses {@link Guarantee#DEFAULT}.
      *
      * @param consumer            the name of the consumer group
      * @param trackerId           the ID of the tracker thread being disconnected
@@ -212,7 +212,7 @@ public interface TrackingClient extends AutoCloseable {
      * @return a future indicating disconnection
      */
     default CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch) {
-        return disconnectTracker(consumer, trackerId, sendFinalEmptyBatch, Guarantee.SENT);
+        return disconnectTracker(consumer, trackerId, sendFinalEmptyBatch, Guarantee.DEFAULT);
     }
 
     /**

@@ -387,3 +387,13 @@ Fluxzero.get().documentStore().bulkUpdate(updates);
 - **Rebuilding**: If you change your indexing configuration (e.g., adding a new `@Facet`), you can rebuild a downstream
   collection by replaying its input events. See the [Document Rebuilding](tracking.md#document-rebuilding)
   section in the Tracking manual for more details.
+
+## Delivery and completion
+
+Indexing, `indexIfNotExists`, `indexAndForget`, deletion/movement, collection deletion, and audit-trail creation use
+`Guarantee.DEFAULT` in SDK 2.x. The major-version default is `STORED`; override it with
+`fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`). The defaults date has no effect.
+`indexAndWait` keeps explicit `STORED`. Ordinary bulk `execute()` keeps `STORED`, while `executeAndForget()` uses
+`DEFAULT`. A future completes according to its selected guarantee; with `NONE`, joining it does not prove storage.
+Commands started in an active tracking batch participate in its completion barrier even if their futures are ignored.
+Outside tracking, retain the future to observe delivery failures. An explicit guarantee overrides application policy.

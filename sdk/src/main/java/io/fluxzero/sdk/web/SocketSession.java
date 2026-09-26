@@ -37,12 +37,12 @@ public interface SocketSession {
     String sessionId();
 
     /**
-     * Sends a message over the WebSocket session with the specified value, using the {@code Guarantee.NONE} policy.
+     * Sends a message over the WebSocket session with the specified value, using the {@code Guarantee.DEFAULT} policy.
      *
      * @param value the value of the message to be sent. The value will be serialized and transmitted as bytes.
      */
     default void sendMessage(Object value) {
-        sendMessage(value, Guarantee.NONE);
+        sendMessage(value, Guarantee.DEFAULT);
     }
 
     /**
@@ -94,14 +94,13 @@ public interface SocketSession {
     <R> CompletionStage<R> sendRequest(Request<R> request, Duration timeout);
 
     /**
-     * Sends a WebSocket ping message with the given value. The ping will be sent without any specific delivery
-     * guarantees.
+     * Sends a WebSocket ping message with the given value. The ping uses {@link Guarantee#DEFAULT}.
      *
      * @param value the object to be sent as a ping message, which will be serialized and transmitted over the
      *              WebSocket
      */
     default void sendPing(Object value) {
-        sendPing(value, Guarantee.NONE);
+        sendPing(value, Guarantee.DEFAULT);
     }
 
     /**
@@ -118,28 +117,28 @@ public interface SocketSession {
 
     /**
      * Closes the WebSocket session using the default closing behavior. This method triggers the close operation with a
-     * close reason code of 1000 (normal closure) and a {@link Guarantee} of {@code NONE}.
+     * close reason code of 1000 (normal closure) and a {@link Guarantee} of {@code DEFAULT}.
      */
     default void close() {
-        close(Guarantee.NONE);
+        close(Guarantee.DEFAULT);
     }
 
     /**
-     * Closes the WebSocket session using the specified close reason and a default guarantee of {@link Guarantee#NONE}.
+     * Closes the WebSocket session using the specified close reason and a default guarantee of {@link Guarantee#DEFAULT}.
      *
      * @param closeReason the reason for closing the session, represented as an integer. Standard WebSocket close codes
      *                    can be used (e.g., 1000 for normal closure).
      */
     default void close(int closeReason) {
-        close(closeReason, Guarantee.NONE);
+        close(closeReason, Guarantee.DEFAULT);
     }
 
     /**
-     * Closes the WebSocket session with the specified guarantee for handling pending operations.
+     * Closes the WebSocket session with the specified guarantee for the outbound close message.
+     * Local session closure happens immediately; completion does not acknowledge a remote close handshake.
      *
-     * @param guarantee the level of guarantee to be applied for handling pending messages or pings before closing the
-     *                  session. This can be NONE, SENT, or STORED.
-     * @return a CompletableFuture that completes when the closing operation is finished.
+     * @param guarantee the delivery guarantee for the close message, including {@link Guarantee#DEFAULT}.
+     * @return a future that completes according to the close message's selected delivery guarantee.
      */
     default CompletableFuture<Void> close(Guarantee guarantee) {
         return close(1000, guarantee);
@@ -150,9 +149,8 @@ public interface SocketSession {
      *
      * @param closeReason an integer indicating the reason for closing the WebSocket session, typically based on
      *                    WebSocket close codes (e.g., 1000 for normal closure).
-     * @param guarantee   the delivery guarantee for ensuring the closure message is sent, which can be one of the
-     *                    {@link Guarantee} values: NONE, SENT, or STORED.
-     * @return a {@code CompletableFuture<Void>} that completes when the close operation is performed successfully.
+     * @param guarantee   the delivery guarantee for the close message, including {@link Guarantee#DEFAULT}.
+     * @return a future that completes according to the close message's selected delivery guarantee.
      */
     CompletableFuture<Void> close(int closeReason, Guarantee guarantee);
 

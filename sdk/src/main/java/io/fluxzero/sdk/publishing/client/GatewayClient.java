@@ -57,7 +57,8 @@ public interface GatewayClient extends AutoCloseable, Monitored<List<SerializedM
     /**
      * Append the given messages to the gateway, applying the given delivery {@link Guarantee}.
      *
-     * @param guarantee a concrete delivery guarantee; SDK gateways resolve {@code DEFAULT} before calling this client
+     * @param guarantee delivery guarantee; SDK gateways resolve DEFAULT using their application policy; direct WebSocket calls
+     *                  resolve it using their immutable client configuration
      * @param messages  one or more serialized messages to append
      * @return a {@link CompletableFuture} that completes when the append operation is successful or fails if delivery
      * fails
@@ -72,7 +73,7 @@ public interface GatewayClient extends AutoCloseable, Monitored<List<SerializedM
      *
      * @param duration  the new retention duration
      * @param guarantee the delivery guarantee to apply to the update operation
-     * @return a {@link CompletableFuture} that completes once the retention setting is updated
+     * @return a {@link CompletableFuture} that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
 
@@ -80,7 +81,7 @@ public interface GatewayClient extends AutoCloseable, Monitored<List<SerializedM
      * Truncates the underlying gateway's message log and clears its tracking positions.
      *
      * @param guarantee the delivery guarantee to apply to the truncate operation
-     * @return a {@link CompletableFuture} that completes once the log is truncated
+     * @return a {@link CompletableFuture} that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> truncate(Guarantee guarantee);
 

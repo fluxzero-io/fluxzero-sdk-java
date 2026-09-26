@@ -33,6 +33,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AsyncCompletionScopeTest {
 
     @Test
+    void ownedWaitRemainsInterruptible() {
+        try {
+            Thread.currentThread().interrupt();
+            var failure = assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> AsyncCompletionScope.await(CompletableFuture::new));
+            assertTrue(failure.getCause() instanceof InterruptedException);
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void runAndAwaitStartsAllRegisteredFuturesBeforeWaiting() throws Exception {
         CountDownLatch callbacksStarted = new CountDownLatch(2);
         CompletableFuture<Void> first = new CompletableFuture<>();
@@ -125,6 +138,17 @@ class AsyncCompletionScopeTest {
                 () -> AsyncCompletionScope.runAndAwaitBeforeCommit(task));
         assertSame(deliveryFailure, failure.getCause().getCause());
         assertSame(taskFailure, failure.getSuppressed()[0]);
+    }
+
+    @Test
+    void synchronouslyOwnedAttemptsCanRecoverWithoutPoisoningTheBatch() {
+        AsyncCompletionScope.runAndAwaitBeforeCommit(() -> {
+            assertThrows(CompletionException.class, () -> AsyncCompletionScope.await(() ->
+                    AsyncCompletionScope.register(CompletableFuture.failedFuture(new IllegalStateException("retry")))));
+            AsyncCompletionScope.await(() -> AsyncCompletionScope.register(CompletableFuture.completedFuture(null)));
+            org.junit.jupiter.api.Assertions.assertTrue(AsyncCompletionScope.isActive());
+        });
+        org.junit.jupiter.api.Assertions.assertFalse(AsyncCompletionScope.isActive());
     }
 
 }

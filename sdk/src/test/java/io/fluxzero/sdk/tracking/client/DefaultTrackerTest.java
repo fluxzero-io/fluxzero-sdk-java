@@ -168,14 +168,14 @@ class DefaultTrackerTest {
 
         when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
         when(trackingClient.getPosition("consumer")).thenReturn(new Position(storedIndex));
-        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false))).thenReturn(
+        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false), eq(io.fluxzero.common.Guarantee.DEFAULT))).thenReturn(
                 CompletableFuture.completedFuture(null));
 
         Registration registration = DefaultTracker.start(messages -> {
         }, config, trackingClient);
         try {
             verify(trackingClient, timeout(1000).atLeastOnce()).getPosition("consumer");
-            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
+            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false), eq(io.fluxzero.common.Guarantee.DEFAULT));
             verify(trackingClient, never()).readAndWait(anyString(), any(), same(config));
         } finally {
             registration.cancel();
@@ -201,7 +201,7 @@ class DefaultTrackerTest {
                                  Position.newPosition(), true));
         when(trackingClient.storePosition(eq("consumer"), any(), eq(config.getMaxIndexExclusive()))).thenReturn(
                 CompletableFuture.completedFuture(null));
-        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false))).thenReturn(
+        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false), eq(io.fluxzero.common.Guarantee.DEFAULT))).thenReturn(
                 CompletableFuture.completedFuture(null));
 
         Registration registration = DefaultTracker.start(messages -> {
@@ -240,7 +240,7 @@ class DefaultTrackerTest {
                 CompletableFuture.completedFuture(null));
         when(trackingClient.storePosition(eq("consumer"), any(), eq(resetIndex))).thenReturn(
                 CompletableFuture.completedFuture(null));
-        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false))).thenReturn(
+        when(trackingClient.disconnectTracker(eq("consumer"), anyString(), eq(false), eq(io.fluxzero.common.Guarantee.DEFAULT))).thenReturn(
                 CompletableFuture.completedFuture(null));
 
         Registration registration = DefaultTracker.start(messages -> {
@@ -248,7 +248,7 @@ class DefaultTrackerTest {
         try {
             verify(trackingClient, timeout(1000).atLeastOnce()).readAndWait(anyString(), eq(firstReadIndex),
                                                                             same(config));
-            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
+            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false), eq(io.fluxzero.common.Guarantee.DEFAULT));
             verify(trackingClient, timeout(1000).atLeastOnce()).readAndWait(anyString(), eq(resetIndex), same(config));
         } finally {
             registration.cancel();
@@ -592,7 +592,7 @@ class DefaultTrackerTest {
             throw new BatchProcessingException(2L);
         }), config, trackingClient);
         try {
-            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false));
+            verify(trackingClient, timeout(1000)).disconnectTracker(eq("consumer"), anyString(), eq(false), eq(io.fluxzero.common.Guarantee.DEFAULT));
             verify(trackingClient, never()).storePosition(anyString(), any(), anyLong());
         } finally {
             registration.cancel();
@@ -603,10 +603,10 @@ class DefaultTrackerTest {
     private static DefaultTracker createTracker(TrackingClient trackingClient, ConsumerConfiguration config,
                                                 Tracker tracker) throws Exception {
         Constructor<DefaultTracker> constructor = DefaultTracker.class.getDeclaredConstructor(
-                java.util.function.Consumer.class, ConsumerConfiguration.class, Tracker.class, TrackingClient.class);
+                java.util.function.Consumer.class, ConsumerConfiguration.class, Tracker.class, TrackingClient.class, io.fluxzero.common.Guarantee.class);
         constructor.setAccessible(true);
         return constructor.newInstance((java.util.function.Consumer<List<io.fluxzero.common.api.SerializedMessage>>) m -> {
-        }, config, tracker, trackingClient);
+        }, config, tracker, trackingClient, io.fluxzero.common.Guarantee.DEFAULT);
     }
 
     private static void setRunning(DefaultTracker tracker, boolean value) throws Exception {

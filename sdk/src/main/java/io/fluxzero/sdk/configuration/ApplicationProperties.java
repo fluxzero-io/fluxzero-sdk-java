@@ -107,18 +107,16 @@ public class ApplicationProperties {
     public static final String MODEL_NAME_PREFIX_PROPERTY = "fluxzero.model.namePrefix";
 
     /**
-     * Application delivery default for message publication and send-and-forget gateways. The conventional environment
+     * Application delivery default for outgoing SDK operations. The conventional environment
      * variable is {@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}. Values are {@code NONE}, {@code SENT}, and
-     * {@code STORED}; an explicit value overrides the defaults version in either direction.
+     * {@code STORED}; an explicit value overrides the SDK major-version default.
      */
     public static final String DEFAULT_DELIVERY_GUARANTEE_PROPERTY = "fluxzero.publishing.defaultGuarantee";
 
-    private static final LocalDate STORED_DELIVERY_DEFAULTS_VERSION = LocalDate.of(2026, 9, 25);
-
     /**
      * Resolves the application delivery default using the owning component's property source.
-     * Without an override, defaults versions from {@code 2026.09.25} use {@link Guarantee#STORED}; older or absent
-     * versions retain {@link Guarantee#NONE}. Invalid values, including the unresolved {@code DEFAULT}, fail.
+     * SDK 2.x uses {@link Guarantee#STORED} without an override; SDK 1.x normally uses {@link Guarantee#NONE}, retaining stronger legacy operation defaults when unconfigured.
+     * This setting is independent of the defaults date. Invalid values, including unresolved {@code DEFAULT}, fail.
      *
      * @param propertySource application-local properties
      * @return a concrete delivery guarantee
@@ -137,8 +135,7 @@ public class ApplicationProperties {
             throw new IllegalArgumentException("Property `" + DEFAULT_DELIVERY_GUARANTEE_PROPERTY
                                                + "` must be NONE, SENT, or STORED");
         }
-        return defaultsVersionAtLeast(propertySource, STORED_DELIVERY_DEFAULTS_VERSION)
-                ? Guarantee.STORED : Guarantee.NONE;
+        return Guarantee.STORED;
     }
 
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
@@ -238,17 +235,15 @@ public class ApplicationProperties {
      *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
      *         Set the property to {@code false} to retain compatibility behavior.</td>
      *     </tr>
-     *     <tr>
-     *         <td>{@code >= 2026.09.25}</td>
-     *         <td>{@code fluxzero.publishing.defaultGuarantee = STORED}</td>
-     *         <td>Message publication and send-and-forget gateways resolve {@code Guarantee.DEFAULT} to durable
-     *         storage acknowledgement. Set the property to {@code NONE} to retain compatibility behavior.</td>
-     *     </tr>
      * </table>
      * <p>
      * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this
      * version. Override it with {@code fluxzero.model.conflictPolicy} ({@code FLUXZERO_MODEL_CONFLICT_POLICY})
      * or explicit builder/Model/Apply configuration. Create-only compatibility remains a separate check.
+     * <p>
+     * Outgoing delivery defaults to STORED in SDK 2.x and normally NONE in SDK 1.x, independently of this date.
+     * Unconfigured 1.x scheduling clients and cancellation retain SENT.
+     * Override it with {@link #DEFAULT_DELIVERY_GUARANTEE_PROPERTY}.
      * <p>
      * Memory-aware cache pressure can be tuned with
      * {@code fluxzero.cache.memoryPressure.heapThresholdPercent},

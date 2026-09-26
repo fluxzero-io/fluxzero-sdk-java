@@ -95,10 +95,13 @@ class ModelEventProtectionTest {
             doAnswer(call -> {
                 contents.put(call.getArgument(0), call.getArgument(1));
                 writes.incrementAndGet();
-                return null;
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
             }).when(view).store(anyString(), any(), any());
             when(view.get(anyString())).thenAnswer(call -> contents.get(call.getArgument(0)));
-            doAnswer(call -> contents.remove(call.getArgument(0))).when(view).delete(anyString());
+            doAnswer(call -> {
+                contents.remove(call.getArgument(0));
+                return java.util.concurrent.CompletableFuture.completedFuture(null);
+            }).when(view).delete(anyString(), any());
             return view;
         });
     }

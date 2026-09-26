@@ -274,7 +274,7 @@ public @interface Consumer {
     boolean awaitAsyncResults() default false;
 
     /**
-     * If {@code true}, futures returned by fire-and-forget dispatches started during this consumer's batch processing
+     * If {@code true}, futures returned by outgoing commands started during this consumer's batch processing
      * must complete before the consumer stores its position.
      * <p>
      * The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee

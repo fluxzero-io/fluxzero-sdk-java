@@ -11,7 +11,7 @@ documents.deleteDocument(documentId, "projection-v3").join();
 documents.moveDocument(documentId, "projection-v2", "projection-v3").join();
 ```
 
-The default overloads use `Guarantee.STORED`. Keep the returned future in the operation result and verify absence or
+The default overloads use `Guarantee.DEFAULT` (`STORED` in SDK 2.x unless explicitly overridden). Keep the returned future in the operation result and verify absence or
 the target collection afterward. A move changes the collection of the indexed document; handlers following a document
 collection log must be reviewed for the move.
 
@@ -40,7 +40,7 @@ Fluxzero.bulkUpdate("projection-v3")
 ```
 
 `indexIfNotExists(...)` prevents replacement of an existing ID. `execute()` returns a future with
-`Guarantee.STORED`; `executeAndForget()` deliberately uses `Guarantee.NONE` and is a poor choice for operator tooling
+`Guarantee.STORED`; `executeAndForget()` uses `Guarantee.DEFAULT` and is a poor choice for operator tooling
 that must report a verified outcome. Treat each collection/document-ID pair as one final update in the batch: do not
 depend on repeated operations for the same ID being executed sequentially, and do not claim that a multi-document bulk
 request is an application transaction.

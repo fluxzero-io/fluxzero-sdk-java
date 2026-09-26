@@ -59,7 +59,7 @@ public interface KeyValueClient extends AutoCloseable {
      * @return a handle that enables clients to wait until the command was safely sent to the store
      */
     default CompletableFuture<Void> deleteValue(String key) {
-        return deleteValue(key, Guarantee.SENT);
+        return deleteValue(key, Guarantee.DEFAULT);
     }
 
     /**

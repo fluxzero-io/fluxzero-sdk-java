@@ -362,10 +362,11 @@ still contributes to total response size.
 When tracking closes, incomplete chunked payloads fail so their handlers cannot remain blocked waiting for missing
 input. A fully received body remains readable, and ordinary asynchronous handler results retain their shutdown grace.
 
-### Publication delivery default
+### Outgoing-command delivery default
 
 Configure `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) before building the
-application: `NONE`, `SENT`, or `STORED`. Without this override, `fluxzero.defaults.version >= 2026.09.25` selects
-`STORED`; older or absent versions keep `NONE`. This governs `Guarantee.DEFAULT` in publication/send-and-forget
-APIs. It does not change explicit concrete guarantees or operation-specific persistence/telemetry defaults.
+application: `NONE`, `SENT`, or `STORED`. SDK 2.x defaults to `STORED`; SDK 1.x normally defaults to `NONE`, retaining `SENT` for schedule-client creation and cancellation without an override.
+This is independent
+of `fluxzero.defaults.version`. This governs `Guarantee.DEFAULT` across the outgoing SDK operations described in
+the sending rules. Explicit concrete guarantees, internal persistence durability, and metrics defaults remain unchanged.
 See the sending rules for consumer-position and asynchronous completion boundaries.

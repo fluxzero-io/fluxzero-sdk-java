@@ -115,10 +115,10 @@ public interface BulkUpdateBuilder {
     CompletableFuture<Void> execute(Guarantee guarantee);
 
     /**
-     * Applies the configured update operations using {@link Guarantee#NONE}.
+     * Applies the configured update operations using {@link Guarantee#DEFAULT}.
      */
     default void executeAndForget() {
-        execute(Guarantee.NONE);
+        execute(Guarantee.DEFAULT);
     }
 
     /**
@@ -134,6 +134,6 @@ public interface BulkUpdateBuilder {
      */
     @SneakyThrows
     default void executeAndWait(Guarantee guarantee) {
-        execute(guarantee).get();
+        io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(() -> execute(guarantee)).get();
     }
 }

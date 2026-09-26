@@ -77,7 +77,7 @@ public interface SearchClient extends AutoCloseable {
      * @param documents   the documents to index
      * @param guarantee   delivery guarantee (see {@link Guarantee})
      * @param ifNotExists if {@code true}, only index documents that do not already exist
-     * @return a future that completes when the operation is done
+     * @return a future that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists);
 
@@ -229,7 +229,7 @@ public interface SearchClient extends AutoCloseable {
      *
      * @param query     the search query specifying which documents to delete
      * @param guarantee delivery guarantee
-     * @return a future that completes when the deletion has been performed
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     default CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee) {
         return delete(query, guarantee, 0);
@@ -244,7 +244,7 @@ public interface SearchClient extends AutoCloseable {
      * @param query     the search query specifying which documents to delete
      * @param guarantee delivery guarantee
      * @param batchSize requested delete batch size
-     * @return a future that completes when the deletion has been performed
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize);
 
@@ -254,7 +254,7 @@ public interface SearchClient extends AutoCloseable {
      * @param query            the search query specifying which documents to move
      * @param targetCollection the name of the collection to move documents to
      * @param guarantee        delivery guarantee
-     * @return a future that completes when the move has been performed
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     CompletableFuture<Void> move(SearchQuery query, String targetCollection, Guarantee guarantee);
 
@@ -264,7 +264,7 @@ public interface SearchClient extends AutoCloseable {
      * @param documentId the document id
      * @param collection the collection to delete from
      * @param guarantee  delivery guarantee
-     * @return a future that completes when the deletion has been performed
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     CompletableFuture<Void> delete(String documentId, String collection, Guarantee guarantee);
 
@@ -275,7 +275,7 @@ public interface SearchClient extends AutoCloseable {
      * @param collection       the collection to move from
      * @param targetCollection the collection to move to
      * @param guarantee        delivery guarantee
-     * @return a future that completes when the move has been performed
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     CompletableFuture<Void> move(String documentId, String collection, String targetCollection, Guarantee guarantee);
 
@@ -283,7 +283,7 @@ public interface SearchClient extends AutoCloseable {
      * Configures Fluxzero to use a search collection as a searchable audit trail.
      *
      * @param request a request object specifying the collection to use as an audit trail and retention configuration
-     * @return a future that completes when the audit trail has been created.
+     * @return a future that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> createAuditTrail(CreateAuditTrail request);
 
@@ -291,10 +291,10 @@ public interface SearchClient extends AutoCloseable {
      * Deletes an entire document collection and all its contents.
      *
      * @param collection the name of the collection to delete
-     * @return a future that completes when the collection has been deleted
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     default CompletableFuture<Void> deleteCollection(String collection) {
-        return deleteCollection(collection, Guarantee.STORED);
+        return deleteCollection(collection, Guarantee.DEFAULT);
     }
 
     /**
@@ -302,7 +302,7 @@ public interface SearchClient extends AutoCloseable {
      *
      * @param collection the name of the collection to delete
      * @param guarantee  delivery guarantee
-     * @return a future that completes when the collection has been deleted
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     CompletableFuture<Void> deleteCollection(String collection, Guarantee guarantee);
 
@@ -379,7 +379,7 @@ public interface SearchClient extends AutoCloseable {
      *
      * @param updates   the update operations to perform
      * @param guarantee delivery guarantee
-     * @return a future that completes when the updates have been applied
+     * @return a future that completes when the selected delivery guarantee is reached
      */
     CompletableFuture<Void> bulkUpdate(Collection<DocumentUpdate> updates, Guarantee guarantee);
 

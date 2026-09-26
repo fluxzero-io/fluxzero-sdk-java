@@ -438,7 +438,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
             futures.add(eventStoreClient.deleteEvents(aggregateId, STORED));
             futures.add(snapshotStore.deleteSnapshot(id));
             if (configuration.directDocument()) {
-                futures.add(documentStore.deleteDocument(id, collection));
+                futures.add(documentStore.deleteDocument(id, collection, STORED));
             }
             return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
         }
@@ -607,11 +607,11 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                     Object value = after.get();
                     if (value == null) {
                         futures.add(eventsStored.thenCompose(
-                                ignored -> documentStore.deleteDocument(after.id().toString(), collection)));
+                                ignored -> documentStore.deleteDocument(after.id().toString(), collection, STORED)));
                     } else {
                         futures.add(eventsStored.thenCompose(ignored -> documentStore.index(
                                 value, after.id().toString(), collection,
-                                timestampFunction.apply(after), endFunction.apply(after))));
+                                timestampFunction.apply(after), endFunction.apply(after), STORED, false)));
                     }
                 }
                 return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
