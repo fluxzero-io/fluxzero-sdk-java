@@ -35,11 +35,22 @@ The historical `next/2.0` workflow accepts explicit `2.0.0-Mn` or `2.0.0-RCn` pr
 artifacts, package channel `2.0-prerelease` and version-scoped Javadoc, without GitHub Latest or a website signal.
 Run an SDK release before a matching Runtime release so Runtime can pin the immutable SDK version.
 
+## Documentation-only PRs
+
+Markdown/MDX, similar documentation text, documentation images and the agent graph manifest use lightweight
+validation inside `build-pr`, including graph validation and archive tests. The shared classifier in
+`.github/scripts/classify-changes.py` considers the entire merged diff and both sides of renames. Source resources,
+fixtures, scripts, configuration and mixed changes retain full SDK qualification. Use ordinary commit messages
+without `[skip ci]`. Documentation edits enter versioned artifacts at the next maintenance release; existing
+artifacts remain immutable. Maintenance publication is still manual with an explicit patch version and never
+refreshes the active-major website. This PR filter does not change release authorization or destinations.
+
 ## Local policy checks
 
 ```bash
 bash .github/scripts/resolve-release-version.test.sh
 bash .github/scripts/resolve-release-publication.test.sh
+python3 .github/scripts/classify-changes.test.py
 ```
 
 These checks exercise valid releases and reruns, rejected branch/version/tag combinations and isolation of maintenance
