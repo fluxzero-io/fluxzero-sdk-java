@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,39 @@ class WebsocketTrackingCancellationTest {
         assertFalse(cancellation.isDone());
         finalRelease.complete(null);
         assertTrue(cancellation.isDone());
+        client.close();
+    }
+
+    @Test
+    void lateClaimIsIncludedInPendingAcquisitionsWithoutAffectingAnotherTracker() {
+        var client = spy(new TestClient(WebSocketClient.newInstance(
+                WebSocketClient.ClientConfig.builder().name("test").runtimeBaseUrl("ws://localhost").disableMetrics(true).build())));
+        var matchingClaim = mock(ClaimSegment.class);
+        when(matchingClaim.getConsumer()).thenReturn("consumer");
+        when(matchingClaim.getTrackerId()).thenReturn("tracker");
+        var otherTrackerClaim = mock(ClaimSegment.class);
+        when(otherTrackerClaim.getConsumer()).thenReturn("consumer");
+        when(otherTrackerClaim.getTrackerId()).thenReturn("other-tracker");
+        var otherConsumerClaim = mock(ClaimSegment.class);
+        when(otherConsumerClaim.getConsumer()).thenReturn("other-consumer");
+        when(otherConsumerClaim.getTrackerId()).thenReturn("tracker");
+        var delayedClaim = new CompletableFuture<RequestResult>();
+        doAnswer(invocation -> {
+            Predicate<Request> filter = invocation.getArgument(0);
+            assertTrue(filter.test(matchingClaim));
+            assertFalse(filter.test(otherTrackerClaim));
+            assertFalse(filter.test(otherConsumerClaim));
+            return List.of(delayedClaim);
+        }).when(client).pendingResponses(any());
+        doReturn(CompletableFuture.completedFuture(null)).when(client)
+                .disconnectTracker(eq("consumer"), eq("tracker"), anyBoolean(), eq(Guarantee.STORED));
+        var cancellation = client.disconnectTerminatedTracker("consumer", "tracker", Guarantee.STORED);
+        assertFalse(cancellation.isDone());
+        verify(client).disconnectTracker("consumer", "tracker", true, Guarantee.STORED);
+        verify(client, never()).disconnectTracker("consumer", "tracker", false, Guarantee.STORED);
+        delayedClaim.complete(mock(RequestResult.class));
+        assertTrue(cancellation.isDone());
+        verify(client).disconnectTracker("consumer", "tracker", false, Guarantee.STORED);
         client.close();
     }
 
