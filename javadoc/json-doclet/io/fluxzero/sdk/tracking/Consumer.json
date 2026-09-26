@@ -39,8 +39,8 @@
     "varArgs" : false,
     "documentation" : " If {@code true}, asynchronous handler results must complete before the consumer finishes the current batch.\n <p>\n The default is {@code false}, matching the historical fire-and-forget behavior: asynchronous results are\n published when they complete, while the tracker can continue with the next batch.\n"
   }, {
-    "name" : "awaitSendAndForgetFutures",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures",
+    "name" : "awaitOutgoingWrites",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites",
     "returnType" : "boolean",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
@@ -48,7 +48,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " If {@code true}, futures returned by outgoing commands started during this consumer's batch processing\n must complete before the consumer stores its position.\n <p>\n The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee\n before tracker progress is committed without each handler explicitly waiting on the returned future.\n Worker invocations are awaited so publications started by their handler bodies are included. This does not\n await a returned asynchronous result when {@link #awaitAsyncResults()} is disabled; work started later by that\n result is outside this batch's completion boundary. Incomplete streaming bodies also remain asynchronous so\n later batches can deliver their remaining chunks.\n <p>\n Failures while awaiting are handled by this consumer's error handler like other batch processing failures.\n"
+    "documentation" : " If {@code true}, futures returned by outgoing writes (including publication, indexing, and scheduling) started during\n this consumer's batch processing must complete before the consumer stores its position.\n <p>\n The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee\n before tracker progress is committed without each handler explicitly waiting on the returned future.\n Worker invocations are awaited so publications started by their handler bodies are included. This does not\n await a returned asynchronous result when {@link #awaitAsyncResults()} is disabled; work started later by that\n result is outside this batch's completion boundary. Incomplete streaming bodies also remain asynchronous so\n later batches can deliver their remaining chunks.\n <p>\n Failures while awaiting are handled by this consumer's error handler like other batch processing failures.\n"
   }, {
     "name" : "batchInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#batchInterceptors",

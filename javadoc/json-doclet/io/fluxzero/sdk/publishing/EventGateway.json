@@ -71,7 +71,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Publishes the given event object. If the object is not already a {@link Message}, it will be wrapped in one. The\n event uses the owning application's {@link Guarantee#DEFAULT} delivery guarantee.\n <p>\n If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited\n by this call; a participating tracking completion scope awaits them before committing the consumer position; see\n {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.\n Outside tracking, use a future-returning overload when delivery confirmation is required.\n\n @param event the event object to publish\n @throws RuntimeException if an error occurs during publishing\n"
+    "documentation" : " Publishes the given event object. If the object is not already a {@link Message}, it will be wrapped in one. The\n event uses the owning application's {@link Guarantee#DEFAULT} delivery guarantee.\n <p>\n If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited\n by this call; a participating tracking completion scope awaits them before committing the consumer position; see\n {@link io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites()} for opt-outs and streaming boundaries.\n Outside tracking, use a future-returning overload when delivery confirmation is required.\n\n @param event the event object to publish\n @throws RuntimeException if an error occurs during publishing\n"
   }, {
     "name" : "publish",
     "qualifiedName" : "io.fluxzero.sdk.publishing.EventGateway#publish",
@@ -95,7 +95,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Publishes an event with the specified payload and metadata. The event is wrapped into a {@link Message}. The\n event uses the owning application's {@link Guarantee#DEFAULT} delivery guarantee.\n <p>\n If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited\n by this call; a participating tracking completion scope awaits them before committing the consumer position; see\n {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.\n Outside tracking, use a future-returning overload when delivery confirmation is required.\n\n @param payload  the event payload\n @param metadata the associated metadata\n @throws RuntimeException if an error occurs during publishing\n"
+    "documentation" : " Publishes an event with the specified payload and metadata. The event is wrapped into a {@link Message}. The\n event uses the owning application's {@link Guarantee#DEFAULT} delivery guarantee.\n <p>\n If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited\n by this call; a participating tracking completion scope awaits them before committing the consumer position; see\n {@link io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites()} for opt-outs and streaming boundaries.\n Outside tracking, use a future-returning overload when delivery confirmation is required.\n\n @param payload  the event payload\n @param metadata the associated metadata\n @throws RuntimeException if an error occurs during publishing\n"
   }, {
     "name" : "publish",
     "qualifiedName" : "io.fluxzero.sdk.publishing.EventGateway#publish",

@@ -238,7 +238,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends a message with the application's {@link Guarantee#DEFAULT} without waiting for a result or remote\n acknowledgement. A participating tracking completion scope awaits delivery before committing its consumer position; see\n {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.\n Outside tracking, use a future-returning overload to observe delivery confirmation or asynchronous failures.\n"
+    "documentation" : " Sends a message with the application's {@link Guarantee#DEFAULT} without waiting for a result or remote\n acknowledgement. A participating tracking completion scope awaits delivery before committing its consumer position; see\n {@link io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites()} for opt-outs and streaming boundaries.\n Outside tracking, use a future-returning overload to observe delivery confirmation or asynchronous failures.\n"
   }, {
     "name" : "sendAndForget",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendAndForget",

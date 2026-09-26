@@ -1652,8 +1652,8 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "runInSendAndForgetCompletionScope",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#runInSendAndForgetCompletionScope",
+    "name" : "runInOutgoingWriteCompletionScope",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.DefaultTracking#runInOutgoingWriteCompletionScope",
     "returnType" : "void",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
