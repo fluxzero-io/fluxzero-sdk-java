@@ -21,6 +21,7 @@ import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -58,8 +59,16 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
 
     public static final int MAX_RESPONSE_SIZE = 2 * 1024 * 1024;
 
+    public WebResponseGateway(Client client, Serializer serializer, DispatchInterceptor dispatchInterceptor, WebResponseMapper webResponseMapper) {
+        this.client = client;
+        this.serializer = serializer;
+        this.dispatchInterceptor = dispatchInterceptor;
+        this.webResponseMapper = webResponseMapper;
+    }
+
     @With
     private final Client client;
+    private Guarantee defaultGuarantee = Guarantee.STORED;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final WebResponseMapper webResponseMapper;
@@ -95,7 +104,7 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                     dispatchInterceptor.monitorDispatch(response, WEBRESPONSE, null, client.namespace(), false);
                     serializedMessage.setTarget(target);
                     serializedMessage.setRequestId(requestId);
-                    return getGatewayClient().append(guarantee, serializedMessage);
+                    return getGatewayClient().append(resolveGuarantee(guarantee), serializedMessage);
                 }
                 return CompletableFuture.completedFuture(null);
             } catch (Exception e) {
@@ -103,7 +112,7 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
                         response.getPayloadClass().getName(), target, requestId, e), e);
             }
         };
-        return sendResponse(response, dispatcher);
+        return AsyncCompletionScope.register(sendResponse(response, dispatcher));
     }
 
     protected CompletableFuture<Void> sendResponse(WebResponse response,
@@ -146,5 +155,18 @@ public class WebResponseGateway extends AbstractNamespaced<ResultGateway> implem
         DeserializingMessage request = DeserializingMessage.getCurrent();
         return request != null && request.getMessageType() == io.fluxzero.common.MessageType.WEBREQUEST
                && HEAD.equals(WebRequest.getMethod(request.getMetadata()));
+    }
+
+    /** Configures the concrete application delivery default before first use; namespace copies inherit it. */
+    public WebResponseGateway withDefaultGuarantee(Guarantee guarantee) {
+        if (java.util.Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
+    }
+
+    private Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
     }
 }

@@ -78,9 +78,25 @@ class DataProtectionInterceptorTest {
     }
 
     @Test
+    void protectedPayloadIsNotDispatchedBeforeItsDurableWriteCompletes() throws Exception {
+        KeyValueStore store = mockStore();
+        when(store.forNamespace("tenant")).thenReturn(store);
+        var acknowledgement = new java.util.concurrent.CompletableFuture<Void>();
+        when(store.store(anyString(), org.mockito.ArgumentMatchers.any(), eq(io.fluxzero.common.Guarantee.STORED))).thenReturn(acknowledgement);
+        var interceptor = new DataProtectionInterceptor(store, new JacksonSerializer());
+        try (var task = new io.fluxzero.common.TestTask(() -> interceptor.interceptDispatch(
+                new Message(new SomeEvent("secret")), MessageType.EVENT, null, "tenant"),
+                () -> acknowledgement.complete(null))) {
+            task.awaitBlockedIn(io.fluxzero.sdk.common.AsyncCompletionScope.class, "await", java.time.Duration.ofSeconds(2));
+            acknowledgement.complete(null);
+            task.awaitCompletion(java.time.Duration.ofSeconds(2));
+        }
+    }
+
+    @Test
     void storesProtectedDataInDispatchNamespace() {
-        KeyValueStore defaultStore = mock(KeyValueStore.class);
-        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        KeyValueStore defaultStore = mockStore();
+        KeyValueStore namespacedStore = mockStore();
         when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
 
         new DataProtectionInterceptor(defaultStore, new JacksonSerializer()).interceptDispatch(
@@ -92,8 +108,8 @@ class DataProtectionInterceptorTest {
 
     @Test
     void restoresLocallyDispatchedDataFromMemoryWithoutUsingKeyValueStorage() {
-        KeyValueStore defaultStore = mock(KeyValueStore.class);
-        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        KeyValueStore defaultStore = mockStore();
+        KeyValueStore namespacedStore = mockStore();
         when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
         DataProtectionInterceptor interceptor = new DataProtectionInterceptor(defaultStore, new JacksonSerializer());
         Message intercepted = interceptor.interceptLocalDispatch(
@@ -111,13 +127,13 @@ class DataProtectionInterceptorTest {
         verify(defaultStore, never()).forNamespace("tenant");
         verify(namespacedStore, never()).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
         verify(namespacedStore, never()).get(anyString());
-        verify(namespacedStore, never()).delete(anyString());
+        verify(namespacedStore, never()).delete(anyString(), eq(io.fluxzero.common.Guarantee.STORED));
     }
 
     @Test
     void externalizesDeferredDataOnceBeforeExternalDispatch() {
-        KeyValueStore defaultStore = mock(KeyValueStore.class);
-        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        KeyValueStore defaultStore = mockStore();
+        KeyValueStore namespacedStore = mockStore();
         when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
         DataProtectionInterceptor interceptor = new DataProtectionInterceptor(defaultStore, new JacksonSerializer());
         Message intercepted = interceptor.interceptLocalDispatch(
@@ -131,7 +147,7 @@ class DataProtectionInterceptorTest {
 
     @Test
     void droppingLocallyDispatchedDataDoesNotDeleteFromKeyValueStorage() {
-        KeyValueStore store = mock(KeyValueStore.class);
+        KeyValueStore store = mockStore();
         when(store.forNamespace(nullable(String.class))).thenReturn(store);
         DataProtectionInterceptor interceptor = new DataProtectionInterceptor(store, new JacksonSerializer());
         Message intercepted = interceptor.interceptLocalDispatch(
@@ -154,13 +170,13 @@ class DataProtectionInterceptorTest {
         verify(store, never()).forNamespace(nullable(String.class));
         verify(store, never()).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
         verify(store, never()).get(anyString());
-        verify(store, never()).delete(anyString());
+        verify(store, never()).delete(anyString(), eq(io.fluxzero.common.Guarantee.STORED));
     }
 
     @Test
     void replacesInheritedProtectedDataReferencesInDispatchNamespace() {
-        KeyValueStore defaultStore = mock(KeyValueStore.class);
-        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        KeyValueStore defaultStore = mockStore();
+        KeyValueStore namespacedStore = mockStore();
         when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
         Message message = new Message(new SomeEvent("secret"), Metadata.of(
                 DataProtectionInterceptor.METADATA_KEY, Map.of("sensitiveData", "old-key"),
@@ -182,7 +198,7 @@ class DataProtectionInterceptorTest {
                 DataProtectionInterceptor.METADATA_KEY, Map.of("sensitiveData", "old-key"),
                 DataProtectionInterceptor.NAMESPACE_METADATA_KEY, "application"));
 
-        Message result = new DataProtectionInterceptor(mock(KeyValueStore.class), new JacksonSerializer())
+        Message result = new DataProtectionInterceptor(mockStore(), new JacksonSerializer())
                 .interceptDispatch(message, MessageType.EVENT, null, "tenant");
 
         assertFalse(result.getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY));
@@ -191,7 +207,7 @@ class DataProtectionInterceptorTest {
 
     @Test
     void removesProtectedDataMetadataWhenPayloadHasNothingToProtect() {
-        Message result = new DataProtectionInterceptor(mock(KeyValueStore.class), new JacksonSerializer())
+        Message result = new DataProtectionInterceptor(mockStore(), new JacksonSerializer())
                 .interceptDispatch(new Message("plain", Metadata.of(
                         DataProtectionInterceptor.METADATA_KEY, Map.of("secret", "old-key"))),
                                    MessageType.EVENT, null, "tenant");
@@ -202,8 +218,8 @@ class DataProtectionInterceptorTest {
 
     @Test
     void restoresProtectedDataFromConsumerNamespace() {
-        KeyValueStore defaultStore = mock(KeyValueStore.class);
-        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        KeyValueStore defaultStore = mockStore();
+        KeyValueStore namespacedStore = mockStore();
         when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
         when(namespacedStore.get("protected-key")).thenReturn("secret");
         SomeHandler target = new SomeHandler();
@@ -226,8 +242,8 @@ class DataProtectionInterceptorTest {
 
     @Test
     void localDispatchRestoresProtectedDataFromApplicationNamespaceInsideCustomConsumer() {
-        KeyValueStore defaultStore = mock(KeyValueStore.class);
-        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        KeyValueStore defaultStore = mockStore();
+        KeyValueStore namespacedStore = mockStore();
         when(defaultStore.forNamespace(null)).thenReturn(defaultStore);
         when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
         when(defaultStore.get("protected-key")).thenReturn("secret");
@@ -530,7 +546,7 @@ class DataProtectionInterceptorTest {
 
     private HandlerInvoker invokeWithMissingProtectedData(Object target, MissingProtectedDataPolicy applicationPolicy,
                                                           ConsumerConfiguration consumerConfiguration) {
-        KeyValueStore keyValueStore = mock(KeyValueStore.class);
+        KeyValueStore keyValueStore = mockStore();
         when(keyValueStore.forNamespace(nullable(String.class))).thenReturn(keyValueStore);
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
                 target, HandleEvent.class, List.of(new PayloadParameterResolver()));
@@ -802,4 +818,10 @@ class DataProtectionInterceptorTest {
         }
     }
 
+    private static KeyValueStore mockStore() {
+        return mock(KeyValueStore.class, call ->
+                call.getMethod().getReturnType() == java.util.concurrent.CompletableFuture.class
+                        ? java.util.concurrent.CompletableFuture.completedFuture(null)
+                        : org.mockito.Mockito.RETURNS_DEFAULTS.answer(call));
+    }
 }

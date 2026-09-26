@@ -34,6 +34,7 @@ import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
@@ -842,7 +843,8 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             if (store == null) {
                 pending.remove(key);
             } else {
-                store.delete(key);
+                KeyValueStore targetStore = store;
+                AsyncCompletionScope.await(() -> targetStore.delete(key, Guarantee.STORED));
             }
         }
     }
@@ -908,7 +910,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     private String protectValue(Object value, String namespace, PendingProtectedData pending) {
         String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
         if (pending == null) {
-            keyValueStore.forNamespace(namespace).store(key, value, Guarantee.STORED);
+            AsyncCompletionScope.await(() -> keyValueStore.forNamespace(namespace).store(key, value, Guarantee.STORED));
         } else {
             pending.put(key, value);
         }
@@ -959,7 +961,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             KeyValueStore store = keyValueStore.forNamespace(namespace);
             values.forEach((key, value) -> {
                 if (referencedKeys.contains(key)) {
-                    store.store(key, value, Guarantee.STORED);
+                    AsyncCompletionScope.await(() -> store.store(key, value, Guarantee.STORED));
                 }
             });
             values.clear();

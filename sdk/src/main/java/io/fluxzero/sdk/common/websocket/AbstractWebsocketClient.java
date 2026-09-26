@@ -18,6 +18,7 @@ package io.fluxzero.sdk.common.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.Backlog;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
@@ -50,6 +51,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
@@ -158,6 +160,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     static final String RECONNECT_BACKOFF_ENABLED_PROPERTY =
             "fluxzero.websocket.reconnectBackoff.enabled";
     static final LocalDate RECONNECT_BACKOFF_DEFAULTS_VERSION = LocalDate.of(2026, 9, 9);
+    private final Guarantee defaultGuarantee;
     private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
     private static final Duration MAX_RECONNECT_DELAY = Duration.ofSeconds(16);
     private static final Duration TRANSPORT_METRIC_PUBLICATION_TIMEOUT = Duration.ofSeconds(1);
@@ -284,6 +287,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                             boolean allowMetrics, Duration reconnectDelay, ObjectMapper objectMapper,
                             int numberOfSessions, PropertySource propertySource,
                             PingSchedulerFactory pingSchedulerFactory) {
+        this.defaultGuarantee = client.getClientConfig().getDefaultGuarantee();
         this.client = client;
         this.clientConfig = client.getClientConfig();
         this.objectMapper = objectMapper;
@@ -446,8 +450,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     /** Sends a request with context retained locally until its result is decoded. */
     protected <R extends RequestResult> CompletableFuture<R> send(
             Request request, Object resultContext) {
+        CompletableFuture<R> result = sendRequest(request, resultContext);
+        return request instanceof Command
+                || request instanceof io.fluxzero.common.api.modeling.RegisterModelGraphProjection
+                ? AsyncCompletionScope.register(result) : result;
+    }
+
+    private <R extends RequestResult> CompletableFuture<R> sendRequest(Request request, Object resultContext) {
+        requireConcreteGuarantee(request);
         boolean captureMetrics = metricsEnabled();
-        return new WebSocketRequest(
+        CompletableFuture<R> result = new WebSocketRequest(
                 request,
                 captureMetrics
                         ? captureCorrelationData()
@@ -462,6 +474,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                         : null,
                 resultContext)
                 .send();
+        return result;
     }
 
     /** Captures a request without releasing it to the websocket queue yet. */
@@ -473,6 +486,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     /** Captures a request and result context without releasing it to the websocket queue yet. */
     protected <R extends RequestResult> PreparedRequest<R> prepareRequest(
             Request request, Object resultContext) {
+        requireConcreteGuarantee(request);
         boolean captureMetrics = metricsEnabled();
         return new PreparedRequest<>(new WebSocketRequest(
                 request,
@@ -514,17 +528,28 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return (R) send(request).get();
     }
 
+    /** Resolves standalone client defaults once configured at client construction. */
+    protected Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
+    }
+
+    private static void requireConcreteGuarantee(Request request) {
+        if (request instanceof Command command && command.getGuarantee() == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("Guarantee.DEFAULT must be resolved before constructing a transport command");
+        }
+    }
+
     protected CompletableFuture<Void> sendCommand(Command command) {
-        return switch (command.getGuarantee()) {
+        return AsyncCompletionScope.register(switch (command.getGuarantee()) {
             case NONE -> {
                 sendUntracked(command, captureCorrelationData(), sessionPool.get(command.routingKey()));
                 yield CompletableFuture.completedFuture(null);
             }
             case SENT -> sendAndForget(command);
             case DEFAULT -> throw new IllegalArgumentException(
-                    "Guarantee.DEFAULT must be resolved by the application gateway before transport");
-            default -> send(command).thenApply(r -> null);
-        };
+                    "Guarantee.DEFAULT must be resolved before constructing a transport command");
+            default -> sendRequest(command, null).thenApply(r -> null);
+        });
     }
 
     @SneakyThrows

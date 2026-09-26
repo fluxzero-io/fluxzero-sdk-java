@@ -102,7 +102,7 @@ Fluxzero.publishEvent(new PaymentCompleted(paymentId));
 return null;
 ```
 
-`Fluxzero.publishEvent(...)` uses `Guarantee.NONE`, and the saga deletion happens only after the method returns. Publication can succeed before deletion or tracker completion fails, so retry can publish a duplicate. Conversely, the no-guarantee publication can be lost while deletion succeeds.
+`Fluxzero.publishEvent(...)` uses `Guarantee.DEFAULT`, and the saga deletion happens only after the method returns. Publication can succeed before deletion or tracker completion fails, so retry can publish a duplicate. When DEFAULT resolves to NONE (the 1.x fallback or an explicit override), publication can also be lost while deletion succeeds. STORED acknowledgement does not make publication and saga deletion transactional.
 
 If completion needs an outgoing effect, retain a durable terminal or pending-effect state until the effect protocol has completed instead of deleting the saga in the same invocation. Returning that marker does not make it visible during the current method body: arrange a separate retryable dispatcher or later durable trigger that reloads the stored marker before sending. Give the effect a stable business or correlation key and make its receiver idempotent. If a committed Model transition is the source of truth, use the registered post-commit consumer pattern from Model commit/effect guidance instead of publishing from pre-commit code. Never claim exactly-once behavior across stateful document persistence and a separately published message.
 

@@ -65,7 +65,7 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
 
     @Override
     public CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists) {
-        return sendCommand(new IndexDocuments(documents, ifNotExists, guarantee));
+        return sendCommand(new IndexDocuments(documents, ifNotExists, resolveGuarantee(guarantee)));
     }
 
     @Override
@@ -74,12 +74,12 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
             String expectedManifest,
             Guarantee guarantee) {
         return sendCommand(new RewriteModelGraphDocument(
-                document, expectedManifest, guarantee));
+                document, expectedManifest, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> bulkUpdate(Collection<DocumentUpdate> batch, Guarantee guarantee) {
-        return sendCommand(new BulkUpdateDocuments(batch, guarantee));
+        return sendCommand(new BulkUpdateDocuments(batch, resolveGuarantee(guarantee)));
     }
 
     @Override
@@ -280,32 +280,34 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
 
     @Override
     public CompletableFuture<Void> delete(SearchQuery query, Guarantee guarantee, int batchSize) {
-        return sendCommand(new DeleteDocuments(query, guarantee, batchSize));
+        return sendCommand(new DeleteDocuments(query, resolveGuarantee(guarantee), batchSize));
     }
 
     @Override
     public CompletableFuture<Void> move(SearchQuery query, String targetCollection, Guarantee guarantee) {
-        return sendCommand(new MoveDocuments(query, targetCollection, guarantee));
+        return sendCommand(new MoveDocuments(query, targetCollection, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> delete(String documentId, String collection, Guarantee guarantee) {
-        return sendCommand(new DeleteDocumentById(collection, documentId, guarantee));
+        return sendCommand(new DeleteDocumentById(collection, documentId, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> move(String documentId, String collection, String targetCollection,
                                         Guarantee guarantee) {
-        return sendCommand(new MoveDocumentById(collection, documentId, targetCollection, guarantee));
+        return sendCommand(new MoveDocumentById(collection, documentId, targetCollection, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> deleteCollection(String collection, Guarantee guarantee) {
-        return sendCommand(new DeleteCollection(collection, guarantee));
+        return sendCommand(new DeleteCollection(collection, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> createAuditTrail(CreateAuditTrail request) {
-        return sendCommand(request);
+        return sendCommand(request.getGuarantee() == Guarantee.DEFAULT
+                ? new CreateAuditTrail(request.getCollection(), request.getRetentionTimeInSeconds(),
+                                       resolveGuarantee(Guarantee.DEFAULT)) : request);
     }
 }

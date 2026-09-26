@@ -61,9 +61,10 @@ public enum Guarantee {
     STORED,
 
     /**
-     * Uses the owning application's delivery default for SDK message publication and send-and-forget gateways.
-     * Compatibility mode resolves to {@link #NONE}; applications can opt into {@link #STORED} with their defaults
-     * version or configure a concrete delivery guarantee explicitly. The SDK resolves this value before transport.
+     * Uses the owning application's delivery default for outgoing SDK operations.
+     * SDK 2.x defaults to {@link #STORED}; SDK 1.x defaults to {@link #NONE}, independently of the defaults date.
+     * Applications can override this with {@code fluxzero.publishing.defaultGuarantee}
+     * ({@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}). The SDK resolves this value before transport.
      * This is not a wire guarantee and must not be used in low-level protocol requests.
      */
     DEFAULT

@@ -24,6 +24,7 @@ import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
@@ -103,6 +104,7 @@ public class DefaultTracker implements Runnable, Registration {
     private final Long minIndex;
     private final Long maxIndexExclusive;
     private final boolean autoStorePosition;
+    private final Guarantee disconnectGuarantee;
     private final FlowRegulator flowRegulator;
     private final MetricsGateway metricsGateway;
     private final AtomicBoolean cancellationRequested = new AtomicBoolean();
@@ -139,7 +141,8 @@ public class DefaultTracker implements Runnable, Registration {
                                      ConsumerConfiguration config, Fluxzero fluxzero) {
         ConsumerConfiguration trackerConfig = withFluxzeroBatchInterceptors(config, messageType, fluxzero);
         fluxzero.execute(fc -> trackerConfig.effectiveMaxFetchBytes());
-        return start(consumer, messageType, topic, trackerConfig, fluxzero.client());
+        return start(consumer, messageType, topic, trackerConfig, fluxzero.client(),
+                     ApplicationProperties.getDefaultDeliveryGuarantee(fluxzero.propertySource()));
     }
 
     /**
@@ -163,11 +166,17 @@ public class DefaultTracker implements Runnable, Registration {
      */
     public static Registration start(Consumer<List<SerializedMessage>> consumer, MessageType messageType,
                                      @Nullable String topic, ConsumerConfiguration config, Client client) {
+        return start(consumer, messageType, topic, config, client, Guarantee.DEFAULT);
+    }
+
+    private static Registration start(Consumer<List<SerializedMessage>> consumer, MessageType messageType,
+                                      String topic, ConsumerConfiguration config, Client client,
+                                      Guarantee disconnectGuarantee) {
         List<DefaultTracker> trackers = IntStream.range(0, config.getThreads())
                 .mapToObj(i -> new DefaultTracker(consumer, config, new Tracker(
                         config.getTrackerIdFactory().apply(client), messageType, topic, config, null),
                                                   client.forNamespace(config.getNamespace())
-                                                          .getTrackingClient(messageType, topic))).toList();
+                                                          .getTrackingClient(messageType, topic), disconnectGuarantee)).toList();
         for (int i = 0; i < trackers.size(); i++) {
             new Thread(threadGroup, trackers.get(i),
                        format("%s%s-%d", config.getName(),
@@ -188,7 +197,7 @@ public class DefaultTracker implements Runnable, Registration {
         List<DefaultTracker> trackers = IntStream.range(0, config.getThreads())
                 .mapToObj(i -> new DefaultTracker(consumer, config, new Tracker(
                         UUID.randomUUID().toString(), trackingClient.getMessageType(), trackingClient.getTopic(),
-                        config, null), trackingClient)).toList();
+                        config, null), trackingClient, Guarantee.DEFAULT)).toList();
         for (int i = 0; i < trackers.size(); i++) {
             new Thread(threadGroup, trackers.get(i),
                        format("%s%s-%d", config.getName(),
@@ -208,7 +217,8 @@ public class DefaultTracker implements Runnable, Registration {
     }
 
     private DefaultTracker(Consumer<List<SerializedMessage>> consumer, ConsumerConfiguration config, Tracker tracker,
-                           TrackingClient trackingClient) {
+                           TrackingClient trackingClient, Guarantee disconnectGuarantee) {
+        this.disconnectGuarantee = disconnectGuarantee;
         this.consumer = consumer;
         this.tracker = tracker;
         Consumer<MessageBatch> processor = join(config.getBatchInterceptors()).intercept(this::process, tracker);
@@ -303,7 +313,7 @@ public class DefaultTracker implements Runnable, Registration {
     protected void suspendUntilReset(Long suspendedIndex) {
         try {
             processing = false;
-            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false, disconnectGuarantee);
             while (running.get()) {
                 Long storedLowestIndex = currentStoredLowestIndex();
                 Long minLastProcessedIndex = ofNullable(minIndex).map(i -> i - 1).orElse(null);
@@ -552,7 +562,7 @@ public class DefaultTracker implements Runnable, Registration {
             processing = false;
             cancel();
         } finally {
-            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false, disconnectGuarantee);
         }
     }
 

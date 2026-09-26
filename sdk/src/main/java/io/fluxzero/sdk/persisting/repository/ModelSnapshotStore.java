@@ -91,7 +91,7 @@ final class ModelSnapshotStore {
                      facetValue(document,
                                 MODEL_ID_FACET),
                      e);
-            documentStore.deleteDocument(document.getId(), SNAPSHOT_COLLECTION);
+            documentStore.deleteDocument(document.getId(), SNAPSHOT_COLLECTION, io.fluxzero.common.Guarantee.STORED);
             return Optional.empty();
         }
     }

@@ -76,6 +76,10 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
  *     Fluxzero.scheduleCommand(myCommand, Instant.now().plusSeconds(10));
  * </pre>
  *
+ * <p>Convenience scheduling methods use {@link Guarantee#DEFAULT} and do not wait for remote acknowledgement.
+ * Use the explicit future-returning overload when subsequent work depends on delivery. Active tracking batches
+ * await registered scheduling commands before committing position. Cancellation is likewise non-blocking.
+ *
  * @see io.fluxzero.sdk.scheduling.Schedule
  * @see ScheduleId
  * @see Periodic
@@ -85,7 +89,7 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
 public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
-     * Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#STORED}
+     * Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#DEFAULT}
      * guarantee.
      *
      * @param value the payload to schedule periodically
@@ -98,7 +102,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
      * Schedule a periodic message using the given ID and the {@code @Periodic} annotation, using the
-     * {@link Guarantee#STORED} guarantee.
+     * {@link Guarantee#DEFAULT} guarantee.
      *
      * @param value      the payload to schedule periodically
      * @param scheduleId a custom ID or null to use value#toString
@@ -148,7 +152,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message to be triggered at the given deadline, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a message to be triggered at the given deadline, using the {@link Guarantee#DEFAULT} guarantee.
      * <p>
      * The schedule ID will be determined by calling schedule#toString.
      *
@@ -163,7 +167,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message using a delay from the current time, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a message using a delay from the current time, using the {@link Guarantee#DEFAULT} guarantee.
      * <p>
      * The schedule ID will be determined by calling schedule#toString.
      *
@@ -198,7 +202,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message with payload and metadata, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a message with payload and metadata, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedulePayload the message payload
      * @param metadata        metadata to attach
@@ -223,7 +227,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message with payload and metadata using a delay, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a message with payload and metadata using a delay, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedulePayload the message payload
      * @param metadata        metadata to attach
@@ -247,7 +251,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message with the given ID and deadline, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a message with the given ID and deadline, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedule   the object to schedule
      * @param scheduleId unique schedule ID
@@ -276,7 +280,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message object (typically of type {@link Schedule}) for execution, using the {@link Guarantee#STORED}
+     * Schedule a message object (typically of type {@link Schedule}) for execution, using the {@link Guarantee#DEFAULT}
      * guarantee.
      *
      * @param message the message to schedule
@@ -286,7 +290,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a message, optionally skipping if already present, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a message, optionally skipping if already present, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param message  the schedule message
      * @param ifAbsent whether to skip scheduling if an existing schedule is present
@@ -294,7 +298,10 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     @SneakyThrows
     default void schedule(@NonNull Schedule message, boolean ifAbsent) {
         try {
-            schedule(message, ifAbsent, Guarantee.STORED).get();
+            CompletableFuture<Void> completion = schedule(message, ifAbsent, Guarantee.DEFAULT);
+            if (completion.isDone()) {
+                completion.join();
+            }
         } catch (Throwable e) {
             throw new SchedulerException(String.format("Failed to schedule message %s for %s", message.getPayload(),
                                                        message.getDeadline()), e);
@@ -308,13 +315,13 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @param message   the schedule message
      * @param ifAbsent  only schedule if not already scheduled
      * @param guarantee the delivery guarantee to use
-     * @return a CompletableFuture completing when the message is successfully scheduled
+     * @return a future that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> schedule(Schedule message, boolean ifAbsent, Guarantee guarantee);
 
     /**
      * Schedule a command message for future execution. This is similar to {@link #schedule} but ensures the message is
-     * dispatched as a command, using the {@link Guarantee#STORED} guarantee.
+     * dispatched as a command, using the {@link Guarantee#DEFAULT} guarantee.
      * <p>
      * The schedule ID will be determined by calling schedule#toString.
      *
@@ -329,7 +336,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command to execute after given delay, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a command to execute after given delay, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedule the command to schedule
      * @param delay    delay until execution
@@ -340,7 +347,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command with the given ID and delay, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a command with the given ID and delay, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedule   the command to schedule
      * @param scheduleId schedule ID
@@ -362,7 +369,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command message with attached metadata, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a command message with attached metadata, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedulePayload payload of the command
      * @param metadata        metadata to attach
@@ -388,7 +395,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command with metadata and delay, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a command with metadata and delay, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedulePayload payload to schedule
      * @param metadata        metadata to attach
@@ -414,7 +421,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command using a specific deadline, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a command using a specific deadline, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param schedule   the command object or message
      * @param scheduleId the schedule ID
@@ -443,7 +450,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
-     * Schedule a command message using the given scheduling settings, using the {@link Guarantee#STORED} guarantee.
+     * Schedule a command message using the given scheduling settings, using the {@link Guarantee#DEFAULT} guarantee.
      *
      * @param message the command message
      */
@@ -453,14 +460,17 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
 
     /**
      * Schedule a command using the given scheduling settings if no other with same ID exists, using the
-     * {@link Guarantee#STORED} guarantee.
+     * {@link Guarantee#DEFAULT} guarantee.
      *
      * @param message  the command schedule
      * @param ifAbsent whether to skip if already scheduled
      */
     default void scheduleCommand(@NonNull Schedule message, boolean ifAbsent) {
         try {
-            scheduleCommand(message, ifAbsent, Guarantee.STORED).get();
+            CompletableFuture<Void> completion = scheduleCommand(message, ifAbsent, Guarantee.DEFAULT);
+            if (completion.isDone()) {
+                completion.join();
+            }
         } catch (Throwable e) {
             throw new SchedulerException(String.format("Failed to schedule command %s for %s", message.getPayload(),
                                                        message.getDeadline()), e);
@@ -473,7 +483,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @param message   the command schedule
      * @param ifAbsent  skip if existing schedule is present
      * @param guarantee the delivery guarantee to apply
-     * @return a future indicating when the command is scheduled
+     * @return a future that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> scheduleCommand(Schedule message, boolean ifAbsent, Guarantee guarantee);
 

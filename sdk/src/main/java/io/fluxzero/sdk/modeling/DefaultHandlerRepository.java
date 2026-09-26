@@ -144,12 +144,12 @@ public class DefaultHandlerRepository extends AbstractNamespaced<HandlerReposito
     @Override
     @SneakyThrows
     public CompletableFuture<?> put(Object id, Object value) {
-        return documentStore.index(value, id, collection, timestampFunction.apply(value), endFunction.apply(value));
+        return documentStore.index(value, id, collection, timestampFunction.apply(value), endFunction.apply(value), io.fluxzero.common.Guarantee.STORED, false);
     }
 
     @Override
     @SneakyThrows
     public CompletableFuture<?> delete(Object id) {
-        return documentStore.deleteDocument(id, collection);
+        return documentStore.deleteDocument(id, collection, io.fluxzero.common.Guarantee.STORED);
     }
 }

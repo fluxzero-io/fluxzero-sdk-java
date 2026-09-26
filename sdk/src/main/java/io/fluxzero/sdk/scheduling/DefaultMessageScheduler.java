@@ -23,6 +23,7 @@ import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -66,8 +67,19 @@ import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler>
         implements MessageScheduler, HasLocalHandlers {
 
+    public DefaultMessageScheduler(Client client, Serializer serializer, DispatchInterceptor dispatchInterceptor, DispatchInterceptor commandDispatchInterceptor, UnaryOperator<DeserializingMessage> parentDataRestoration, TaskScheduler taskScheduler, HandlerRegistry localHandlerRegistry) {
+        this.client = client;
+        this.serializer = serializer;
+        this.dispatchInterceptor = dispatchInterceptor;
+        this.commandDispatchInterceptor = commandDispatchInterceptor;
+        this.parentDataRestoration = parentDataRestoration;
+        this.taskScheduler = taskScheduler;
+        this.localHandlerRegistry = localHandlerRegistry;
+    }
+
     @With
     private final Client client;
+    private Guarantee defaultGuarantee = Guarantee.STORED;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final DispatchInterceptor commandDispatchInterceptor;
@@ -94,6 +106,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     private CompletableFuture<Void> schedule(Schedule message, boolean ifAbsent, Guarantee guarantee,
                                               ParentSelection commandParents) {
+        Guarantee resolvedGuarantee = resolveGuarantee(guarantee);
         if (Entity.isLoading()) {
             return CompletableFuture.completedFuture(null);
         }
@@ -134,19 +147,19 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
                         || ownershipMessage.getMetadata().containsKey(ScheduleParents.BINDINGS_KEY));
         var serializedSchedule = new SerializedSchedule(message.getScheduleId(),
                                                         message.getDeadline().toEpochMilli(), serializedMessage, ifAbsent);
-        return (parents.isEmpty() ? getSchedulingClient().schedule(guarantee, serializedSchedule)
+        return AsyncCompletionScope.register((parents.isEmpty() ? getSchedulingClient().schedule(resolvedGuarantee, serializedSchedule)
                 : getSchedulingClient().bindScheduleParents(parents).thenCompose(ThreadLocalContext.capture().wrap(bindings -> {
                     var bound = serializedMessage.withMetadata(
                             ScheduleParents.bind(serializedMessage.getMetadata(), client.namespace(), bindings));
-                    return getSchedulingClient().scheduleBoundToParents(guarantee, bindings,
+                    return getSchedulingClient().scheduleBoundToParents(resolvedGuarantee, bindings,
                             new SerializedSchedule(serializedSchedule.getScheduleId(), serializedSchedule.getTimestamp(),
                                                    bound, ifAbsent));
                 })))
-                .whenComplete((ignored, error) -> {
+                .whenComplete(io.fluxzero.sdk.common.ThreadLocalContext.capture().wrap((ignored, error) -> {
                     if (error == null) {
                         scheduleLocalDelivery(scheduledMessage, ifAbsent, fluxzero);
                     }
-                });
+                })));
     }
 
     private java.util.List<String> resolveParents(Schedule message, boolean previouslyOwnedCommand) {
@@ -215,7 +228,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
                 return;
             }
             cancelLocalDelivery(scheduleId.toString());
-            getSchedulingClient().cancelSchedule(scheduleId.toString()).get();
+            AsyncCompletionScope.register(getSchedulingClient().cancelSchedule(scheduleId.toString(), defaultGuarantee));
         } catch (Exception e) {
             throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
         }
@@ -373,5 +386,18 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
         protected void cancel() {
             registration.cancel();
         }
+    }
+
+    /** Configures the concrete application delivery default before first use; namespace copies inherit it. */
+    public DefaultMessageScheduler withDefaultGuarantee(Guarantee guarantee) {
+        if (java.util.Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
+    }
+
+    private Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
     }
 }

@@ -902,6 +902,7 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            var deliveryGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource);
             PropertySource shutdownProperties = propertySource;
             requestShutdownTimeout(shutdownProperties); // Validate before allocating application resources.
             configureTypeAliases();
@@ -957,7 +958,7 @@ public class DefaultFluxzero implements Fluxzero {
                     Entry::getKey, e -> List.copyOf(e.getValue())));
             Map<MessageType, List<BatchInterceptor>> internalBatchInterceptors = new HashMap<>();
 
-            KeyValueStore keyValueStore = new DefaultKeyValueStore(client, serializer);
+            KeyValueStore keyValueStore = new DefaultKeyValueStore(client, serializer).withDefaultGuarantee(deliveryGuarantee);
 
             //enable message routing
             boolean automaticModelRouting = configuredAutomaticModelRouting();
@@ -1115,7 +1116,8 @@ public class DefaultFluxzero implements Fluxzero {
                     new AtomicReference<>();
 
             ResultGateway webResponseGateway = new WebResponseGateway(
-                    client, serializer, dispatchChains.get(WEBRESPONSE), webResponseMapper);
+                    client, serializer, dispatchChains.get(WEBRESPONSE), webResponseMapper)
+                    .withDefaultGuarantee(deliveryGuarantee);
 
             //add websocket request handler decorator
             var websocketHandlerDecorator =
@@ -1160,7 +1162,8 @@ public class DefaultFluxzero implements Fluxzero {
                             handlerRepositorySupplier,
                             repositorySupplier), dispatchChains.get(DOCUMENT), serializer)
                             : HandlerRegistry.noOp(),
-                    propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY)));
+                    propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY))
+                    .withDefaultGuarantee(deliveryGuarantee));
             runtimeDocumentStore = documentStore.get();
 
             //event sourcing
@@ -1215,7 +1218,6 @@ public class DefaultFluxzero implements Fluxzero {
             }
 
             //create gateways
-            var deliveryGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource);
             UnaryOperator<GenericGateway> configureDelivery = gateway -> {
                 if (gateway instanceof DefaultGenericGateway defaultGateway) {
                     defaultGateway.withDefaultGuarantee(deliveryGuarantee);
@@ -1240,7 +1242,7 @@ public class DefaultFluxzero implements Fluxzero {
 
             ResultGateway resultGateway = new DefaultResultGateway(
                     client, serializer, dispatchChains.get(RESULT),
-                    defaultResponseMapper);
+                    defaultResponseMapper).withDefaultGuarantee(deliveryGuarantee);
 
             CommandGateway commandGateway =
                     new DefaultCommandGateway(configureDelivery.apply(createRequestGateway(
@@ -1334,7 +1336,8 @@ public class DefaultFluxzero implements Fluxzero {
                                                                                                  runtimeParameterResolvers,
                                                                                                  dispatchChains,
                                                                                                  handlerRepositorySupplier,
-                                                                                                 repositorySupplier));
+                                                                                                 repositorySupplier))
+                    .withDefaultGuarantee(deliveryGuarantee);
 
             if (!disableCacheEvictionMetrics) {
                 new CacheEvictionsLogger(metricsGateway).register(cache);

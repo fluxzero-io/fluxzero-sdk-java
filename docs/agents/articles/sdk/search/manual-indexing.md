@@ -111,3 +111,13 @@ Also test the public query that exposes the projection. The projection-and-searc
 Before completion, keep stable replacement, a full-history rebuild, typed public-query mapping, rejected-command
 absence, injected storage failure, and tracker-position behavior as separate evidence rows. Each detects a different
 projection defect; one current-document assertion cannot stand in for all of them.
+
+## Delivery and completion
+
+Indexing, `indexIfNotExists`, `indexAndForget`, deletion/movement, collection deletion, and audit-trail creation use
+`Guarantee.DEFAULT` in SDK 2.x. The major-version default is `STORED`; override it with
+`fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`). The defaults date has no effect.
+`indexAndWait` keeps explicit `STORED`. Ordinary bulk `execute()` keeps `STORED`, while `executeAndForget()` uses
+`DEFAULT`. A future completes according to its selected guarantee; with `NONE`, joining it does not prove storage.
+Commands started in an active tracking batch participate in its completion barrier even if their futures are ignored.
+Outside tracking, retain the future to observe delivery failures. An explicit guarantee overrides application policy.

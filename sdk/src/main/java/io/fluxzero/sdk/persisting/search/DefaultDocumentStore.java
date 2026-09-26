@@ -42,6 +42,7 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocument;
 import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Entity;
@@ -88,6 +89,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     private final Client client;
     @Getter
     private final DocumentSerializer serializer;
+    private Guarantee defaultGuarantee = Guarantee.STORED;
     @Delegate
     private final HasLocalHandlers handlerRegistry;
     private final String modelNamePrefix;
@@ -117,6 +119,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     private DefaultDocumentStore(
             Client client,
             DocumentSerializer serializer,
+            Guarantee defaultGuarantee,
             HasLocalHandlers handlerRegistry,
             String modelNamePrefix,
             Supplier<ModelRepository> modelRepositorySupplier,
@@ -124,6 +127,20 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         this(client, serializer, handlerRegistry, modelNamePrefix);
         this.modelRepositorySupplier = modelRepositorySupplier;
         this.modelTypesSupplier = modelTypesSupplier;
+        this.defaultGuarantee = defaultGuarantee;
+    }
+
+    /** Configures the concrete application delivery default before first use; namespace copies inherit it. */
+    public DefaultDocumentStore withDefaultGuarantee(Guarantee guarantee) {
+        if (Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
+    }
+
+    private Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
     }
 
     /** Configures typed materialized-graph reconstruction after the model subsystem has initialized. */
@@ -154,10 +171,10 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                          boolean ifNotExists) {
         try {
             object = object instanceof Entity<?> e ? e.get() : object;
-            return getSearchClient().index(List.of(serializer.toDocument(object, id.toString(),
+            return AsyncCompletionScope.register(getSearchClient().index(List.of(serializer.toDocument(object, id.toString(),
                                                                          determineCollection(collection), begin, end,
                                                                          metadata)),
-                                           guarantee, ifNotExists);
+                                           resolveGuarantee(guarantee), ifNotExists));
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Failed to store a document %s to collection %s", id, collection), e);
@@ -173,7 +190,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
             return documents.isEmpty() ? CompletableFuture.completedFuture(null)
-                    : getSearchClient().index(documents, guarantee, ifNotExists);
+                    : AsyncCompletionScope.register(getSearchClient().index(documents, resolveGuarantee(guarantee), ifNotExists));
         } catch (Exception e) {
             throw new DocumentStoreException(
                     format("Could not store a list of documents for collection %s", collection), e);
@@ -193,7 +210,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 .ifNotExists(ifNotExists).toDocument()).toList();
         try {
             return documents.isEmpty() ? CompletableFuture.completedFuture(null)
-                    : getSearchClient().index(documents, guarantee, ifNotExists);
+                    : AsyncCompletionScope.register(getSearchClient().index(documents, resolveGuarantee(guarantee), ifNotExists));
         } catch (Exception e) {
             throw new DocumentStoreException(
                     format("Could not store a list of documents for collection %s", collection), e);
@@ -203,11 +220,11 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public CompletableFuture<Void> bulkUpdate(Collection<? extends BulkUpdate> updates, Guarantee guarantee) {
         try {
-            return updates.isEmpty() ? CompletableFuture.completedFuture(null) : getSearchClient()
+            return updates.isEmpty() ? CompletableFuture.completedFuture(null) : AsyncCompletionScope.register(getSearchClient()
                     .bulkUpdate(updates.stream().map(this::serializeAction)
                                         .collect(toMap(a -> format("%s_%s", a.getCollection(), a.getId()),
                                                        identity(), (a, b) -> b)).values(),
-                                guarantee);
+                                resolveGuarantee(guarantee)));
         } catch (Exception e) {
             throw new DocumentStoreException("Could not apply batch of search actions", e);
         }
@@ -373,7 +390,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public CompletableFuture<Void> deleteDocument(Object id, Object collection, Guarantee guarantee) {
         try {
-            return getSearchClient().delete(id.toString(), determineCollection(collection), guarantee);
+            return AsyncCompletionScope.register(getSearchClient().delete(id.toString(), determineCollection(collection), resolveGuarantee(guarantee)));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not delete document %s from collection %s", id, collection),
                                              e);
@@ -384,9 +401,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     public CompletableFuture<Void> moveDocument(Object id, Object collection, Object targetCollection,
                                                 Guarantee guarantee) {
         try {
-            return getSearchClient().move(id.toString(), determineCollection(collection),
+            return AsyncCompletionScope.register(getSearchClient().move(id.toString(), determineCollection(collection),
                                           determineCollection(targetCollection),
-                                          guarantee);
+                                          resolveGuarantee(guarantee)));
         } catch (Exception e) {
             throw new DocumentStoreException(format(
                     "Could not move document %s from collection %s to collection %s", id, collection, targetCollection),
@@ -397,7 +414,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public CompletableFuture<Void> deleteCollection(Object collection) {
         try {
-            return getSearchClient().deleteCollection(determineCollection(collection));
+            return AsyncCompletionScope.register(getSearchClient().deleteCollection(determineCollection(collection), defaultGuarantee));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not delete collection %s", collection), e);
         }
@@ -406,9 +423,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public CompletableFuture<Void> createAuditTrail(Object collection, Duration retentionTime) {
         try {
-            return getSearchClient().createAuditTrail(
+            return AsyncCompletionScope.register(getSearchClient().createAuditTrail(
                     new CreateAuditTrail(determineCollection(collection), Optional.ofNullable(
-                            retentionTime).map(Duration::getSeconds).orElse(null), Guarantee.STORED));
+                            retentionTime).map(Duration::getSeconds).orElse(null), defaultGuarantee)));
         } catch (Exception e) {
             throw new DocumentStoreException(format("Could not create audit trail %s", collection), e);
         }
@@ -421,7 +438,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 ? local.forNamespace(namespace) : handlerRegistry;
         return namespacedClient == client && namespacedHandlerRegistry == handlerRegistry ? this
                 : new DefaultDocumentStore(
-                        namespacedClient, serializer,
+                        namespacedClient, serializer, defaultGuarantee,
                         namespacedHandlerRegistry,
                         modelNamePrefix,
                         () -> modelRepositorySupplier.get()
@@ -718,15 +735,21 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @Override
         public CompletableFuture<Void> delete(int batchSize) {
+            return delete(batchSize, Guarantee.DEFAULT);
+        }
+
+        @Override
+        public CompletableFuture<Void> delete(int batchSize, Guarantee guarantee) {
             requireOrdinarySearch("bulk delete");
-            return getSearchClient().delete(queryBuilder.build(), Guarantee.STORED, batchSize);
+            return AsyncCompletionScope.register(getSearchClient().delete(
+                    queryBuilder.build(), resolveGuarantee(guarantee), batchSize));
         }
 
         @Override
         public CompletableFuture<Void> move(Object targetCollection) {
             requireOrdinarySearch("bulk move");
-            return getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection),
-                                          Guarantee.STORED);
+            return AsyncCompletionScope.register(getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection),
+                                          defaultGuarantee));
         }
 
         private SearchDocuments searchRequest(

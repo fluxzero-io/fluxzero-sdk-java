@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.persisting.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.StreamInputStream;
 import io.fluxzero.common.ThrowingBiConsumer;
 import io.fluxzero.common.ThrowingFunction;
@@ -905,16 +906,27 @@ public interface Search<R> {
      *     <li>a negative value requests deletion with one unbounded statement.</li>
      * </ul>
      * Each batch may be committed independently. If a later batch fails, documents removed by earlier batches remain
-     * deleted. The returned future completes only after all matching documents have been processed, or completes
-     * exceptionally when a batch fails.
+     * deleted. The returned future follows {@link Guarantee#DEFAULT}: with STORED it completes after all matching documents
+     * have been processed or a batch fails; NONE and SENT do not confirm completion of server-side deletion.
      *
      * @param batchSize requested delete batch size
-     * @return a future that completes when deletion has finished
+     * @return a future that completes when the selected delivery guarantee has been reached
      */
     CompletableFuture<Void> delete(int batchSize);
 
     /**
-     * Moves all matching documents in the current search to the given collection.
+     * Deletes matching documents with an explicit delivery guarantee. Legacy custom searches retain their existing
+     * durable deletion implementation for STORED; other concrete guarantees require implementation support.
+     */
+    default CompletableFuture<Void> delete(int batchSize, Guarantee guarantee) {
+        if (guarantee == Guarantee.STORED || guarantee == Guarantee.DEFAULT) {
+            return delete(batchSize);
+        }
+        throw new UnsupportedOperationException("Explicit deletion guarantees are not supported by this search");
+    }
+
+    /**
+     * Moves all matching documents in the current search to the given collection using {@link Guarantee#DEFAULT}.
      *
      * @param targetCollection the collection to move to
      */

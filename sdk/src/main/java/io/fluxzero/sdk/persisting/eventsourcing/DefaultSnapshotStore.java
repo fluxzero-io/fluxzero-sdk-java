@@ -86,7 +86,7 @@ public class DefaultSnapshotStore extends AbstractNamespaced<SnapshotStore> impl
     @Override
     public CompletableFuture<Void> deleteSnapshot(Object aggregateId) {
         try {
-            return documentStore.search(SNAPSHOT_COLLECTION).match(aggregateId.toString(), true, "aggregateId").delete();
+            return documentStore.search(SNAPSHOT_COLLECTION).match(aggregateId.toString(), true, "aggregateId").delete(0, STORED);
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to delete snapshot for aggregate %s", aggregateId), e);
         }
@@ -117,7 +117,7 @@ public class DefaultSnapshotStore extends AbstractNamespaced<SnapshotStore> impl
             }
             return CompletableFuture.allOf(
                     snapshots.subList(maxSnapshotCount, snapshots.size()).stream()
-                            .map(document -> documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION))
+                            .map(document -> documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION, io.fluxzero.common.Guarantee.STORED))
                             .toArray(CompletableFuture[]::new));
         } catch (Exception e) {
             throw new EventSourcingException(format("Failed to trim snapshots for aggregate %s", snapshot.id()), e);
@@ -130,7 +130,7 @@ public class DefaultSnapshotStore extends AbstractNamespaced<SnapshotStore> impl
         } catch (DeserializationException e) {
             log.warn("Failed to deserialize snapshot {} for {}. Deleting snapshot.",
                      document.id(), document.aggregateId(), e);
-            documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION);
+            documentStore.deleteDocument(document.id(), SNAPSHOT_COLLECTION, io.fluxzero.common.Guarantee.STORED);
             return Optional.empty();
         }
     }

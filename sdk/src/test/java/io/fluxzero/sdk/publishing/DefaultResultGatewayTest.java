@@ -422,6 +422,35 @@ class DefaultResultGatewayTest {
         gateway.close();
     }
 
+    @Test
+    void ignoredBatchedResponseIsStillOwnedByTheInputBatch() throws Exception {
+        CompletableFuture<Void> acknowledgement = new CompletableFuture<>();
+        CountDownLatch appended = new CountDownLatch(1);
+        try (DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), DispatchInterceptor.noOp, call -> {
+            appended.countDown();
+            return acknowledgement;
+        }); var task = new io.fluxzero.common.TestTask(() ->
+                io.fluxzero.sdk.common.AsyncCompletionScope.runAndAwaitBeforeCommit(() ->
+                        gateway.respondBatchedAndForget("response", "target", 1, null)),
+                () -> acknowledgement.complete(null))) {
+            assertTrue(appended.await(2, TimeUnit.SECONDS));
+            task.awaitBlockedIn(io.fluxzero.sdk.common.AsyncCompletionScope.class, "await", Duration.ofSeconds(2));
+            acknowledgement.complete(null);
+            task.awaitCompletion(Duration.ofSeconds(2));
+        }
+    }
+
+    @Test
+    void rejectedResponseEnqueueDoesNotLeaveAnUnfinishedBatchCompletion() {
+        DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), DispatchInterceptor.noOp,
+                call -> CompletableFuture.completedFuture(null));
+        gateway.close();
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                assertThrows(RuntimeException.class, () ->
+                        io.fluxzero.sdk.common.AsyncCompletionScope.runAndAwaitBeforeCommit(() ->
+                                gateway.respondBatchedAndForget("response", "target", 1, null))));
+    }
+
     private static ResponseMapper recordingMapper(Runnable recorder) {
         DefaultResponseMapper delegate = new DefaultResponseMapper();
         return new ResponseMapper() {
@@ -445,7 +474,7 @@ class DefaultResultGatewayTest {
         WebsocketGatewayClient gatewayClient = mock(WebsocketGatewayClient.class);
         when(client.namespace()).thenReturn("test");
         when(client.getGatewayClient(RESULT)).thenReturn(gatewayClient);
-        when(gatewayClient.append(eq(Guarantee.NONE), any(SerializedMessage[].class))).thenAnswer(append);
+        when(gatewayClient.append(eq(Guarantee.STORED), any(SerializedMessage[].class))).thenAnswer(append);
         return new DefaultResultGateway(client, new JacksonSerializer(), interceptor, mapper);
     }
 

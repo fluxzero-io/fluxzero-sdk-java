@@ -23,21 +23,25 @@ All messages are routed through the same infrastructure, with built-in support f
 
 ## Delivery defaults and completion
 
-`Fluxzero.publishEvent`, `publishEvents`, command/custom send-and-forget overloads, and error publication use
-`Guarantee.DEFAULT`. Web-request and metrics publication can select it explicitly. The owning application resolves this before transport: absent or older
-`fluxzero.defaults.version` keeps `NONE`; `2026.09.25` or later selects `STORED`. Configure
-`fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) as `NONE`, `SENT`, or `STORED`
-to override either direction. The standard builder resolves its own property source when creating gateways;
-configure these properties before building the application (including a TestFixture's builder).
+`Guarantee.DEFAULT` applies to publication, results/HTTP responses, WebSocket messages/ping/close, indexing,
+document deletion/movement, collection deletion, audit trails, key-value writes, schedules, retention, and truncation.
+SDK 2.x resolves it to `STORED`; SDK 1.x resolves it to `NONE`. This choice is independent of
+`fluxzero.defaults.version`. Configure `fluxzero.publishing.defaultGuarantee`
+(`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) as `NONE`, `SENT`, or `STORED` to override it. Despite its historic
+property name, this setting applies beyond publication. The standard builder resolves its own property source
+before creating components, including namespace views and TestFixture components. Direct WebSocket client calls use
+that client's `ClientConfig.fromProperties(source)` policy, independent of application gateway configuration.
+Metrics retain `NONE`; request/result dispatch retains `SENT`; ordinary bulk execution and explicit `AndWait`
+operations retain `STORED`. Internal model/aggregate/stateful-handler persistence keeps explicit durable guarantees.
 Explicit concrete guarantees remain unchanged. `DEFAULT` is an SDK choice, never a wire value.
 
 Convenience calls return after dispatch/local handling, without waiting for each remote storage acknowledgement.
-The default consumer's `awaitSendAndForgetFutures=true` waits for registered delivery futures before committing
+The default consumer's `awaitSendAndForgetFutures=true` waits for registered outgoing-command futures before committing
 its position. A finished handler, a stored outgoing message, and a committed input position are separate boundaries.
 This is at-least-once processing: a crash after publication but before position commit can repeat side effects;
 use idempotent consumers. Storage acknowledgement does not mean that a downstream handler finished.
 
-Publications within a batch can overlap their acknowledgements; independent trackers can keep processing while
+Outgoing commands within a batch can overlap their acknowledgements; independent trackers can keep processing while
 another awaits storage. A tracker drains its own batch before claiming the next one, preserving segment ownership
 and bounding pending completion state to the batch. Delayed acknowledgements apply backpressure there. Failed or
 cancelled delivery prevents that batch's position from advancing, subject to the configured consumer error policy.
@@ -49,7 +53,7 @@ With asynchronous handling, the completion scope includes the framework-managed 
 boundary. Incomplete streamed messages and invocations queued behind them retain deferred completion, because their bodies
 may require later input batches; they cannot hold the current chunk position until the whole stream finishes.
 Arbitrary application-created background work is also outside the tracked scope. Setting
-`awaitSendAndForgetFutures=false` deliberately opts out of the publication barrier.
+`awaitSendAndForgetFutures=false` deliberately opts out of the outgoing-command barrier.
 
 Outside tracking there is no consumer-position barrier. To observe acknowledgement or asynchronous failure,
 keep the returned future:
@@ -66,9 +70,9 @@ delivery.join()
 ```
 
 Locally handled or suppressed messages retain their existing local behaviour; `STORED` does not force a local-only
-message into the Runtime. Request/response calls keep their response-completion contract. Automatic responses,
-metrics/transport diagnostics, scheduling, persistence, retention and position-management defaults retain their
-operation-specific guarantees. For low-level clients/protocol requests use a concrete guarantee.
+message into the Runtime. Request/response calls keep their response-completion contract. Metrics/transport diagnostics, internal durable persistence and position-store operations retain their explicit
+guarantees. Low-level WebSocket client methods resolve DEFAULT from their client configuration; raw protocol
+request objects require concrete guarantees.
 
 ---
 

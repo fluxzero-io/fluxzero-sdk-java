@@ -325,13 +325,13 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     boolean awaitAsyncResults = false;
 
     /**
-     * If true, futures returned by fire-and-forget dispatches started during this consumer's batch processing are
+     * If true, futures returned by outgoing commands started during this consumer's batch processing are
      * awaited before the consumer stores its position.
      * <p>
      * This lets handlers use {@code sendAndForget(..., Guarantee.STORED)} without explicitly joining the returned
      * future just to ensure the dispatch has reached its guarantee before the tracker commits progress. Disable this
-     * for consumers that intentionally let fire-and-forget dispatches complete independently from batch commits.
-     * Worker invocations are awaited so publications started by their handler bodies are included. This does not
+     * for consumers that intentionally let outgoing commands complete independently from batch commits.
+     * Worker invocations are awaited so outgoing commands started by their handler bodies are included. This does not
      * await a returned asynchronous result when {@link #awaitAsyncResults()} is disabled; work started later by that
      * result is outside this batch's completion boundary. Incomplete streaming bodies also remain asynchronous so
      * later batches can deliver their remaining chunks.

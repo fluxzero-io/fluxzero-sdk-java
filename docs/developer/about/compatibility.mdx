@@ -167,3 +167,16 @@ Fluxzero aims to stay up-to-date with its core dependencies. We strive to:
 - Use the **latest stable versions** where possible,
 - Avoid breaking backward compatibility for common transitive consumers,
 - Update frequently, especially for frameworks like **Jackson**, **Spring**, **Jakarta Validation**, and **JUnit**.
+
+## Asynchronous key-value writes in SDK 2.x
+
+`KeyValueStore.store(...)` and `delete(...)` now return `CompletableFuture<Void>`; `storeIfAbsent(...)` returns
+`CompletableFuture<Boolean>`. These methods do not block. This changes their binary signatures; recompile callers
+and update custom `KeyValueStore` implementations. Java callers needing the conditional result use
+`store.storeIfAbsent(key, value).join()`; Kotlin callers can likewise use `.join()` or await the future in a coroutine.
+The ordinary writes use `DEFAULT`, resolving to `STORED` in 2.x unless the application explicitly overrides it.
+`storeIfAbsent` always requests the stored Boolean result, independently of the default guarantee.
+For a dependency that must be durable before publishing, await `store.store(key, value, Guarantee.STORED)` first.
+The SDK's data-protection writes and removals retain explicit durable completion. A tracking batch also awaits
+registered outgoing write futures before committing position; unrelated background work is outside that scope.
+SDK 1.x retains its synchronous key-value API and operation-specific guarantees.

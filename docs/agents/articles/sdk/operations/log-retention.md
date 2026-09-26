@@ -20,7 +20,7 @@ custom-topic retention because the query and pruning behavior differs.
 
 ## Truncation
 
-`Fluxzero.get().customGateway(topic).truncate()` deletes the custom message log and all associated durable tracking
+`Fluxzero.get().customGateway(topic).truncate(Guarantee.STORED).join()` deletes the custom message log and all associated durable tracking
 positions. The runtime disconnects active trackers before clearing the log and positions. This is materially broader
 than resetting one consumer.
 

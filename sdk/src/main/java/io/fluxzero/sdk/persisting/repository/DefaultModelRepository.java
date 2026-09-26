@@ -1945,14 +1945,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (prepared.commit() == null) {
                 return CompletableFuture.completedFuture(Optional.empty());
             }
-            CompletableFuture<CommitModelsResult> committed = batch == null
+            CompletableFuture<CommitModelsResult> committed =
+                    io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(() -> batch == null
                     ? eventStoreClient.commitModels(prepared.commit())
                     : batch.add(
                             batchSlot,
                             prepared.commit(),
                             new ModelCommitBatchingClient.ModelCommitCompletion(
                                     prepared,
-                                    resultProcessor));
+                                    resultProcessor)));
             if (batch != null) {
                 return committed.thenApply(result -> Optional.of(result));
             }

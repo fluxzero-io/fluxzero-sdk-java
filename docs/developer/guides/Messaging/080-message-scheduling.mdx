@@ -285,3 +285,14 @@ In this example:
 <Aside type="tip">
   Schedules are fully auditable, correlated to the original event, and can be canceled or monitored like any other message. You can use them for cleanup, retries, reminders, or long-lived workflows.
 </Aside>
+
+## Delivery and completion
+
+In SDK 2.x, schedule and scheduled-command convenience methods use `Guarantee.DEFAULT` and return without waiting
+for a remote acknowledgement. The default is `STORED`, independent of `fluxzero.defaults.version`; configure
+`fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) to override it. Cancellation also
+uses `DEFAULT`. Active tracking batches await their outgoing scheduling commands before committing position.
+Outside tracking, use the explicit overload returning a future to observe acknowledgement/failure:
+`messageScheduler.schedule(schedule, false, Guarantee.STORED)` (Java and Kotlin). Only awaiting that future proves
+that the schedule was stored; a scheduled message's handler completes later. Already-completed failures are still
+reported synchronously by convenience methods. Parent binding and local timer installation are part of completion.

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,11 +55,11 @@ class DefaultKeyValueStoreTest {
         when(keyValueClient.putValue("key", serializedValue, Guarantee.STORED))
                 .thenReturn(CompletableFuture.failedFuture(failure));
 
-        KeyValueStoreException error = assertThrows(
-                KeyValueStoreException.class, () -> testSubject.store("key", value, Guarantee.STORED));
+        Throwable error = assertThrows(
+                CompletionException.class, () -> testSubject.store("key", value, Guarantee.STORED).join()).getCause();
 
         assertEquals("Could not store a value for key key", error.getMessage());
-        assertSame(failure, error.getCause().getCause());
+        assertSame(failure, error.getCause());
         assertFalse(value.rendered);
     }
 
@@ -70,11 +71,11 @@ class DefaultKeyValueStoreTest {
         when(keyValueClient.putValueIfAbsent("key", serializedValue))
                 .thenReturn(CompletableFuture.failedFuture(failure));
 
-        KeyValueStoreException error = assertThrows(
-                KeyValueStoreException.class, () -> testSubject.storeIfAbsent("key", value));
+        Throwable error = assertThrows(
+                CompletionException.class, () -> testSubject.storeIfAbsent("key", value).join()).getCause();
 
         assertEquals("Could not store a value for key key", error.getMessage());
-        assertSame(failure, error.getCause().getCause());
+        assertSame(failure, error.getCause());
         assertFalse(value.rendered);
     }
 
