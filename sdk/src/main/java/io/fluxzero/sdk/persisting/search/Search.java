@@ -96,9 +96,10 @@ import static java.util.stream.Collectors.toList;
  *     .fetch(50);
  * }</pre>
  *
- * @param <R> the default result type returned by terminal operations without an explicit class. Class-based searches
- *            establish this type automatically; dynamic collection names can use an explicit type witness at the
- *            search entry point.
+ * @param <R> the default result type returned by terminal operations without an explicit class. Single-class searches
+ *            establish this type automatically; multiple collections and dynamic collection names can use an explicit
+ *            type witness or a typed search variable. In Java, an unqualified multi-collection chain defaults to
+ *            {@code Object}, regardless of its first collection's class.
  * @see Fluxzero#search
  */
 public interface Search<R> {

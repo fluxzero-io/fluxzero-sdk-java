@@ -1528,10 +1528,20 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Search the collections represented by the given document class and additional collection identifiers while
-     * retaining the document class as the default result type.
+     * Search the collections represented by the given document class and additional collection identifiers.
+     * The first class identifies a collection; it does not determine the result type of the combined collections.
+     * Each document is deserialized to its stored type unless a terminal operation specifies a result class.
+     * <p>
+     * In Java, an unqualified fluent call defaults to {@code Search<Object>}. For a known common result type, use
+     * a type witness such as {@code Fluxzero.<MyDocument>search(MyDocument.class, "archive")} or assign the search
+     * to {@code Search<MyDocument>}. In Kotlin, use an explicit type argument such as {@code search<Any>(...)}
+     * or a typed search variable. The caller is responsible for choosing a type shared by all results.
+     * <p>
+     * Recompile callers that previously inferred the first class as their result type to remove compiler-inserted
+     * casts. This overload also applies when an explicit empty array of additional collections is supplied;
+     * use {@link #search(Class)} to infer the type for a single class.
      */
-    static <T> Search<T> search(Class<T> collection, Object... additionalCollections) {
+    static <T> Search<T> search(Class<?> collection, Object... additionalCollections) {
         return get().documentStore()
                 .search(Stream.concat(Stream.of(collection), stream(additionalCollections)).toList());
     }
