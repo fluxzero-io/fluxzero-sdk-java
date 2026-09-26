@@ -986,6 +986,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isSessionActive",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#isSessionActive",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether this endpoint still owns the session's request lifecycle. "
+  }, {
     "name" : "isTransportSendFailure",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#isTransportSendFailure",
     "returnType" : "boolean",

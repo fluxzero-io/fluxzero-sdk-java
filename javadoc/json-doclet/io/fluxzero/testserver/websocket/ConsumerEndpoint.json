@@ -403,6 +403,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "disconnectSessionTrackers",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#disconnectSessionTrackers",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "estimateRequestResultBytes",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#estimateRequestResultBytes",
     "returnType" : "int",
@@ -631,6 +647,27 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerTracker",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.ConsumerEndpoint#registerTracker",
+    "returnType" : "java.util.concurrent.CompletableFuture<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.WebSocketTracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "register",
+      "type" : "java.util.function.Function<io.fluxzero.common.tracking.WebSocketTracker,java.util.concurrent.CompletableFuture<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
