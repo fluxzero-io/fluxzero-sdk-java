@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Closes the WebSocket session using the default closing behavior. This method triggers the close operation with a\n close reason code of 1000 (normal closure) and a {@link Guarantee} of {@code NONE}.\n"
+    "documentation" : " Closes the WebSocket session using the default closing behavior. This method triggers the close operation with a\n close reason code of 1000 (normal closure) and a {@link Guarantee} of {@code DEFAULT}.\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
@@ -37,7 +37,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Closes the WebSocket session using the specified close reason and a default guarantee of {@link Guarantee#NONE}.\n\n @param closeReason the reason for closing the session, represented as an integer. Standard WebSocket close codes\n                    can be used (e.g., 1000 for normal closure).\n"
+    "documentation" : " Closes the WebSocket session using the specified close reason and a default guarantee of {@link Guarantee#DEFAULT}.\n\n @param closeReason the reason for closing the session, represented as an integer. Standard WebSocket close codes\n                    can be used (e.g., 1000 for normal closure).\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
@@ -58,7 +58,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Closes the WebSocket session with the specified close reason and delivery guarantee.\n\n @param closeReason an integer indicating the reason for closing the WebSocket session, typically based on\n                    WebSocket close codes (e.g., 1000 for normal closure).\n @param guarantee   the delivery guarantee for ensuring the closure message is sent, which can be one of the\n                    {@link Guarantee} values: NONE, SENT, or STORED.\n @return a {@code CompletableFuture<Void>} that completes when the close operation is performed successfully.\n"
+    "documentation" : " Closes the WebSocket session with the specified close reason and delivery guarantee.\n\n @param closeReason an integer indicating the reason for closing the WebSocket session, typically based on\n                    WebSocket close codes (e.g., 1000 for normal closure).\n @param guarantee   the delivery guarantee for the close message, including {@link Guarantee#DEFAULT}.\n @return a future that completes according to the close message's selected delivery guarantee.\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
@@ -74,7 +74,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Closes the WebSocket session with the specified guarantee for handling pending operations.\n\n @param guarantee the level of guarantee to be applied for handling pending messages or pings before closing the\n                  session. This can be NONE, SENT, or STORED.\n @return a CompletableFuture that completes when the closing operation is finished.\n"
+    "documentation" : " Closes the WebSocket session with the specified guarantee for the outbound close message.\n Local session closure happens immediately; completion does not acknowledge a remote close handshake.\n\n @param guarantee the delivery guarantee for the close message, including {@link Guarantee#DEFAULT}.\n @return a future that completes according to the close message's selected delivery guarantee.\n"
   }, {
     "name" : "isOpen",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#isOpen",
@@ -101,7 +101,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends a message over the WebSocket session with the specified value, using the {@code Guarantee.NONE} policy.\n\n @param value the value of the message to be sent. The value will be serialized and transmitted as bytes.\n"
+    "documentation" : " Sends a message over the WebSocket session with the specified value, using the {@code Guarantee.DEFAULT} policy.\n\n @param value the value of the message to be sent. The value will be serialized and transmitted as bytes.\n"
   }, {
     "name" : "sendMessage",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendMessage",
@@ -138,7 +138,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends a WebSocket ping message with the given value. The ping will be sent without any specific delivery\n guarantees.\n\n @param value the object to be sent as a ping message, which will be serialized and transmitted over the\n              WebSocket\n"
+    "documentation" : " Sends a WebSocket ping message with the given value. The ping uses {@link Guarantee#DEFAULT}.\n\n @param value the object to be sent as a ping message, which will be serialized and transmitted over the\n              WebSocket\n"
   }, {
     "name" : "sendPing",
     "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendPing",

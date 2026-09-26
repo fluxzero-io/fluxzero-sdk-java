@@ -1836,6 +1836,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#resolveGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves DEFAULT from this client's immutable configuration before constructing a transport command. "
+  }, {
+    "name" : "resolveGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#resolveGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compatibilityDefault",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves DEFAULT while retaining a stronger legacy operation default unless explicitly overridden. "
+  }, {
     "name" : "responseTimingMetadata",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#responseTimingMetadata",
     "returnType" : "io.fluxzero.common.api.Metadata",
@@ -2186,6 +2223,22 @@
     "parameters" : [ {
       "name" : "session",
       "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#sendRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

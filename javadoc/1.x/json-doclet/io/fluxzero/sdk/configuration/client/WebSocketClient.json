@@ -266,6 +266,16 @@
       "values" : {
         "toBuilder" : "true"
       }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode",
+      "values" : {
+        "doNotUseGetters" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.ToString",
+      "values" : {
+        "doNotUseGetters" : "true"
+      }
     } ]
   }, {
     "name" : "TrackingClientConfig",

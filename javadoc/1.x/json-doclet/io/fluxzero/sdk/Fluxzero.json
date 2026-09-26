@@ -1804,7 +1804,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#SENT} guarantee.\n\n @param schedule the message to schedule\n"
+    "documentation" : " Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#STORED} guarantee.\n\n @param schedule the message to schedule\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#schedule",
@@ -1825,7 +1825,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#SENT} guarantee.\n\n @param schedule the message to schedule\n"
+    "documentation" : " Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#STORED} guarantee.\n\n @param schedule the message to schedule\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#schedule",
@@ -1935,7 +1935,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command using the given scheduling settings, using the {@link Guarantee#SENT} guarantee.\n"
+    "documentation" : " Schedule a command using the given scheduling settings, using the {@link Guarantee#STORED} guarantee.\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#scheduleCommand",
@@ -1956,7 +1956,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command using the given scheduling settings if no other with same ID exists, using the\n {@link Guarantee#SENT} guarantee.\n"
+    "documentation" : " Schedule a command using the given scheduling settings if no other with same ID exists, using the\n {@link Guarantee#STORED} guarantee.\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#scheduleCommand",

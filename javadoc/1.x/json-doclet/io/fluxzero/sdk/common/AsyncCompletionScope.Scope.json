@@ -17,6 +17,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "forwardingTarget",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope.forwardingTarget",
+    "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ownedCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope.ownedCompletion",
+    "type" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "Scope",
@@ -58,6 +74,48 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forward",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope#forward",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterCompletion",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forwardTo",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$Scope#forwardTo",
+    "returnType" : "void",
+    "modifiers" : [ "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owned",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

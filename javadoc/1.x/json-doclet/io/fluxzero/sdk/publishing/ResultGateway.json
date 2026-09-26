@@ -72,7 +72,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends a response message with default metadata and {@link Guarantee#NONE}.\n <p>\n If the provided response is a {@link Message}, its payload and metadata are extracted and used directly.\n Otherwise, the response is wrapped as a new {@link Message}.\n\n @param response  the response object or {@link Message} to be sent\n @param target    the recipient of the response (typically a client ID)\n @param requestId the unique ID of the original request\n @return a {@link CompletableFuture} that completes when the message is published (depending on the guarantee)\n"
+    "documentation" : " Sends a response message with default metadata and {@link Guarantee#DEFAULT}.\n <p>\n If the provided response is a {@link Message}, its payload and metadata are extracted and used directly.\n Otherwise, the response is wrapped as a new {@link Message}.\n\n @param response  the response object or {@link Message} to be sent\n @param target    the recipient of the response (typically a client ID)\n @param requestId the unique ID of the original request\n @return a {@link CompletableFuture} that completes when the message is published (depending on the guarantee)\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

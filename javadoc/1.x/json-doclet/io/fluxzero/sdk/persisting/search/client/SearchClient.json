@@ -61,7 +61,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Configures Fluxzero to use a search collection as a searchable audit trail.\n\n @param request a request object specifying the collection to use as an audit trail and retention configuration\n @return a future that completes when the audit trail has been created.\n"
+    "documentation" : " Configures Fluxzero to use a search collection as a searchable audit trail.\n\n @param request a request object specifying the collection to use as an audit trail and retention configuration\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#delete",
@@ -82,7 +82,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes documents matching a given query.\n\n @param query     the search query specifying which documents to delete\n @param guarantee delivery guarantee\n @return a future that completes when the deletion has been performed\n"
+    "documentation" : " Deletes documents matching a given query.\n\n @param query     the search query specifying which documents to delete\n @param guarantee delivery guarantee\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#delete",
@@ -108,7 +108,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes documents matching a given query using the requested batch size.\n <p>\n A value of {@code 0} uses the runtime default, a positive value requests that batch size, and a negative value\n requests a single unbounded statement.\n\n @param query     the search query specifying which documents to delete\n @param guarantee delivery guarantee\n @param batchSize requested delete batch size\n @return a future that completes when the deletion has been performed\n"
+    "documentation" : " Deletes documents matching a given query using the requested batch size.\n <p>\n A value of {@code 0} uses the runtime default, a positive value requests that batch size, and a negative value\n requests a single unbounded statement.\n\n @param query     the search query specifying which documents to delete\n @param guarantee delivery guarantee\n @param batchSize requested delete batch size\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#delete",
@@ -134,7 +134,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes a document by its unique id and collection name.\n\n @param documentId the document id\n @param collection the collection to delete from\n @param guarantee  delivery guarantee\n @return a future that completes when the deletion has been performed\n"
+    "documentation" : " Deletes a document by its unique id and collection name.\n\n @param documentId the document id\n @param collection the collection to delete from\n @param guarantee  delivery guarantee\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "deleteCollection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#deleteCollection",
@@ -150,7 +150,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes an entire document collection and all its contents.\n\n @param collection the name of the collection to delete\n @return a future that completes when the collection has been deleted\n"
+    "documentation" : " Deletes an entire document collection and all its contents.\n\n @param collection the name of the collection to delete\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "deleteCollection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#deleteCollection",
@@ -171,7 +171,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deletes an entire document collection and all its contents.\n\n @param collection the name of the collection to delete\n @param guarantee  delivery guarantee\n @return a future that completes when the collection has been deleted\n"
+    "documentation" : " Deletes an entire document collection and all its contents.\n\n @param collection the name of the collection to delete\n @param guarantee  delivery guarantee\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "documentExists",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#documentExists",
@@ -372,7 +372,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Indexes a list of serialized documents into the search engine.\n\n @param documents   the documents to index\n @param guarantee   delivery guarantee (see {@link Guarantee})\n @param ifNotExists if {@code true}, only index documents that do not already exist\n @return a future that completes when the operation is done\n"
+    "documentation" : " Indexes a list of serialized documents into the search engine.\n\n @param documents   the documents to index\n @param guarantee   delivery guarantee (see {@link Guarantee})\n @param ifNotExists if {@code true}, only index documents that do not already exist\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "move",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#move",
@@ -398,7 +398,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Moves documents matching a given query to the given target collection.\n\n @param query            the search query specifying which documents to move\n @param targetCollection the name of the collection to move documents to\n @param guarantee        delivery guarantee\n @return a future that completes when the move has been performed\n"
+    "documentation" : " Moves documents matching a given query to the given target collection.\n\n @param query            the search query specifying which documents to move\n @param targetCollection the name of the collection to move documents to\n @param guarantee        delivery guarantee\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "move",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#move",
@@ -429,7 +429,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Moves a document to another collection.\n\n @param documentId       the document id\n @param collection       the collection to move from\n @param targetCollection the collection to move to\n @param guarantee        delivery guarantee\n @return a future that completes when the move has been performed\n"
+    "documentation" : " Moves a document to another collection.\n\n @param documentId       the document id\n @param collection       the collection to move from\n @param targetCollection the collection to move to\n @param guarantee        delivery guarantee\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.SearchClient#search",

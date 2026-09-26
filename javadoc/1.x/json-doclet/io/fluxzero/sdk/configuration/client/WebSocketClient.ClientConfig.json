@@ -12,6 +12,16 @@
     "values" : {
       "toBuilder" : "true"
     }
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "doNotUseGetters" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "doNotUseGetters" : "true"
+    }
   } ],
   "documentation" : " Configuration class for creating a {@link WebSocketClient}.\n <p>\n This configuration defines identifiers, service URLs, compression settings, and session allocations for various\n message types. It is immutable and can be modified fluently via its {@code #toBuilder()} method.\n",
   "typeParameters" : [ ],
@@ -209,6 +219,22 @@
       "values" : {}
     } ],
     "documentation" : " How long a websocket connection attempt may take before it times out. Defaults to {@code 10 seconds}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder.ObtainVia",
+      "values" : {
+        "field" : "defaultGuarantee"
+      }
+    } ],
+    "documentation" : " Optional explicit DEFAULT override for direct client calls. When absent, operations retain their legacy\n guarantees. Application gateways pass their own resolved policy.\n Configured by {@code fluxzero.publishing.defaultGuarantee} ({@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}).\n",
     "constantValue" : null
   }, {
     "name" : "disableMetrics",
@@ -705,6 +731,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a configuration whose property-backed defaults are resolved from the supplied application-local\n source. The source must contain the required Runtime base URL and application name. Use {@code toBuilder()}\n to apply programmatic overrides to the result.\n"
+  }, {
+    "name" : "getDefaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#getDefaultGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the general client default, retaining NONE when no override is configured. "
+  }, {
+    "name" : "getDefaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#getDefaultGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compatibilityDefault",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns an explicit override or the operation's compatibility default, without rereading properties. "
   }, {
     "name" : "getPreferredCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#getPreferredCompressionAlgorithm",

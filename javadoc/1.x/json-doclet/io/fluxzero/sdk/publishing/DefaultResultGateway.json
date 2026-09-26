@@ -24,6 +24,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "defaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.defaultGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "dispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.dispatchInterceptor",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
@@ -67,7 +75,27 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseMapper",
+      "type" : "io.fluxzero.sdk.tracking.handling.ResponseMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -113,6 +141,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#resolveGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "respond",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#respond",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -151,6 +195,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withDefaultGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#withDefaultGuarantee",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultResultGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures the concrete application delivery default before first use; namespace copies inherit it. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -490,7 +490,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes once the retention setting is updated\n"
+    "documentation" : " Set a new retention duration for the underlying gateway's message log.\n <p>\n The retention setting determines how long messages in this log are retained by the system, after which they may\n be evicted or deleted depending on the platform policy.\n\n @param duration  the new retention duration\n @param guarantee the delivery guarantee to apply to the update operation\n @return a {@link CompletableFuture} that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#truncate",
@@ -501,7 +501,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Truncates this gateway's message log and clears associated tracking positions using {@link Guarantee#STORED}.\n\n @return a {@link CompletableFuture} that completes once the log is truncated\n"
+    "documentation" : " Truncates this gateway's message log and clears associated tracking positions using {@link Guarantee#STORED}.\n\n @return a {@link CompletableFuture} that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "truncate",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#truncate",
@@ -517,7 +517,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Truncates this gateway's message log and clears associated tracking positions.\n\n @param guarantee the delivery guarantee to apply to the truncate operation\n @return a {@link CompletableFuture} that completes once the log is truncated\n"
+    "documentation" : " Truncates this gateway's message log and clears associated tracking positions.\n\n @param guarantee the delivery guarantee to apply to the truncate operation\n @return a {@link CompletableFuture} that completes according to the selected delivery guarantee\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

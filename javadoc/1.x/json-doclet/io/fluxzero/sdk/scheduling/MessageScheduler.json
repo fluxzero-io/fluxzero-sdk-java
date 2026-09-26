@@ -204,7 +204,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule the given {@link Schedule} object, optionally skipping if already present, using the specified\n guarantee.\n\n @param message   the schedule message\n @param ifAbsent  only schedule if not already scheduled\n @param guarantee the delivery guarantee to use\n @return a CompletableFuture completing when the message is successfully scheduled\n"
+    "documentation" : " Schedule the given {@link Schedule} object, optionally skipping if already present, using the specified\n guarantee.\n\n @param message   the schedule message\n @param ifAbsent  only schedule if not already scheduled\n @param guarantee the delivery guarantee to use\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -573,7 +573,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Schedule a command using the given scheduling settings, using the provided {@link Guarantee}.\n\n @param message   the command schedule\n @param ifAbsent  skip if existing schedule is present\n @param guarantee the delivery guarantee to apply\n @return a future indicating when the command is scheduled\n"
+    "documentation" : " Schedule a command using the given scheduling settings, using the provided {@link Guarantee}.\n\n @param message   the command schedule\n @param ifAbsent  skip if existing schedule is present\n @param guarantee the delivery guarantee to apply\n @return a future that completes according to the selected delivery guarantee\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",

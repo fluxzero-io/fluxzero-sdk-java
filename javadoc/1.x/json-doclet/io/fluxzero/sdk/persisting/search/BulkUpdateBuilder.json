@@ -67,7 +67,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Applies the configured update operations using {@link Guarantee#NONE}.\n"
+    "documentation" : " Applies the configured update operations using {@link Guarantee#DEFAULT}.\n"
   }, {
     "name" : "executeAndWait",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.BulkUpdateBuilder#executeAndWait",
