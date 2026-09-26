@@ -446,7 +446,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     /** Resolves DEFAULT from this client's immutable configuration before constructing a transport command. */
     protected Guarantee resolveGuarantee(Guarantee guarantee) {
-        return guarantee == Guarantee.DEFAULT ? clientConfig.getDefaultGuarantee() : guarantee;
+        return resolveGuarantee(guarantee, Guarantee.NONE);
+    }
+
+    /** Resolves DEFAULT while retaining a stronger legacy operation default unless explicitly overridden. */
+    protected Guarantee resolveGuarantee(Guarantee guarantee, Guarantee compatibilityDefault) {
+        return guarantee == Guarantee.DEFAULT ? clientConfig.getDefaultGuarantee(compatibilityDefault) : guarantee;
     }
 
     protected CompletableFuture<Void> sendCommand(Command command) {

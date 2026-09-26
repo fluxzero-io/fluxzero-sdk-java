@@ -45,7 +45,7 @@ import java.util.concurrent.CompletableFuture;
 public interface SchedulingClient extends AutoCloseable {
 
     /**
-     * Schedule one or more serialized schedules using {@link Guarantee#DEFAULT} as the default delivery guarantee.
+     * Schedule one or more serialized schedules using {@link Guarantee#DEFAULT} as the default delivery guarantee. Without an explicit override, 1.x retains SENT.
      *
      * @param schedules One or more schedules to add.
      * @return A future that completes when the schedules have been sent or persisted (depending on the
@@ -65,7 +65,7 @@ public interface SchedulingClient extends AutoCloseable {
     CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules);
 
     /**
-     * Cancel a scheduled message using {@link Guarantee#DEFAULT} as the default guarantee.
+     * Cancel a scheduled message using {@link Guarantee#DEFAULT} as the default guarantee. Without an explicit override, 1.x retains SENT.
      *
      * @param scheduleId The identifier of the schedule to cancel.
      * @return A future that completes when the selected delivery guarantee is reached.

@@ -89,3 +89,8 @@ trigger schedules. To prove behavior from a supplied deadline, use synthetic rec
 `givenScheduledCommands(...)` for command deadlines or `givenSchedules(...)` for ordinary schedule payloads. Those
 Given calls do not prove that a schedule survived persistence restart; that requires a retained external runtime and a
 fresh application without manual reseeding.
+
+Framework scheduling retains its own completion requirements: periodic initialization and automatic rescheduling
+await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
+these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
+methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.

@@ -75,7 +75,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     @With
     private final Client client;
-    private Guarantee defaultGuarantee = Guarantee.NONE;
+    private Guarantee defaultGuarantee = Guarantee.SENT;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final DispatchInterceptor commandDispatchInterceptor;
@@ -144,13 +144,29 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     @Override
     public void cancelSchedule(@NonNull Object scheduleId) {
+        cancelScheduleAndWait(scheduleId, defaultGuarantee);
+    }
+
+    // Framework cancellation retains the historical SENT acknowledgement boundary.
+    void cancelScheduleAndWait(Object scheduleId) {
+        cancelScheduleAndWait(scheduleId, Guarantee.SENT);
+    }
+
+    private void cancelScheduleAndWait(Object scheduleId, Guarantee guarantee) {
+        try {
+            AsyncCompletionScope.await(() -> cancelSchedule(scheduleId, guarantee));
+        } catch (Exception e) {
+            throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
+        }
+    }
+
+    private CompletableFuture<Void> cancelSchedule(Object scheduleId, Guarantee guarantee) {
         try {
             if (Entity.isLoading()) {
-                return;
+                return CompletableFuture.completedFuture(null);
             }
             cancelLocalDelivery(scheduleId.toString());
-            AsyncCompletionScope.takeOwnership(
-                    () -> getSchedulingClient().cancelSchedule(scheduleId.toString(), defaultGuarantee)).get();
+            return getSchedulingClient().cancelSchedule(scheduleId.toString(), guarantee);
         } catch (Exception e) {
             throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
         }

@@ -25,7 +25,7 @@ All messages are routed through the same infrastructure, with built-in support f
 
 `Guarantee.DEFAULT` applies to publication, results/HTTP responses, WebSocket messages/ping/close,
 `indexAndForget`, bulk `executeAndForget`, schedule cancellation, low-level scheduling defaults, and retention.
-SDK 1.x resolves it to `NONE`; SDK 2.x resolves it to `STORED`, independently of `fluxzero.defaults.version`.
+SDK 1.x normally resolves it to `NONE` (schedule-client creation and cancellation retain `SENT` without an override); SDK 2.x resolves it to `STORED`, independently of `fluxzero.defaults.version`.
 Override this with `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`), accepting
 `NONE`, `SENT`, or `STORED`. Despite its historic name, the property applies beyond publication. The standard builder
 resolves its own application source before creating components; namespace views inherit that policy. Direct

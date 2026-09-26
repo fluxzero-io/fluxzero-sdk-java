@@ -107,7 +107,8 @@ complete behavior.
 
 ## Outgoing delivery
 
-SDK 1.x resolves `Guarantee.DEFAULT` to `NONE`, while 2.x uses `STORED`. This setting is independent of
+SDK 1.x normally resolves `Guarantee.DEFAULT` to `NONE`; schedule-client creation and cancellation retain `SENT`
+when no override is configured. SDK 2.x uses `STORED`. This setting is independent of
 `fluxzero.defaults.version`. Override with `fluxzero.publishing.defaultGuarantee`
 (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`), accepting `NONE`, `SENT`, or `STORED`.
 

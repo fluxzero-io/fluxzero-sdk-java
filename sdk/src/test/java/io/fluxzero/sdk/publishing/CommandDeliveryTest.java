@@ -204,6 +204,20 @@ class CommandDeliveryTest {
         }
     }
 
+    @Test
+    void unconfiguredCancellationRetainsSentInApplicationAndNamespace() {
+        LocalClient client = client();
+        LocalClient namespaced = client();
+        doReturn(namespaced).when(client).forNamespace("other");
+        try (Fluxzero app = DefaultFluxzero.builder().disableShutdownHook().makeApplicationInstance(false)
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of())).build(client)) {
+            app.messageScheduler().cancelSchedule("id");
+            app.messageScheduler().forNamespace("other").cancelSchedule("id");
+            verify(client.getSchedulingClient()).cancelSchedule("id", Guarantee.SENT);
+            verify(namespaced.getSchedulingClient()).cancelSchedule("id", Guarantee.SENT);
+        }
+    }
+
     private static Fluxzero application(LocalClient client, Guarantee guarantee) {
         return DefaultFluxzero.builder().disableShutdownHook().makeApplicationInstance(false)
                 .replacePropertySource(ignored -> new SimplePropertySource(Map.of(DEFAULT_DELIVERY_GUARANTEE_PROPERTY, guarantee.name())))

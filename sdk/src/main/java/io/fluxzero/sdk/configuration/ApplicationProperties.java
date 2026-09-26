@@ -105,13 +105,25 @@ public class ApplicationProperties {
 
     /**
      * Resolves the application delivery default using the owning component's property source.
-     * SDK 2.x uses {@link Guarantee#STORED} without an override; SDK 1.x uses {@link Guarantee#NONE}.
+     * SDK 2.x uses {@link Guarantee#STORED} without an override; SDK 1.x normally uses {@link Guarantee#NONE}, retaining stronger legacy operation defaults when unconfigured.
      * This setting is independent of the defaults date. Invalid values, including unresolved {@code DEFAULT}, fail.
      *
      * @param propertySource application-local properties
      * @return a concrete delivery guarantee
      */
     public static Guarantee getDefaultDeliveryGuarantee(PropertySource propertySource) {
+        return getDefaultDeliveryGuarantee(propertySource, Guarantee.NONE);
+    }
+
+    /**
+     * Resolves an explicit delivery override, retaining an operation's legacy guarantee when the property is absent.
+     * This preserves stronger 1.x defaults without preventing an explicit NONE override.
+     *
+     * @param propertySource owning application's properties
+     * @param compatibilityDefault fallback for an absent property; null retains the distinction between unset and NONE
+     * @return the configured concrete guarantee, or the supplied fallback
+     */
+    public static Guarantee getDefaultDeliveryGuarantee(PropertySource propertySource, Guarantee compatibilityDefault) {
         String configured = propertySource.get(DEFAULT_DELIVERY_GUARANTEE_PROPERTY);
         if (configured != null) {
             try {
@@ -125,7 +137,7 @@ public class ApplicationProperties {
             throw new IllegalArgumentException("Property `" + DEFAULT_DELIVERY_GUARANTEE_PROPERTY
                                                + "` must be NONE, SENT, or STORED");
         }
-        return Guarantee.NONE;
+        return compatibilityDefault;
     }
 
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");

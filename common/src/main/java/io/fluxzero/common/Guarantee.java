@@ -62,7 +62,8 @@ public enum Guarantee {
 
     /**
      * Uses the owning application's delivery default for outgoing SDK operations.
-     * SDK 2.x defaults to {@link #STORED}; SDK 1.x defaults to {@link #NONE}, independently of the defaults date.
+     * SDK 2.x defaults to {@link #STORED}; SDK 1.x normally defaults to {@link #NONE}, retaining stronger legacy operation defaults when unconfigured.
+     * This choice is independent of the defaults date.
      * Applications can override this with {@code fluxzero.publishing.defaultGuarantee}
      * ({@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}). The SDK resolves this value before transport.
      * This is not a wire guarantee and must not be used in low-level protocol requests.

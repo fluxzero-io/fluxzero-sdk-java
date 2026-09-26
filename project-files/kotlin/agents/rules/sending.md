@@ -312,7 +312,7 @@ class CorrelationInterceptor : DispatchInterceptor {
 
 `Guarantee.DEFAULT` applies to publication, results/HTTP responses, WebSocket messages/ping/close,
 `indexAndForget`, bulk `executeAndForget`, schedule cancellation, low-level scheduling defaults, and retention.
-SDK 1.x resolves it to `NONE`; SDK 2.x resolves it to `STORED`, independently of `fluxzero.defaults.version`.
+SDK 1.x normally resolves it to `NONE` (schedule-client creation and cancellation retain `SENT` without an override); SDK 2.x resolves it to `STORED`, independently of `fluxzero.defaults.version`.
 Override this with `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`), accepting
 `NONE`, `SENT`, or `STORED`. Despite its historic name, the property applies beyond publication. The standard builder
 resolves its own application source before creating components; namespace views inherit that policy. Direct
@@ -361,3 +361,8 @@ Locally handled or suppressed messages retain their existing local behaviour; `S
 message into the Runtime. Request/response calls keep their response-completion contract. Metrics/transport diagnostics, internal durable persistence and position-store operations retain their explicit
 guarantees. Low-level WebSocket client methods resolve DEFAULT from their client configuration; raw protocol
 request objects require concrete guarantees.
+
+Framework scheduling retains its own completion requirements: periodic initialization and automatic rescheduling
+await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
+these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
+methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.

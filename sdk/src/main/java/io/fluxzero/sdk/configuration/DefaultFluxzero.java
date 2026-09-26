@@ -1049,7 +1049,8 @@ public class DefaultFluxzero implements Fluxzero {
                                                                                                  runtimeParameterResolvers,
                                                                                                  dispatchChains,
                                                                                                  handlerRepositorySupplier,
-                                                                                                 repositorySupplier)).withDefaultGuarantee(deliveryGuarantee);
+                                                                                                 repositorySupplier)).withDefaultGuarantee(
+                    ApplicationProperties.getDefaultDeliveryGuarantee(propertySource, io.fluxzero.common.Guarantee.SENT));
 
             if (!disableCacheEvictionMetrics) {
                 new CacheEvictionsLogger(metricsGateway).register(cache);

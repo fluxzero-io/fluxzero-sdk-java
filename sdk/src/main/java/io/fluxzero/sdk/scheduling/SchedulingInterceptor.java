@@ -57,6 +57,8 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Intercepts scheduled messages to handle periodic scheduling logic.
+ * Framework initialization and rescheduling await STORED acknowledgement; framework cancellation retains SENT
+ * acknowledgement. These internal completion requirements are independent of public convenience-method defaults.
  * <p>
  * This interceptor enables powerful scheduling features such as:
  * <ul>
@@ -272,7 +274,13 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                     .or(() -> ofNullable(periodic).map(Periodic::scheduleId))
                     .orElseGet(() -> schedule.getPayloadClass().getName());
             log.info("Periodic schedule {} will be cancelled.", scheduleId);
-            scheduler(schedule).cancelSchedule(scheduleId);
+            MessageScheduler scheduler = scheduler(schedule);
+            if (scheduler.getClass() == DefaultMessageScheduler.class) {
+                ((DefaultMessageScheduler) scheduler).cancelScheduleAndWait(scheduleId);
+            } else {
+                // Preserve custom schedulers and subclasses overriding the existing cancellation contract.
+                scheduler.cancelSchedule(scheduleId);
+            }
             return null;
         }
         if (periodic != null && periodic.continueOnError()) {
