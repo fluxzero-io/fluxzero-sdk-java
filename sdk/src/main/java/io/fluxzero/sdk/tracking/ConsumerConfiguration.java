@@ -325,8 +325,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     boolean awaitAsyncResults = false;
 
     /**
-     * If true, futures returned by outgoing commands started during this consumer's batch processing are
-     * awaited before the consumer stores its position.
+     * If true, futures returned by outgoing writes (including publication, indexing, and scheduling) started during
+     * this consumer's batch processing are awaited before the consumer stores its position.
      * <p>
      * This lets handlers use {@code sendAndForget(..., Guarantee.STORED)} without explicitly joining the returned
      * future just to ensure the dispatch has reached its guarantee before the tracker commits progress. Disable this
@@ -340,7 +340,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      */
     @Default
     @Accessors(fluent = true)
-    boolean awaitSendAndForgetFutures = true;
+    boolean awaitOutgoingWrites = true;
 
     /**
      * Controls whether handlers assigned to this consumer execute in the tracker thread or on a worker thread.
@@ -541,7 +541,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .clientControlledIndex(consumer.clientControlledIndex())
                 .storePositionManually(consumer.storePositionManually())
                 .awaitAsyncResults(consumer.awaitAsyncResults())
-                .awaitSendAndForgetFutures(consumer.awaitSendAndForgetFutures())
+                .awaitOutgoingWrites(consumer.awaitOutgoingWrites())
                 .handlingMode(consumer.handlingMode())
                 .singleTracker(consumer.singleTracker())
                 .minIndex(consumer.minIndex() < 0 ? null : consumer.minIndex())

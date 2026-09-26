@@ -108,10 +108,10 @@ public class ConsumerConfigurationTest {
     }
 
     @Test
-    void builderAwaitsSendAndForgetFuturesByDefault() {
+    void builderAwaitsOutgoingWritesByDefault() {
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("default").build();
 
-        assertTrue(config.awaitSendAndForgetFutures());
+        assertTrue(config.awaitOutgoingWrites());
     }
 
     @Test
@@ -138,11 +138,11 @@ public class ConsumerConfigurationTest {
     }
 
     @Test
-    void consumerAnnotationCanDisableAwaitingSendAndForgetFutures() {
+    void consumerAnnotationCanDisableAwaitingOutgoingWrites() {
         ConsumerConfiguration config = ConsumerConfiguration.configurations(
-                List.of(SendAndForgetOptOutConsumer.class)).findFirst().orElseThrow();
+                List.of(OutgoingWritesOptOutConsumer.class)).findFirst().orElseThrow();
 
-        assertFalse(config.awaitSendAndForgetFutures());
+        assertFalse(config.awaitOutgoingWrites());
     }
 
     @Test
@@ -607,8 +607,8 @@ public class ConsumerConfigurationTest {
     static class ExplicitDefaultFetchBytesConsumer {
     }
 
-    @Consumer(name = "send-and-forget-opt-out", awaitSendAndForgetFutures = false)
-    static class SendAndForgetOptOutConsumer {
+    @Consumer(name = "outgoing-writes-opt-out", awaitOutgoingWrites = false)
+    static class OutgoingWritesOptOutConsumer {
     }
 
     @Consumer(name = "async-handling", handlingMode = ConsumerHandlingMode.ASYNC)

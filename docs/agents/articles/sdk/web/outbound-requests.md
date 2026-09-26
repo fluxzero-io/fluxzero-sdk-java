@@ -235,7 +235,7 @@ request processing still normally produces and appends a `WebResponse` to the We
 
 `Guarantee.STORED` does not commit a Model and does not make state plus HTTP publication atomic. Explicit independent Model applies await durability, but a process may still stop between commit and HTTP dispatch. Persist request intent and dispatch it from a registered tracked consumer when delivery must survive that gap; read Model commit and effect boundaries.
 
-Tracked consumers await send-and-forget futures started during a batch by default (`awaitSendAndForgetFutures = true`). Keep that default unless independent completion is intentional.
+Tracked consumers await outgoing write futures started during a batch by default (`awaitOutgoingWrites = true`). Keep that default unless independent completion is intentional.
 
 Use `sendAndWait` when the caller needs to inspect the HTTP acknowledgement or detect an immediate rejection. Use
 `sendAndForget` when it deliberately does not await that outcome. Neither makes a `2xx` processor response a later

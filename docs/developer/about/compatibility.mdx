@@ -180,3 +180,16 @@ For a dependency that must be durable before publishing, await `store.store(key,
 The SDK's data-protection writes and removals retain explicit durable completion. A tracking batch also awaits
 registered outgoing write futures before committing position; unrelated background work is outside that scope.
 SDK 1.x retains its synchronous key-value API and operation-specific guarantees.
+
+## Consumer write completion in SDK 2.x
+
+The consumer option `awaitSendAndForgetFutures` is renamed to `awaitOutgoingWrites` in SDK 2.x.
+Update explicit Java/Kotlin `@Consumer` arguments, `ConsumerConfiguration` builder calls and accessors, then
+recompile applications and dependent libraries. The old name has no alias or fallback in 2.x; SDK 1.x keeps it.
+For an intentional opt-out, use `@Consumer(name = "independent-writes", awaitOutgoingWrites = false)`
+in either Java or Kotlin. Rebuild annotated handlers too: a previously compiled annotation using the old member
+does not configure the new one, so its old opt-out is ignored.
+
+The default remains `true`: outgoing writes started within a tracked batch must reach their selected delivery
+guarantee before its position is committed. This rename does not change delivery guarantees or the separate
+`awaitAsyncResults` option for returned handler results. See [Message tracking](/docs/guides/messaging/message-tracking).

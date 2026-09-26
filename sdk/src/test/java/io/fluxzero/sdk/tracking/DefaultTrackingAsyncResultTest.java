@@ -603,7 +603,7 @@ class DefaultTrackingAsyncResultTest {
                     ConsumerConfiguration.builder()
                             .name("web")
                             .handlingMode(ConsumerHandlingMode.ASYNC)
-                            .awaitSendAndForgetFutures(false)
+                            .awaitOutgoingWrites(false)
                             .build(),
                     true);
 
@@ -784,7 +784,7 @@ class DefaultTrackingAsyncResultTest {
                             secondStarted.countDown();
                         }
                     })),
-                    asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(),
+                    asyncConfig(false).toBuilder().awaitOutgoingWrites(false).build(),
                     true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
@@ -823,7 +823,7 @@ class DefaultTrackingAsyncResultTest {
                             otherMessagesStarted.countDown();
                         }
                     })),
-                    asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(),
+                    asyncConfig(false).toBuilder().awaitOutgoingWrites(false).build(),
                     true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
@@ -852,7 +852,7 @@ class DefaultTrackingAsyncResultTest {
                                 releaseFirst.join();
                             }),
                             handler(message -> secondStarted.countDown())),
-                    asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(),
+                    asyncConfig(false).toBuilder().awaitOutgoingWrites(false).build(),
                     true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
@@ -900,7 +900,7 @@ class DefaultTrackingAsyncResultTest {
         try {
             tracking.handleBatch(
                     List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
-                    List.of(handler), asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(), true);
+                    List.of(handler), asyncConfig(false).toBuilder().awaitOutgoingWrites(false).build(), true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
             assertFalse(secondStarted.await(100, TimeUnit.MILLISECONDS));
@@ -963,7 +963,7 @@ class DefaultTrackingAsyncResultTest {
         try {
             tracking.handleBatch(
                     List.of(message(serializer, "first", 42), message(serializer, "second", 42)),
-                    List.of(handler), asyncConfig(false).toBuilder().awaitSendAndForgetFutures(false).build(), true);
+                    List.of(handler), asyncConfig(false).toBuilder().awaitOutgoingWrites(false).build(), true);
 
             assertTrue(firstStarted.await(1, TimeUnit.SECONDS));
             assertTrue(secondStarted.await(1, TimeUnit.SECONDS));
@@ -1166,7 +1166,7 @@ class DefaultTrackingAsyncResultTest {
                 List.of(handler(() -> AsyncCompletionScope.register(sendCompletion))),
                 ConsumerConfiguration.builder()
                         .name("web")
-                        .awaitSendAndForgetFutures(false)
+                        .awaitOutgoingWrites(false)
                         .build(),
                 false));
 

@@ -7,7 +7,7 @@ Use tracking guidance when a handler consumes messages asynchronously, needs an 
 - `singleTracker = true` forces strict global ordering.
 - `ignoreSegment = true` lets the consumer receive all segments; combine with `@RoutingKey` only when client-side filtering is intentional.
 - `maxFetchBytes` caps serialized payload bytes per fetch.
-- `awaitSendAndForgetFutures = true` waits for outgoing commands started during a batch before storing the consumer position.
+- `awaitOutgoingWrites = true` waits for outgoing commands started during a batch before storing the consumer position.
 
 ```java
 @Component
