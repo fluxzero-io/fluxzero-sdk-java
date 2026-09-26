@@ -11,388 +11,86 @@ tableOfContents:
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-This chapter explains how to build with Models and Graphs, from commands and persistence to historical reads and web responses. Start with [Fluxzero 2.0: overview](/docs/fluxzero-2-overview) for the changes at a glance. The examples below use one Project/Task domain, in Java and Kotlin.
+This chapter defines Model and Graph behavior: registration and ownership, persistence representations, mutation dependencies, historical read boundaries, projection completion and lifecycle operations. Start with the [feature tour](/docs/fluxzero-2-overview) to see what you can build, then use this guide to choose the right contract for your application.
 
-Coming from 1.x? The programming tools remain familiar: `@Apply`, `@AssertLegal`, `@InterceptApply`, validation, `previous()` and `TestFixture` still apply. Models add independent lifecycles and atomic changes across them. You do not need to relearn domain behavior to use them.
+The Java and Kotlin examples form a Project/Task domain. Configuration variants replace earlier declarations; they are not extra classes to register alongside them.
 
 ## Coming from Fluxzero 1.x
 
-The biggest change is the move from **`@Aggregate` as the persistence root to `@Model` as an independent
-domain object**. To see what that means, start with the project-management example from the introduction.
+The API distinction is between an `Entity<T>` inside an Aggregate boundary and an independently persisted `@Model` reached through `Graph<T>`. A Model operation can span several such boundaries. Existing `@Apply`, `@AssertLegal`, `@InterceptApply` and fixture patterns remain applicable.
 
-In 1.x, you might store a Project and its Tasks together. Here is just their state, leaving out handlers
-and imports:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Aggregate
-record Project(@EntityId ProjectId projectId,
-               ProjectDetails details,
-               @Member List<Task> tasks) {}
-
-record Task(@EntityId TaskId taskId, TaskDetails details, boolean completed) {}
-
-record ProjectDetails(String name) {}
-record TaskDetails(String title) {}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Aggregate
-data class Project(
-    @EntityId val projectId: ProjectId,
-    val details: ProjectDetails,
-    @Member val tasks: List<Task>
-)
-
-data class Task(@EntityId val taskId: TaskId, val details: TaskDetails, val completed: Boolean)
-
-data class ProjectDetails(val name: String)
-data class TaskDetails(val title: String)
-```
-
-</TabItem>
-</Tabs>
-
-Both versions use typed IDs: `ProjectId` extends `Id<Project>` and `TaskId` extends `Id<Task>`.
-Their small definitions appear in the [fuller example below](#model-the-lifecycle-then-choose-storage).
-
-Project is the aggregate root. Task has an identity inside it, but its state and changes belong to the
-Project's stored state and event history. Updating a Task means updating that Project aggregate. That is
-a useful arrangement when the whole collection genuinely belongs to one lifecycle.
-
-In 2.0, you can give both objects their own persistence boundary:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Model
-record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
-
-@Model
-record Task(@EntityId TaskId taskId,
-            @Parent(pathInParent = "tasks") ProjectId projectId,
-            TaskDetails details,
-            boolean completed) {}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model
-data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
-
-@Model
-data class Task(
-    @EntityId val taskId: TaskId,
-    @Parent(pathInParent = "tasks") val projectId: ProjectId,
-    val details: TaskDetails,
-    val completed: Boolean
-)
-```
-
-</TabItem>
-</Tabs>
-
-These are alternative declarations for the same example domain, reusing the details value objects above.
-The important difference is not just the annotation on Project: **Task is now a Model too**. Project no longer
-stores a Task collection. Each Task owns its state and history, and can be loaded or changed independently.
-Both use the default event-sourced persistence here; other persistence choices come later.
-
-The relationship has not disappeared. `@Parent` on `Task.projectId` says which Project the Task belongs to.
-The SDK infers the parent type from `ProjectId`; it does not need to be repeated in the annotation.
-Its `pathInParent = "tasks"` gives that relationship a place in a combined view. Moving a Task can now mean
-changing this reference, rather than removing embedded state from one aggregate and inserting it into another.
-
-That combined view is a **Graph**. A `Project` value contains only the Project's own fields; a `Graph<Project>`
-lets you read those fields and navigate its related Tasks. It brings independently stored objects together
-when you need their context, without making them one persistence root again. Later sections show how to use
-that view for rules, queries and responses.
-
-Commands, queries, events, `@Apply`, `@AssertLegal` and `TestFixture` remain familiar. What changes is the
-state they work with: an operation can address one Model or change several Models atomically, without
-requiring those objects to live inside the same aggregate. Separately sent commands are still separate operations.
-
-Start new domain state with `@Model`. Treat `@Aggregate` as a legacy/migration API and `@Member` as a specialized embedding choice, not as the default for a new child object. Existing uses remain supported, so upgrading does not require immediately replacing them. The new approach is not a rename
-of `@Aggregate` or an automatic conversion of stored data. The [upgrade checklist](#upgrading-from-1x) covers
-Java 25 and compatibility; [migrating existing data](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation)
-is a separate choice. First, let's look at where independent Models make a difference.
+Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2-overview) shows the programming model in action; the rest of this chapter defines its contracts.
 
 ## Why move beyond one growing aggregate?
 
-An aggregate works well when its contents genuinely change and live together. The difficulty is making
-that same boundary serve every purpose: identity, writes, history, read views and eventual deletion.
+Choose the following boundaries independently, then configure the places where they must interact.
+
+| Boundary | Determined by | Does not by itself imply |
+| --- | --- | --- |
+| Identity and retained history | The independent Model and its storage ID | The same lifecycle as its parent |
+| Atomic mutation | The operation's writes and inspected read dependencies | Every reachable Graph node participates |
+| Navigable relationship | A declared `@Parent` edge | A composed JSON property |
+| Composed output | `pathInParent` and the selected Graph view | A stored whole-Graph document |
+| Stored search view | Model document and Graph projection settings | Historical or transactional reads |
+| Logical cascade | Parent ownership and `deleteOnParentDeletion` | Physical erasure of retained history |
 
 ### Small changes, large persistence boundaries
 
-Extend the project-management example with comments on tasks. With embedded members, the Project owns the
-state and history of the entire tree:
-
-```text
-Project aggregate                    One persistence and lifecycle boundary
-├── project details
-├── Task A (@Member)
-│   ├── Comment 1 (@Member)
-│   └── Comment 2 (@Member)
-└── Task B (@Member)
-```
-
-Project-wide rules are convenient, but every Task change belongs to the same root and its growing history.
-A feature that needs only Task A still works through Project. In 2.0, those boundaries can separate:
-
-```text
-Project                             Each node is a Model with its own state/history
-├── tasks → Task A
-│           ├── comments → Comment 1
-│           └── comments → Comment 2
-└── tasks → Task B
-```
-
-Update Task A without loading Project, Task B or the comments. Inspect them together only when a rule or
-view needs them. Unrelated Task updates need not contend on Project; a project-wide capacity rule still
-creates the shared dependency it genuinely requires.
+Updating Task does not inherently load or update Project or sibling Tasks. Once an assertion inspects Project's children, however, that membership becomes a read dependency. Independence of persistence does not exempt a genuinely shared rule from concurrency checks. [Read dependency semantics](#concurrent-decisions-and-the-commit-boundary) distinguish metadata, membership and value reads.
 
 ### Short-lived work, long-lived history
 
-A Project may live for years while approvals and import jobs come and go. Embedding those processes
-accumulates their events in the Project's stream long after they finish. Snapshots shorten reconstruction;
-they do not give a process its own history or deletion boundary.
-
-An independent process Model can instead have a small stream and its own retention lifecycle. Its parent
-relationship keeps it discoverable without making the Project carry every former process forever.
+An independent process Model has its own stream and can be selected for physical erasure independently of its long-lived parent. Merely finishing or logically deleting the process does not erase that stream. Snapshots affect reconstruction cost; they do not change history ownership or perform erasure.
 
 ### Different persistence for different parts
 
-You may need a Task's complete decision history, but only the latest presence information showing who
-is working on it. Embedding both in one event-sourced aggregate ties them to the same reconstruction model.
-Separate Models let the Graph combine different persistence choices:
-
-```text
-Project                         EVENT_SOURCED — project history
-└── tasks → Task                EVENT_SOURCED — task history
-             └── TaskPresence   DOCUMENT      — current presence only
-```
-
-Task keeps the default `@Model`; its presence companion uses `@Model(persistence = ModelPersistence.DOCUMENT)`.
-Task can also add a searchable document with `persistence = {EVENT_SOURCED, DOCUMENT}`. The choice belongs
-to each Model. DOCUMENT-only nodes retain current state, not the history needed for `previous()`.
+Persistence settings are per Model. `EVENT_SOURCED` supports reconstruction from retained events; `DOCUMENT` maintains current state. Selecting both keeps event history and adds document persistence. A DOCUMENT-only child does not inherit historical reconstruction from an event-sourced parent. See the [storage matrix](#which-documents-are-stored) and [historical read constraints](#state-indexes-and-mixed-persistence).
 
 ### Delete one part without deleting the whole
 
-Removing an embedded child from current aggregate state leaves its earlier values in the root's history.
-Erasing just that child is difficult when the rest of the aggregate depends on the same stored events.
-
-Independent Models give Task A and its owned comments their own deletion boundary, while Project and
-Task B remain. **Logical deletion** removes the branch from current state while retaining event-sourced
-history. **Physical erasure** explicitly removes the selected Models' stored state and history.
-
-The [lifecycle operations below](#9-deleting-models-and-retaining-the-right-history) distinguish those steps,
-including planning erasure after a logical cascade and the limits around shared or external copies.
+Logical deletion removes current state and applies the parent-cascade policy. Physical erasure is an explicit repository operation over a selected set. It has separate scope, planning and shared-data constraints. The [deletion section](#9-deleting-models-and-retaining-the-right-history) specifies surviving children, retained relationship lineage and plan execution.
 
 ### Move the relationship, not the stored object tree
 
-Suppose Task A needs to move to another project. With independent Models, change its parent reference:
-
-```text
-Before                              After
-
-Project 1                           Project 1
-├── Task A                          └── Task B
-│   ├── Comment 1
-│   └── Comment 2                    Project 2
-└── Task B                          └── Task A
-                                        ├── Comment 1
-Project 2                               └── Comment 2
-```
-
-Task A keeps its identity and history; its comments follow because they still belong to Task A. Clearing
-an optional parent instead detaches the Task. Neither operation copies a subtree between streams.
-These examples use stable IDs: a parent-scoped identity deliberately changes when its parent changes.
+Changing a parent reference on a stable-ID Model changes its relationship while retaining its stream. Descendants still reference the same child ID. Parent-scoped identity is a different case: changing the parent also changes that identity and cannot be treated as a stable-ID move. Clearing an optional parent detaches that relationship. The [move example](#move-a-task-by-changing-its-relationship) combines the new relation with a destination-capacity assertion.
 
 ### Atomic changes across independent roots
 
-Small aggregates introduce the opposite pressure. In an ordering application, an Order and its Inventory
-reservation may need to commit together: **both changes or neither**. Inventory does not belong inside
-every Order, but separate writes leave the application coordinating partial completion and compensation.
-
-Models separate the atomic operation from the permanent persistence boundary. Order and Inventory can
-remain independent roots, without even a parent relationship, while one Model operation changes both.
-The [ordering example below](#2-changing-several-models-atomically) shows the complete operation. Its atomicity
-covers the Model changes; payment-provider calls remain a separate workflow.
+A Model operation can change unrelated roots atomically. The guarantee covers its staged Model changes, not separately dispatched commands or external effects. Keep payment calls, outgoing HTTP and other irreversible actions outside retryable assertions/applies. [Multi-Model operations](#2-changing-several-models-atomically) show direct applies and composed payloads.
 
 ### More than one hierarchy
 
-An embedded tree gives an object one containment path, but the domain often has overlapping relationships.
-In an ordering application, for example, a line item belongs to an order and refers to a product. Navigating
-from either side should not require duplicating the line or making the product own its lifetime.
+Relationship discovery, cascade ownership and output placement are separate settings:
 
-Graphs are not limited to trees. A Model can have several parents with different meanings:
+| Declaration on an ID field | Graph edge | Deleted with parent | Placement in composed output |
+| --- | --- | --- | --- |
+| Plain typed ID | No | No | None |
+| `@Parent` | Yes | Yes | No named child path |
+| `@Parent(deleteOnParentDeletion = false)` | Yes | No | No named child path |
+| `@Parent(pathInParent = "tasks")` | Yes | Yes | `tasks` |
+| `@Parent(pathInParent = "tasks", deleteOnParentDeletion = false)` | Yes | No | `tasks` |
 
-```text
-Order ────── lines ──────► LineItem ◄────── reference ────── Product
-  owns its order lines                     does not own order-line lifetime
-```
-
-Relationships, ownership and presentation are separate decisions. A plain typed ID is a reference.
-`@Parent` adds a navigable relationship and, by default, cascade deletion. Set
-`deleteOnParentDeletion = false` for a non-owning relationship. Add `pathInParent` when the child belongs
-at a named path in a composed Graph document. Recursive relationships such as Folder → Folder are supported;
-cycles between actual Model identities are rejected.
+A Model may declare several edges. Recursive Model types are allowed; cycles between actual Model identities are rejected. Multiple candidate parents of the same type require an unambiguous selection; use the [association rules](#inject-models-from-message-properties). A non-owning edge remains navigable while the parent exists; deleting that parent detaches the edge without rewriting the child's ID field.
 
 ### Extend the domain without expanding the root
 
-Consider a device-management application that gains warranties, maintenance records and integrations.
-Embedding every addition expands Device's responsibilities even when its original behavior has not changed.
-Independent Models can add those capabilities through `@Parent`, with their own commands and lifecycle:
-
-```text
-Device                              The existing Model remains focused
-├── status → DeviceStatus           Observations
-├── warranty → Warranty             Coverage and expiry
-└── maintenance → MaintenanceRecord Service history
-```
-
-Device needs no collection fields or rewritten historical events just to accommodate these new relationships.
-A service screen can bring them together, while existing commands request only the state they need.
-**Adding a capability no longer has to expand the persistence root used by every existing capability.**
-
-These are illustrative extensions with independent lifecycles; ordinary Device fields should stay on Device.
-Choose ownership deliberately and use scoped reads when consumers do not share every child type.
+A child declaration supplies its relation to the parent; the parent does not need a collection field or knowledge of the child's Java class. Applications sharing relationship metadata may still have different type catalogs. Unknown nodes are available to metadata navigation but cannot be read as locally unavailable classes. Use [scoped Graph reads](#6-share-relationships-without-sharing-every-applications-implementation) deliberately at that boundary.
 
 ### Read views should not dictate write boundaries
 
-A project screen needs tasks and comments together; an operations screen groups tasks across Projects.
-Neither screen should dictate the persistence boundary. Graphs let the application navigate, serialize
-or search related state without maintaining another domain hierarchy just to assemble a response.
-
-For repeated whole-view searches, materialize a Graph. For selective access, navigate only the needed
-relationships. Even a stored combined view keeps each node's schema identity, so its parts can evolve
-independently. The [application-wide capabilities](#making-graphs-work-across-the-whole-application)
-show how these views are filtered, documented, maintained and migrated.
+`loadGraph` navigates authoritative Models and relationships. `searchGraph` reads a composed document representation, live or materialized. A JSON response is another view of those nodes. These paths have different consistency and completion contracts; they are not interchangeable implementations of one transactional read. [Queries and search](#3-querying-model-state-and-related-data) specify the required documents and visibility.
 
 ### Different boundaries for different jobs
 
-That is the central change in 2.0: **what belongs together, what changes together and what is stored together
-can be different decisions.** Independent lifecycles, relationship changes, Graph reads and multi-Model commits
-make that separation usable within the same application.
-
-| Question | Aggregate-centered approach | Model/Graph approach in 2.0 |
-| --- | --- | --- |
-| Where does a task's history live? | With the aggregate when the task is an embedded member | In the task's own Model stream |
-| Can related parts use different persistence? | Embedded state participates in its root's persistence and reconstruction | Event-sourced and DOCUMENT-only Models can coexist in one Graph |
-| How do I update one task? | Through its owning aggregate | Address that task directly |
-| How do I logically delete one branch? | Remove embedded state through the aggregate; its history remains in the root | Delete the selected Model, cascading through its owning relationships |
-| How do I permanently erase that branch? | Its historical data is intertwined with the aggregate's history | Plan and erase the selected Models without erasing unrelated Model histories |
-| How do I move a task to another project? | Coordinate removal and insertion across roots; earlier history belongs to the old root | Change its parent relationship; a stable-ID task retains its own history |
-| How do I detach a task? | Extract embedded state into a separate persistence boundary | Clear an optional parent relationship; the Model already has its own boundary |
-| How do I enforce a rule involving siblings? | Inspect the aggregate's embedded collection | Inspect the relevant Graph collection; commit checks its read dependencies |
-| How do I atomically change several independent roots? | Requires coordination outside one aggregate boundary | Change independent roots in one all-or-nothing Model operation |
-| How do I build a combined read view? | Embedded state or a separately maintained projection | Navigate a Graph, compose a document view, or materialize that view |
-
-Use Models for new independent domain state. Existing aggregates remain supported and can be migrated
-when their boundaries need to change. Reserve `@Member` for intentionally embedded state
-whose identity, changes, history and lifecycle belong to its owner. Choose the boundary from the domain,
-not from JSON nesting, searchability or how often a field changes.
+Do not infer lifecycle ownership from JSON nesting, or mutation atomicity from a shared parent. Use independent Models for independently changing state and ordinary values for data wholly owned by a Model. `@Member` remains supported for deliberate embedding; `@Aggregate` remains the legacy/migration API.
 
 ## An example: home automation
 
-Home automation offers another example domain: rooms, devices, observations, scenes and routines. The
-[Fluxzero Home example application](https://github.com/fluxzero-io/fluxzero-sample-home) connects them as a
-Graph rather than one house-sized aggregate. Each node below is an independent
-Model type. These are type diagrams, not individual objects: `Space → Space` means one Space can contain
-other Spaces, not that a Space can be its own parent. Solid arrows are parent-to-child `@Parent` relationships;
-dotted arrows are references or selections, not ownership.
-
-```mermaid
-flowchart TD
-    Home --> Space
-    Home --> Zone
-    Home --> Scene
-    Home --> Routine
-    Home --> Automation
-    Space -->|nested spaces| Space
-    Space --> Device
-    Device --> DeviceStatus
-    Zone -. groups .-> Space
-    Scene -. selects .-> Device
-    Routine -. runs .-> Scene
-    Automation -. triggers .-> Scene
-```
-
-A building, floor and room are all Spaces. Move a space by changing its parent; its nested spaces and
-devices remain connected beneath it. A zone can group rooms across that hierarchy without taking ownership
-of them. A routine runs a scene, but deleting the routine does not delete the scene.
-
-Device observations have their own history. A temperature report does not become another event in a
-house-sized stream. Yet a handler receiving `Graph<DeviceStatus>` can navigate to the owning Home and
-compare the observation with `previous()`. The automation sees the before and after of that event,
-not whatever temperature happens to be latest when the handler runs.
-
-The complete home can still be addressed as one Graph. A local query can return the Graph directly:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@LocalOnly
-public record GetHome(HomeId homeId) implements Request<Graph<Home>> {
-    @HandleQuery
-    @LocalHandler
-    Graph<Home> handle() {
-        return Fluxzero.loadGraph(homeId);
-    }
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@LocalOnly
-data class GetHome(val homeId: HomeId) : Request<Graph<Home>> {
-    @HandleQuery
-    @LocalHandler
-    fun handle(): Graph<Home> = Fluxzero.loadGraph(homeId)
-}
-```
-
-</TabItem>
-</Tabs>
-
-That Graph supplies context on demand; the query does not turn the home into one stored aggregate.
-The application's scene selection finds a Space in the home Graph and reads its
-`descendantModels(Device.class)`. Activating a scene composes ordinary device commands and commits their
-intentions together. Physical delivery happens afterwards: an atomic Model commit is not a promise that
-every light bulb responds atomically.
+The [Home example](https://github.com/fluxzero-io/fluxzero-sample-home) exercises these distinctions with recursive Spaces, independent Device observations and integration links. Its [overview diagram](/docs/fluxzero-2-overview#view-the-same-model-from-different-sides) shows the domain; for implementation, distinguish persisted relationships from ordinary references or application selections. A scene referencing a device does not make the scene the device's lifecycle owner.
 
 ### One Model can belong in two views
 
-Home's integration links show why Graphs go beyond nested object trees:
-
-```mermaid
-flowchart LR
-    Home --> Space
-    Space --> Device
-    Home --> Connection[HomeAssistantConnection]
-    Device --> Link[HomeAssistantDevice]
-    Connection --> Link
-    Device --> DeviceStatus
-```
-
-`HomeAssistantDevice` is one Model with two parents: the household Device and its integration connection.
-It can be reached from either side without storing two copies. Delete the connection and its links disappear,
-but the household devices and their observation histories remain. Delete a device and its link disappears
-from the connection's Graph too.
-
-The same domain can therefore be viewed as rooms and equipment, as an integration and its linked devices,
-or as the history behind one sensor reading. **These are different views over the same independent Models,
-not competing copies of the domain.**
+`HomeAssistantDevice` has two parents: its Device and its integration connection. Deleting either owner can delete the link without deleting the other parent. The link remains one independently persisted Model when reached through either Graph. Combining desired device changes in a Model operation commits those intentions atomically; physical device delivery is outside that storage guarantee.
 
 ## Model the lifecycle, then choose storage
 
@@ -402,9 +100,7 @@ is clear.
 Start with `@Model`. The default is event sourcing with caching, without a public search document or periodic
 snapshots. Add those representations when a concrete read or replay requirement calls for them.
 
-For the API examples from here on, we return to the project-management domain. The following declarations
-develop the introductory Project/Task example with explicit Model names and validation, and include the
-typed ID definitions. The Java and Kotlin tabs show equivalent alternatives, not classes to combine.
+The following Project/Task declarations use explicit Model names and validation, and include the typed ID definitions. The Java and Kotlin tabs show equivalent alternatives, not classes to combine.
 Snippets omit imports and use the normal [SDK project setup](/docs/getting-started/installation). Java examples use Lombok `@With` for immutable updates; Kotlin examples use `copy`. Later variants explicitly replace earlier declarations.
 
 <Tabs syncKey="language">
@@ -1922,14 +1618,12 @@ data class GetProject(val projectId: ProjectId) : Request<JsonNode> {
 
 The `Request<JsonNode>` contract makes the caller receive JSON **both locally and through tracking**. The SDK converts the returned Graph before returning the local result or publishing the transported result. A local call does not bypass this declared JSON contract.
 
-When an in-process caller actually needs Graph navigation, use an explicitly local query with a Graph response contract:
+When an in-process caller actually needs Graph navigation, use a self-handling query with a Graph response contract:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
-@LocalOnly
-@LocalHandler
 record GetProjectGraph(ProjectId projectId) implements Request<Graph<Project>> {
     @HandleQuery
     Graph<Project> handle() {
@@ -1942,8 +1636,6 @@ record GetProjectGraph(ProjectId projectId) implements Request<Graph<Project>> {
 <TabItem label="Kotlin">
 
 ```kotlin
-@LocalOnly
-@LocalHandler
 data class GetProjectGraph(val projectId: ProjectId) : Request<Graph<Project>> {
     @HandleQuery
     fun handle(): Graph<Project> = Fluxzero.loadGraph(projectId)
@@ -1953,7 +1645,7 @@ data class GetProjectGraph(val projectId: ProjectId) : Request<Graph<Project>> {
 </TabItem>
 </Tabs>
 
-`@LocalHandler` selects local handling; register the type with the application (or let Spring discover its self-handling query). `@LocalOnly` prevents a missing local handler from falling back to transport. For remote queries, promise a JSON/DTO response; serialized Graph JSON is a response tree, not a transportable live repository view.
+A self-handling query is handled locally by default; no extra `@LocalHandler` or `@LocalOnly` annotations are needed for this example. The response contract is the relevant choice: `Request<Graph<Project>>` preserves the Graph locally, while `Request<JsonNode>` requests the JSON conversion shown above. For a query deliberately handled through tracking, promise a JSON/DTO response; serialized Graph JSON is a response tree, not a transportable live repository view.
 
 #### Derived values without duplicated state
 
