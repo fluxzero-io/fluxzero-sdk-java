@@ -853,10 +853,14 @@ public abstract class WebsocketEndpoint {
             log.error("Error in session {} for client {} with id {}",
                       sessionId, getClientName(session), getClientId(session), e);
         }
+        var closeReason = new WebsocketCloseReason(
+                WebsocketCloseReason.UNEXPECTED_CONDITION, "The websocket closed because of an error");
         try {
-            session.close(new WebsocketCloseReason(
-                    WebsocketCloseReason.UNEXPECTED_CONDITION, "The websocket closed because of an error"));
-        } catch (IOException ignored) {
+            // Jetty can report an error before completing pending write callbacks. A graceful close would wait
+            // behind those writes and delay the onClose callback that releases this session's trackers.
+            session.abort(closeReason);
+        } finally {
+            onClose(session, closeReason);
         }
     }
 
