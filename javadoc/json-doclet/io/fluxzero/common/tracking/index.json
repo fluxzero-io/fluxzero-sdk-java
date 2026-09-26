@@ -65,6 +65,11 @@
     "qualifiedName" : "io.fluxzero.common.tracking.Tracker",
     "kind" : "interface"
   }, {
+    "file" : "TrackerClaim.json",
+    "name" : "TrackerClaim",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerClaim",
+    "kind" : "record"
+  }, {
     "file" : "TrackerCluster.json",
     "name" : "TrackerCluster",
     "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster",

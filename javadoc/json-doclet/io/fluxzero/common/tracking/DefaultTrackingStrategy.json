@@ -29,6 +29,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "frozenForHandover",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.frozenForHandover",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handoverLock",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.handoverLock",
+    "type" : "java.util.concurrent.locks.ReentrantReadWriteLock",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "initialPositionLagMillis",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.initialPositionLagMillis",
     "type" : "long",
@@ -641,6 +657,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "disconnectTrackersInternal",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#disconnectTrackersInternal",
+    "returnType" : "java.util.Set<io.fluxzero.common.tracking.Tracker>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.tracking.Tracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sendFinalEmptyBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "disconnectTrackersOnClose",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#disconnectTrackersOnClose",
+    "returnType" : "java.util.Set<io.fluxzero.common.tracking.Tracker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.tracking.Tracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes socket-owned trackers during connection cleanup. A frozen handover retains their claims;\n explicit client disconnects must use {@link #disconnectTrackers(Predicate, boolean)} and remain retryable.\n"
+  }, {
     "name" : "drainUpdateNotifications",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#drainUpdateNotifications",
     "returnType" : "void",
@@ -761,6 +814,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "freezeForHandover",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#freezeForHandover",
+    "returnType" : "java.util.List<io.fluxzero.common.tracking.TrackerClaim>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Freezes ownership before an elected Runtime relinquishes its lease. Concurrent admitted reads finish\n registering before the snapshot; later reads remain retryable. Socket cleanup cannot erase frozen claims.\n The caller must persist this snapshot before making the successor available.\n"
+  }, {
+    "name" : "freezeForHandover",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#freezeForHandover",
+    "returnType" : "java.util.List<io.fluxzero.common.tracking.TrackerClaim>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Freezes ownership, allowing at most {@code timeout} for an admitted storage scan to release its lock.\n Failure leaves the caller responsible for retaining leadership or treating shutdown as a failed handover.\n"
   }, {
     "name" : "getBatch",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#getBatch",
@@ -960,6 +1040,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "restoreClaims",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#restoreClaims",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "claims",
+      "type" : "java.util.List<io.fluxzero.common.tracking.TrackerClaim>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Restores exact active ranges before any successor read is admitted. "
   }, {
     "name" : "scanBatch",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#scanBatch",

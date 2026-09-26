@@ -90,6 +90,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "activeClaims",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#activeClaims",
+    "returnType" : "java.util.List<io.fluxzero.common.tracking.TrackerClaim>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "adjustConstraints",
     "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#adjustConstraints",
     "returnType" : "java.util.Map<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.TrackerCluster.Segment>",
@@ -316,6 +327,27 @@
     }, {
       "name" : "constraints",
       "type" : "java.util.Set<java.lang.Integer>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "restore",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#restore",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segments",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "claims",
+      "type" : "java.util.List<io.fluxzero.common.tracking.TrackerClaim>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

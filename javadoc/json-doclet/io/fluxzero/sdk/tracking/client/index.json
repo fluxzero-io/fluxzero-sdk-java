@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient",
     "kind" : "class"
   }, {
+    "file" : "CachingTrackingClient.TrackerKey.json",
+    "name" : "CachingTrackingClient.TrackerKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$TrackerKey",
+    "kind" : "record"
+  }, {
     "file" : "DefaultTracker.json",
     "name" : "DefaultTracker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker",

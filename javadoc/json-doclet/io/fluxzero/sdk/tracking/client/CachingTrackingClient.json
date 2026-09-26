@@ -53,6 +53,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "pendingDisconnects",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.pendingDisconnects",
+    "type" : "java.util.Set<java.util.concurrent.CompletableFuture<java.lang.Void>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pendingReads",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.pendingReads",
+    "type" : "java.util.Map<java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>,io.fluxzero.sdk.tracking.client.CachingTrackingClient.TrackerKey>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "registration",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient.registration",
     "type" : "io.fluxzero.common.Registration",
@@ -122,6 +138,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "canAwaitTrackerShutdown",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#canAwaitTrackerShutdown",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "canReadFromCache",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#canReadFromCache",
     "returnType" : "boolean",
@@ -177,6 +204,35 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "disconnectTerminatedTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#disconnectTerminatedTracker",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -463,6 +519,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#readBatch",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.MessageBatch>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "config",
+      "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "readFromIndex",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient#readFromIndex",
     "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
@@ -707,5 +789,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "TrackerKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$TrackerKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

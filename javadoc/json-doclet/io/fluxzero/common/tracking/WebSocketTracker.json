@@ -277,6 +277,33 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isRetained",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker#isRetained",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this reservation is awaiting its first read after Runtime handover. "
+  }, {
+    "name" : "retained",
+    "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker#retained",
+    "returnType" : "io.fluxzero.common.tracking.WebSocketTracker",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "claim",
+      "type" : "io.fluxzero.common.tracking.TrackerClaim",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reconstructs ownership without binding it to a closed predecessor WebSocket session. "
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.tracking.WebSocketTracker#toString",
     "returnType" : "java.lang.String",
