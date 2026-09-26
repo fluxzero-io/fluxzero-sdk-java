@@ -552,6 +552,8 @@ class AbstractWebsocketClientTest {
             var setup = AbstractWebsocketClient.createConnectionSetup(config);
             assertEquals(List.of("8,7"), setup.options().headers()
                     .get(WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER));
+            assertEquals(List.of("true"), setup.options().headers()
+                    .get(WebSocketCapabilities.SUPPORTS_MIXED_MODEL_EVENT_BLOCKS_HEADER));
             // Older runtimes do not acknowledge this optional capability; the connection still uses its old codecs.
             setup.configurator().afterResponse(Map.of());
             assertNull(setup.configurator().getSelectedTransportFormat());

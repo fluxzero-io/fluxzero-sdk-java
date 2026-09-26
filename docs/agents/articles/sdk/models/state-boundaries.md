@@ -83,3 +83,7 @@ Do not let a mixed set of unsupported writers replace newly separated state or s
 Compact Model-event reads accept mixed historical MessagePack and binary records, including compressed blocks.
 The SDK preserves event indices and requested state membership; applications need no custom format conversion.
 Older SDK readers still require a Runtime that returns a representation they support.
+
+The SDK advertises `Fluxzero-Supports-Mixed-Model-Event-Blocks: true` on every WebSocket connection.
+A compatible Runtime can pass mixed blocks directly to this reader; clients without this capability receive
+compatible responses prepared by the Runtime. Older runtimes may ignore the optional header.

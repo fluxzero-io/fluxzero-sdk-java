@@ -35,6 +35,9 @@ public final class WebSocketCapabilities {
     /** Explicit packed Model membership versions understood by this client (independent of transport format). */
     public static final String SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER =
             "Fluxzero-Supported-Model-Membership-Versions";
+    /** This reader accepts mixed legacy and binary records within one compact Model-event block. */
+    public static final String SUPPORTS_MIXED_MODEL_EVENT_BLOCKS_HEADER =
+            "Fluxzero-Supports-Mixed-Model-Event-Blocks";
     public static final String SUPPORTED_COMPRESSION_ALGORITHMS_HEADER =
             "Fluxzero-Supported-Compression-Algorithms";
     public static final String SELECTED_COMPRESSION_ALGORITHM_HEADER =
