@@ -32,8 +32,10 @@ import lombok.Getter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -41,8 +43,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
+import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toList;
@@ -100,14 +102,41 @@ public class CachingTrackingClient implements TrackingClient {
 
     private final AtomicBoolean started = new AtomicBoolean();
     private volatile Registration registration;
+    private volatile boolean closed;
 
     private final ConcurrentSkipListMap<Long, SerializedMessage> cache = new ConcurrentSkipListMap<>();
     private final Object cacheMonitor = new Object();
-    private final Map<CompletableFuture<MessageBatch>, TrackerKey> pendingReads = new ConcurrentHashMap<>();
+    private final Map<CompletableFuture<MessageBatch>, PendingRead> pendingReads = new ConcurrentHashMap<>();
 
     private final Set<CompletableFuture<Void>> pendingDisconnects = ConcurrentHashMap.newKeySet();
 
-    private record TrackerKey(String consumer, String trackerId) {}
+    private static final class PendingRead {
+        private final String consumer;
+        private final String trackerId;
+        private volatile boolean terminated;
+        private volatile CompletableFuture<MessageBatch> cachedWait;
+
+        private PendingRead(String consumer, String trackerId) {
+            this.consumer = consumer;
+            this.trackerId = trackerId;
+        }
+
+        private CompletableFuture<MessageBatch> trackCachedWait(CompletableFuture<MessageBatch> wait) {
+            cachedWait = wait;
+            if (terminated) {
+                wait.cancel(true);
+            }
+            return wait;
+        }
+
+        private void terminate() {
+            terminated = true;
+            var wait = cachedWait;
+            if (wait != null) {
+                wait.cancel(true);
+            }
+        }
+    }
 
     public CachingTrackingClient(WebsocketTrackingClient delegate) {
         this(delegate, 1024);
@@ -120,16 +149,23 @@ public class CachingTrackingClient implements TrackingClient {
 
     @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
-        var result = readBatch(trackerId, lastIndex, config);
+        var pending = new PendingRead(config.getName(), trackerId);
+        var result = readBatch(trackerId, lastIndex, config, pending);
         if (!result.isDone()) {
-            var key = new TrackerKey(config.getName(), trackerId);
-            pendingReads.put(result, key);
-            result.whenComplete((ignored, failure) -> pendingReads.remove(result));
+            pendingReads.put(result, pending);
+            if (closed) {
+                pending.terminate();
+            }
+            result.whenComplete((ignored, failure) -> {
+                pendingReads.remove(result);
+                pending.terminate();
+            });
         }
         return result;
     }
 
-    private CompletableFuture<MessageBatch> readBatch(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+    private CompletableFuture<MessageBatch> readBatch(String trackerId, Long lastIndex, ConsumerConfiguration config,
+                                                       PendingRead pending) {
         if (started.compareAndSet(false, true)) {
             ConsumerConfiguration cacheFillerConfig = ConsumerConfiguration.builder()
                     .ignoreSegment(true)
@@ -140,18 +176,25 @@ public class CachingTrackingClient implements TrackingClient {
                     .map(fc -> DefaultTracker.start(this::cacheNewMessages, delegate.getMessageType(),
                                                     delegate.getTopic(), cacheFillerConfig, fc))
                     .orElseGet(() -> DefaultTracker.start(this::cacheNewMessages, cacheFillerConfig, delegate));
+            if (closed) {
+                registration.cancel();
+            }
         }
         boolean returnImmediately = config.getMaxWaitDuration().compareTo(Duration.ZERO) <= 0;
         if (!config.clientControlledIndex() && lastIndex != null && canReadFromCache(lastIndex)) {
             Instant deadline = now().plus(config.getMaxWaitDuration());
             return delegate.claimSegment(trackerId, lastIndex, config).thenCompose(r -> {
+                // Still await a late claim before the final remote release, but do not start another read for it.
+                if (pending.terminated) {
+                    return CompletableFuture.failedFuture(new CancellationException());
+                }
                 Long minIndex = r.getPosition().lowestIndexForSegment(r.getSegment()).orElse(null);
                 if (minIndex != null) {
                     MessageBatch messageBatch = getMessageBatch(config, minIndex, r);
                     if (returnImmediately) {
                         return CompletableFuture.completedFuture(messageBatch);
                     }
-                    return waitForCachedBatch(config, minIndex, r, deadline);
+                    return pending.trackCachedWait(waitForCachedBatch(config, minIndex, r, deadline));
                 }
                 if (returnImmediately) {
                     return CompletableFuture.completedFuture(
@@ -169,14 +212,23 @@ public class CachingTrackingClient implements TrackingClient {
         }
     }
 
+    /**
+     * Waits for locally cached messages. Canceling the returned future interrupts this wait's worker;
+     * remote segment acquisition is completed separately before terminal ownership release.
+     */
     protected CompletableFuture<MessageBatch> waitForCachedBatch(ConsumerConfiguration config, long minIndex,
                                                                  ClaimSegmentResult claim, Instant deadline) {
         CompletableFuture<MessageBatch> result = new CompletableFuture<>();
-        Thread.startVirtualThread(() -> {
+        Thread worker = Thread.startVirtualThread(() -> {
             try {
                 result.complete(doWaitForCachedBatch(config, minIndex, claim, deadline));
             } catch (Throwable e) {
                 result.completeExceptionally(e);
+            }
+        });
+        result.whenComplete((ignored, failure) -> {
+            if (result.isCancelled()) {
+                worker.interrupt();
             }
         });
         return result;
@@ -342,9 +394,12 @@ public class CachingTrackingClient implements TrackingClient {
 
     @Override
     public CompletableFuture<Void> disconnectTerminatedTracker(String consumer, String trackerId, Guarantee guarantee) {
-        var key = new TrackerKey(consumer, trackerId);
-        var pending = pendingReads.entrySet().stream().filter(entry -> key.equals(entry.getValue()))
-                .map(Map.Entry::getKey).toArray(CompletableFuture[]::new);
+        var reads = pendingReads.entrySet().stream()
+                .filter(entry -> Objects.equals(consumer, entry.getValue().consumer)
+                                 && Objects.equals(trackerId, entry.getValue().trackerId)).toList();
+        var pending = reads.stream().map(Map.Entry::getKey).toArray(CompletableFuture[]::new);
+        // Only local waits are cancellable: remote claims and fallback reads must settle before releasing ownership.
+        reads.forEach(entry -> entry.getValue().terminate());
         var first = delegate.disconnectTerminatedTracker(consumer, trackerId, guarantee);
         var result = pending.length == 0 ? first : CompletableFuture.allOf(pending)
                 .handle((ignored, failure) -> null).thenCompose(ignored ->
@@ -376,7 +431,9 @@ public class CachingTrackingClient implements TrackingClient {
 
     @Override
     public void close() {
+        closed = true;
         ofNullable(registration).ifPresent(Registration::cancel);
+        pendingReads.values().forEach(PendingRead::terminate);
         try {
             if (canAwaitTrackerShutdown()) {
                 waitForResults(Duration.ofSeconds(2), List.copyOf(pendingDisconnects));
