@@ -278,13 +278,20 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                 completeRequest(tracker, request, emptyBatch);
             }
         });
-        WaitingTracker existing = waitingTrackers.put(
-                tracker, new WaitingTracker(tracker, request, scheduleToken, followUp,
-                                            updateNotificationVersion.get()));
+        WaitingTracker waiting = new WaitingTracker(tracker, request, scheduleToken, followUp,
+                                                     updateNotificationVersion.get());
+        WaitingTracker existing = waitingTrackers.put(tracker, waiting);
         if (existing != null) {
             log.warn("Tracker replaced another waiting tracker. This should normally not happen. New tracker: {}",
                      tracker);
             completeRequest(existing.tracker, existing.request, emptyBatch);
+        }
+        // A rebalance may have notified this tracker before its waiter was published. Recheck its assignment
+        // after publication so already available work does not depend on another message or the poll deadline.
+        TrackerCluster currentCluster = clusters.get(tracker.getConsumerName());
+        if (currentCluster != null && currentCluster.contains(tracker)
+            && !Objects.deepEquals(emptyBatch.getSegment(), currentCluster.getSegment(tracker))) {
+            waiting.run();
         }
     }
 
