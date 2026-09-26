@@ -32,13 +32,16 @@ import lombok.Getter;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.common.ConsistentHashing.computeSegment;
 import static java.time.Instant.now;
 import static java.util.Optional.ofNullable;
@@ -100,7 +103,9 @@ public class CachingTrackingClient implements TrackingClient {
 
     private final ConcurrentSkipListMap<Long, SerializedMessage> cache = new ConcurrentSkipListMap<>();
     private final Object cacheMonitor = new Object();
-    private final Map<CompletableFuture<MessageBatch>, TrackerKey> pendingReads = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<CompletableFuture<MessageBatch>, TrackerKey> pendingReads = new ConcurrentHashMap<>();
+
+    private final Set<CompletableFuture<Void>> pendingDisconnects = ConcurrentHashMap.newKeySet();
 
     private record TrackerKey(String consumer, String trackerId) {}
 
@@ -341,9 +346,14 @@ public class CachingTrackingClient implements TrackingClient {
         var pending = pendingReads.entrySet().stream().filter(entry -> key.equals(entry.getValue()))
                 .map(Map.Entry::getKey).toArray(CompletableFuture[]::new);
         var first = delegate.disconnectTerminatedTracker(consumer, trackerId, guarantee);
-        return pending.length == 0 ? first : CompletableFuture.allOf(pending)
+        var result = pending.length == 0 ? first : CompletableFuture.allOf(pending)
                 .handle((ignored, failure) -> null).thenCompose(ignored ->
                 delegate.disconnectTerminatedTracker(consumer, trackerId, Guarantee.STORED));
+        if (!result.isDone()) {
+            pendingDisconnects.add(result);
+            result.whenComplete((ignored, failure) -> pendingDisconnects.remove(result));
+        }
+        return result;
     }
 
     @Override
@@ -356,10 +366,28 @@ public class CachingTrackingClient implements TrackingClient {
         return delegate.getTopic();
     }
 
+    boolean canAwaitTrackerShutdown() {
+        return switch (delegate) {
+            case WebsocketTrackingClient websocket -> websocket.canAwaitTrackerShutdown();
+            case CachingTrackingClient caching -> caching.canAwaitTrackerShutdown();
+            default -> true;
+        };
+    }
+
     @Override
     public void close() {
         ofNullable(registration).ifPresent(Registration::cancel);
-        delegate.close();
-        pendingReads.clear();
+        try {
+            if (canAwaitTrackerShutdown()) {
+                waitForResults(Duration.ofSeconds(2), List.copyOf(pendingDisconnects));
+            }
+        } finally {
+            try {
+                delegate.close();
+            } finally {
+                pendingReads.clear();
+                pendingDisconnects.clear();
+            }
+        }
     }
 }

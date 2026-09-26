@@ -16,7 +16,11 @@
 
 package io.fluxzero.sdk.common.websocket;
 
+import io.fluxzero.common.TestTask;
 import org.junit.jupiter.api.Test;
+
+import java.nio.channels.ClosedChannelException;
+import java.time.Duration;
 
 import java.util.AbstractList;
 import java.util.ArrayDeque;
@@ -37,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RuntimeResultDispatcherTest {
@@ -327,6 +332,116 @@ class RuntimeResultDispatcherTest {
         assertTrue(waiting.completion().isDone());
         assertTrue(completed.get());
         assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
+    }
+
+    @Test
+    void boundedCloseFinishesAdmittedAndQueuedCallbacksBeforeClosing() throws Exception {
+        ManualExecutor executor = new ManualExecutor();
+        var dispatcher = new RuntimeResultDispatcher(executor, 1);
+        AtomicInteger completed = new AtomicInteger();
+        var first = dispatcher.submit("a", completed::incrementAndGet);
+        var queued = dispatcher.submit("b", completed::incrementAndGet);
+        AtomicBoolean drained = new AtomicBoolean();
+        try (var closing = new TestTask(() -> drained.set(dispatcher.close(Duration.ofSeconds(5))), dispatcher::close)) {
+            closing.awaitBlockedIn(RuntimeResultDispatcher.class, "close", Duration.ofSeconds(2));
+            assertTrue(dispatcher.submit("late", completed::incrementAndGet).isCompletedExceptionally());
+            executor.runAll();
+            closing.awaitCompletion(Duration.ofSeconds(2));
+        }
+        assertTrue(drained.get());
+        assertTrue(first.isDone());
+        assertFalse(first.isCompletedExceptionally());
+        assertFalse(queued.isCompletedExceptionally());
+        assertEquals(2, completed.get());
+    }
+
+    @Test
+    void boundedCloseWaitsForAnAlreadyRunningCallback() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var dispatcher = new RuntimeResultDispatcher(executor, 1);
+            try {
+                var completed = dispatcher.submit("a", () -> {
+                    entered.countDown();
+                    await(release);
+                });
+                assertTrue(entered.await(2, TimeUnit.SECONDS));
+                AtomicBoolean drained = new AtomicBoolean();
+                try (var closing = new TestTask(() -> drained.set(dispatcher.close(Duration.ofSeconds(5))),
+                                               release::countDown)) {
+                    closing.awaitBlockedIn(RuntimeResultDispatcher.class, "close", Duration.ofSeconds(2));
+                    assertFalse(completed.isDone());
+                    release.countDown();
+                    closing.awaitCompletion(Duration.ofSeconds(2));
+                }
+                assertTrue(drained.get());
+                completed.get(2, TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+                dispatcher.close();
+            }
+        }
+    }
+
+    @Test
+    void boundedCloseTimeoutRetainsAbortiveCloseSemantics() {
+        ManualExecutor executor = new ManualExecutor();
+        var dispatcher = new RuntimeResultDispatcher(executor, 1);
+        AtomicBoolean ran = new AtomicBoolean();
+        var pending = dispatcher.submit("a", () -> ran.set(true));
+        assertFalse(dispatcher.close(Duration.ZERO));
+        assertTrue(assertThrows(Exception.class, pending::get).getCause() instanceof ClosedChannelException);
+        executor.runAll();
+        assertFalse(ran.get());
+    }
+
+    @Test
+    void boundedClosePreservesCallbackFailuresWhileDrainingOtherResults() throws Exception {
+        ManualExecutor executor = new ManualExecutor();
+        var dispatcher = new RuntimeResultDispatcher(executor, 1);
+        var failure = new IllegalArgumentException("callback failure");
+        var failed = dispatcher.submit("a", () -> { throw failure; });
+        var successful = dispatcher.submit("b", () -> {});
+        AtomicBoolean drained = new AtomicBoolean();
+        try (var closing = new TestTask(() -> drained.set(dispatcher.close(Duration.ofSeconds(5))), dispatcher::close)) {
+            closing.awaitBlockedIn(RuntimeResultDispatcher.class, "close", Duration.ofSeconds(2));
+            executor.runAll();
+            closing.awaitCompletion(Duration.ofSeconds(2));
+        }
+        assertTrue(drained.get());
+        assertSame(failure, assertThrows(Exception.class, failed::get).getCause());
+        successful.get(2, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void boundedCloseDoesNotWaitForItsOwnResultWorker() throws Exception {
+        var dispatcher = new RuntimeResultDispatcher(Runnable::run, 1);
+        try (var caller = new TestTask(() -> {
+            assertFalse(dispatcher.isDispatchThread());
+            var completion = dispatcher.submit("a", () -> {
+                assertTrue(dispatcher.isDispatchThread());
+                assertFalse(dispatcher.close(Duration.ofHours(1)));
+            });
+            assertTrue(completion.isCompletedExceptionally());
+            assertFalse(dispatcher.isDispatchThread());
+        }, dispatcher::close)) {
+            caller.awaitCompletion(Duration.ofSeconds(2));
+        }
+    }
+
+    @Test
+    void boundedClosePreservesInterruptAndAbortsPendingWork() throws Exception {
+        var dispatcher = new RuntimeResultDispatcher(new ManualExecutor(), 1);
+        var pending = dispatcher.submit("a", () -> {});
+        try (var caller = new TestTask(() -> {
+            Thread.currentThread().interrupt();
+            assertFalse(dispatcher.close(Duration.ofHours(1)));
+            assertTrue(Thread.currentThread().isInterrupted());
+        }, dispatcher::close)) {
+            caller.awaitCompletion(Duration.ofSeconds(2));
+        }
+        assertTrue(pending.isCompletedExceptionally());
     }
 
     @Test

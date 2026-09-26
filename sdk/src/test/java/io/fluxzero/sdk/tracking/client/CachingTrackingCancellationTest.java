@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
 
 class CachingTrackingCancellationTest {
     @Test
-    void terminalReleaseWaitsForDelayedClaimAndItsFallbackRead() {
+    void terminalReleaseWaitsForDelayedClaimAndItsFallbackRead() throws Exception {
         var delegate = mock(TrackingClient.class);
         when(delegate.getMessageType()).thenReturn(MessageType.EVENT);
         when(delegate.readAndWait(anyString(), any(), any())).thenAnswer(invocation -> new CompletableFuture<>().get());
@@ -56,7 +56,14 @@ class CachingTrackingCancellationTest {
             claim.complete(new ClaimSegmentResult(1, Position.newPosition(), new int[]{0, 128}));
             verify(delegate).read("tracker", 10L, config);
             assertFalse(cancellation.isDone());
-            fallback.complete(new MessageBatch(new int[]{0, 128}, List.of(), null, Position.newPosition(), true));
+            var empty = new MessageBatch(new int[]{0, 128}, List.of(), null, Position.newPosition(), true);
+            try (var closing = new io.fluxzero.common.TestTask(client::close, () -> fallback.complete(empty))) {
+                closing.awaitBlockedIn(io.fluxzero.sdk.common.ClientUtils.class, "waitForResults", java.time.Duration.ofSeconds(1));
+                verify(delegate, never()).close();
+                fallback.complete(empty);
+                closing.awaitCompletion(java.time.Duration.ofSeconds(2));
+                verify(delegate).close();
+            }
             assertTrue(reading.isDone());
             assertTrue(cancellation.isDone());
             verify(delegate, times(2)).disconnectTerminatedTracker("consumer", "tracker", Guarantee.STORED);

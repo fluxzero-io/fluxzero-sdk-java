@@ -42,9 +42,12 @@ import lombok.Getter;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
+import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.common.MessageType.METRICS;
 
 /**
@@ -66,6 +69,8 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     private final MessageType messageType;
     private final String topic;
     private final Metadata metricsMetadata;
+    @Getter(lombok.AccessLevel.NONE)
+    private final Set<CompletableFuture<Void>> pendingDisconnects = ConcurrentHashMap.newKeySet();
 
     @Override
     protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
@@ -143,12 +148,14 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
         // An interrupted readAndWait still has a remote request. A delayed read can arrive after the first
         // disconnect; release once more after its response proves that it has finished registering.
         var first = disconnectTracker(consumer, trackerId, !pending.isEmpty(), guarantee);
-        if (pending.isEmpty()) {
-            return first;
-        }
-        return CompletableFuture.allOf(pending.toArray(CompletableFuture[]::new))
+        var result = pending.isEmpty() ? first : CompletableFuture.allOf(pending.toArray(CompletableFuture[]::new))
                 .handle((ignored, failure) -> null)
                 .thenCompose(ignored -> disconnectTracker(consumer, trackerId, false, Guarantee.STORED));
+        if (!result.isDone()) {
+            pendingDisconnects.add(result);
+            result.whenComplete((ignored, failure) -> pendingDisconnects.remove(result));
+        }
+        return result;
     }
 
     @Override
@@ -158,7 +165,21 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public void close() {
-        close(true);
+        try {
+            if (canAwaitTrackerShutdown()) {
+                waitForResults(Duration.ofSeconds(2), List.copyOf(pendingDisconnects));
+            }
+        } finally {
+            try {
+                close(true);
+            } finally {
+                pendingDisconnects.clear();
+            }
+        }
+    }
+
+    boolean canAwaitTrackerShutdown() {
+        return canAwaitShutdownResults();
     }
 
     @Override

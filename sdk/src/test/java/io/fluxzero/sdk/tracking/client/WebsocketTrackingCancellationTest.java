@@ -33,7 +33,8 @@ import static org.mockito.Mockito.*;
 class WebsocketTrackingCancellationTest {
     @Test
     void delayedReadIsReleasedAgainAfterInitialDisconnectWasAcknowledged() {
-        var client = mock(TestClient.class, CALLS_REAL_METHODS);
+        var client = spy(new TestClient(WebSocketClient.newInstance(
+                WebSocketClient.ClientConfig.builder().name("test").runtimeBaseUrl("ws://localhost").disableMetrics(true).build())));
         var delayedRead = new CompletableFuture<RequestResult>();
         var finalRelease = new CompletableFuture<Void>();
         doReturn(List.of(delayedRead)).when(client).pendingResponses(any());
@@ -48,21 +49,71 @@ class WebsocketTrackingCancellationTest {
         assertFalse(cancellation.isDone());
         finalRelease.complete(null);
         assertTrue(cancellation.isDone());
+        client.close();
     }
 
     @Test
     void trackerWithoutPendingReadUsesOnlyOneDisconnect() {
-        var client = mock(TestClient.class, CALLS_REAL_METHODS);
+        var client = spy(new TestClient(WebSocketClient.newInstance(
+                WebSocketClient.ClientConfig.builder().name("test").runtimeBaseUrl("ws://localhost").disableMetrics(true).build())));
         doReturn(List.of()).when(client).pendingResponses(any());
         var release = CompletableFuture.<Void>completedFuture(null);
         doReturn(release).when(client).disconnectTracker("consumer", "tracker", false, Guarantee.STORED);
         assertSame(release, client.disconnectTerminatedTracker("consumer", "tracker", Guarantee.STORED));
         verify(client).disconnectTracker("consumer", "tracker", false, Guarantee.STORED);
         verify(client, never()).disconnectTracker("consumer", "tracker", true, Guarantee.STORED);
+        client.close();
     }
 
-    abstract static class TestClient extends WebsocketTrackingClient {
+    @Test
+    void closeDrainsTerminalChainsBeforeClosingTransport() throws Exception {
+        var client = spy(new TestClient(WebSocketClient.newInstance(
+                WebSocketClient.ClientConfig.builder().name("test").runtimeBaseUrl("ws://localhost").disableMetrics(true).build())));
+        var release = new CompletableFuture<Void>();
+        doReturn(List.of()).when(client).pendingResponses(any());
+        doReturn(release).when(client).disconnectTracker("consumer", "tracker", false, Guarantee.STORED);
+        client.disconnectTerminatedTracker("consumer", "tracker", Guarantee.STORED);
+        try (var closing = new io.fluxzero.common.TestTask(client::close, () -> release.complete(null))) {
+            closing.awaitBlockedIn(io.fluxzero.sdk.common.ClientUtils.class, "waitForResults", java.time.Duration.ofSeconds(1));
+            verify(client, never()).closeTransport();
+            release.complete(null);
+            closing.awaitCompletion(java.time.Duration.ofSeconds(2));
+            verify(client).closeTransport();
+        } finally {
+            release.complete(null);
+            client.close();
+        }
+    }
+
+    @Test
+    void canceledTerminalChainDoesNotPreventTransportClose() throws Exception {
+        var client = spy(new TestClient(WebSocketClient.newInstance(
+                WebSocketClient.ClientConfig.builder().name("test").runtimeBaseUrl("ws://localhost").disableMetrics(true).build())));
+        var release = new CompletableFuture<Void>();
+        doReturn(List.of()).when(client).pendingResponses(any());
+        doReturn(release).when(client).disconnectTracker("consumer", "tracker", false, Guarantee.STORED);
+        client.disconnectTerminatedTracker("consumer", "tracker", Guarantee.STORED);
+        try (var closing = new io.fluxzero.common.TestTask(client::close, () -> release.complete(null))) {
+            closing.awaitBlockedIn(io.fluxzero.sdk.common.ClientUtils.class, "waitForResults", java.time.Duration.ofSeconds(1));
+            verify(client, never()).closeTransport();
+            release.cancel(false);
+            closing.awaitCompletion(java.time.Duration.ofSeconds(2));
+            verify(client).closeTransport();
+        } finally {
+            release.complete(null);
+            client.close();
+        }
+    }
+
+    static class TestClient extends WebsocketTrackingClient {
         TestClient(WebSocketClient client) { super("ws://localhost", client, MessageType.COMMAND, null); }
-        @Override public abstract List<CompletableFuture<RequestResult>> pendingResponses(Predicate<Request> filter);
+        @Override public List<CompletableFuture<RequestResult>> pendingResponses(Predicate<Request> filter) {
+            return super.pendingResponses(filter);
+        }
+        @Override protected void close(boolean clearOutstandingRequests) {
+            closeTransport();
+            super.close(clearOutstandingRequests);
+        }
+        void closeTransport() {}
     }
 }

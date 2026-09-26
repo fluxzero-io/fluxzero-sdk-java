@@ -94,6 +94,22 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AbstractWebsocketClientTest {
+    @Test
+    void closeDrainsIssuedCommandsWithinOneBudget() throws Exception {
+        var client = org.mockito.Mockito.spy(new TestClient(mock(WebsocketConnector.class),
+                WebSocketClient.ClientConfig.builder().runtimeBaseUrl("ws://localhost").name("test").build()));
+        var result = new CompletableFuture<RequestResult>();
+        org.mockito.Mockito.doReturn(List.of(result)).when(client).pendingResponses(any());
+        try (var closing = new io.fluxzero.common.TestTask(client::close, () -> result.complete(null))) {
+            closing.awaitBlockedIn(io.fluxzero.sdk.common.ClientUtils.class, "waitForResults", Duration.ofSeconds(1));
+            result.complete(null);
+            closing.awaitCompletion(Duration.ofSeconds(1));
+        } finally {
+            result.complete(null);
+            client.close();
+        }
+    }
+
 
     @Test
     void appliesCompactAndCustomCorrelationDataWithExistingSemantics() {
