@@ -255,3 +255,10 @@ public class InvoiceNumberQueryHandler {
     }
 }
 ```
+
+### Stopping a consumer
+
+Canceling a tracking registration lets an active batch finish before requesting release of its segment ownership
+with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
+inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
+exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.

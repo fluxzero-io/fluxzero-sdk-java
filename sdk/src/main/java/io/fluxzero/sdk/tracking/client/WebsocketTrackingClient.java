@@ -137,6 +137,21 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     }
 
     @Override
+    public CompletableFuture<Void> disconnectTerminatedTracker(String consumer, String trackerId, Guarantee guarantee) {
+        var pending = pendingResponses(request -> request instanceof Read read
+                && consumer.equals(read.getConsumer()) && trackerId.equals(read.getTrackerId()));
+        // An interrupted readAndWait still has a remote request. A delayed read can arrive after the first
+        // disconnect; release once more after its response proves that it has finished registering.
+        var first = disconnectTracker(consumer, trackerId, !pending.isEmpty(), guarantee);
+        if (pending.isEmpty()) {
+            return first;
+        }
+        return CompletableFuture.allOf(pending.toArray(CompletableFuture[]::new))
+                .handle((ignored, failure) -> null)
+                .thenCompose(ignored -> disconnectTracker(consumer, trackerId, false, Guarantee.STORED));
+    }
+
+    @Override
     protected Metadata metricsMetadata() {
         return metricsMetadata;
     }

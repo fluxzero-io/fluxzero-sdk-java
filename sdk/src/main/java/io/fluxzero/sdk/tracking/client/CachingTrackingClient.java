@@ -100,6 +100,9 @@ public class CachingTrackingClient implements TrackingClient {
 
     private final ConcurrentSkipListMap<Long, SerializedMessage> cache = new ConcurrentSkipListMap<>();
     private final Object cacheMonitor = new Object();
+    private final Map<CompletableFuture<MessageBatch>, TrackerKey> pendingReads = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record TrackerKey(String consumer, String trackerId) {}
 
     public CachingTrackingClient(WebsocketTrackingClient delegate) {
         this(delegate, 1024);
@@ -112,6 +115,16 @@ public class CachingTrackingClient implements TrackingClient {
 
     @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+        var result = readBatch(trackerId, lastIndex, config);
+        if (!result.isDone()) {
+            var key = new TrackerKey(config.getName(), trackerId);
+            pendingReads.put(result, key);
+            result.whenComplete((ignored, failure) -> pendingReads.remove(result));
+        }
+        return result;
+    }
+
+    private CompletableFuture<MessageBatch> readBatch(String trackerId, Long lastIndex, ConsumerConfiguration config) {
         if (started.compareAndSet(false, true)) {
             ConsumerConfiguration cacheFillerConfig = ConsumerConfiguration.builder()
                     .ignoreSegment(true)
@@ -323,6 +336,17 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     @Override
+    public CompletableFuture<Void> disconnectTerminatedTracker(String consumer, String trackerId, Guarantee guarantee) {
+        var key = new TrackerKey(consumer, trackerId);
+        var pending = pendingReads.entrySet().stream().filter(entry -> key.equals(entry.getValue()))
+                .map(Map.Entry::getKey).toArray(CompletableFuture[]::new);
+        var first = delegate.disconnectTerminatedTracker(consumer, trackerId, guarantee);
+        return pending.length == 0 ? first : CompletableFuture.allOf(pending)
+                .handle((ignored, failure) -> null).thenCompose(ignored ->
+                delegate.disconnectTerminatedTracker(consumer, trackerId, Guarantee.STORED));
+    }
+
+    @Override
     public MessageType getMessageType() {
         return delegate.getMessageType();
     }
@@ -336,5 +360,6 @@ public class CachingTrackingClient implements TrackingClient {
     public void close() {
         ofNullable(registration).ifPresent(Registration::cancel);
         delegate.close();
+        pendingReads.clear();
     }
 }

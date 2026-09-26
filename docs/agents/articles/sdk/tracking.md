@@ -51,3 +51,8 @@ Before adding replay logic, inspect the handler side effects:
 For document rebuilding after search or upcaster changes, increment `@Revision` on the document type and return the document from a new `@HandleDocument` replay consumer so the store writes the current representation.
 
 For monotonic identifiers, model the sequence as a query backed by persisted counter state. Use `@Consumer(singleTracker = true)` only for a global sequence; omit it when routing keys partition independent counters naturally.
+
+Canceling a tracking registration lets an active batch finish before requesting release of its segment ownership
+with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
+inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
+exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.

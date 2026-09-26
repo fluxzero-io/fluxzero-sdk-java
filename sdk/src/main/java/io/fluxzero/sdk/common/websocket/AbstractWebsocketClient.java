@@ -1714,6 +1714,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return Metadata.empty();
     }
 
+    /** Snapshots pending responses for lifecycle cleanup without changing their delivery or retry behavior. */
+    protected List<CompletableFuture<RequestResult>> pendingResponses(java.util.function.Predicate<Request> filter) {
+        return requests.values().stream().filter(request -> filter.test(request.request))
+                .map(request -> request.result).toList();
+    }
+
     @RequiredArgsConstructor
     protected class WebSocketRequest {
         private final Request request;
