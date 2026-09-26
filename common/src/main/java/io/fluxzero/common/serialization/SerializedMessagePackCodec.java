@@ -44,7 +44,7 @@ public final class SerializedMessagePackCodec {
     }
 
     /**
-     * Decodes zero or more consecutive serialized messages.
+     * Decodes zero or more consecutive serialized messages, including mixed legacy and binary records.
      */
     public static List<SerializedMessage> decode(byte[] bytes) {
         if (bytes == null || bytes.length == 0) {
@@ -58,24 +58,46 @@ public final class SerializedMessagePackCodec {
             byte[] bytes, int offset, int length) {
         if (BinaryWire.isEnvelopeSequence(bytes, offset, length)) {
             try {
+                // Keep homogeneous binary blocks on their existing allocation-light path.
                 return BinaryWire.decodeEnvelopes(bytes, offset, length, MAXIMUM_VALUE_SIZE);
-            } catch (IOException e) {
-                throw new IllegalArgumentException("Could not decode binary event payloads", e);
+            } catch (IOException binaryFailure) {
+                try {
+                    return decodeMixed(bytes, offset, length);
+                } catch (Exception mixedFailure) {
+                    binaryFailure.addSuppressed(mixedFailure);
+                    throw new IllegalArgumentException("Could not decode binary event payloads", binaryFailure);
+                }
             }
         }
+        try {
+            // Binary envelopes can also parse as version-zero MessagePack. Detect them at every record boundary;
+            // waiting for a legacy decoding failure could silently return different message fields.
+            return decodeMixed(bytes, offset, length);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not decode compact event payloads", e);
+        }
+    }
+
+    private static List<SerializedMessage> decodeMixed(byte[] bytes, int offset, int length) throws IOException {
         ReusableUnpacker reusable = UNPACKERS.get();
         try {
-            MessagePackIO.Reader unpacker =
-                    reusable.reset(
-                            bytes, offset, length);
+            MessagePackIO.Reader unpacker = reusable.reset(bytes, offset, length);
+            int end = offset + length;
             List<SerializedMessage> result = new ArrayList<>();
             while (unpacker.hasNext()) {
-                result.add(decodeMessage(unpacker));
+                int position = unpacker.position();
+                if (BinaryWire.isEnvelopeSequence(bytes, position, end - position)) {
+                    int size = BinaryWire.readEnvelopeSize(bytes, position, end - position, MAXIMUM_VALUE_SIZE);
+                    result.add(BinaryWire.decodeEnvelope(bytes, position, size, MAXIMUM_VALUE_SIZE));
+                    unpacker.reset(bytes, position + size, end - position - size);
+                } else {
+                    result.add(decodeMessage(unpacker));
+                }
             }
             return result;
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             UNPACKERS.remove();
-            throw new IllegalArgumentException("Could not decode compact event payloads", e);
+            throw e;
         } finally {
             reusable.clear();
         }

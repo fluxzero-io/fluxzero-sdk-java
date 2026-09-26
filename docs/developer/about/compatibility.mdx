@@ -24,6 +24,10 @@ Upgrade the Runtime first before enabling a newly introduced Model protocol capa
 that capability remain compatible and can upgrade the two components independently within their supported release
 ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
+Compact Model-event reads accept historical MessagePack and binary message records within the same storage block,
+including compressed blocks. No application-side conversion or storage rewrite is required. This reader support
+does not remove the Runtime’s responsibility to serve compatible responses to older SDK clients.
+
 The SDK uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
 Document and legacy message encoding uses bounds-checked Java array operations. Existing MessagePack storage
 and transport representations remain unchanged; applications need no migration or JVM-wide MessagePack property.

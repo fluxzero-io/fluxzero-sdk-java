@@ -66,6 +66,25 @@ class BinaryWireTest {
     }
 
     @Test
+    void decodesExactlyOneEnvelopeFromARangeWithoutCopyingPayloadOrMetadata() throws Exception {
+        var message = new SerializedMessage(new Data<>(new byte[]{1, 2, 3}, "type", 1, "json"),
+                Metadata.of("key", "value"), "message", 1L);
+        byte[] envelope = BinaryWire.encodeEnvelope(message);
+        byte[] surrounded = new byte[envelope.length + 10];
+        System.arraycopy(envelope, 0, surrounded, 5, envelope.length);
+        var decoded = BinaryWire.decodeEnvelope(surrounded, 5, envelope.length, 4096);
+        assertSame(surrounded, decoded.getData().byteArrayView().array());
+        assertSame(surrounded, decoded.getMetadata().toData().byteArrayView().array());
+        assertEquals(message, decoded);
+        assertThrows(IOException.class,
+                () -> BinaryWire.decodeEnvelope(surrounded, 5, envelope.length + 1, 4096));
+        assertThrows(IOException.class,
+                () -> BinaryWire.decodeEnvelope(surrounded, 5, envelope.length - 1, 4096));
+        assertThrows(IOException.class,
+                () -> BinaryWire.decodeEnvelope(surrounded, -1, envelope.length, 4096));
+    }
+
+    @Test
     void validatesExactSizesBooleanMarkersAndTruncation() throws Exception {
         BinaryWire.Writer exact = new BinaryWire.Writer(Integer.BYTES, 16);
         exact.writeInt(1);

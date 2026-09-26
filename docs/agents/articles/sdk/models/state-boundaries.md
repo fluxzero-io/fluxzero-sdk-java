@@ -77,3 +77,9 @@ Use a matching SDK and service implementation for the storage/wire capabilities 
 DOCUMENT storage is not automatically equivalent to independent internal sources and public projections:
 preserve DOCUMENT-only state and follow the explicit migration/rebuild procedure before switching writers.
 Do not let a mixed set of unsupported writers replace newly separated state or silently drop conflict dependencies.
+
+## Historical event blocks
+
+Compact Model-event reads accept mixed historical MessagePack and binary records, including compressed blocks.
+The SDK preserves event indices and requested state membership; applications need no custom format conversion.
+Older SDK readers still require a Runtime that returns a representation they support.

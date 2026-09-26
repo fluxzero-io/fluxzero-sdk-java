@@ -147,6 +147,10 @@ Persistence does not control event storage or publication. Those remain owned by
 make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
 `ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT`-only Models.
 
+Compact Model-event reads accept mixed historical MessagePack and binary records, including compressed blocks,
+without application-side conversion. Event indices and requested state membership remain unchanged. Older SDK
+readers still require compatible Runtime responses.
+
 ## Persistence and protection boundaries
 
 Storage and query visibility are not authorization. `DOCUMENT` with effective `eventPublication = NEVER`
