@@ -110,12 +110,12 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public CompletableFuture<Void> storePosition(String consumer, int[] segment, long lastIndex, Guarantee guarantee) {
-        return sendCommand(new StorePosition(messageType, consumer, segment, lastIndex, guarantee));
+        return sendCommand(new StorePosition(messageType, consumer, segment, lastIndex, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> resetPosition(String consumer, long lastIndex, Guarantee guarantee) {
-        return sendCommand(new ResetPosition(messageType, consumer, lastIndex, guarantee));
+        return sendCommand(new ResetPosition(messageType, consumer, lastIndex, resolveGuarantee(guarantee)));
     }
 
     @Override
@@ -125,7 +125,7 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch, Guarantee guarantee) {
-        return sendCommand(new DisconnectTracker(messageType, consumer, trackerId, sendFinalEmptyBatch, guarantee));
+        return sendCommand(new DisconnectTracker(messageType, consumer, trackerId, sendFinalEmptyBatch, resolveGuarantee(guarantee)));
     }
 
     @Override

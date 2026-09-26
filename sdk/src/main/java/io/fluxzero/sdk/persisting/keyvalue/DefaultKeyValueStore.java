@@ -52,7 +52,8 @@ public class DefaultKeyValueStore extends AbstractNamespaced<KeyValueStore> impl
     @Override
     public void store(String key, Object value, Guarantee guarantee) {
         try {
-            getKeyValueClient().putValue(key, serializer.serialize(value), guarantee).get();
+            io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(
+                    () -> getKeyValueClient().putValue(key, serializer.serialize(value), guarantee)).get();
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not store a value for key %s", key), e);
         }
@@ -61,7 +62,8 @@ public class DefaultKeyValueStore extends AbstractNamespaced<KeyValueStore> impl
     @Override
     public boolean storeIfAbsent(String key, Object value) {
         try {
-            return getKeyValueClient().putValueIfAbsent(key, serializer.serialize(value)).get(5, TimeUnit.SECONDS);
+            return io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(
+                    () -> getKeyValueClient().putValueIfAbsent(key, serializer.serialize(value))).get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not store a value for key %s", key), e);
         }
@@ -80,7 +82,8 @@ public class DefaultKeyValueStore extends AbstractNamespaced<KeyValueStore> impl
     @Override
     public void delete(String key) {
         try {
-            getKeyValueClient().deleteValue(key).get();
+            io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(
+                    () -> getKeyValueClient().deleteValue(key)).get();
         } catch (Exception e) {
             throw new KeyValueStoreException(String.format("Could not delete the value at key %s", key), e);
         }

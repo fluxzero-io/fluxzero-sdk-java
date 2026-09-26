@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -49,8 +50,16 @@ import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 @AllArgsConstructor
 public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> implements ResultGateway {
 
+    public DefaultResultGateway(Client client, Serializer serializer, DispatchInterceptor dispatchInterceptor, ResponseMapper responseMapper) {
+        this.client = client;
+        this.serializer = serializer;
+        this.dispatchInterceptor = dispatchInterceptor;
+        this.responseMapper = responseMapper;
+    }
+
     @With
     private final Client client;
+    private Guarantee defaultGuarantee = Guarantee.NONE;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final ResponseMapper responseMapper;
@@ -73,7 +82,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             }
             serializedMessage.setTarget(target);
             serializedMessage.setRequestId(requestId);
-            return getGatewayClient().append(guarantee, serializedMessage);
+            return AsyncCompletionScope.register(getGatewayClient().append(resolveGuarantee(guarantee), serializedMessage));
         } catch (Exception e) {
             String responseDescription = Objects.toString(payload != null && ifClass(payload) == null
                     ? payload.getClass() : payload);
@@ -91,5 +100,18 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             dispatchInterceptor.monitorDispatch(message, RESULT, null, client.namespace(), false);
         }
         return serializedMessage;
+    }
+
+    /** Configures the concrete application delivery default before first use; namespace copies inherit it. */
+    public DefaultResultGateway withDefaultGuarantee(Guarantee guarantee) {
+        if (java.util.Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+        }
+        defaultGuarantee = guarantee;
+        return this;
+    }
+
+    private Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee;
     }
 }

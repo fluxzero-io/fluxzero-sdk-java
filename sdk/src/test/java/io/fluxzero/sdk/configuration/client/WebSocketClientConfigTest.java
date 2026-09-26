@@ -38,6 +38,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebSocketClientConfigTest {
 
     @Test
+    void directClientDeliveryPolicyBelongsToItsExplicitPropertySource() {
+        String property = io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULT_DELIVERY_GUARANTEE_PROPERTY;
+        var first = clientConfig(Map.of(property, "STORED"));
+        var second = clientConfig(Map.of(property, "NONE"));
+        assertEquals(io.fluxzero.common.Guarantee.STORED, first.getDefaultGuarantee());
+        assertEquals(io.fluxzero.common.Guarantee.NONE, second.getDefaultGuarantee());
+        assertEquals(io.fluxzero.common.Guarantee.STORED,
+                     first.toBuilder().namespace("other").build().getDefaultGuarantee());
+        assertThrows(IllegalArgumentException.class, () -> WebSocketClient.newInstance(
+                first.toBuilder().defaultGuarantee(io.fluxzero.common.Guarantee.DEFAULT).build()));
+    }
+
+    @Test
     void taskIdentityPrefixesUniqueClientInstanceIds() {
         withProperties(Map.of(TASK_ID_PROPERTY, "task-123"), () -> {
             WebSocketClient.ClientConfig first = clientConfig();

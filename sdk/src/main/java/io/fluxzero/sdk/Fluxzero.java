@@ -655,7 +655,7 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedule the message to schedule
      */
@@ -664,7 +664,7 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a message object (of type {@link Schedule}) for execution, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedule the message to schedule
      */
@@ -709,7 +709,7 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Schedule a command using the given scheduling settings, using the {@link Guarantee#SENT} guarantee.
+     * Schedule a command using the given scheduling settings, using the {@link Guarantee#STORED} guarantee.
      */
     static void scheduleCommand(Schedule message) {
         get().messageScheduler().scheduleCommand(message);
@@ -717,7 +717,7 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Schedule a command using the given scheduling settings if no other with same ID exists, using the
-     * {@link Guarantee#SENT} guarantee.
+     * {@link Guarantee#STORED} guarantee.
      */
     static void scheduleCommand(Schedule message, boolean ifAbsent) {
         get().messageScheduler().scheduleCommand(message, ifAbsent);

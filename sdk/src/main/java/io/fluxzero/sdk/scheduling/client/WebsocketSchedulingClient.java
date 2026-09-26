@@ -79,12 +79,12 @@ public class WebsocketSchedulingClient extends AbstractWebsocketClient implement
 
     @Override
     public CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
-        return sendCommand(new Schedule(Arrays.asList(schedules), guarantee));
+        return sendCommand(new Schedule(Arrays.asList(schedules), resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> cancelSchedule(String scheduleId, Guarantee guarantee) {
-        return sendCommand(new CancelSchedule(scheduleId, guarantee));
+        return sendCommand(new CancelSchedule(scheduleId, resolveGuarantee(guarantee)));
     }
 
     @Override

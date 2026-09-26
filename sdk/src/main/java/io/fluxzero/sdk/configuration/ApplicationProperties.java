@@ -97,18 +97,16 @@ public class ApplicationProperties {
     public static final String APPLICATION_VERSION_PROPERTY = "fluxzero.application.version";
 
     /**
-     * Application delivery default for message publication and send-and-forget gateways. The conventional environment
+     * Application delivery default for outgoing SDK operations. The conventional environment
      * variable is {@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}. Values are {@code NONE}, {@code SENT}, and
-     * {@code STORED}; an explicit value overrides the defaults version in either direction.
+     * {@code STORED}; an explicit value overrides the SDK major-version default.
      */
     public static final String DEFAULT_DELIVERY_GUARANTEE_PROPERTY = "fluxzero.publishing.defaultGuarantee";
 
-    private static final LocalDate STORED_DELIVERY_DEFAULTS_VERSION = LocalDate.of(2026, 9, 25);
-
     /**
      * Resolves the application delivery default using the owning component's property source.
-     * Without an override, defaults versions from {@code 2026.09.25} use {@link Guarantee#STORED}; older or absent
-     * versions retain {@link Guarantee#NONE}. Invalid values, including the unresolved {@code DEFAULT}, fail.
+     * SDK 2.x uses {@link Guarantee#STORED} without an override; SDK 1.x uses {@link Guarantee#NONE}.
+     * This setting is independent of the defaults date. Invalid values, including unresolved {@code DEFAULT}, fail.
      *
      * @param propertySource application-local properties
      * @return a concrete delivery guarantee
@@ -127,8 +125,7 @@ public class ApplicationProperties {
             throw new IllegalArgumentException("Property `" + DEFAULT_DELIVERY_GUARANTEE_PROPERTY
                                                + "` must be NONE, SENT, or STORED");
         }
-        return defaultsVersionAtLeast(propertySource, STORED_DELIVERY_DEFAULTS_VERSION)
-                ? Guarantee.STORED : Guarantee.NONE;
+        return Guarantee.NONE;
     }
 
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
@@ -212,12 +209,6 @@ public class ApplicationProperties {
      *         <td>{@code fluxzero.eventsourcing.maxFetchBytes = 104857600}</td>
      *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications
      *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
-     *     </tr>
-     *     <tr>
-     *         <td>{@code >= 2026.09.25}</td>
-     *         <td>{@code fluxzero.publishing.defaultGuarantee = STORED}</td>
-     *         <td>Message publication and send-and-forget gateways resolve {@code Guarantee.DEFAULT} to durable
-     *         storage acknowledgement. Set the property to {@code NONE} to retain compatibility behavior.</td>
      *     </tr>
      * </table>
      * <p>

@@ -506,12 +506,14 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     @Override
     public CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee) {
-        return gatewayClient.setRetentionTime(duration, guarantee);
+        return AsyncCompletionScope.register(gatewayClient.setRetentionTime(
+                duration, guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee));
     }
 
     @Override
     public CompletableFuture<Void> truncate(Guarantee guarantee) {
-        return gatewayClient.truncate(guarantee);
+        return AsyncCompletionScope.register(gatewayClient.truncate(
+                guarantee == Guarantee.DEFAULT ? defaultGuarantee : guarantee));
     }
 
     protected CompletableFuture<Message> emptyReturnMessage() {

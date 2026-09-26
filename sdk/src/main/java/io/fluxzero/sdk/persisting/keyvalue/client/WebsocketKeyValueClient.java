@@ -90,13 +90,15 @@ public class WebsocketKeyValueClient extends AbstractWebsocketClient implements 
 
     @Override
     public CompletableFuture<Void> putValue(String key, Data<byte[]> value, Guarantee guarantee) {
-        return sendCommand(new StoreValues(List.of(new KeyValuePair(key, value)), guarantee));
+        return sendCommand(new StoreValues(List.of(new KeyValuePair(key, value)), resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Boolean> putValueIfAbsent(String key, Data<byte[]> value) {
-        return send(new StoreValueIfAbsent(new KeyValuePair(key, value)))
-                .thenApply(r -> ((BooleanResult) r).isSuccess());
+        return io.fluxzero.sdk.common.AsyncCompletionScope.register(
+                io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(
+                        () -> send(new StoreValueIfAbsent(new KeyValuePair(key, value))))
+                        .thenApply(r -> ((BooleanResult) r).isSuccess()));
     }
 
     @Override
@@ -107,6 +109,6 @@ public class WebsocketKeyValueClient extends AbstractWebsocketClient implements 
 
     @Override
     public CompletableFuture<Void> deleteValue(String key, Guarantee guarantee) {
-        return sendCommand(new DeleteValue(key, guarantee));
+        return sendCommand(new DeleteValue(key, resolveGuarantee(guarantee)));
     }
 }

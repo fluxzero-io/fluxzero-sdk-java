@@ -18,6 +18,8 @@ package io.fluxzero.sdk.common.websocket;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.Backlog;
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
@@ -423,6 +425,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected <R extends RequestResult> CompletableFuture<R> send(Request request) {
+        CompletableFuture<R> result = sendRequest(request);
+        return request instanceof Command ? AsyncCompletionScope.register(result) : result;
+    }
+
+    private <R extends RequestResult> CompletableFuture<R> sendRequest(Request request) {
+        if (request instanceof Command command && command.getGuarantee() == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("Guarantee.DEFAULT must be resolved before constructing a transport command");
+        }
         return new WebSocketRequest(request, currentCorrelationData(),
                                     getAdhocInterceptor(METRICS).orElse(null),
                                     Fluxzero.getOptionally().orElse(null)).send();
@@ -434,17 +444,22 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return (R) send(request).get();
     }
 
+    /** Resolves DEFAULT from this client's immutable configuration before constructing a transport command. */
+    protected Guarantee resolveGuarantee(Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? clientConfig.getDefaultGuarantee() : guarantee;
+    }
+
     protected CompletableFuture<Void> sendCommand(Command command) {
-        return switch (command.getGuarantee()) {
+        return AsyncCompletionScope.register(switch (command.getGuarantee()) {
             case NONE -> {
                 sendAndForget(command);
                 yield CompletableFuture.completedFuture(null);
             }
             case SENT -> sendAndForget(command);
             case DEFAULT -> throw new IllegalArgumentException(
-                    "Guarantee.DEFAULT must be resolved by the application gateway before transport");
-            default -> send(command).thenApply(r -> null);
-        };
+                    "Guarantee.DEFAULT must be resolved before constructing a transport command");
+            default -> sendRequest(command).thenApply(r -> null);
+        });
     }
 
     @SneakyThrows
