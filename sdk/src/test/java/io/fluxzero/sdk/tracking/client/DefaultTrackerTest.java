@@ -69,7 +69,7 @@ class DefaultTrackerTest {
 
     @Test
     void pauseFetchContinuesWhenPauseDurationHasAlreadyElapsed() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         AtomicInteger pauseChecks = new AtomicInteger();
         FlowRegulator flowRegulator = () -> {
             if (pauseChecks.incrementAndGet() == 1) {
@@ -96,7 +96,7 @@ class DefaultTrackerTest {
 
     @Test
     void doesNotFetchStoredPositionWhenNoMaxIndexIsConfigured() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
@@ -125,7 +125,7 @@ class DefaultTrackerTest {
 
     @Test
     void doesNotFetchStoredPositionWhenMaxIndexIsStillInTheFuture() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .maxIndexExclusive(IndexUtils.indexFromTimestamp(Instant.parse("2999-01-01T00:00:00Z")))
@@ -157,7 +157,7 @@ class DefaultTrackerTest {
 
     @Test
     void stopsBeforeFirstReadWhenStoredPositionAlreadyReachedMaxIndex() {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .threads(1)
@@ -184,7 +184,7 @@ class DefaultTrackerTest {
 
     @Test
     void startsFromStoredPositionWhenMaxIndexIsInThePastButNotReachedYet() {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .threads(1)
@@ -217,7 +217,7 @@ class DefaultTrackerTest {
 
     @Test
     void resetPositionRevivesTrackerAfterMaxIndexWasReached() {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .threads(1)
@@ -257,7 +257,7 @@ class DefaultTrackerTest {
 
     @Test
     void keepsMinIndexInclusiveWhenCatchingUpFromStoredPosition() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .minIndex(10L)
@@ -278,7 +278,7 @@ class DefaultTrackerTest {
 
     @Test
     void storePositionPreservesInterruptAndDoesNotRetryInterruptedWait() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
@@ -303,7 +303,7 @@ class DefaultTrackerTest {
 
     @Test
     void storePositionStopsQuietlyWhenInterruptedAfterShutdown() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
@@ -326,7 +326,7 @@ class DefaultTrackerTest {
 
     @Test
     void clientControlledStorePositionUsesSentGuaranteeAndDoesNotWaitOrRetry() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .clientControlledIndex(true)
@@ -354,12 +354,17 @@ class DefaultTrackerTest {
 
     @Test
     void shutdownInterruptWhileFetchingStopsTrackerWithoutUncaughtException() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
         CountDownLatch fetching = new CountDownLatch(1);
         AtomicReference<Throwable> uncaught = new AtomicReference<>();
+        when(trackingClient.disconnectTracker(anyString(), anyString(), eq(false), eq(Guarantee.STORED)))
+                .thenAnswer(invocation -> {
+                    assertFalse(currentThread().isInterrupted(), "Fetch interruption must not cancel cleanup delivery");
+                    return CompletableFuture.completedFuture(null);
+                });
 
         when(trackingClient.getPosition("consumer")).thenReturn(new Position(-1L));
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
@@ -376,16 +381,22 @@ class DefaultTrackerTest {
         trackerThread.setUncaughtExceptionHandler((thread, error) -> uncaught.set(error));
         trackerThread.start();
 
-        assertTrue(fetching.await(1, TimeUnit.SECONDS));
-        defaultTracker.cancel();
-
-        assertFalse(trackerThread.isAlive(), "Cancellation should await the interrupted fetch thread");
-        assertNull(uncaught.get());
+        try {
+            assertTrue(fetching.await(1, TimeUnit.SECONDS));
+            defaultTracker.cancel();
+            assertFalse(trackerThread.isAlive(), "Cancellation should await the interrupted fetch thread");
+            assertNull(uncaught.get());
+            verify(trackingClient).disconnectTracker("consumer", "trackerId", false, Guarantee.STORED);
+        } finally {
+            defaultTracker.cancel();
+            trackerThread.interrupt();
+            assertTrue(trackerThread.join(Duration.ofSeconds(1)));
+        }
     }
 
     @Test
     void clientClosureWhileFetchingStopsCancelledTrackerWithoutUncaughtException() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
         Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
         DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
@@ -417,7 +428,7 @@ class DefaultTrackerTest {
 
     @Test
     void cancellationDoesNotWaitIndefinitelyWhenFetchIgnoresInterrupts() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(2).build();
         CountDownLatch fetching = new CountDownLatch(2);
         CountDownLatch releaseFetch = new CountDownLatch(1);
@@ -457,7 +468,7 @@ class DefaultTrackerTest {
 
     @Test
     void requestsCancellationOfAllParallelTrackersBeforeAwaitingCurrentBatch() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder()
                 .name("consumer")
                 .threads(2)
@@ -503,9 +514,12 @@ class DefaultTrackerTest {
             assertTrue(secondTrackerInterrupted.await(1, TimeUnit.SECONDS),
                        "The idle tracker should stop fetching while another tracker finishes its batch");
             assertFalse(cancellation.isDone(), "Cancellation should still await the active batch");
-
+            verify(trackingClient, never()).storePosition(eq("consumer"), any(), eq(1L));
             releaseFirstBatch.countDown();
             cancellation.get(1, TimeUnit.SECONDS);
+            var order = org.mockito.Mockito.inOrder(trackingClient);
+            order.verify(trackingClient).storePosition(eq("consumer"), any(), eq(1L));
+            order.verify(trackingClient).disconnectTracker(eq("consumer"), anyString(), eq(false), eq(Guarantee.STORED));
         } finally {
             releaseFirstBatch.countDown();
             registration.cancel();
@@ -514,7 +528,7 @@ class DefaultTrackerTest {
 
     @Test
     void delayedDeliveryDoesNotBlockIndependentTrackerPosition() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").threads(2).build();
         AtomicInteger reads = new AtomicInteger();
         CompletableFuture<Void> delivery = new CompletableFuture<>();
@@ -564,7 +578,7 @@ class DefaultTrackerTest {
 
     @Test
     void failedDeliveryAndBatchAbortDoNotCommitSuccessfulPrefix() throws Exception {
-        TrackingClient trackingClient = mock(TrackingClient.class);
+        TrackingClient trackingClient = trackingClient();
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();
         SerializedMessage first = mock(SerializedMessage.class);
         SerializedMessage second = mock(SerializedMessage.class);
@@ -583,6 +597,13 @@ class DefaultTrackerTest {
         } finally {
             registration.cancel();
         }
+    }
+
+    private static TrackingClient trackingClient() {
+        var result = mock(TrackingClient.class);
+        org.mockito.Mockito.doCallRealMethod().when(result)
+                .disconnectTerminatedTracker(anyString(), anyString(), any());
+        return result;
     }
 
     @SuppressWarnings("unchecked")
