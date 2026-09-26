@@ -323,10 +323,11 @@ the same HTTP response generator as application responses. These options do not 
 payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
 same environment settings apply to Java and Kotlin applications.
 
-### Publication delivery default
+### Outgoing-command delivery default
 
 Configure `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) before building the
-application: `NONE`, `SENT`, or `STORED`. Without this override, `fluxzero.defaults.version >= 2026.09.25` selects
-`STORED`; older or absent versions keep `NONE`. This governs `Guarantee.DEFAULT` in publication/send-and-forget
-APIs. It does not change explicit concrete guarantees or operation-specific persistence/telemetry defaults.
+application: `NONE`, `SENT`, or `STORED`. SDK 1.x normally defaults to `NONE`, retaining `SENT` for schedule-client creation and cancellation without an override.
+SDK 2.x defaults to `STORED`, independently
+of `fluxzero.defaults.version`. This governs `Guarantee.DEFAULT` across the outgoing SDK operations described in
+the sending rules. Explicit concrete guarantees and operation-specific synchronous contracts remain unchanged on 1.x.
 See the sending rules for consumer-position and asynchronous completion boundaries.

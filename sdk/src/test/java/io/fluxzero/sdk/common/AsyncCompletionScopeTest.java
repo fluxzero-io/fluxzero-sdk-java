@@ -33,6 +33,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AsyncCompletionScopeTest {
 
     @Test
+    void ownedWaitRemainsInterruptible() {
+        try {
+            Thread.currentThread().interrupt();
+            var failure = assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> AsyncCompletionScope.await(CompletableFuture::new));
+            assertTrue(failure.getCause() instanceof InterruptedException);
+            assertTrue(Thread.currentThread().isInterrupted());
+        } finally {
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void runAndAwaitStartsAllRegisteredFuturesBeforeWaiting() throws Exception {
         CountDownLatch callbacksStarted = new CountDownLatch(2);
         CompletableFuture<Void> first = new CompletableFuture<>();

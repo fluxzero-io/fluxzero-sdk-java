@@ -250,7 +250,7 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      * @param duration the new retention duration
      */
     default void setRetentionTime(Duration duration) {
-        setRetentionTime(duration, Guarantee.NONE);
+        setRetentionTime(duration, Guarantee.DEFAULT);
     }
 
     /**
@@ -261,14 +261,14 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      *
      * @param duration  the new retention duration
      * @param guarantee the delivery guarantee to apply to the update operation
-     * @return a {@link CompletableFuture} that completes once the retention setting is updated
+     * @return a {@link CompletableFuture} that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee);
 
     /**
      * Truncates this gateway's message log and clears associated tracking positions using {@link Guarantee#STORED}.
      *
-     * @return a {@link CompletableFuture} that completes once the log is truncated
+     * @return a {@link CompletableFuture} that completes according to the selected delivery guarantee
      */
     default CompletableFuture<Void> truncate() {
         return truncate(Guarantee.STORED);
@@ -278,7 +278,7 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
      * Truncates this gateway's message log and clears associated tracking positions.
      *
      * @param guarantee the delivery guarantee to apply to the truncate operation
-     * @return a {@link CompletableFuture} that completes once the log is truncated
+     * @return a {@link CompletableFuture} that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> truncate(Guarantee guarantee);
 

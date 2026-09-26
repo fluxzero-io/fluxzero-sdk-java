@@ -134,7 +134,7 @@ public class DefaultEventStore extends AbstractNamespaced<EventStore> implements
                 }
             }
         }
-        return result;
+        return io.fluxzero.sdk.common.AsyncCompletionScope.register(result);
     }
 
     private static String payloadName(Object event) {

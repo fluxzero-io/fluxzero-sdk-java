@@ -273,3 +273,8 @@ In this example:
 <Aside type="tip">
   Schedules are fully auditable, correlated to the original event, and can be canceled or monitored like any other message. You can use them for cleanup, retries, reminders, or long-lived workflows.
 </Aside>
+
+Framework scheduling retains its own completion requirements: periodic initialization and automatic rescheduling
+await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
+these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
+methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.

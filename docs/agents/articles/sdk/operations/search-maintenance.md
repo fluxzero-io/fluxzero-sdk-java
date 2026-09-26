@@ -40,7 +40,7 @@ Fluxzero.bulkUpdate("projection-v3")
 ```
 
 `indexIfNotExists(...)` prevents replacement of an existing ID. `execute()` returns a future with
-`Guarantee.STORED`; `executeAndForget()` deliberately uses `Guarantee.NONE` and is a poor choice for operator tooling
+`Guarantee.STORED`; `executeAndForget()` uses `Guarantee.DEFAULT` and is a poor choice for operator tooling
 that must report a verified outcome. Treat each collection/document-ID pair as one final update in the batch: do not
 depend on repeated operations for the same ID being executed sequentially, and do not claim that a multi-document bulk
 request is an application transaction.

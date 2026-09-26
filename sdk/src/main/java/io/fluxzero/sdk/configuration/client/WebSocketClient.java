@@ -16,6 +16,8 @@
 package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.common.application.DecryptingPropertySource;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
@@ -184,7 +186,28 @@ public class WebSocketClient extends AbstractClient {
      */
     @Value
     @Builder(toBuilder = true)
+    @lombok.EqualsAndHashCode(doNotUseGetters = true)
+    @lombok.ToString(doNotUseGetters = true)
     public static class ClientConfig {
+        /**
+         * Optional explicit DEFAULT override for direct client calls. When absent, operations retain their legacy
+         * guarantees. Application gateways pass their own resolved policy.
+         * Configured by {@code fluxzero.publishing.defaultGuarantee} ({@code FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE}).
+         */
+        @Default
+        @Builder.ObtainVia(field = "defaultGuarantee")
+        Guarantee defaultGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(DefaultPropertySource.getInstance(), null);
+
+        /** Returns the general client default, retaining NONE when no override is configured. */
+        public Guarantee getDefaultGuarantee() {
+            return getDefaultGuarantee(Guarantee.NONE);
+        }
+
+        /** Returns an explicit override or the operation's compatibility default, without rereading properties. */
+        public Guarantee getDefaultGuarantee(Guarantee compatibilityDefault) {
+            return defaultGuarantee == null ? compatibilityDefault : defaultGuarantee;
+        }
+
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
@@ -228,6 +251,7 @@ public class WebSocketClient extends AbstractClient {
             PropertySource source = propertySource instanceof DecryptingPropertySource
                     ? propertySource : new DecryptingPropertySource(propertySource);
             return builder()
+                    .defaultGuarantee(ApplicationProperties.getDefaultDeliveryGuarantee(source, null))
                     .runtimeBaseUrl(Objects.requireNonNull(
                             firstProperty(source, "FLUXZERO_BASE_URL", "FLUX_BASE_URL"),
                             "Property FLUXZERO_BASE_URL is required"))
@@ -490,6 +514,9 @@ public class WebSocketClient extends AbstractClient {
         }
 
         private void validateRuntimeWebSocketCapacity() {
+            if (defaultGuarantee == Guarantee.DEFAULT) {
+                throw new IllegalArgumentException("The default delivery guarantee must be concrete");
+            }
             if (maxConcurrentRuntimeWebSocketMessages < 1) {
                 throw new IllegalArgumentException("maxConcurrentRuntimeWebSocketMessages must be at least 1");
             }

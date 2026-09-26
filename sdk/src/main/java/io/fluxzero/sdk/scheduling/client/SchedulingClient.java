@@ -45,14 +45,14 @@ import java.util.concurrent.CompletableFuture;
 public interface SchedulingClient extends AutoCloseable {
 
     /**
-     * Schedule one or more serialized schedules using {@link Guarantee#SENT} as the default delivery guarantee.
+     * Schedule one or more serialized schedules using {@link Guarantee#DEFAULT} as the default delivery guarantee. Without an explicit override, 1.x retains SENT.
      *
      * @param schedules One or more schedules to add.
      * @return A future that completes when the schedules have been sent or persisted (depending on the
      * underlying implementation).
      */
     default CompletableFuture<Void> schedule(SerializedSchedule... schedules) {
-        return schedule(Guarantee.SENT, schedules);
+        return schedule(Guarantee.DEFAULT, schedules);
     }
 
     /**
@@ -60,18 +60,18 @@ public interface SchedulingClient extends AutoCloseable {
      *
      * @param guarantee Delivery guarantee to apply (e.g., none, sent, stored).
      * @param schedules One or more schedules to register.
-     * @return A future that completes when the scheduling is acknowledged.
+     * @return A future that completes when the selected delivery guarantee is reached.
      */
     CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules);
 
     /**
-     * Cancel a scheduled message using {@link Guarantee#SENT} as the default guarantee.
+     * Cancel a scheduled message using {@link Guarantee#DEFAULT} as the default guarantee. Without an explicit override, 1.x retains SENT.
      *
      * @param scheduleId The identifier of the schedule to cancel.
-     * @return A future that completes when the cancellation request is acknowledged.
+     * @return A future that completes when the selected delivery guarantee is reached.
      */
     default CompletableFuture<Void> cancelSchedule(String scheduleId) {
-        return cancelSchedule(scheduleId, Guarantee.SENT);
+        return cancelSchedule(scheduleId, Guarantee.DEFAULT);
     }
 
     /**
@@ -79,7 +79,7 @@ public interface SchedulingClient extends AutoCloseable {
      *
      * @param scheduleId The identifier of the schedule to cancel.
      * @param guarantee  Delivery guarantee for the cancellation request.
-     * @return A future that completes when the cancellation is processed.
+     * @return A future that completes when the selected delivery guarantee is reached.
      */
     CompletableFuture<Void> cancelSchedule(String scheduleId, Guarantee guarantee);
 

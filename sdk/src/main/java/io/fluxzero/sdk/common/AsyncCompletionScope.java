@@ -135,6 +135,52 @@ public final class AsyncCompletionScope {
     }
 
     /**
+     * Starts and synchronously awaits an operation whose completion is owned by the caller. Nested transport attempts
+     * are not independently added to the surrounding scope: a caller may catch the failure and retry the operation.
+     * Other registered side effects remain attached to the batch. Waiting is interruptible; interruption preserves
+     * the thread interrupt flag and is reported as a {@link CompletionException}.
+     *
+     * @param operation operation whose complete lifecycle is represented by its returned future
+     * @param <T> result type
+     * @return the completed result
+     */
+    public static <T> T await(Supplier<CompletableFuture<T>> operation) {
+        try {
+            return takeOwnership(operation).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new CompletionException(e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            throw new CompletionException(e.getCause());
+        }
+    }
+
+    /**
+     * Starts an operation whose returned future will be awaited or registered by its caller. Only that exact future
+     * is removed from automatic batch registration. Other work started by local handlers, interceptors or captured
+     * worker contexts remains attached to the enclosing scope.
+     *
+     * @param operation operation whose returned completion is owned by the caller
+     * @param <T> completion result type
+     * @return the operation's future, which the caller must await or register
+     */
+    public static <T> CompletableFuture<T> takeOwnership(Supplier<CompletableFuture<T>> operation) {
+        ScopeStack previous = scopes.get();
+        if (previous == null) {
+            return operation.get();
+        }
+        Scope child = new Scope();
+        scopes.set(new ScopeStack(child, previous));
+        CompletableFuture<T> owned = null;
+        try {
+            return owned = operation.get();
+        } finally {
+            scopes.set(previous);
+            child.forwardTo(previous.scope(), owned);
+        }
+    }
+
+    /**
      * Returns whether the current thread is executing inside an async completion scope.
      *
      * @return {@code true} when futures registered by this thread will be awaited by a surrounding scope
@@ -180,7 +226,35 @@ public final class AsyncCompletionScope {
     private static final class Scope {
         private final List<Completion> completions = new ArrayList<>();
 
+        private Scope forwardingTarget;
+        private CompletableFuture<?> ownedCompletion;
+
+        synchronized void forwardTo(Scope target, CompletableFuture<?> owned) {
+            forwardingTarget = target;
+            ownedCompletion = owned;
+            for (Completion completion : completions) {
+                forward(completion.future(), completion.afterCompletion());
+            }
+            completions.clear();
+        }
+
+        private void forward(CompletableFuture<?> future, Runnable afterCompletion) {
+            if (future != ownedCompletion) {
+                forwardingTarget.add(future, afterCompletion);
+            } else if (afterCompletion != null) {
+                forwardingTarget.add(CompletableFuture.completedFuture(null), afterCompletion);
+            }
+        }
+
         synchronized void add(CompletableFuture<?> future, Runnable afterCompletion) {
+            if (forwardingTarget != null) {
+                forward(future, afterCompletion);
+                return;
+            }
+            if (afterCompletion == null && (future.isDone() && !future.isCompletedExceptionally()
+                    || !completions.isEmpty() && completions.getLast().future() == future)) {
+                return;
+            }
             completions.add(new Completion(future, afterCompletion));
         }
 

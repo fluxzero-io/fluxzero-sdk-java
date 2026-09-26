@@ -48,7 +48,7 @@ import java.util.concurrent.CompletableFuture;
 public interface ResultGateway extends Namespaced<ResultGateway> {
 
     /**
-     * Sends a response message with default metadata and {@link Guarantee#NONE}.
+     * Sends a response message with default metadata and {@link Guarantee#DEFAULT}.
      * <p>
      * If the provided response is a {@link Message}, its payload and metadata are extracted and used directly.
      * Otherwise, the response is wrapped as a new {@link Message}.
@@ -61,9 +61,9 @@ public interface ResultGateway extends Namespaced<ResultGateway> {
     default CompletableFuture<Void> respond(Object response, String target, Integer requestId) {
         if (response instanceof Message) {
             return respond(((Message) response).getPayload(), ((Message) response).getMetadata(), target, requestId,
-                           Guarantee.NONE);
+                           Guarantee.DEFAULT);
         } else {
-            return respond(response, Metadata.empty(), target, requestId, Guarantee.NONE);
+            return respond(response, Metadata.empty(), target, requestId, Guarantee.DEFAULT);
         }
     }
 

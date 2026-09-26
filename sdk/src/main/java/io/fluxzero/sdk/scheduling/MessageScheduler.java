@@ -294,7 +294,8 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     @SneakyThrows
     default void schedule(@NonNull Schedule message, boolean ifAbsent) {
         try {
-            schedule(message, ifAbsent, Guarantee.STORED).get();
+            io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(
+                    () -> schedule(message, ifAbsent, Guarantee.STORED)).get();
         } catch (Throwable e) {
             throw new SchedulerException(String.format("Failed to schedule message %s for %s", message.getPayload(),
                                                        message.getDeadline()), e);
@@ -308,7 +309,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @param message   the schedule message
      * @param ifAbsent  only schedule if not already scheduled
      * @param guarantee the delivery guarantee to use
-     * @return a CompletableFuture completing when the message is successfully scheduled
+     * @return a future that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> schedule(Schedule message, boolean ifAbsent, Guarantee guarantee);
 
@@ -460,7 +461,8 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      */
     default void scheduleCommand(@NonNull Schedule message, boolean ifAbsent) {
         try {
-            scheduleCommand(message, ifAbsent, Guarantee.STORED).get();
+            io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(
+                    () -> scheduleCommand(message, ifAbsent, Guarantee.STORED)).get();
         } catch (Throwable e) {
             throw new SchedulerException(String.format("Failed to schedule command %s for %s", message.getPayload(),
                                                        message.getDeadline()), e);
@@ -473,7 +475,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @param message   the command schedule
      * @param ifAbsent  skip if existing schedule is present
      * @param guarantee the delivery guarantee to apply
-     * @return a future indicating when the command is scheduled
+     * @return a future that completes according to the selected delivery guarantee
      */
     CompletableFuture<Void> scheduleCommand(Schedule message, boolean ifAbsent, Guarantee guarantee);
 

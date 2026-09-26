@@ -112,7 +112,7 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
     @Override
     public CompletableFuture<Void> append(Guarantee guarantee, SerializedMessage... messages) {
         try {
-            return sendCommand(new Append(messageType, Arrays.asList(messages), guarantee));
+            return sendCommand(new Append(messageType, Arrays.asList(messages), resolveGuarantee(guarantee)));
         } finally {
             if (!monitors.isEmpty()) {
                 monitors.forEach(m -> m.accept(Arrays.asList(messages)));
@@ -122,12 +122,12 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
 
     @Override
     public CompletableFuture<Void> setRetentionTime(Duration duration, Guarantee guarantee) {
-        return sendCommand(new SetRetentionTime(duration.getSeconds(), guarantee));
+        return sendCommand(new SetRetentionTime(duration.getSeconds(), resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> truncate(Guarantee guarantee) {
-        return sendCommand(new Truncate(guarantee));
+        return sendCommand(new Truncate(resolveGuarantee(guarantee)));
     }
 
     @Override

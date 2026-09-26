@@ -38,6 +38,36 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebSocketClientConfigTest {
 
     @Test
+    void absentDeliveryOverrideRetainsOperationFallbackAcrossNamespaceCopies() {
+        var original = clientConfig(Map.of());
+        var copy = original.toBuilder().namespace("other").build();
+        assertEquals(io.fluxzero.common.Guarantee.NONE, copy.getDefaultGuarantee());
+        assertEquals(io.fluxzero.common.Guarantee.SENT,
+                     copy.getDefaultGuarantee(io.fluxzero.common.Guarantee.SENT));
+        assertEquals(io.fluxzero.common.Guarantee.NONE, copy.toBuilder()
+                .defaultGuarantee(io.fluxzero.common.Guarantee.NONE).build()
+                .getDefaultGuarantee(io.fluxzero.common.Guarantee.SENT));
+        assertNotEquals(copy, copy.toBuilder().defaultGuarantee(io.fluxzero.common.Guarantee.NONE).build());
+        var explicit = clientConfig(Map.of(
+                io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "NONE"));
+        assertEquals(io.fluxzero.common.Guarantee.NONE, explicit.toBuilder().namespace("other").build()
+                .getDefaultGuarantee(io.fluxzero.common.Guarantee.SENT));
+    }
+
+    @Test
+    void directClientDeliveryPolicyBelongsToItsExplicitPropertySource() {
+        String property = io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULT_DELIVERY_GUARANTEE_PROPERTY;
+        var first = clientConfig(Map.of(property, "STORED"));
+        var second = clientConfig(Map.of(property, "NONE"));
+        assertEquals(io.fluxzero.common.Guarantee.STORED, first.getDefaultGuarantee());
+        assertEquals(io.fluxzero.common.Guarantee.NONE, second.getDefaultGuarantee());
+        assertEquals(io.fluxzero.common.Guarantee.STORED,
+                     first.toBuilder().namespace("other").build().getDefaultGuarantee());
+        assertThrows(IllegalArgumentException.class, () -> WebSocketClient.newInstance(
+                first.toBuilder().defaultGuarantee(io.fluxzero.common.Guarantee.DEFAULT).build()));
+    }
+
+    @Test
     void taskIdentityPrefixesUniqueClientInstanceIds() {
         withProperties(Map.of(TASK_ID_PROPERTY, "task-123"), () -> {
             WebSocketClient.ClientConfig first = clientConfig();

@@ -114,7 +114,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
     @Override
     public CompletableFuture<Void> storeEvents(String aggregateId, List<SerializedMessage> events, boolean storeOnly,
                                                Guarantee guarantee) {
-        return sendCommand(new AppendEvents(List.of(new EventBatch(aggregateId, events, storeOnly)), guarantee));
+        return sendCommand(new AppendEvents(List.of(new EventBatch(aggregateId, events, storeOnly)), resolveGuarantee(guarantee)));
     }
 
     /**
@@ -213,7 +213,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient implement
      */
     @Override
     public CompletableFuture<Void> deleteEvents(String aggregateId, Guarantee guarantee) {
-        return sendCommand(new DeleteEvents(aggregateId, guarantee));
+        return sendCommand(new DeleteEvents(aggregateId, resolveGuarantee(guarantee)));
     }
 
 }
