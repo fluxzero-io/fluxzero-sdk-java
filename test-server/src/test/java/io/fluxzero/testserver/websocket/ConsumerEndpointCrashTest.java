@@ -137,6 +137,55 @@ class ConsumerEndpointCrashTest {
                 child.destroyForcibly();
                 assertTrue(child.waitFor(10, TimeUnit.SECONDS));
             }
+            endpoint.shutDown();
+            server.stop();
+        }
+    }
+
+    @Test
+    void replacementStartsImmediatelyAfterCrash() throws Exception {
+        var messages = new InMemoryMessageStore(COMMAND, null);
+        var positions = new InMemoryPositionStore();
+        positions.storePosition("recovery", new int[]{0, MAX_SEGMENT}, 10L).join();
+        var retained = List.of(message(11, 0), message(12, MAX_SEGMENT - 1));
+        messages.append(retained).join();
+        var strategy = new DefaultTrackingStrategy(messages, positions);
+        var endpoint = new ConsumerEndpoint(strategy, messages, positions, COMMAND);
+        var router = deploy(ignored -> endpoint, "/%s/".formatted(trackingPath(COMMAND)),
+                            new JettyWebsocketRouter());
+        var server = router.start(new InetSocketAddress("127.0.0.1", 0));
+        Process child = null;
+        try {
+            int port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
+            Path log = directory.resolve("immediate-worker.log");
+            child = new ProcessBuilder(
+                    Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "--enable-native-access=ALL-UNNAMED", "-cp",
+                    System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")),
+                    CrashWorker.class.getName(), Integer.toString(port), "immediate")
+                    .redirectErrorStream(true).redirectOutput(log.toFile()).start();
+            assertTrue(child.waitFor(15, TimeUnit.SECONDS), () -> readLog(log));
+            assertEquals(77, child.exitValue(), () -> readLog(log));
+            // Process exit does not establish that the server has finished cleaning up the old session.
+            var client = client(port, "replacement");
+            try (var tracking = tracking(client)) {
+                MessageBatch batch;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                do {
+                    batch = tracking.read("replacement-tracker", null, configuration()).get(5, TimeUnit.SECONDS);
+                } while ((batch.getSegment()[0] != 0 || batch.getSegment()[1] != MAX_SEGMENT)
+                         && System.nanoTime() < deadline);
+                assertArrayEquals(new int[]{0, MAX_SEGMENT}, batch.getSegment());
+                assertEquals(retained, batch.getMessages());
+            } finally {
+                client.shutDown();
+            }
+        } finally {
+            if (child != null && child.isAlive()) {
+                child.destroyForcibly();
+                assertTrue(child.waitFor(10, TimeUnit.SECONDS));
+            }
+            endpoint.shutDown();
             server.stop();
         }
     }
@@ -145,6 +194,10 @@ class ConsumerEndpointCrashTest {
         public static void main(String[] args) throws Exception {
             var client = client(Integer.parseInt(args[0]), "departed");
             var tracking = tracking(client);
+            if (args.length > 1) {
+                tracking.read("departed-tracker", null, configuration()).get(5, TimeUnit.SECONDS);
+                Runtime.getRuntime().halt(77);
+            }
             tracking.read("departed-tracker", null, configuration());
             if (System.in.read() >= 0) {
                 Runtime.getRuntime().halt(77);
