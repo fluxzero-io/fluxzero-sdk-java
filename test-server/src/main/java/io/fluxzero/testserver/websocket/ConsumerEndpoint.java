@@ -40,8 +40,10 @@ import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static io.fluxzero.common.MessageType.METRICS;
 
@@ -182,7 +184,7 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     CompletableFuture<ReadResult> handle(Read read, ServerWebsocketSession session) {
         WebSocketTracker tracker = new WebSocketTracker(
                 read, messageType, getClientId(session), getNegotiatedSessionId(session));
-        CompletableFuture<ReadResult> result = trackingStrategy.getBatch(tracker)
+        CompletableFuture<ReadResult> result = registerTracker(tracker, trackingStrategy::getBatch)
                 .thenApply(batch -> new ReadResult(read.getRequestId(), batch));
         try {
             readRequestObserver.accept(tracker);
@@ -194,11 +196,28 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
 
     @Handle
     CompletableFuture<ClaimSegmentResult> handle(ClaimSegment read, ServerWebsocketSession session) {
-        return trackingStrategy.claimSegment(
-                        new WebSocketTracker(read, messageType, getClientId(session),
-                                             getNegotiatedSessionId(session)))
+        return registerTracker(new WebSocketTracker(read, messageType, getClientId(session),
+                                                getNegotiatedSessionId(session)),
+                               trackingStrategy::claimSegment)
                 .thenApply(claim -> new ClaimSegmentResult(read.getRequestId(), claim.getPosition(),
                                                            claim.getSegment()));
+    }
+
+    private <T> CompletableFuture<T> registerTracker(
+            WebSocketTracker tracker,
+            Function<WebSocketTracker, CompletableFuture<T>> register) {
+        if (!isSessionActive(tracker.getSessionId())) {
+            return CompletableFuture.failedFuture(new CancellationException("Websocket session closed"));
+        }
+        try {
+            return register.apply(tracker);
+        } finally {
+            // Close may have purged the session before this request registered its tracker. Check after the
+            // synchronous registration as well, without blocking session cleanup on a message-store read.
+            if (!isSessionActive(tracker.getSessionId())) {
+                disconnectSessionTrackers(tracker.getSessionId());
+            }
+        }
     }
 
     @Handle
@@ -235,9 +254,13 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Override
     public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
         super.onClose(session, closeReason);
+        disconnectSessionTrackers(getNegotiatedSessionId(session));
+    }
+
+    private void disconnectSessionTrackers(String sessionId) {
         var trackers = trackingStrategy.disconnectTrackers(t -> t instanceof WebSocketTracker
                                                                 && ((WebSocketTracker) t).getSessionId()
-                                                                        .equals(getNegotiatedSessionId(session)),
+                                                                        .equals(sessionId),
                                                            false);
         trackers.forEach(t -> metricsLog.registerMetrics(
                 new DisconnectTracker(messageType, t.getConsumerName(), t.getTrackerId(),
