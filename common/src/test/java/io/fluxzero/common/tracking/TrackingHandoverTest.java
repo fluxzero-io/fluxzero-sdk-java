@@ -33,6 +33,31 @@ import static org.mockito.Mockito.when;
 
 class TrackingHandoverTest {
     @Test
+    void ordinaryConnectionCleanupPreservesCustomDisconnectBehavior() {
+        var source = mock(MessageStore.class);
+        when(source.registerMonitor(any())).thenReturn(() -> {});
+        var callbacks = new java.util.concurrent.atomic.AtomicInteger();
+        try (var strategy = new DefaultTrackingStrategy(source, new InMemoryPositionStore()) {
+            @Override
+            public java.util.Set<Tracker> disconnectTrackers(java.util.function.Predicate<Tracker> predicate,
+                                                            boolean sendFinalEmptyBatch) {
+                callbacks.incrementAndGet();
+                return super.disconnectTrackers(predicate, sendFinalEmptyBatch);
+            }
+        }) {
+            var owner = tracker("owner", false);
+            strategy.claimSegment(owner).join();
+            assertEquals(java.util.Set.of(owner), strategy.disconnectTrackersOnClose(t -> true));
+            assertEquals(1, callbacks.get());
+            strategy.claimSegment(owner).join();
+            var claims = strategy.freezeForHandover();
+            assertTrue(strategy.disconnectTrackersOnClose(t -> true).isEmpty());
+            assertEquals(1, callbacks.get());
+            assertEquals(claims, strategy.freezeForHandover());
+        }
+    }
+
+    @Test
     void blockedScanCannotHoldShutdownIndefinitely() throws Exception {
         var source = mock(MessageStore.class);
         when(source.registerMonitor(any())).thenReturn(() -> {});
@@ -119,7 +144,7 @@ class TrackingHandoverTest {
     void singleTrackerWithClientSideFilteringStillTransfersExclusiveOwnership() {
         try (var old = strategy(new InMemoryPositionStore()); var next = strategy(new InMemoryPositionStore())) {
             var owner = new WebSocketTracker(new Read(MessageType.COMMAND, "consumer", "owner", 1, 60000,
-                    null, false, false, true, true, 0L, null), MessageType.COMMAND, "client", "session");
+                    null, false, true, true, false, 0L, null), MessageType.COMMAND, "client", "session");
             old.claimSegment(owner).join();
             next.restoreClaims(old.freezeForHandover());
             assertFalse(next.claimSegment(tracker("other", true)).isDone());

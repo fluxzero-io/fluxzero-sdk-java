@@ -534,7 +534,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     @Override
     public Set<Tracker> disconnectTrackers(Predicate<Tracker> predicate, boolean sendFinalEmptyBatch) {
-        return disconnectTrackers(predicate, sendFinalEmptyBatch, false);
+        return disconnectTrackersInternal(predicate, sendFinalEmptyBatch);
     }
 
     /**
@@ -542,17 +542,18 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
      * explicit client disconnects must use {@link #disconnectTrackers(Predicate, boolean)} and remain retryable.
      */
     public Set<Tracker> disconnectTrackersOnClose(Predicate<Tracker> predicate) {
-        return disconnectTrackers(predicate, false, true);
+        handoverLock.readLock().lock();
+        try {
+            return frozenForHandover ? Set.of() : disconnectTrackers(predicate, false);
+        } finally {
+            handoverLock.readLock().unlock();
+        }
     }
 
-    private Set<Tracker> disconnectTrackers(Predicate<Tracker> predicate, boolean sendFinalEmptyBatch,
-                                           boolean connectionCleanup) {
+    private Set<Tracker> disconnectTrackersInternal(Predicate<Tracker> predicate, boolean sendFinalEmptyBatch) {
         handoverLock.readLock().lock();
         try {
             if (frozenForHandover) {
-                if (connectionCleanup) {
-                    return Set.of();
-                }
                 throw new java.util.concurrent.CancellationException("Tracking ownership is being transferred");
             }
             Set<Tracker> removed = new HashSet<>();
