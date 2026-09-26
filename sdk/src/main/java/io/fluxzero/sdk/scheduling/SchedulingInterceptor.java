@@ -14,12 +14,14 @@
 
 package io.fluxzero.sdk.scheduling;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -57,6 +59,8 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Intercepts scheduled messages to handle periodic scheduling logic.
+ * Framework initialization and rescheduling await STORED acknowledgement; framework cancellation retains SENT
+ * acknowledgement. These internal completion requirements are independent of public convenience-method defaults.
  * <p>
  * This interceptor enables powerful scheduling features such as:
  * <ul>
@@ -146,9 +150,9 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
     protected void initializePeriodicSchedule(MessageScheduler messageScheduler, Schedule schedule, Periodic periodic) {
         Optional<Schedule> currentSchedule = messageScheduler.getSchedule(schedule.getScheduleId());
         if (currentSchedule.isEmpty()) {
-            messageScheduler.schedule(schedule, true);
+            AsyncCompletionScope.await(() -> messageScheduler.schedule(schedule, true, Guarantee.STORED));
         } else if (shouldReplacePeriodicSchedule(currentSchedule.get(), periodic)) {
-            messageScheduler.schedule(schedule);
+            AsyncCompletionScope.await(() -> messageScheduler.schedule(schedule, false, Guarantee.STORED));
         }
     }
 
@@ -272,7 +276,13 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
                     .or(() -> ofNullable(periodic).map(Periodic::scheduleId))
                     .orElseGet(() -> schedule.getPayloadClass().getName());
             log.info("Periodic schedule {} will be cancelled.", scheduleId);
-            scheduler(schedule).cancelSchedule(scheduleId);
+            MessageScheduler scheduler = scheduler(schedule);
+            if (scheduler.getClass() == DefaultMessageScheduler.class) {
+                ((DefaultMessageScheduler) scheduler).cancelScheduleAndWait(scheduleId);
+            } else {
+                // Preserve custom schedulers and subclasses overriding the existing cancellation contract.
+                scheduler.cancelSchedule(scheduleId);
+            }
             return null;
         }
         if (periodic != null && periodic.continueOnError()) {
@@ -311,7 +321,8 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
 
     private void scheduleInternal(Schedule schedule, DeserializingMessage source) {
         try {
-            scheduler(source).schedule(ScheduleParents.inherit(schedule, source.getMetadata()));
+            AsyncCompletionScope.await(() -> scheduler(source).schedule(
+                    ScheduleParents.inherit(schedule, source.getMetadata()), false, Guarantee.STORED));
         } catch (Exception e) {
             log.error("Failed to reschedule a {}", schedule.getPayloadClass(), e);
         }

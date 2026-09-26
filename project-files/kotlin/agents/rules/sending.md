@@ -425,7 +425,7 @@ the Model transaction. For historical `previous()` values, event sourcing is req
 
 `Guarantee.DEFAULT` applies to publication, results/HTTP responses, WebSocket messages/ping/close, indexing,
 document deletion/movement, collection deletion, audit trails, key-value writes, schedules, retention, and truncation.
-SDK 2.x resolves it to `STORED`; SDK 1.x resolves it to `NONE`. This choice is independent of
+SDK 2.x resolves it to `STORED`; SDK 1.x normally resolves it to `NONE`, while schedule-client creation and cancellation retain `SENT` without an override. This choice is independent of
 `fluxzero.defaults.version`. Configure `fluxzero.publishing.defaultGuarantee`
 (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) as `NONE`, `SENT`, or `STORED` to override it. Despite its historic
 property name, this setting applies beyond publication. The standard builder resolves its own property source
@@ -479,3 +479,8 @@ In 2.x, `KeyValueStore.store(...)` and `delete(...)` return `CompletableFuture<V
 depends on the write; Kotlin callers can likewise use `.join()` when deliberate blocking is required.
 Custom KeyValueStore implementations must implement these return types and `delete(key, guarantee)`.
 Data protection explicitly awaits STORED writes before publishing references to protected values.
+
+Framework scheduling retains its own completion requirements: periodic initialization and automatic rescheduling
+await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
+these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
+methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.

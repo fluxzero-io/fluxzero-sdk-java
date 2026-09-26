@@ -55,6 +55,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SchedulingInterceptorTest {
+    private static MessageScheduler schedulerMock() {
+        MessageScheduler result = mock(MessageScheduler.class);
+        when(result.schedule(any(Schedule.class), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        return result;
+    }
+
     private static final Instant START = Instant.parse("2024-01-01T12:10:00Z");
     private static final Instant NEXT_HOURLY_DEADLINE = Instant.parse("2024-01-01T13:00:00Z");
     private static final Instant INTENTIONAL_DELAY_DEADLINE = Instant.parse("2024-01-01T18:00:00Z");
@@ -96,8 +103,8 @@ class SchedulingInterceptorTest {
     @Test
     void autoStartUsesConsumerNamespace() {
         Fluxzero fluxzero = mock(Fluxzero.class);
-        MessageScheduler defaultScheduler = mock(MessageScheduler.class);
-        MessageScheduler namespacedScheduler = mock(MessageScheduler.class);
+        MessageScheduler defaultScheduler = schedulerMock();
+        MessageScheduler namespacedScheduler = schedulerMock();
         when(fluxzero.messageScheduler()).thenReturn(defaultScheduler);
         when(fluxzero.clock()).thenReturn(Clock.fixed(START, ZoneOffset.UTC));
         when(defaultScheduler.forNamespace("tenant")).thenReturn(namespacedScheduler);
@@ -106,8 +113,8 @@ class SchedulingInterceptorTest {
         withFluxzero(fluxzero, () -> new SchedulingInterceptor()
                 .initializePeriodicSchedules(new CurrentCronHandler(), "tenant"));
 
-        verify(namespacedScheduler).schedule(any(Schedule.class), eq(true));
-        verify(defaultScheduler, never()).schedule(any(Schedule.class), eq(true));
+        verify(namespacedScheduler).schedule(any(Schedule.class), eq(true), eq(io.fluxzero.common.Guarantee.STORED));
+        verify(defaultScheduler, never()).schedule(any(Schedule.class), eq(true), eq(io.fluxzero.common.Guarantee.STORED));
     }
 
     @Test
@@ -141,8 +148,8 @@ class SchedulingInterceptorTest {
     @Test
     void reschedulesInConsumerNamespace() {
         Fluxzero fluxzero = mock(Fluxzero.class);
-        MessageScheduler defaultScheduler = mock(MessageScheduler.class);
-        MessageScheduler namespacedScheduler = mock(MessageScheduler.class);
+        MessageScheduler defaultScheduler = schedulerMock();
+        MessageScheduler namespacedScheduler = schedulerMock();
         IdentityProvider identityProvider = mock(IdentityProvider.class);
         when(fluxzero.messageScheduler()).thenReturn(defaultScheduler);
         when(defaultScheduler.forNamespace("tenant")).thenReturn(namespacedScheduler);
@@ -153,14 +160,14 @@ class SchedulingInterceptorTest {
         withFluxzero(fluxzero, () -> new SchedulingInterceptor().handleResult(
                 Duration.ofHours(1), message, START, null));
 
-        verify(namespacedScheduler).schedule(any(Schedule.class));
-        verify(defaultScheduler, never()).schedule(any(Schedule.class));
+        verify(namespacedScheduler).schedule(any(Schedule.class), eq(false), eq(io.fluxzero.common.Guarantee.STORED));
+        verify(defaultScheduler, never()).schedule(any(Schedule.class), eq(false), eq(io.fluxzero.common.Guarantee.STORED));
     }
 
     @Test
     void localHandlerReschedulesInApplicationNamespaceWithinCustomTracker() {
         Fluxzero fluxzero = mock(Fluxzero.class);
-        MessageScheduler defaultScheduler = mock(MessageScheduler.class);
+        MessageScheduler defaultScheduler = schedulerMock();
         IdentityProvider identityProvider = mock(IdentityProvider.class);
         when(fluxzero.messageScheduler()).thenReturn(defaultScheduler);
         when(defaultScheduler.forNamespace(null)).thenReturn(defaultScheduler);
@@ -178,15 +185,15 @@ class SchedulingInterceptorTest {
             Tracker.current.remove();
         }
 
-        verify(defaultScheduler).schedule(any(Schedule.class));
+        verify(defaultScheduler).schedule(any(Schedule.class), eq(false), eq(io.fluxzero.common.Guarantee.STORED));
         verify(defaultScheduler, never()).forNamespace("tenant");
     }
 
     @Test
     void cancelsInConsumerNamespace() {
         Fluxzero fluxzero = mock(Fluxzero.class);
-        MessageScheduler defaultScheduler = mock(MessageScheduler.class);
-        MessageScheduler namespacedScheduler = mock(MessageScheduler.class);
+        MessageScheduler defaultScheduler = schedulerMock();
+        MessageScheduler namespacedScheduler = schedulerMock();
         when(fluxzero.messageScheduler()).thenReturn(defaultScheduler);
         when(defaultScheduler.forNamespace("tenant")).thenReturn(namespacedScheduler);
         DeserializingMessage message = namespacedMessage(new DynamicDelaySchedule())

@@ -115,7 +115,7 @@ public class ApplicationProperties {
 
     /**
      * Resolves the application delivery default using the owning component's property source.
-     * SDK 2.x uses {@link Guarantee#STORED} without an override; SDK 1.x uses {@link Guarantee#NONE}.
+     * SDK 2.x uses {@link Guarantee#STORED} without an override; SDK 1.x normally uses {@link Guarantee#NONE}, retaining stronger legacy operation defaults when unconfigured.
      * This setting is independent of the defaults date. Invalid values, including unresolved {@code DEFAULT}, fail.
      *
      * @param propertySource application-local properties
@@ -241,7 +241,8 @@ public class ApplicationProperties {
      * version. Override it with {@code fluxzero.model.conflictPolicy} ({@code FLUXZERO_MODEL_CONFLICT_POLICY})
      * or explicit builder/Model/Apply configuration. Create-only compatibility remains a separate check.
      * <p>
-     * Outgoing delivery defaults to STORED in SDK 2.x and NONE in SDK 1.x, independently of this date.
+     * Outgoing delivery defaults to STORED in SDK 2.x and normally NONE in SDK 1.x, independently of this date.
+     * Unconfigured 1.x scheduling clients and cancellation retain SENT.
      * Override it with {@link #DEFAULT_DELIVERY_GUARANTEE_PROPERTY}.
      * <p>
      * Memory-aware cache pressure can be tuned with

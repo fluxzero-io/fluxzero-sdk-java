@@ -105,3 +105,8 @@ Outside tracking, use the explicit overload returning a future to observe acknow
 `messageScheduler.schedule(schedule, false, Guarantee.STORED)` (Java and Kotlin). Only awaiting that future proves
 that the schedule was stored; a scheduled message's handler completes later. Already-completed failures are still
 reported synchronously by convenience methods. Parent binding and local timer installation are part of completion.
+
+Framework scheduling retains its own completion requirements: periodic initialization and automatic rescheduling
+await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
+these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
+methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.

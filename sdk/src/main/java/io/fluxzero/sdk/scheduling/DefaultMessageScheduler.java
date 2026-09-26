@@ -147,19 +147,25 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
                         || ownershipMessage.getMetadata().containsKey(ScheduleParents.BINDINGS_KEY));
         var serializedSchedule = new SerializedSchedule(message.getScheduleId(),
                                                         message.getDeadline().toEpochMilli(), serializedMessage, ifAbsent);
-        return AsyncCompletionScope.register((parents.isEmpty() ? getSchedulingClient().schedule(resolvedGuarantee, serializedSchedule)
-                : getSchedulingClient().bindScheduleParents(parents).thenCompose(ThreadLocalContext.capture().wrap(bindings -> {
-                    var bound = serializedMessage.withMetadata(
-                            ScheduleParents.bind(serializedMessage.getMetadata(), client.namespace(), bindings));
-                    return getSchedulingClient().scheduleBoundToParents(resolvedGuarantee, bindings,
-                            new SerializedSchedule(serializedSchedule.getScheduleId(), serializedSchedule.getTimestamp(),
-                                                   bound, ifAbsent));
-                })))
-                .whenComplete(io.fluxzero.sdk.common.ThreadLocalContext.capture().wrap((ignored, error) -> {
-                    if (error == null) {
-                        scheduleLocalDelivery(scheduledMessage, ifAbsent, fluxzero);
-                    }
-                })));
+        CompletableFuture<Void> completion = AsyncCompletionScope.takeOwnership(() -> {
+            if (parents.isEmpty()) {
+                return getSchedulingClient().schedule(resolvedGuarantee, serializedSchedule);
+            }
+            return getSchedulingClient().bindScheduleParents(parents)
+                    .thenCompose(ThreadLocalContext.capture().wrap(bindings -> {
+                        var bound = serializedMessage.withMetadata(
+                                ScheduleParents.bind(serializedMessage.getMetadata(), client.namespace(), bindings));
+                        return AsyncCompletionScope.takeOwnership(() -> getSchedulingClient().scheduleBoundToParents(
+                                resolvedGuarantee, bindings,
+                                new SerializedSchedule(serializedSchedule.getScheduleId(), serializedSchedule.getTimestamp(),
+                                                       bound, ifAbsent)));
+                    }));
+        });
+        return AsyncCompletionScope.register(completion.whenComplete(ThreadLocalContext.capture().wrap((ignored, error) -> {
+            if (error == null) {
+                scheduleLocalDelivery(scheduledMessage, ifAbsent, fluxzero);
+            }
+        })));
     }
 
     private java.util.List<String> resolveParents(Schedule message, boolean previouslyOwnedCommand) {
@@ -223,12 +229,29 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     @Override
     public void cancelSchedule(@NonNull Object scheduleId) {
+        AsyncCompletionScope.register(cancelSchedule(scheduleId, defaultGuarantee));
+    }
+
+    // Framework cancellation retains the historical SENT acknowledgement boundary.
+    void cancelScheduleAndWait(Object scheduleId) {
+        cancelScheduleAndWait(scheduleId, Guarantee.SENT);
+    }
+
+    private void cancelScheduleAndWait(Object scheduleId, Guarantee guarantee) {
+        try {
+            AsyncCompletionScope.await(() -> cancelSchedule(scheduleId, guarantee));
+        } catch (Exception e) {
+            throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
+        }
+    }
+
+    private CompletableFuture<Void> cancelSchedule(Object scheduleId, Guarantee guarantee) {
         try {
             if (Entity.isLoading()) {
-                return;
+                return CompletableFuture.completedFuture(null);
             }
             cancelLocalDelivery(scheduleId.toString());
-            AsyncCompletionScope.register(getSchedulingClient().cancelSchedule(scheduleId.toString(), defaultGuarantee));
+            return getSchedulingClient().cancelSchedule(scheduleId.toString(), guarantee);
         } catch (Exception e) {
             throw new SchedulerException(String.format("Failed to cancel schedule with id %s", scheduleId), e);
         }

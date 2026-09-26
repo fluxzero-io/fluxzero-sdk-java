@@ -365,7 +365,8 @@ input. A fully received body remains readable, and ordinary asynchronous handler
 ### Outgoing-command delivery default
 
 Configure `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) before building the
-application: `NONE`, `SENT`, or `STORED`. SDK 2.x defaults to `STORED`; SDK 1.x defaults to `NONE`, independently
+application: `NONE`, `SENT`, or `STORED`. SDK 2.x defaults to `STORED`; SDK 1.x normally defaults to `NONE`, retaining `SENT` for schedule-client creation and cancellation without an override.
+This is independent
 of `fluxzero.defaults.version`. This governs `Guarantee.DEFAULT` across the outgoing SDK operations described in
 the sending rules. Explicit concrete guarantees, internal persistence durability, and metrics defaults remain unchanged.
 See the sending rules for consumer-position and asynchronous completion boundaries.
