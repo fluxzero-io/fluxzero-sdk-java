@@ -101,6 +101,17 @@
     "varArgs" : false,
     "documentation" : "Indicates whether this range still contains bytes. "
   }, {
+    "name" : "position",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#position",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the absolute offset of the next unread byte in the input array. "
+  }, {
     "name" : "readByte",
     "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#readByte",
     "returnType" : "int",

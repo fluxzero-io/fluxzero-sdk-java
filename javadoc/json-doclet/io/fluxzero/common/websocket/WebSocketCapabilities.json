@@ -97,6 +97,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "Fluxzero-Supported-Transport-Formats"
+  }, {
+    "name" : "SUPPORTS_MIXED_MODEL_EVENT_BLOCKS_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.SUPPORTS_MIXED_MODEL_EVENT_BLOCKS_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "This reader accepts mixed legacy and binary records within one compact Model-event block. ",
+    "constantValue" : "Fluxzero-Supports-Mixed-Model-Event-Blocks"
   } ],
   "constructors" : [ {
     "name" : "WebSocketCapabilities",

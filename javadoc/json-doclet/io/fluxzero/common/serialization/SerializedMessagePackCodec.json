@@ -60,7 +60,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Decodes zero or more consecutive serialized messages.\n"
+    "documentation" : " Decodes zero or more consecutive serialized messages, including mixed legacy and binary records.\n"
   }, {
     "name" : "decode",
     "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec#decode",
@@ -97,6 +97,32 @@
     "parameters" : [ {
       "name" : "unpacker",
       "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decodeMixed",
+    "qualifiedName" : "io.fluxzero.common.serialization.SerializedMessagePackCodec#decodeMixed",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "offset",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "length",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
