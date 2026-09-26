@@ -264,6 +264,11 @@ public abstract class WebsocketEndpoint {
         }
     }
 
+    /** Returns whether this endpoint still owns the session's request lifecycle. */
+    protected boolean isSessionActive(String sessionId) {
+        return activeSessionIds.contains(sessionId);
+    }
+
     private Executor executorFor(JsonType request) {
         return request instanceof Command command && command.routingKey() != null
                 ? commandExecutors[ConsistentHashing.computeSegment(command.routingKey(), commandExecutors.length)]
