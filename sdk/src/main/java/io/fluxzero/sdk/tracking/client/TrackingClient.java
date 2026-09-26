@@ -227,6 +227,16 @@ public interface TrackingClient extends AutoCloseable {
     CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch, Guarantee guarantee);
 
     /**
+     * Releases a terminated local tracker, including any abandoned asynchronous reads still completing.
+     * The caller must have finished processing and must not issue further reads with this tracker identity.
+     * Wrappers that can initiate follow-up reads should override this method to release after those reads as well.
+     * This does not change the semantics of a temporary {@link #disconnectTracker}.
+     */
+    default CompletableFuture<Void> disconnectTerminatedTracker(String consumer, String trackerId, Guarantee guarantee) {
+        return disconnectTracker(consumer, trackerId, false, guarantee);
+    }
+
+    /**
      * Returns the {@link MessageType} (e.g., COMMAND, EVENT, QUERY) associated with this tracking client.
      *
      * @return the message type

@@ -106,6 +106,7 @@ public class DefaultTracker implements Runnable, Registration {
     private final MetricsGateway metricsGateway;
     private final AtomicBoolean cancellationRequested = new AtomicBoolean();
     private final AtomicBoolean cancellationCompleted = new AtomicBoolean();
+    private final AtomicBoolean disconnectRequested = new AtomicBoolean();
     private volatile Long lastProcessedIndex;
     private volatile boolean processing;
 
@@ -272,8 +273,14 @@ public class DefaultTracker implements Runnable, Registration {
                 }
                 throw e;
             } finally {
-                thread.set(null);
-                Tracker.current.remove();
+                // A canceled consumer may leave the rest of its client connected. Release its reservation only
+                // after the entire processing/interceptor stack has unwound, using reconnect-safe delivery.
+                try {
+                    disconnect(Guarantee.STORED);
+                } finally {
+                    thread.set(null);
+                    Tracker.current.remove();
+                }
             }
         }
     }
@@ -520,7 +527,32 @@ public class DefaultTracker implements Runnable, Registration {
             processing = false;
             cancel();
         } finally {
-            trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+            disconnect(Guarantee.SENT, true);
+        }
+    }
+
+    private void disconnect(Guarantee guarantee) {
+        disconnect(guarantee, false);
+    }
+
+    private void disconnect(Guarantee guarantee, boolean legacyErrorDisconnect) {
+        if (disconnectRequested.compareAndSet(false, true)) {
+            boolean interrupted = Thread.interrupted();
+            try {
+                if (legacyErrorDisconnect) {
+                    // Preserve the existing 1.x customization hook and its delivery guarantee.
+                    trackingClient.disconnectTracker(tracker.getName(), tracker.getTrackerId(), false);
+                } else {
+                    trackingClient.disconnectTerminatedTracker(tracker.getName(), tracker.getTrackerId(), guarantee);
+                }
+            } catch (Exception e) {
+                disconnectRequested.set(false);
+                log.warn("Failed to release tracker {}, consumer {}", tracker.getTrackerId(), tracker.getName(), e);
+            } finally {
+                if (interrupted) {
+                    currentThread().interrupt();
+                }
+            }
         }
     }
 
