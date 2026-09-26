@@ -28,12 +28,17 @@ import io.fluxzero.common.tracking.Tracker;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
+import org.eclipse.jetty.websocket.api.Callback;
+import org.eclipse.jetty.websocket.api.Session;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -42,6 +47,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
@@ -50,7 +56,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ConsumerEndpointTest {
@@ -156,6 +166,81 @@ class ConsumerEndpointTest {
                 .getMessageBatch();
         assertArrayEquals(new int[]{0, MAX_SEGMENT}, recovered.getSegment());
         assertEquals(retained, recovered.getMessages());
+    }
+
+    @Test
+    void transportErrorReleasesSegmentsBeforePendingWriteCallback() throws Exception {
+        var jetty = mock(Session.class);
+        when(jetty.isOpen()).thenReturn(true);
+        var pendingWrite = new AtomicReference<Callback>();
+        doAnswer(invocation -> {
+            pendingWrite.set(invocation.getArgument(1));
+            return null;
+        }).when(jetty).sendBinary(any(ByteBuffer.class), any(Callback.class));
+        doAnswer(invocation -> {
+            invocation.<Callback>getArgument(2).fail(new ClosedChannelException());
+            return null;
+        }).when(jetty).close(any(Integer.class), any(String.class), any(Callback.class));
+        var adapted = new AtomicReference<ServerWebsocketSession>();
+        var adapter = new JettyWebsocketAdapter(session -> {
+            adapted.set(session);
+            return endpoint;
+        }, new JettyWebsocketHandshake(URI.create("ws://localhost/tracking"),
+                                       departed.getRequestParameterMap(), Map.of(), departed.getUserProperties()));
+        adapter.onWebSocketOpen(jetty);
+        endpoint.onOpen(replacement);
+        positions.storePosition("consumer", new int[]{0, MAX_SEGMENT}, 10L).join();
+        var retained = List.of(message(11, 0), message(12, MAX_SEGMENT - 1));
+        messages.append(retained).join();
+        endpoint.handle(read("departed-tracker"), adapted.get()).get(5, TimeUnit.SECONDS);
+        adapted.get().sendBinaryAsync(ByteBuffer.wrap(new byte[]{1}));
+        var failure = new ClosedChannelException();
+        try (var worker = Executors.newSingleThreadExecutor()) {
+            var error = worker.submit(() -> {
+                // Jetty reports EOF/write failure before completing pending frame callbacks and onClose.
+                adapter.onWebSocketError(failure);
+                pendingWrite.get().fail(failure);
+            });
+            try {
+                error.get(2, TimeUnit.SECONDS);
+                verify(jetty).disconnect();
+                assertTrue(endpoint.handle(read("departed-tracker"), adapted.get()).isCompletedExceptionally());
+                var batch = endpoint.handle(read("replacement-tracker"), replacement)
+                        .get(5, TimeUnit.SECONDS).getMessageBatch();
+                assertArrayEquals(new int[]{0, MAX_SEGMENT}, batch.getSegment());
+                assertEquals(retained, batch.getMessages());
+                // Jetty's later close notification must preserve the replacement's ownership.
+                adapter.onWebSocketClose(WebsocketCloseReason.NO_STATUS_CODE, "transport lost", Callback.NOOP);
+                var remaining = strategy.disconnectTrackers(t -> true, false);
+                assertEquals(1, remaining.size());
+                assertEquals("replacement-tracker", remaining.iterator().next().getTrackerId());
+            } finally {
+                pendingWrite.get().fail(failure);
+                error.get(5, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void failingTransportAbortStillReleasesOnlyThatSessionsTrackers() throws Exception {
+        var sibling = session("sibling", "client-1");
+        endpoint.onOpen(departed);
+        endpoint.onOpen(sibling);
+        try {
+            register(false, departed, "departed-tracker");
+            register(false, sibling, "sibling-tracker");
+            doThrow(new IllegalStateException("abort failed")).when(departed).abort(any());
+            assertThrows(IllegalStateException.class, () -> endpoint.onError(departed, new ClosedChannelException()));
+            assertTrue(register(false, departed, "departed-tracker").isCompletedExceptionally());
+            var batch = endpoint.handle(read("sibling-tracker"), sibling).get(5, TimeUnit.SECONDS)
+                    .getMessageBatch();
+            assertArrayEquals(new int[]{0, MAX_SEGMENT}, batch.getSegment());
+            var remaining = strategy.disconnectTrackers(t -> true, false);
+            assertEquals(1, remaining.size());
+            assertEquals("sibling-tracker", remaining.iterator().next().getTrackerId());
+        } finally {
+            endpoint.onClose(sibling, closeReason());
+        }
     }
 
     private CompletableFuture<?> register(boolean claim, ServerWebsocketSession session, String trackerId) {
