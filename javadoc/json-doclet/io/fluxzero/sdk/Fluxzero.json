@@ -2805,13 +2805,18 @@
     "typeParameters" : [ "T" ],
     "parameters" : [ {
       "name" : "collection",
-      "type" : "java.lang.Class<T>",
+      "type" : "java.lang.Class<?>",
       "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "additionalCollections",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
       "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : " Search the collection represented by the given document class and retain that class as the default result type.\n"
+    "varArgs" : true,
+    "documentation" : " Search the collections represented by the given document class and additional collection identifiers.\n The first class identifies a collection; it does not determine the result type of the combined collections.\n Each document is deserialized to its stored type unless a terminal operation specifies a result class.\n <p>\n In Java, an unqualified fluent call defaults to {@code Search<Object>}. For a known common result type, use\n a type witness such as {@code Fluxzero.<MyDocument>search(MyDocument.class, \"archive\")} or assign the search\n to {@code Search<MyDocument>}. In Kotlin, use an explicit type argument such as {@code search<Any>(...)}\n or a typed search variable. The caller is responsible for choosing a type shared by all results.\n <p>\n Recompile callers that previously inferred the first class as their result type to remove compiler-inserted\n casts. This overload also applies when an explicit empty array of additional collections is supplied;\n use {@link #search(Class)} to infer the type for a single class.\n"
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
@@ -2824,15 +2829,10 @@
       "type" : "java.lang.Class<T>",
       "varArgs" : false,
       "annotations" : [ ]
-    }, {
-      "name" : "additionalCollections",
-      "type" : "java.lang.Object[]",
-      "varArgs" : true,
-      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
-    "varArgs" : true,
-    "documentation" : " Search the collections represented by the given document class and additional collection identifiers while\n retaining the document class as the default result type.\n"
+    "varArgs" : false,
+    "documentation" : " Search the collection represented by the given document class and retain that class as the default result type.\n"
   }, {
     "name" : "search",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#search",
