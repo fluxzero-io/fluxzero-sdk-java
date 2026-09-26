@@ -52,6 +52,7 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.component.LifeCycle;
 
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
@@ -172,6 +173,17 @@ public class TestServer {
     private static Server startServer(int port, boolean registerShutdownHook,
                                       Consumer<WebSocketTracker> readRequestObserver,
                                       Duration initialPositionLag) {
+        return startServer(new InetSocketAddress("0.0.0.0", port), registerShutdownHook,
+                           readRequestObserver, initialPositionLag);
+    }
+
+    static Server startServer(InetSocketAddress address) {
+        return startServer(address, false, ignored -> {}, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    private static Server startServer(InetSocketAddress address, boolean registerShutdownHook,
+                                      Consumer<WebSocketTracker> readRequestObserver,
+                                      Duration initialPositionLag) {
         ServerState state = new ServerState(initialPositionLag);
         latestState = state;
         JettyWebsocketRouter router = new JettyWebsocketRouter();
@@ -237,12 +249,12 @@ public class TestServer {
 
         Server server;
         try {
-            server = router.start(port);
+            server = router.start(address);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to start Fluxzero test server on port " + port, e);
+            throw new IllegalStateException("Failed to start Fluxzero test server on " + address, e);
         }
 
-        int localPort = getLocalPort(server, port);
+        int localPort = getLocalPort(server, address.getPort());
         AtomicBoolean commandIdempotencyStoreClosed = new AtomicBoolean();
         registerRuntimeLifecycle(server, localPort, commandIdempotencyStore, commandIdempotencyStoreClosed,
                                  runtimeLifecycleMetrics);

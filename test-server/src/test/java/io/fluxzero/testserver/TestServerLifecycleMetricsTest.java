@@ -25,9 +25,10 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.parallel.Isolated;
 
-import java.net.ServerSocket;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -46,17 +47,18 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
+@Timeout(20)
 class TestServerLifecycleMetricsTest {
 
     private final JacksonSerializer serializer = new JacksonSerializer();
 
     @Test
     void publishesLifecycleMetricsAfterStartupAndBeforeShutdown() throws Exception {
-        int port = availablePort();
         String namespace = "lifecycle-" + UUID.randomUUID();
-        Server server = TestServer.startServer(port);
+        Server server = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
+        int port = getServerConnector(server).getLocalPort();
         WebSocketClient client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
-                .runtimeBaseUrl("ws://localhost:" + port)
+                .runtimeBaseUrl("ws://127.0.0.1:" + port)
                 .namespace(namespace)
                 .name("lifecycle-metrics-test")
                 .disableMetrics(true)
@@ -110,17 +112,17 @@ class TestServerLifecycleMetricsTest {
 
     @Test
     void restartedServerDeliversUpdatesToWaitingTrackers() throws Exception {
-        Server first = TestServer.startServer(0);
+        Server first = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
         first.stop();
 
         Server second = null;
         WebSocketClient client = null;
         try {
-            second = TestServer.startServer(0);
+            second = TestServer.startServer(new InetSocketAddress("127.0.0.1", 0));
             int port = getServerConnector(second).getLocalPort();
             String consumer = "restart-" + UUID.randomUUID();
             client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
-                    .runtimeBaseUrl("ws://localhost:" + port)
+                    .runtimeBaseUrl("ws://127.0.0.1:" + port)
                     .name("restart-test")
                     .disableMetrics(true)
                     .build());
@@ -167,12 +169,6 @@ class TestServerLifecycleMetricsTest {
                 .filter(RuntimeLifecycleEvent.class::isInstance)
                 .map(RuntimeLifecycleEvent.class::cast)
                 .toList();
-    }
-
-    private static int availablePort() throws Exception {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            return socket.getLocalPort();
-        }
     }
 
     private static ServerConnector getServerConnector(Server server) {
