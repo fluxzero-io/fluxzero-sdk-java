@@ -733,11 +733,11 @@ public class DefaultTracking implements Tracking {
 
     void handleBatch(Iterable<DeserializingMessage> messages, List<Handler<DeserializingMessage>> handlers,
                      ConsumerConfiguration config, boolean reportResult) {
-        runInSendAndForgetCompletionScope(config, () -> doHandleBatch(messages, handlers, config, reportResult));
+        runInOutgoingWriteCompletionScope(config, () -> doHandleBatch(messages, handlers, config, reportResult));
     }
 
-    private static void runInSendAndForgetCompletionScope(ConsumerConfiguration config, Runnable task) {
-        if (config.awaitSendAndForgetFutures()) {
+    private static void runInOutgoingWriteCompletionScope(ConsumerConfiguration config, Runnable task) {
+        if (config.awaitOutgoingWrites()) {
             AsyncCompletionScope.runAndAwaitBeforeCommit(task);
         } else {
             task.run();
@@ -1102,7 +1102,7 @@ public class DefaultTracking implements Tracking {
         // An incomplete streaming body needs subsequent batches to arrive before its handler can finish.
         boolean needsLaterBatch = needsMoreChunks(message)
                                   || (queue != null && retainSegmentOrder && queue.needsLaterBatch());
-        return config.awaitSendAndForgetFutures() && !needsLaterBatch
+        return config.awaitOutgoingWrites() && !needsLaterBatch
                 ? AsyncCompletionScope.register(invocation) : invocation;
     }
 

@@ -39,7 +39,7 @@ Annotate your handler class or `package-info.java` with `@Consumer` to define pr
       based on the message's routing key or metadata.
     - **Stateful Sagas**: For `@Stateful` handlers, the saga's ID is used automatically for load balancing and
       filtering; `@RoutingKey` is not required.
-- **awaitSendAndForgetFutures = true**: Default behavior. Outgoing commands started during batch processing are
+- **awaitOutgoingWrites = true**: Default behavior. Outgoing commands started during batch processing are
   awaited before the consumer stores its position; disable this when those sends may complete independently. Failures
   while awaiting are handled by the consumer's `errorHandler`.
 

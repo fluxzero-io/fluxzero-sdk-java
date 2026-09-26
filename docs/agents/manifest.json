@@ -1946,7 +1946,7 @@
         "Guarantee.DEFAULT",
         "Guarantee.STORED",
         "fluxzero.publishing.defaultGuarantee",
-        "awaitSendAndForgetFutures"
+        "awaitOutgoingWrites"
       ],
       "links": [
         {
@@ -2958,7 +2958,7 @@
         "maxFetchBytes",
         "singleTracker",
         "ignoreSegment",
-        "awaitSendAndForgetFutures",
+        "awaitOutgoingWrites",
         "minIndex",
         "maxIndexExclusive",
         "IndexUtils.indexFromTimestamp(...)",
@@ -6130,7 +6130,7 @@
         "RetryingErrorHandler",
         "ForeverRetryingErrorHandler",
         "SilentErrorHandler",
-        "awaitSendAndForgetFutures",
+        "awaitOutgoingWrites",
         "ConsumerConfiguration.errorHandler",
         "tracker position after failure"
       ],

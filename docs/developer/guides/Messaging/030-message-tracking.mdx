@@ -264,7 +264,7 @@ Fluxzero provides conservative defaults to ensure safe and sequential processing
 | Setting                | Description | Default value             |
 |------------------------|-------------|---------------------------|
 | `awaitAsyncResults`    | If true, waits for asynchronous handler results before finishing the batch. | `false`                   |
-| `awaitSendAndForgetFutures` | If true, waits for outgoing command completions before storing position. | `true`                    |
+| `awaitOutgoingWrites` | If true, waits for outgoing command completions before storing position. | `true`                    |
 | `batchInterceptors`    | Batch processing interceptors for this consumer. | `{}`                      |
 | `clientControlledIndex` | If true, the app decides which messages to process. | `false`                   |
 | `dispatchInterceptors` | Dispatch interceptors active while this consumer handles a batch. | `{}`                      |

@@ -8,10 +8,10 @@ replay contract.
 level, returns the error as the handler result, and lets tracking continue without retrying. The failed message is
 therefore not automatically tried again before the consumer advances. Do not call the default "guaranteed delivery."
 
-The same policy receives failures from asynchronous handler results or fire-and-forget dispatch futures when the
-consumer is configured to await them. `awaitSendAndForgetFutures = true` prevents position storage before those
-futures reach their requested guarantee, but the selected error handler still determines what happens after a
-failure.
+The same policy receives failures from outgoing write futures when `awaitOutgoingWrites = true` (the default).
+The consumer awaits their requested guarantee before storing its position, but the selected error handler still
+determines what happens after a failure. Awaiting a returned asynchronous handler result is controlled separately
+by `awaitAsyncResults`, which defaults to `false`.
 
 ## Choose a built-in policy deliberately
 

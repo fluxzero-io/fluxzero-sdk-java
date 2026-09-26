@@ -68,7 +68,7 @@ public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHand
     /**
      * Sends a message with the application's {@link Guarantee#DEFAULT} without waiting for a result or remote
      * acknowledgement. A participating tracking completion scope awaits delivery before committing its consumer position; see
-     * {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.
+     * {@link io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites()} for opt-outs and streaming boundaries.
      * Outside tracking, use a future-returning overload to observe delivery confirmation or asynchronous failures.
      */
     @SneakyThrows

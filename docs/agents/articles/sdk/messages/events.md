@@ -49,7 +49,7 @@ operations retain `STORED`. Internal model/aggregate/stateful-handler persistenc
 Explicit concrete guarantees remain unchanged. `DEFAULT` is an SDK choice, never a wire value.
 
 Convenience calls return after dispatch/local handling, without waiting for each remote storage acknowledgement.
-The default consumer's `awaitSendAndForgetFutures=true` waits for registered outgoing-command futures before committing
+The default consumer's `awaitOutgoingWrites=true` waits for registered outgoing-command futures before committing
 its position. A finished handler, a stored outgoing message, and a committed input position are separate boundaries.
 This is at-least-once processing: a crash after publication but before position commit can repeat side effects;
 use idempotent consumers. Storage acknowledgement does not mean that a downstream handler finished.
@@ -66,7 +66,7 @@ With asynchronous handling, the completion scope includes the framework-managed 
 boundary. Incomplete streamed messages and invocations queued behind them retain deferred completion, because their bodies
 may require later input batches; they cannot hold the current chunk position until the whole stream finishes.
 Arbitrary application-created background work is also outside the tracked scope. Setting
-`awaitSendAndForgetFutures=false` deliberately opts out of the outgoing-command barrier.
+`awaitOutgoingWrites=false` deliberately opts out of the outgoing-command barrier.
 
 Outside tracking there is no consumer-position barrier. To observe acknowledgement or asynchronous failure,
 keep the returned future:

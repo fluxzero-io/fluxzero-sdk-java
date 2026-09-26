@@ -274,8 +274,8 @@ public @interface Consumer {
     boolean awaitAsyncResults() default false;
 
     /**
-     * If {@code true}, futures returned by outgoing commands started during this consumer's batch processing
-     * must complete before the consumer stores its position.
+     * If {@code true}, futures returned by outgoing writes (including publication, indexing, and scheduling) started during
+     * this consumer's batch processing must complete before the consumer stores its position.
      * <p>
      * The default is {@code true}, so {@code sendAndForget(..., Guarantee.STORED)} can provide its delivery guarantee
      * before tracker progress is committed without each handler explicitly waiting on the returned future.
@@ -286,7 +286,7 @@ public @interface Consumer {
      * <p>
      * Failures while awaiting are handled by this consumer's error handler like other batch processing failures.
      */
-    boolean awaitSendAndForgetFutures() default true;
+    boolean awaitOutgoingWrites() default true;
 
     /**
      * Controls whether handlers assigned to this consumer are invoked in the tracker thread or offloaded to a worker

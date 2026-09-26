@@ -51,7 +51,7 @@ public interface EventGateway extends Namespaced<EventGateway>, HasLocalHandlers
      * <p>
      * If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited
      * by this call; a participating tracking completion scope awaits them before committing the consumer position; see
-     * {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.
+     * {@link io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites()} for opt-outs and streaming boundaries.
      * Outside tracking, use a future-returning overload when delivery confirmation is required.
      *
      * @param event the event object to publish
@@ -71,7 +71,7 @@ public interface EventGateway extends Namespaced<EventGateway>, HasLocalHandlers
      * <p>
      * If local handlers are registered, they will be invoked synchronously. Remote acknowledgements are not awaited
      * by this call; a participating tracking completion scope awaits them before committing the consumer position; see
-     * {@link io.fluxzero.sdk.tracking.Consumer#awaitSendAndForgetFutures()} for opt-outs and streaming boundaries.
+     * {@link io.fluxzero.sdk.tracking.Consumer#awaitOutgoingWrites()} for opt-outs and streaming boundaries.
      * Outside tracking, use a future-returning overload when delivery confirmation is required.
      *
      * @param payload  the event payload
