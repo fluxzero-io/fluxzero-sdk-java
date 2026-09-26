@@ -80,6 +80,18 @@ public class WebSocketTracker implements Tracker {
         this.includeDocumentTombstones = read.isIncludeDocumentTombstones();
     }
 
+    /** Whether this reservation is awaiting its first read after Runtime handover. */
+    public boolean isRetained() {
+        return "handover".equals(sessionId);
+    }
+
+    /** Reconstructs ownership without binding it to a closed predecessor WebSocket session. */
+    static WebSocketTracker retained(TrackerClaim claim) {
+        return new WebSocketTracker(new Read(null, claim.consumer(), claim.trackerId(), 1, 0L,
+                                             null, false, false, claim.singleTracker(), false, null,
+                                             claim.purgeDelayMillis()), null, claim.clientId(), "handover");
+    }
+
     @Override
     public boolean hasTypeFilter() {
         return hasTypeFilter;

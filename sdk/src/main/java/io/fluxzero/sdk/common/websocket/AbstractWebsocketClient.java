@@ -1500,6 +1500,11 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return getClass().getSimpleName();
     }
 
+    /** Whether orderly shutdown may wait for callbacks without waiting on the calling result worker itself. */
+    protected boolean canAwaitShutdownResults() {
+        return !runtimeResultDispatcher.isDispatchThread();
+    }
+
     protected void close(boolean clearOutstandingRequests) {
         if (closed.compareAndSet(false, true)) {
             synchronized (closed) {
@@ -1507,10 +1512,15 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     requests.clear();
                 }
                 pingScheduler.shutdown();
+                if (!clearOutstandingRequests && canAwaitShutdownResults()) {
+                    // Flush commands already issued by shutdown callbacks (including metrics), never long polls.
+                    io.fluxzero.sdk.common.ClientUtils.waitForResults(Duration.ofSeconds(1),
+                            pendingResponses(Command.class::isInstance));
+                }
                 sessionPool.close();
                 sessionBacklogs.values().forEach(Backlog::shutDown);
                 sessionBacklogs.clear();
-                runtimeResultDispatcher.close();
+                runtimeResultDispatcher.close(Duration.ofSeconds(1));
                 shutdownTransportMetricExecutor();
                 shutdownExecutor(resultExecutor, "websocket result executor");
                 shutdownExecutor(reconnectExecutor, "websocket reconnect executor");
@@ -1529,6 +1539,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     private void shutdownExecutor(ExecutorService executor, String name) {
         executor.shutdown();
+        if (executor == resultExecutor && runtimeResultDispatcher.isDispatchThread()) {
+            return;
+        }
         try {
             if (!executor.awaitTermination(1, TimeUnit.SECONDS)) {
                 log().info("Timed out while waiting for {} to terminate", name);
@@ -1712,6 +1725,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     protected Metadata metricsMetadata() {
         return Metadata.empty();
+    }
+
+    /** Snapshots pending responses for lifecycle cleanup without changing their delivery or retry behavior. */
+    protected List<CompletableFuture<RequestResult>> pendingResponses(java.util.function.Predicate<Request> filter) {
+        return requests.values().stream().filter(request -> filter.test(request.request))
+                .map(request -> request.result).toList();
     }
 
     @RequiredArgsConstructor

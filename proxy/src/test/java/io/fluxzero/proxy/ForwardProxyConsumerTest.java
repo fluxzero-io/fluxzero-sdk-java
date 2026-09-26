@@ -524,9 +524,15 @@ class ForwardProxyConsumerTest {
         ForwardProxyConsumer consumer = new ForwardProxyConsumer(
                 client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(), 2);
 
-        CompletableFuture<Void> batch = runAsync(() -> consumer.accept(List.of(
-                serializedRequest("one", CONSUMER_NAME), serializedRequest("two", CONSUMER_NAME),
-                serializedRequest("three", CONSUMER_NAME))));
+        SerializedMessage firstRequest = serializedRequest("one", CONSUMER_NAME);
+        SerializedMessage secondRequest = serializedRequest("two", CONSUMER_NAME);
+        SerializedMessage thirdRequest = serializedRequest("three", CONSUMER_NAME);
+        // This test exercises HTTP capacity, independently of per-segment serialization.
+        firstRequest.setSegment(1);
+        secondRequest.setSegment(2);
+        thirdRequest.setSegment(3);
+        CompletableFuture<Void> batch = runAsync(() -> consumer.accept(
+                List.of(firstRequest, secondRequest, thirdRequest)));
 
         verify(httpClient, timeout(1_000).times(2))
                 .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));

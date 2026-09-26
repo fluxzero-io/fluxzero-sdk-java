@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.common.websocket;
 
 import java.nio.channels.ClosedChannelException;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -41,6 +43,7 @@ import java.util.function.Consumer;
 final class RuntimeResultDispatcher implements AutoCloseable {
     private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
     private static final int MAX_SYNCHRONOUS_RESULTS_PER_TASK = 32;
+    private static final ThreadLocal<RuntimeResultDispatcher> currentWorker = new ThreadLocal<>();
     private final Executor executor;
     private final int maxConcurrency;
     private final List<WorkGroup> workGroups;
@@ -53,6 +56,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     private int runningTasks;
     private int pendingAdmissions;
     private volatile boolean closed;
+    private boolean draining;
 
     RuntimeResultDispatcher(Executor executor, int maxConcurrency) {
         if (maxConcurrency < 1) {
@@ -94,7 +98,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     private RuntimeIngressController.MessageDispatch submitStaged(WorkGroup workGroup) {
         boolean admitted;
         synchronized (this) {
-            if (closed) {
+            if (closed || draining) {
                 return RuntimeIngressController.MessageDispatch.failed(new ClosedChannelException());
             }
             admitted = workGroups.size() < maxConcurrency;
@@ -291,6 +295,9 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             } else {
                 availableTasks.addLast(task);
             }
+            if (draining && workGroups.isEmpty() && pendingAdmissions == 0 && runningTasks == 0) {
+                notifyAll();
+            }
         }
         if (completed != null) {
             if (completed.failure == null) {
@@ -319,6 +326,48 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             unscheduledResults += workGroup.remainingUnscheduled();
         }
         return new State(workGroups.size(), pendingAdmissions, runningTasks, unscheduledResults, maxConcurrency);
+    }
+
+    /** Whether the caller is currently executing one of this dispatcher's result tasks. */
+    boolean isDispatchThread() {
+        return currentWorker.get() == this;
+    }
+
+    /**
+     * Stops admission and gives already submitted results one bounded opportunity to finish before abortive close.
+     * Returns false if interrupted, timed out, already closed, or called from this dispatcher's result worker.
+     * Callback failures retain their original completion outcomes and do not prevent independent work from draining.
+     */
+    boolean close(Duration timeout) {
+        Objects.requireNonNull(timeout, "timeout");
+        long remaining = Math.max(0, timeout.toNanos());
+        long deadline = System.nanoTime() + remaining;
+        try {
+            synchronized (this) {
+                if (closed) {
+                    return false;
+                }
+                draining = true;
+                if (isDispatchThread()) {
+                    return false;
+                }
+                while (!closed && (!workGroups.isEmpty() || pendingAdmissions > 0 || runningTasks > 0)) {
+                    if (remaining <= 0) {
+                        return false;
+                    }
+                    try {
+                        TimeUnit.NANOSECONDS.timedWait(this, remaining);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return false;
+                    }
+                    remaining = deadline - System.nanoTime();
+                }
+                return !closed;
+            }
+        } finally {
+            close();
+        }
     }
 
     @Override
@@ -353,6 +402,9 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             admissionSessionQueues = null;
             admissionReadySessions = null;
             pendingAdmissions = 0;
+            if (draining) {
+                notifyAll();
+            }
         }
         admitted.forEach(workGroup -> workGroup.completeExceptionally(new ClosedChannelException()));
         pendingAdmission.forEach(workGroup -> {
@@ -462,7 +514,13 @@ final class RuntimeResultDispatcher implements AutoCloseable {
 
         @Override
         public void run() {
-            RuntimeResultDispatcher.this.run(this);
+            RuntimeResultDispatcher previous = currentWorker.get();
+            currentWorker.set(RuntimeResultDispatcher.this);
+            try {
+                RuntimeResultDispatcher.this.run(this);
+            } finally {
+                currentWorker.set(previous);
+            }
         }
     }
 }

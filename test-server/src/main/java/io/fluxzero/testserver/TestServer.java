@@ -178,6 +178,10 @@ public class TestServer {
         return startServer(port, false, readRequestObserver, DEFAULT_INITIAL_POSITION_LAG);
     }
 
+    static Server startServer(InetSocketAddress address, Consumer<WebSocketTracker> readRequestObserver) {
+        return startServer(address, false, readRequestObserver, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
     private static Server startServer(int port, boolean registerShutdownHook) {
         return startServer(port, registerShutdownHook, ignored -> {}, DEFAULT_INITIAL_POSITION_LAG);
     }

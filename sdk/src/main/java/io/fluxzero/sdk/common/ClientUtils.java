@@ -65,6 +65,7 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -215,7 +216,7 @@ public class ClientUtils {
             } catch (TimeoutException e) {
                 log.warn("Timed out before having received all expected results", e);
                 return;
-            } catch (ExecutionException ignore) {
+            } catch (ExecutionException | CancellationException ignore) {
             }
         }
     }
