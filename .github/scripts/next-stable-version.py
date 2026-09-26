@@ -35,7 +35,7 @@ def next_version(major):
             if header:
                 if header[1] == "feat":
                     level = max(level, 2)
-                elif header[1] in {"fix", "perf", "deps", "revert"}:
+                elif header[1] in {"fix", "perf", "deps", "revert", "docs", "chore", "test"}:
                     level = max(level, 1)
             elif subject.startswith('Revert "'):
                 level = max(level, 1)

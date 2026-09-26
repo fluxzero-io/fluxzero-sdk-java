@@ -41,7 +41,7 @@ class ReleaseVersionTest(unittest.TestCase):
         self.assertEqual('2.1.1', self.resolve())
 
     def test_patch_types(self):
-        for kind in ('fix', 'perf', 'deps', 'revert'):
+        for kind in ('fix', 'perf', 'deps', 'revert', 'docs', 'chore', 'test'):
             with self.subTest(kind=kind):
                 self.git('reset', '--hard', '2.1.0')
                 self.commit(f'{kind}: change')
@@ -52,12 +52,21 @@ class ReleaseVersionTest(unittest.TestCase):
         self.commit('fix: correct replay')
         self.assertEqual('2.2.0', self.resolve())
 
+    def test_scoped_documentation_maintenance_and_tests_are_patch(self):
+        for kind in ('docs', 'chore', 'test'):
+            with self.subTest(kind=kind):
+                self.git('reset', '--hard', '2.1.0')
+                self.commit(f'{kind}(ci): update policy')
+                self.assertEqual('2.1.1', self.resolve())
+                self.commit('feat: add capability')
+                self.assertEqual('2.2.0', self.resolve())
+
     def test_unscoped_feature(self):
         self.commit('feat: support v8')
         self.assertEqual('2.2.0', self.resolve())
 
     def test_only_unclassified_commits_retain_minor_fallback(self):
-        self.commit('docs: update guide')
+        self.commit('refactor: reorganize internals')
         self.assertEqual('2.2.0', self.resolve())
 
     def test_breaking_changes_require_explicit_major_transition(self):

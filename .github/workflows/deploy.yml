@@ -15,13 +15,60 @@ on:
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: false
+  # A later docs-only push must not replace a queued code release.
+  queue: max
 
 env:
   BUILD_ENVIRONMENT: github
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      documentation_only: ${{ steps.changes.outputs.documentation_only }}
+      website_changed: ${{ steps.changes.outputs.website_changed }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Classify pushed changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Explicit dispatch always retains the complete release path.
+          if [[ "$EVENT_NAME" != push || -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
+            echo "documentation_only=false" >> "$GITHUB_OUTPUT"
+            echo "website_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A push may contain several commits; never compare just HEAD's last commit.
+          if ! git cat-file -e "$BASE^{commit}"; then
+            git fetch --no-tags --depth=1 origin "$BASE"
+          fi
+          python3 .github/scripts/classify-changes.py "$BASE" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Validate documentation changes
+        if: steps.changes.outputs.documentation_only == 'true'
+        env:
+          BASE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          git diff --check "$BASE" "$HEAD_SHA"
+          python3 .github/scripts/classify-changes.test.py
+          python3 .github/scripts/validate-agent-docs.py
+          python3 .github/scripts/build-agent-docs.test.py
+          echo "Documentation validated; SDK compilation and release are unnecessary." >> "$GITHUB_STEP_SUMMARY"
+
   # Job 1: Build and test (must succeed before anything else)
   build-and-test:
+    needs: changes
+    if: needs.changes.outputs.documentation_only != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -355,10 +402,14 @@ jobs:
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip.sha256
 
-  # Job 5: Notify fluxzero-site after the SDK release is tagged
+  # Notify after a stable SDK build or validated documentation-only push.
   fluxzero-site:
-    needs: build-and-test
-    if: needs.build-and-test.outputs.prerelease != 'true'
+    needs: [changes, build-and-test]
+    if: >-
+      !cancelled() && needs.changes.result == 'success' &&
+      ((needs.build-and-test.result == 'success' && needs.build-and-test.outputs.prerelease != 'true') ||
+       (needs.build-and-test.result == 'skipped' && needs.changes.outputs.documentation_only == 'true' &&
+        needs.changes.outputs.website_changed == 'true'))
     runs-on: ubuntu-latest
     steps:
       - name: Create fluxzero-site app token

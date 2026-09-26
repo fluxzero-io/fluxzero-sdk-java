@@ -147,6 +147,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Build And Test
 
+- For changes confined to repository instructions (`AGENTS.md`) or README prose, review the diff and links and run
+  `git diff --check`; do not run the full Maven build solely for those edits. Documentation consumed by builds,
+  executable examples, or release artifacts still requires its relevant validation.
 - Use the Maven wrapper: `./mvnw`.
 - SDK v2 compiles with `maven.compiler.release=25`; building requires Java 25.0.3 or newer to avoid JDK-8370887. Use the JDK pinned in `mise.toml` with `mise exec -- ./mvnw`; CI and Docker images use updated Java 25 builds.
 - Packaging the agent documentation ZIP also requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
@@ -183,6 +186,16 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Commit Messages
 
+- Use ordinary Conventional Commit messages for documentation; do not add `[skip ci]`. Markdown/MDX, similar
+  documentation text, documentation images and the agent graph manifest use lightweight CI. Source resources,
+  fixtures, scripts, configuration and mixed changes retain full SDK qualification. The classifier in
+  `.github/scripts/classify-changes.py` owns the exact boundary; do not infer it from whether a file is compiled.
+- Documentation-only pushes to `main` validate the agent graph and archive contract without publishing an SDK
+  version. Changes under `docs/developer/` still notify the website using the exact SDK commit. Versioned agent
+  documentation and legacy project ZIPs include these edits at the next SDK release; existing releases stay immutable.
+  Manual dispatch retains the full release path and the explicit publication authorization described above.
+- Classify documentation as `docs`, repository maintenance as `chore`, and tests as `test`; these types produce a
+  patch release when a release runs, unless a `feat` commit since the previous release requires a minor bump.
 - Use Conventional Commits with a clear domain scope for human-authored commits.
 - Format: `<type>(<domain>): <short imperative summary>`.
 - Good examples: `fix(tracking): avoid negative pause sleeps`, `refactor(handling): simplify payload resolver ordering`, `test(logging): cover async appender shutdown`.
