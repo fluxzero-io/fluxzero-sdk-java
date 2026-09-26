@@ -867,3 +867,19 @@ class ProjectId(id: String) : Id<Project>(id)
 - **Infrastructure in Handlers**: Don't build 'services' or use SQL. Use queries or load entities directly.
 - **Models Handling Messages**: Models should be kept as "dumb" immutable state holders; put transitions on update
   payloads.
+
+## Discovery and command ownership
+
+Spring discovers Models, Model-returning applies and interceptors within the application's component-scan scope and
+registers tracked prototypes. Keep one application responsible for each command; scanning the same write behavior in
+two applications with distinct consumers can execute it twice. Read-only applications should narrow registration or
+set `fluxzero.model.automaticHandling=DISABLED` (`FLUXZERO_MODEL_AUTOMATIC_HANDLING`), accounting for explicit Model/apply
+overrides. The Model type index enables state discovery, not automatic command ownership in every reader.
+
+Put `@Consumer` on the self-applying command or its package when an explicit group is needed. Otherwise the configured
+unconfigured-handler policy applies; package grouping requires its configuration/defaults-version opt-in. It is not an
+unconditional default for all applications. A consumer on a separate Model class does not transfer automatically to
+self-applying command classes. When an explicit command handler owns orchestration, disable that command's automatic
+entry point and call `Fluxzero.assertAndApply` from the handler.
+
+See the [complete handling examples](https://fluxzero.io/docs/fluxzero-2#automatic-command-handling-and-existing-handlers).

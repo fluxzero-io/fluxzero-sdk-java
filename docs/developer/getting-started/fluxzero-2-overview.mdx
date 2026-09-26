@@ -1,0 +1,52 @@
+---
+title: "Fluxzero 2.0: overview"
+slug: docs/fluxzero-2-overview
+description: What changes in Fluxzero 2.0, how Models and Graphs fit together, and where to start when upgrading from 1.x.
+sidebar:
+  order: 12
+---
+
+Fluxzero 2.0 introduces **independent Models connected through Graphs**. Each Model owns its state, history and lifecycle. A Graph brings related Models together for a business rule, a query or a response. One operation can change several Models atomically.
+
+Commands, queries, events, `@Apply`, `@AssertLegal`, validation and `TestFixture` remain familiar. Existing Aggregate applications can upgrade without migrating their stored domain state immediately.
+
+## What changes?
+
+| In an Aggregate design | With Models and Graphs |
+| --- | --- |
+| A Project stores its Tasks as embedded members; their changes share the Project's stream. | Project and Task are independent `@Model` types. Each has its own state and history. |
+| Moving an embedded Task coordinates two roots and leaves history under the original root. | Change its `@Parent` reference. Its identity, descendants and history stay with the Task. |
+| A command handler loads the root and calls `assertAndApply`. | Applicable Model `@Apply` methods provide automatic command handling. Explicit orchestration remains available. |
+| Cross-root updates require a separate coordination design. | A single Model operation can read and change several roots with one atomic commit. |
+| A read response needs an embedded tree or a hand-maintained DTO/projection. | Return `Graph<Project>` to compose related Tasks, or maintain a searchable Graph automatically. |
+| Listening to a Project tree means knowing all the events that can affect it. | A Graph-change handler receives published changes to the root or its descendants. |
+
+For new domain state, start with Models. Use plain value objects for data that belongs entirely to its owner. `@Aggregate` is the legacy API and `@Member` is a specialized embedding tool; neither is the starting point for a new independently living domain object. Existing Member uses remain supported.
+
+## Three concepts to keep separate
+
+**Model:** an independently stored object, such as a Task. Plain `@Model` is event-sourced by default. `DOCUMENT` can add a searchable copy, or replace event sourcing when only current state is required.
+
+**Relationship:** a child's `@Parent` reference connects it to another Model. An explicit `pathInParent = "tasks"` also gives it a place in composed output. It does not embed Task in Project's stored state.
+
+**Graph:** a view that lets you read and navigate those relationships. `loadGraph(projectId)` needs no materialization. `materializeGraph = true` is a separate choice that maintains a whole-Graph search document. The [storage table](/docs/fluxzero-2#which-documents-are-stored) shows exactly what each setting writes.
+
+## New capabilities to explore
+
+- [Automatic command handling](/docs/fluxzero-2#automatic-command-handling-and-existing-handlers), including Spring discovery, application ownership and existing handlers.
+- [Business rules and concurrency](/docs/fluxzero-2#1-business-rules-that-span-a-graph): inspected Models and child memberships protect a decision at commit.
+- [Atomic changes across Models](/docs/fluxzero-2#2-changing-several-models-atomically), including moves and composed commands.
+- [Queries and search](/docs/fluxzero-2#3-querying-model-state-and-related-data): direct Models, related content, live Graphs and materialized Graphs.
+- [Historical views and Graph-change handlers](/docs/fluxzero-2#4-the-state-of-that-event-or-the-state-of-now), including the limits of DOCUMENT-only history.
+- [Graph responses](/docs/fluxzero-2#serialize-the-graph-as-a-composed-response), content filtering, OpenAPI and per-Model schema evolution.
+- [Owned schedules](/docs/fluxzero-2#7-delayed-work-can-follow-its-owners-lifetime) and [logical deletion versus physical erasure](/docs/fluxzero-2#9-deleting-models-and-retaining-the-right-history).
+
+## Upgrading from 1.x
+
+Upgrade the SDK and its platform dependencies first; adopting Models for existing data is a separate migration. SDK 2.x requires Java 25 (use 25.0.3 or newer). Custom `User` implementations, custom search integrations and serialization assumptions also deserve attention. Follow the [upgrade checklist](/docs/fluxzero-2#upgrading-from-1x).
+
+Do not convert persisted Aggregates by simply changing their annotation. The [migration walkthrough](/docs/fluxzero-2#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) builds Models alongside the existing application, moves read handlers, then switches business-write ownership.
+
+## Try it in an application
+
+The public [Home and Ticketing examples](/docs/building/example-apps) contain Models, relationships, web endpoints and application tests. The [deep dive](/docs/fluxzero-2) walks through the design with Java and Kotlin examples; the [API tables](/docs/fluxzero-2#the-model-and-graph-api-at-a-glance) collect the settings.

@@ -16,6 +16,8 @@ If multiple applies request different policies, the stricter applicable policy w
 `DEFAULT` inherits explicit Model/application configuration and otherwise means `RETRY`, for both updates and first
 creations, independently of `fluxzero.defaults.version`. Use `fluxzero.model.conflictPolicy`
 (`FLUXZERO_MODEL_CONFLICT_POLICY`) or builder/Model/Apply settings to choose an explicit policy.
+The default conflict budget is three retries after the initial attempt. Override it with
+`fluxzero.model.maxConflictRetries` (`FLUXZERO_MODEL_MAX_CONFLICT_RETRIES`).
 A changed Product or parent collection therefore reevaluates a new child's creation. This does not make a factory an
 upsert: the normal apply-compatibility check still rejects an occupied target after retry. An intentionally nullable
 existing-Model apply is a separate upsert choice. A staged Graph update that started from absence also cannot overwrite
