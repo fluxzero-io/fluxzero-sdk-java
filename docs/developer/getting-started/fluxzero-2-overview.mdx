@@ -68,7 +68,7 @@ flowchart LR
     linkStyle default stroke:#64748b,stroke-width:1.5px
 ```
 
-**Fluxzero 2.0**
+**With 2.0**
 
 <div style="background:rgba(0,0,0,0.02);border-radius:8px;padding:16px;margin:1.5rem 0">
 <svg viewBox="0 0 600 220" role="img" aria-labelledby="independent-models-title" style="display:block;width:100%;max-width:600px;margin:0 auto;color:#64748b;font:16px var(--sl-font)">
@@ -100,15 +100,48 @@ flowchart LR
 
 The domain relationships have not changed. Before 2.0, completing Task A addressed the Project Aggregate, so its complete tree was the storage, loading and consistency boundary. In 2.0, the operation addresses Task A directly. Note, Task and Project remain connected, but no longer form one rigidly stored object tree. Children point to their parents through loose relationships.
 
-When an operation needs more than one Model, it can include those Models in the same consistency boundary without merging their state or histories.
+An operation can also change several of these independent entities together, without merging their state or histories.
 
-The following sections show those consequences one concern at a time, with links to the corresponding [deep dive](/docs/fluxzero-2-deep-dive).
+First, let's see what this looks like in code. Then we will revisit the four concerns and explore what working with the new model looks like.
 
-## Independent state and history
+## From Aggregates to Models
 
-In an Aggregate design, an embedded Task shares the Project's state and event history. With Models, Project, Task, Note and Attachment can each have their own persistence boundary. `@Parent` connects them without embedding their state.
+**The key change: an entity can belong to a larger whole without being stored inside it.** Fluxzero 2.0 calls that independent entity a **Model**. A Model owns its state and history; its relationships connect it to other Models.
 
-<OverviewFigure name="streams" />
+In our project-management example, this is the familiar Aggregate declaration. Project holds the Task collection, and `@Member` lets the SDK find and update each Task inside it.
+
+**Before 2.0: embedded Members**
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Aggregate
+record Project(@EntityId ProjectId projectId, ProjectDetails details,
+               @Member List<Task> tasks) {}
+
+@With
+record Task(@EntityId TaskId taskId, TaskDetails details, boolean completed) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Aggregate
+data class Project(
+    @EntityId val projectId: ProjectId,
+    val details: ProjectDetails,
+    @field:Member val tasks: List<Task>
+)
+
+data class Task(@EntityId val taskId: TaskId, val details: TaskDetails, val completed: Boolean)
+```
+
+</TabItem>
+</Tabs>
+
+**With 2.0: independent Models, connected by a parent reference**
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -143,9 +176,25 @@ data class Task(
 </TabItem>
 </Tabs>
 
-A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, notes or attachments does not make them part of every Task load. Each Model also has its own history and erasure boundary. The examples use typed IDs (`ProjectId`, `TaskId`) and small value objects for details.
+`@Model` gives Project and Task their own storage boundaries. The Task collection disappears from Project. Instead, Task has a `@Parent` reference to its Project. The reference says where the Task belongs; it does not put the Task's state inside the Project. `pathInParent = "tasks"` names the collection when the connected Models are assembled together.
 
-Consider a Project with **100,000 events**, while the Task you want to complete has only **10 events of its own**:
+That is the small step in code. The following sections show how much it changes.
+
+[Deep dive: Model declarations and relationships](/docs/fluxzero-2-deep-dive#model-the-lifecycle-then-choose-storage)
+
+## Separating the four concerns
+
+Relationships, consistency, persistence and loading can now have different boundaries. Starting with the same Project and Task, let's see what that makes possible.
+
+### Independent state and history
+
+Project and Task now have their own state and history. The same applies to independently changing notes and attachments: being related does not mean sharing one event stream.
+
+<OverviewFigure name="streams" />
+
+A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, notes or attachments does not make them part of every Task load. Each Model also has its own history and erasure boundary.
+
+For example, completing Task A after a cold load could mean reconstructing **100,000 Project events** in the Aggregate design, versus just **10 events belonging to Task A** with Models:
 
 <OverviewFigure name="replay" />
 
@@ -176,86 +225,52 @@ Fluxzero.loadModel(taskId)
 </TabItem>
 </Tabs>
 
-The Aggregate calls refer to the earlier embedded design; the Model call uses the independent declarations above. Snapshots and caching reduce repeated work; independent Models also reduce the amount of unrelated state that a Task load needs to retain.
+The benefit also applies to document-based storage. Loading a small Task document avoids reading and deserializing a large Project document containing thousands of other Tasks.
 
 [Deep dive: load, cache and document costs](/docs/fluxzero-2-deep-dive#small-changes-large-persistence-boundaries) · [Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2-deep-dive#model-the-lifecycle-then-choose-storage)
 
-## Automatic command handling
+### Multiple parents
 
-A registered command with an applicable Model `@Apply` can be handled directly. Fluxzero resolves its target, runs validation and assertions, and commits the result. The forwarding handler that previously loaded an Aggregate and called `assertAndApply` is no longer needed for this command.
+The first concern in the introduction was a Task that belongs to both a Project and a Sprint. With Models, it can reference both. There is still only one Task, with one identity and one history:
+
+<OverviewFigure name="parents" />
+
+For that variant, add a second parent reference to Task:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
-record CompleteTask(TaskId taskId) {
-    @Apply
-    Task apply(Task task) {
-        return task.withCompleted(true);
-    }
-}
-
-Fluxzero.sendCommandAndWait(new CompleteTask(taskId));
+@Model
+@With
+record Task(@EntityId TaskId taskId,
+            @Parent(pathInParent = "tasks") ProjectId projectId,
+            @Parent(pathInParent = "tasks") SprintId sprintId,
+            TaskDetails details, boolean completed) {}
 ```
 
 </TabItem>
 <TabItem label="Kotlin">
 
 ```kotlin
-data class CompleteTask(val taskId: TaskId) {
-    @Apply
-    fun apply(task: Task) = task.copy(completed = true)
-}
-
-Fluxzero.sendCommandAndWait<Any?>(CompleteTask(taskId))
+@Model
+data class Task(
+    @EntityId val taskId: TaskId,
+    @Parent(pathInParent = "tasks") val projectId: ProjectId,
+    @Parent(pathInParent = "tasks") val sprintId: SprintId,
+    val details: TaskDetails,
+    val completed: Boolean
+)
 ```
 
 </TabItem>
 </Tabs>
 
-Existing handlers can also invoke the Model pipeline explicitly with `Fluxzero.assertAndApply(command)`.
+Project and Sprint can each discover their Tasks. Neither has to contain the other, and the Task does not need to be duplicated. The remaining examples use the original Project-only declaration.
 
-[Deep dive: automatic handling, Spring discovery and command ownership](/docs/fluxzero-2-deep-dive#automatic-command-handling-and-existing-handlers)
+[Deep dive: multiple parents, ownership and graph shape](/docs/fluxzero-2-deep-dive#more-than-one-hierarchy)
 
-## Injection of related Models
-
-Handler parameters can select Models from message IDs and their relationships. This query carries only a Task ID; the Project parameter is resolved through the Task's parent relationship.
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-record GetTask(TaskId taskId) implements Request<TaskSummary> {
-    @HandleQuery
-    TaskSummary handle(Task task, Project project) {
-        return new TaskSummary(task.details().title(), project.details().name(), task.completed());
-    }
-}
-
-record TaskSummary(String title, String projectName, boolean completed) {}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-data class GetTask(val taskId: TaskId) : Request<TaskSummary> {
-    @HandleQuery
-    fun handle(task: Task, project: Project) =
-        TaskSummary(task.details.title, project.details.name, task.completed)
-}
-
-data class TaskSummary(val title: String, val projectName: String, val completed: Boolean)
-```
-
-</TabItem>
-</Tabs>
-
-The same resolution is available in assertions and applies. The handler does not need to load the Task first, extract its Project ID and then load the Project.
-
-[Deep dive: Model injection and explicit associations](/docs/fluxzero-2-deep-dive#inject-models-from-message-properties)
-
-## Moving Models between parents
+### Moving Models between parents
 
 A Task with a stable ID can move to another Project by changing its parent reference. Its own history remains attached to the Task, and its notes and attachments remain connected to the same Task ID. Reorganising the work becomes a change to a relationship, without removing and recreating the Task and its descendants under another root.
 
@@ -286,24 +301,60 @@ data class MoveTask(val taskId: TaskId, val destinationId: ProjectId) {
 </TabItem>
 </Tabs>
 
-For an embedded member, moving between Aggregates requires changing both roots and leaves earlier history under the original root. An independent Model retains its persistence boundary when its relationship changes.
+Now compare this with Member moves before 2.0: remove the Task from one Aggregate, add it to another, transfer its nested state, and leave its earlier events in the old stream. With Models, the Task and its history stay where they are. Only the parent reference changes.
 
 [Deep dive: moves, destination rules and ancestor updates](/docs/fluxzero-2-deep-dive#move-a-task-by-changing-its-relationship)
 
-## Atomic updates across Models
+### Independent extensions
 
-One Model operation can update several independent roots. It can also compose existing commands through `@InterceptApply`. In this example, all selected Tasks are completed in one atomic operation.
+A new feature can add state around an existing Model without becoming part of every update to that Model. Notes, a temporary approval process or an integration's status can each have their own behavior and history.
 
-<OverviewFigure name="atomic" />
+For example, a notes feature can add independently managed notes to a Task. The note declares its parent; Task needs no new field or collection and does not need to know the note's class:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
-record CompleteTasks(List<TaskId> taskIds) {
-    @InterceptApply
-    List<CompleteTask> expand() {
-        return taskIds.stream().map(CompleteTask::new).toList();
+@Model
+record InternalNote(@EntityId String noteId,
+                    @Parent(pathInParent = "notes") TaskId taskId,
+                    NoteDetails details) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class InternalNote(
+    @EntityId val noteId: String,
+    @Parent(pathInParent = "notes") val taskId: TaskId,
+    val details: NoteDetails
+)
+```
+
+</TabItem>
+</Tabs>
+
+[Deep dive: shared relationships across applications](/docs/fluxzero-2-deep-dive#6-share-relationships-without-sharing-every-applications-implementation)
+
+### Atomic updates across Models
+
+One operation can update several Models, even if they do not share a common root. For example, this command completes two Tasks that may belong to different Projects:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+record CompleteTasks(TaskId firstTaskId, TaskId secondTaskId) {
+    @Apply
+    Task completeFirst(@Association("firstTaskId") Task task) {
+        return task.withCompleted(true);
+    }
+
+    @Apply
+    Task completeSecond(@Association("secondTaskId") Task task) {
+        return task.withCompleted(true);
     }
 }
 ```
@@ -312,24 +363,33 @@ record CompleteTasks(List<TaskId> taskIds) {
 <TabItem label="Kotlin">
 
 ```kotlin
-data class CompleteTasks(val taskIds: List<TaskId>) {
-    @InterceptApply
-    fun expand(): List<CompleteTask> = taskIds.map(::CompleteTask)
+data class CompleteTasks(val firstTaskId: TaskId, val secondTaskId: TaskId) {
+    @Apply
+    fun completeFirst(@Association("firstTaskId") task: Task) = task.copy(completed = true)
+
+    @Apply
+    fun completeSecond(@Association("secondTaskId") task: Task) = task.copy(completed = true)
 }
 ```
 
 </TabItem>
 </Tabs>
 
-The Tasks can belong to different Projects. Each command's assertions and applies run; if one is rejected, none of the staged changes are committed. A permanent shared Aggregate is not required for the atomic update.
+Each `@Apply` returns one changed Task. `@Association` tells the SDK which of the two IDs selects that Task. Both changes are committed together. If an assertion rejects the operation, neither Task is changed.
+
+<OverviewFigure name="atomic" />
+
+Existing commands can also be composed into one operation with `@InterceptApply`; the [deep dive shows that alternative](/docs/fluxzero-2-deep-dive#2-changing-several-models-atomically).
 
 [Deep dive: atomic changes, command composition and ordering](/docs/fluxzero-2-deep-dive#2-changing-several-models-atomically)
 
-## Business rules across Model boundaries
+### Business rules across Model boundaries
 
-Suppose a new rule needs both an Order and the Account placing it. They can retain their separate state and histories while the operation checks the Account and creates the Order consistently. The new rule does not require merging their storage boundaries.
+Changing several Models together is only half the story. A business decision can also depend on Models it does not change. For example, adding a Task may be allowed only while its Project has fewer than five Tasks.
 
-An assertion can inspect related Models through a Graph. The inspected state participates in conflict checking even when the operation does not change it. Here, the Task collection is a dependency of the capacity check, so concurrent additions cannot both commit based on the same remaining slot.
+To inspect that relationship, we use a **Graph**. If you know `Entity<T>` from earlier Fluxzero versions, `Graph<T>` plays a similar role: it gives you the state plus operations for navigating and changing it. But a Graph can follow relationships between independently stored Models. `Graph<Project>` gives you the Project through `get()` and access to its Tasks through `childModels(Task.class)`. Related state is loaded when you use it.
+
+Here the assertion counts the Project's Tasks. It rejects the command if there are already five; otherwise the apply creates the new Task.
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -371,14 +431,135 @@ data class AddTask(
 
 </TabItem>
 </Tabs>
+What if two commands both see four Tasks and try to add a fifth? The first can commit. The second finds that the collection it counted has changed. **By default, Fluxzero retries the operation automatically against the updated state.** The assertion now sees five Tasks and rejects the second addition.
 
-Read dependencies can also include unrelated Models, such as an Account whose spending limit is checked before an Order is created.
+The same check applies to individual Models read by an assertion or apply, even when the operation does not change them. If one has changed in the meantime, Fluxzero retries the decision using the newer state. Your business rules run again; an earlier approval does not silently carry over.
 
-[Deep dive: read dependencies, conflict policies and retries](/docs/fluxzero-2-deep-dive#concurrent-decisions-and-the-commit-boundary)
+[Deep dive: read dependencies, conflict policies and retry limits](/docs/fluxzero-2-deep-dive#concurrent-decisions-and-the-commit-boundary)
 
-## Historical Graphs
+### Persistence and retention per Model
 
-A Graph injected into a Model event handler is bound to that event's state. If a Task was completed and then reopened before the completion event is handled, this handler reads the completed revision. `previous()` selects the state before completion.
+Task can keep an event-sourced history while its externally reported status only stores the latest value. Related Models do not have to use the same persistence strategy.
+
+<OverviewFigure name="persistence" />
+
+For example, this status Model uses document storage and disables the shared state cache:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Model(persistence = ModelPersistence.DOCUMENT, cached = false)
+record TaskStatus(@EntityId String statusId,
+                  @Parent TaskId taskId,
+                  boolean online) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(persistence = [ModelPersistence.DOCUMENT], cached = false)
+data class TaskStatus(
+    @EntityId val statusId: String,
+    @Parent val taskId: TaskId,
+    val online: Boolean
+)
+```
+
+</TabItem>
+</Tabs>
+
+Each status update replaces its stored document. It does not append to Task's history, and loading Task does not load the status. Caching is also a per-Model choice; it is enabled by default.
+
+Independent storage gives you a smaller physical-erasure boundary too. You can erase a completed approval process without erasing the Project and every Task beside it.
+
+[Deep dive: per-Model persistence](/docs/fluxzero-2-deep-dive#different-persistence-for-different-parts) · [Physical deletion scope](/docs/fluxzero-2-deep-dive#delete-one-part-without-deleting-the-whole)
+
+## Working with Models and Graphs
+
+The storage boundaries have changed. Commands, handlers and tests remain familiar, while Graphs provide connected state for event processing, UIs and APIs.
+
+### Automatic command handling
+
+A registered command with an applicable Model `@Apply` can be handled directly. Fluxzero resolves its target, runs validation and assertions, and commits the result. The forwarding handler that previously loaded an Aggregate and called `assertAndApply` is no longer needed for this command.
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+record CompleteTask(TaskId taskId) {
+    @Apply
+    Task apply(Task task) {
+        return task.withCompleted(true);
+    }
+}
+
+Fluxzero.sendCommandAndWait(new CompleteTask(taskId));
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class CompleteTask(val taskId: TaskId) {
+    @Apply
+    fun apply(task: Task) = task.copy(completed = true)
+}
+
+Fluxzero.sendCommandAndWait<Any?>(CompleteTask(taskId))
+```
+
+</TabItem>
+</Tabs>
+
+Existing handlers can also invoke the Model pipeline explicitly with `Fluxzero.assertAndApply(command)`.
+
+[Deep dive: automatic handling, Spring discovery and command ownership](/docs/fluxzero-2-deep-dive#automatic-command-handling-and-existing-handlers)
+
+### Injection of related Models
+
+Handler parameters can select Models using entity IDs carried by the command or query, and follow their relationships. This query carries only a Task ID; the Project parameter is resolved through the Task's parent relationship.
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+record GetTask(TaskId taskId) implements Request<TaskSummary> {
+    @HandleQuery
+    TaskSummary handle(Task task, Project project) {
+        return new TaskSummary(task.details().title(), project.details().name(), task.completed());
+    }
+}
+
+record TaskSummary(String title, String projectName, boolean completed) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class GetTask(val taskId: TaskId) : Request<TaskSummary> {
+    @HandleQuery
+    fun handle(task: Task, project: Project) =
+        TaskSummary(task.details.title, project.details.name, task.completed)
+}
+
+data class TaskSummary(val title: String, val projectName: String, val completed: Boolean)
+```
+
+</TabItem>
+</Tabs>
+
+The same resolution is available in assertions and applies. The handler does not need to load the Task first, extract its Project ID and then load the Project.
+
+[Deep dive: Model injection and explicit associations](/docs/fluxzero-2-deep-dive#inject-models-from-message-properties)
+
+### Historical Graphs
+
+In a Model event handler, a Graph is **frozen at the state of that event**. This applies whether the Graph is injected or loaded with `Fluxzero.loadGraph(...)` inside the handler. Related Models follow the same point in history.
+
+For example, Task A is completed at 10:00 and reopened at 10:05. A completion handler that runs at 10:10 still sees the completed Task. It can compare three distinct views:
 
 <OverviewFigure name="history" />
 
@@ -388,9 +569,12 @@ A Graph injected into a Model event handler is bound to that event's state. If a
 ```java
 @HandleEvent
 void completed(CompleteTask event, Graph<Task> task) {
-    Task after = task.get();
-    Task before = task.previous().get();
-    var projectAtThatTime = task.ancestorModel(Project.class);
+    Task after = task.get();             // completed = true
+    Task before = task.previous().get(); // completed = false
+    Task now = task.current().get();      // completed = false
+
+    // Explicit loading uses the same event boundary.
+    Graph<Task> loaded = Fluxzero.loadGraph(event.taskId());
 }
 ```
 
@@ -400,20 +584,23 @@ void completed(CompleteTask event, Graph<Task> task) {
 ```kotlin
 @HandleEvent
 fun completed(event: CompleteTask, task: Graph<Task>) {
-    val after = task.get()
-    val before = task.previous()?.get()
-    val projectAtThatTime = task.ancestorModel(Project::class.java)
+    val after = task.get()             // completed = true
+    val before = task.previous()?.get() // completed = false
+    val now = task.current().get()      // completed = false
+
+    // Explicit loading uses the same event boundary.
+    val loaded = Fluxzero.loadGraph(event.taskId)
 }
 ```
 
 </TabItem>
 </Tabs>
 
-Related event-sourced Models follow the same boundary. The handler can read the Project as it existed at completion, rather than combining the Task's old revision with the Project's latest state.
+`previous()` selects the state just before this event. `current()` explicitly opens a current view; it does not change the historical Graph. The handler can therefore react to what happened then and, when needed, separately check what is true now. These historical reads use the event-sourced state introduced above.
 
 [Deep dive: event-time views, current reads and available history](/docs/fluxzero-2-deep-dive#4-the-state-of-that-event-or-the-state-of-now)
 
-## Graph-change handlers
+### Graph-change handlers
 
 A handler can subscribe to published changes to a complete Graph. This includes changes to the root and its descendants, such as a Task update, an added note or a moved Task.
 
@@ -424,7 +611,13 @@ A handler can subscribe to published changes to a complete Graph. This includes 
 @HandleEvent
 void projectChanged(Graph<Project> project) {
     Graph<Project> before = project.previous();
-    // Compare the views or refresh a connected UI.
+    // Changes to this Project, its Tasks and their children.
+}
+
+@HandleEvent
+void taskChanged(Graph<Task> task) {
+    Graph<Task> before = task.previous();
+    // Changes to this Task and its children.
 }
 ```
 
@@ -435,216 +628,24 @@ void projectChanged(Graph<Project> project) {
 @HandleEvent
 fun projectChanged(project: Graph<Project>) {
     val before = project.previous()
-    // Compare the views or refresh a connected UI.
+    // Changes to this Project, its Tasks and their children.
+}
+
+@HandleEvent
+fun taskChanged(task: Graph<Task>) {
+    val before = task.previous()
+    // Changes to this Task and its children.
 }
 ```
 
 </TabItem>
 </Tabs>
 
-A consumer maintaining a Project view does not need a separate handler for each event type that can affect it. The supplied Graph and its previous view represent the transition.
+`Graph<Project>` observes the Project and its descendants. `Graph<Task>` narrows that scope to one Task and its descendants, including its notes. Neither handler needs to enumerate the individual event types. The supplied Graph and its previous view represent the transition.
 
 [Deep dive: Graph-change handlers and before/after transitions](/docs/fluxzero-2-deep-dive#5-react-to-the-whole-graph-without-enumerating-its-events)
 
-## Composed Graph responses
-
-Keeping Models independent does not require clients to assemble every view themselves. A Project screen can receive its Tasks and notes together, even though each has its own state and lifecycle.
-
-<OverviewFigure name="response" />
-
-An endpoint can return `Graph<Project>` directly. Serialization combines the Project with its independently stored Tasks at their declared `pathInParent` paths.
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@HandleGet("/projects/{projectId}")
-Graph<Project> getProject(@PathParam("projectId") String projectId) {
-    return Fluxzero.loadGraph(new ProjectId(projectId));
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@HandleGet("/projects/{projectId}")
-fun getProject(@PathParam("projectId") projectId: String): Graph<Project> =
-    Fluxzero.loadGraph(ProjectId(projectId))
-```
-
-</TabItem>
-</Tabs>
-
-The HTTP response contains the composed JSON:
-
-```json
-{
-  "projectId": "launch",
-  "details": { "name": "Launch" },
-  "tasks": [
-    {
-      "taskId": "task-a",
-      "projectId": "launch",
-      "details": { "title": "Ship 2.0" },
-      "completed": true
-    }
-  ]
-}
-```
-
-`selectPaths(...)` limits the included branches. The response does not require an embedded Task collection on Project or an application handler that maintains a separate projection for this endpoint.
-
-[Deep dive: Graph responses, view selection and JSON contracts](/docs/fluxzero-2-deep-dive#serialize-the-graph-as-a-composed-response)
-
-## Derived response fields
-
-`@GraphProperty` adds fields during Graph serialization using related state. This method on Task includes the Project name in the response without storing a copy on Task:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@GraphProperty
-String projectName(Graph<Project> project) {
-    Project parent = project.get();
-    return parent == null ? null : parent.details().name();
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@GraphProperty
-fun projectName(project: Graph<Project>): String? =
-    project.get()?.details?.name
-```
-
-</TabItem>
-</Tabs>
-
-Each serialized Task includes `"projectName": "Launch"`. Renaming the Project is reflected in the next current view without rewriting the Tasks. Graph responses also support content filtering and composed OpenAPI schemas.
-
-[Deep dive: derived fields](/docs/fluxzero-2-deep-dive#derived-values-without-duplicated-state) · [Content filtering](/docs/fluxzero-2-deep-dive#filter-graph-content-for-its-audience) · [OpenAPI](/docs/fluxzero-2-deep-dive#openapi-that-understands-the-composed-response)
-
-## Materialized Graph search
-
-`materializeGraph = true` maintains a searchable document containing the Project and its composed children. A query can match Task fields and return the containing Project Graph:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Model(materializeGraph = true)
-record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
-
-List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
-        .match(true, "tasks/completed")
-        .fetchAll();
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model(materializeGraph = true)
-data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
-
-val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
-    .match(true, "tasks/completed")
-    .fetchAll()
-```
-
-</TabItem>
-</Tabs>
-
-Task changes update the materialized view automatically; moving a Task updates both affected Projects. This replaces application projection handlers that rebuild the view after each relevant event. Individual nodes retain their own schema revisions and upcasters inside the stored Graph.
-
-[Deep dive: materialization, projection completion and schema evolution](/docs/fluxzero-2-deep-dive#automatically-materialize-the-complete-graph)
-
-## Independent extensions
-
-A new feature can add state around an existing Model without becoming part of every update to that Model. Notes, a temporary approval process or an integration's status can each have their own behavior and history.
-
-A child Model declares its relationship to the parent. The parent needs no additional field or collection and does not need to know the child's class. For example, a device integration can own a lamp's reported status while another application owns the lamp and its desired state.
-
-The same pattern connects independently managed notes to a Task:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Model
-record InternalNote(@EntityId String noteId,
-                    @Parent(pathInParent = "notes") TaskId taskId,
-                    NoteDetails details) {}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model
-data class InternalNote(
-    @EntityId val noteId: String,
-    @Parent(pathInParent = "notes") val taskId: TaskId,
-    val details: NoteDetails
-)
-```
-
-</TabItem>
-</Tabs>
-
-[Deep dive: shared relationships across applications](/docs/fluxzero-2-deep-dive#6-share-relationships-without-sharing-every-applications-implementation)
-
-## Multiple parents
-
-A Model can have several parents. In the [Home example application](https://github.com/fluxzero-io/fluxzero-sample-home), one integration link connects a household Device and its Home Assistant connection:
-
-<OverviewFigure name="parents" />
-
-Deleting the integration removes its links while the household Devices and their histories remain. Relationship ownership can therefore differ from the shape of an application view.
-
-[Deep dive: multiple parents, ownership and graph shape](/docs/fluxzero-2-deep-dive#more-than-one-hierarchy)
-
-## Persistence and retention per Model
-
-Different parts of the same domain can have different persistence needs. Task keeps its event history; an externally reported status may only need its latest value. The status can still belong to the Task Graph:
-
-<OverviewFigure name="persistence" />
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Model(persistence = ModelPersistence.DOCUMENT)
-record TaskStatus(
-        @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") TaskId taskId,
-        boolean online) {}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model(persistence = [ModelPersistence.DOCUMENT])
-data class TaskStatus(
-    @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") val taskId: TaskId,
-    val online: Boolean
-)
-```
-
-</TabItem>
-</Tabs>
-
-Loading Task does not load its status. Updating the status does not append to Task's history. Adding event sourcing to the status is a per-Model choice when its own history matters.
-
-Independent history also gives you a smaller physical-erasure boundary. You can erase a completed approval process without erasing the Project and every Task beside it.
-
-[Deep dive: per-Model persistence](/docs/fluxzero-2-deep-dive#different-persistence-for-different-parts) · [Physical deletion scope](/docs/fluxzero-2-deep-dive#delete-one-part-without-deleting-the-whole)
-
-## Parent-owned schedules and deletion
+### Parent-owned schedules and deletion
 
 A scheduled command can declare a parent Model. Deleting that Model triggers cancellation of its owned schedules, so each deletion flow does not need to enumerate and cancel them itself.
 
@@ -675,7 +676,7 @@ Parent ownership also controls cascading deletion of child Models. Children can 
 
 [Deep dive: parent-owned schedules](/docs/fluxzero-2-deep-dive#7-delayed-work-can-follow-its-owners-lifetime) · [Deletion and retained history](/docs/fluxzero-2-deep-dive#9-deleting-models-and-retaining-the-right-history)
 
-## Testing with TestFixture
+### Testing with TestFixture
 
 Models use the existing given/when/then fixture API. This test creates a Project and Task, completes the Task and verifies the query response:
 
@@ -711,6 +712,125 @@ TestFixture.create()
 The fixture also supports reconstruction from Model events, schema evolution and migration scenarios.
 
 [Deep dive: testing the application and its history](/docs/fluxzero-2-deep-dive#test-the-application-including-its-history)
+
+### Composed Graph responses
+
+UIs and third-party APIs often need one complete view. For example, a Project page needs the Project plus its Tasks and notes, even though those Models are stored independently.
+
+**Serializing a Graph assembles that connected state into one nested document.** Serializing `Graph<Project>` puts its Tasks under `tasks`, the path declared by `@Parent(pathInParent = "tasks")`. The same applies to each Task's notes.
+
+<OverviewFigure name="response" />
+
+For a Project with one Task, the JSON includes:
+
+```json
+{
+  "projectId": "launch",
+  "details": { "name": "Launch" },
+  "tasks": [
+    {
+      "taskId": "task-a",
+      "projectId": "launch",
+      "details": { "title": "Ship 2.0" },
+      "completed": true
+    }
+  ]
+}
+```
+
+A tracking query handler or HTTP endpoint can return the Graph directly. Fluxzero serializes the response for the caller, so the UI or API client receives the composed JSON:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@HandleGet("/projects/{projectId}")
+Graph<Project> getProject(@PathParam("projectId") String projectId) {
+    return Fluxzero.loadGraph(new ProjectId(projectId));
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@HandleGet("/projects/{projectId}")
+fun getProject(@PathParam("projectId") projectId: String): Graph<Project> =
+    Fluxzero.loadGraph(ProjectId(projectId))
+```
+
+</TabItem>
+</Tabs>
+
+`selectPaths(...)` limits the included branches. Project still needs no embedded Task collection, and the endpoint needs no separate projection handler to keep that response assembled.
+
+[Deep dive: Graph responses, view selection and JSON contracts](/docs/fluxzero-2-deep-dive#serialize-the-graph-as-a-composed-response)
+
+### Derived response fields
+
+`@GraphProperty` adds a field to the serialized Graph, using related state. Put this method **inside Task** to include its Project's name in each serialized Task:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@GraphProperty
+String projectName(Graph<Project> project) {
+    Project parent = project.get();
+    return parent == null ? null : parent.details().name();
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@GraphProperty
+fun projectName(project: Graph<Project>): String? =
+    project.get()?.details?.name
+```
+
+</TabItem>
+</Tabs>
+
+Each serialized Task includes `"projectName": "Launch"`. This is a serialization field, not an extra persisted field on Task. Renaming the Project is reflected in the next current response without rewriting any Tasks. Graph responses also support content filtering and composed OpenAPI schemas.
+
+[Deep dive: derived fields](/docs/fluxzero-2-deep-dive#derived-values-without-duplicated-state) · [Content filtering](/docs/fluxzero-2-deep-dive#filter-graph-content-for-its-audience) · [OpenAPI](/docs/fluxzero-2-deep-dive#openapi-that-understands-the-composed-response)
+
+### Materialized Graph search
+
+For fast searches across a whole Graph, `materializeGraph = true` keeps the composed document in the search index. Fluxzero persists and updates it automatically; you do not need to write an event handler that rebuilds and stores the view. A query can then match Task fields and return the containing Project Graph:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Model(materializeGraph = true)
+record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
+
+List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
+        .match(true, "tasks/completed")
+        .fetchAll();
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(materializeGraph = true)
+data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
+
+val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
+    .match(true, "tasks/completed")
+    .fetchAll()
+```
+
+</TabItem>
+</Tabs>
+
+Task changes update the materialized view automatically; moving a Task updates both affected Projects. This replaces application projection handlers that rebuild the view after each relevant event. Individual nodes retain their own schema revisions and upcasters inside the stored Graph.
+
+[Deep dive: materialization, projection completion and schema evolution](/docs/fluxzero-2-deep-dive#automatically-materialize-the-complete-graph)
 
 ## Upgrading from 1.x
 
