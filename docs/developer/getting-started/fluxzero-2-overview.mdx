@@ -1,6 +1,6 @@
 ---
 title: "Fluxzero 2.0: overview"
-slug: docs/fluxzero-2-overview
+slug: docs/fluxzero-2
 description: "Fluxzero 2.0 features for Java and Kotlin developers: independent Models, atomic changes, historical Graphs and composed views."
 sidebar:
   order: 12
@@ -63,7 +63,7 @@ data class Task(
 
 A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, notes or attachments does not make them part of every Task load. Each Model also has its own history and erasure boundary. The examples use typed IDs (`ProjectId`, `TaskId`) and small value objects for details.
 
-[Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2#model-the-lifecycle-then-choose-storage)
+[Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2-deep-dive#model-the-lifecycle-then-choose-storage)
 
 ## Automatic command handling
 
@@ -100,7 +100,7 @@ Fluxzero.sendCommandAndWait<Any?>(CompleteTask(taskId))
 
 Existing handlers can also invoke the Model pipeline explicitly with `Fluxzero.assertAndApply(command)`.
 
-[Deep dive: automatic handling, Spring discovery and command ownership](/docs/fluxzero-2#automatic-command-handling-and-existing-handlers)
+[Deep dive: automatic handling, Spring discovery and command ownership](/docs/fluxzero-2-deep-dive#automatic-command-handling-and-existing-handlers)
 
 ## Injection of related Models
 
@@ -138,7 +138,7 @@ data class TaskSummary(val title: String, val projectName: String, val completed
 
 The same resolution is available in assertions and applies. The handler does not need to load the Task first, extract its Project ID and then load the Project.
 
-[Deep dive: Model injection and explicit associations](/docs/fluxzero-2#inject-models-from-message-properties)
+[Deep dive: Model injection and explicit associations](/docs/fluxzero-2-deep-dive#inject-models-from-message-properties)
 
 ## Moving Models between parents
 
@@ -171,7 +171,7 @@ data class MoveTask(val taskId: TaskId, val destinationId: ProjectId) {
 
 For an embedded member, moving between Aggregates requires changing both roots and leaves earlier history under the original root. An independent Model retains its persistence boundary when its relationship changes.
 
-[Deep dive: moves, destination rules and ancestor updates](/docs/fluxzero-2#move-a-task-by-changing-its-relationship)
+[Deep dive: moves, destination rules and ancestor updates](/docs/fluxzero-2-deep-dive#move-a-task-by-changing-its-relationship)
 
 ## Atomic updates across Models
 
@@ -204,7 +204,7 @@ data class CompleteTasks(val taskIds: List<TaskId>) {
 
 The Tasks can belong to different Projects. Each command's assertions and applies run; if one is rejected, none of the staged changes are committed. A permanent shared Aggregate is not required for the atomic update.
 
-[Deep dive: atomic changes, command composition and ordering](/docs/fluxzero-2#2-changing-several-models-atomically)
+[Deep dive: atomic changes, command composition and ordering](/docs/fluxzero-2-deep-dive#2-changing-several-models-atomically)
 
 ## Business rules across Model boundaries
 
@@ -255,7 +255,7 @@ data class AddTask(
 
 Read dependencies can also include unrelated Models, such as an Account whose spending limit is checked before an Order is created.
 
-[Deep dive: read dependencies, conflict policies and retries](/docs/fluxzero-2#concurrent-decisions-and-the-commit-boundary)
+[Deep dive: read dependencies, conflict policies and retries](/docs/fluxzero-2-deep-dive#concurrent-decisions-and-the-commit-boundary)
 
 ## Historical Graphs
 
@@ -290,7 +290,7 @@ fun completed(event: CompleteTask, task: Graph<Task>) {
 
 Related event-sourced Models follow the same boundary. The handler can read the Project as it existed at completion, rather than combining the Task's old revision with the Project's latest state.
 
-[Deep dive: event-time views, current reads and available history](/docs/fluxzero-2#4-the-state-of-that-event-or-the-state-of-now)
+[Deep dive: event-time views, current reads and available history](/docs/fluxzero-2-deep-dive#4-the-state-of-that-event-or-the-state-of-now)
 
 ## Graph-change handlers
 
@@ -323,7 +323,7 @@ fun projectChanged(project: Graph<Project>) {
 
 A consumer maintaining a Project view does not need a separate handler for each event type that can affect it. The supplied Graph and its previous view represent the transition.
 
-[Deep dive: Graph-change handlers and before/after transitions](/docs/fluxzero-2#5-react-to-the-whole-graph-without-enumerating-its-events)
+[Deep dive: Graph-change handlers and before/after transitions](/docs/fluxzero-2-deep-dive#5-react-to-the-whole-graph-without-enumerating-its-events)
 
 ## Composed Graph responses
 
@@ -372,7 +372,7 @@ The HTTP response contains the composed JSON:
 
 `selectPaths(...)` limits the included branches. The response does not require an embedded Task collection on Project or an application handler that maintains a separate projection for this endpoint.
 
-[Deep dive: Graph responses, view selection and JSON contracts](/docs/fluxzero-2#serialize-the-graph-as-a-composed-response)
+[Deep dive: Graph responses, view selection and JSON contracts](/docs/fluxzero-2-deep-dive#serialize-the-graph-as-a-composed-response)
 
 ## Derived response fields
 
@@ -403,7 +403,7 @@ fun projectName(project: Graph<Project>): String? =
 
 Each serialized Task includes `"projectName": "Launch"`. Renaming the Project is reflected in the next current view without rewriting the Tasks. Graph responses also support content filtering and composed OpenAPI schemas.
 
-[Deep dive: derived fields](/docs/fluxzero-2#derived-values-without-duplicated-state) · [Content filtering](/docs/fluxzero-2#filter-graph-content-for-its-audience) · [OpenAPI](/docs/fluxzero-2#openapi-that-understands-the-composed-response)
+[Deep dive: derived fields](/docs/fluxzero-2-deep-dive#derived-values-without-duplicated-state) · [Content filtering](/docs/fluxzero-2-deep-dive#filter-graph-content-for-its-audience) · [OpenAPI](/docs/fluxzero-2-deep-dive#openapi-that-understands-the-composed-response)
 
 ## Materialized Graph search
 
@@ -438,7 +438,7 @@ val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
 
 Task changes update the materialized view automatically; moving a Task updates both affected Projects. This replaces application projection handlers that rebuild the view after each relevant event. Individual nodes retain their own schema revisions and upcasters inside the stored Graph.
 
-[Deep dive: materialization, projection completion and schema evolution](/docs/fluxzero-2#automatically-materialize-the-complete-graph)
+[Deep dive: materialization, projection completion and schema evolution](/docs/fluxzero-2-deep-dive#automatically-materialize-the-complete-graph)
 
 ## Independent extensions
 
@@ -473,7 +473,7 @@ data class InternalNote(
 </TabItem>
 </Tabs>
 
-[Deep dive: shared relationships across applications](/docs/fluxzero-2#6-share-relationships-without-sharing-every-applications-implementation)
+[Deep dive: shared relationships across applications](/docs/fluxzero-2-deep-dive#6-share-relationships-without-sharing-every-applications-implementation)
 
 ## Multiple parents
 
@@ -491,7 +491,7 @@ flowchart LR
 
 The link is reachable through either parent and is stored once. Deleting the integration removes its links while the household Devices and their histories remain. Relationship ownership can therefore differ from the shape of an application view.
 
-[Deep dive: multiple parents, ownership and graph shape](/docs/fluxzero-2#more-than-one-hierarchy)
+[Deep dive: multiple parents, ownership and graph shape](/docs/fluxzero-2-deep-dive#more-than-one-hierarchy)
 
 ## Parent-owned schedules and deletion
 
@@ -522,7 +522,7 @@ Fluxzero.scheduleCommand(RemindTask(taskId, deadline),
 
 Parent ownership also controls cascading deletion of child Models. Children can be configured to survive parent deletion. Logical deletion retains event-sourced history; physical erasure uses an explicit plan for the selected Models.
 
-[Deep dive: parent-owned schedules](/docs/fluxzero-2#7-delayed-work-can-follow-its-owners-lifetime) · [Deletion and retained history](/docs/fluxzero-2#9-deleting-models-and-retaining-the-right-history)
+[Deep dive: parent-owned schedules](/docs/fluxzero-2-deep-dive#7-delayed-work-can-follow-its-owners-lifetime) · [Deletion and retained history](/docs/fluxzero-2-deep-dive#9-deleting-models-and-retaining-the-right-history)
 
 ## Testing with TestFixture
 
@@ -559,10 +559,10 @@ TestFixture.create()
 
 The fixture also supports reconstruction from Model events, schema evolution and migration scenarios.
 
-[Deep dive: testing the application and its history](/docs/fluxzero-2#test-the-application-including-its-history)
+[Deep dive: testing the application and its history](/docs/fluxzero-2-deep-dive#test-the-application-including-its-history)
 
 ## Upgrading from 1.x
 
-Existing Aggregate applications can upgrade the SDK without immediately migrating their stored domain state. Models can be introduced for new state or through a deliberate migration of existing Aggregates. The [upgrade and migration walkthrough](/docs/fluxzero-2#upgrading-from-1x) covers both paths.
+Existing Aggregate applications can upgrade the SDK without immediately migrating their stored domain state. Models can be introduced for new state or through a deliberate migration of existing Aggregates. The [upgrade and migration walkthrough](/docs/fluxzero-2-deep-dive#upgrading-from-1x) covers both paths.
 
-The [Home and Ticketing examples](/docs/building/example-apps) show these features in complete applications. The [deep dive](/docs/fluxzero-2) documents their configuration and behavioral contracts.
+The [Home and Ticketing examples](/docs/building/example-apps) show these features in complete applications. The [deep dive](/docs/fluxzero-2-deep-dive) documents their configuration and behavioral contracts.

@@ -1,6 +1,6 @@
 ---
 title: "Fluxzero 2.0: deep dive"
-slug: docs/fluxzero-2
+slug: docs/fluxzero-2-deep-dive
 description: From growing aggregates to independent Models and Graphs, with Java and Kotlin examples and a migration path from 1.x.
 sidebar:
   order: 13
@@ -11,7 +11,7 @@ tableOfContents:
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-This chapter defines Model and Graph behavior: registration and ownership, persistence representations, mutation dependencies, historical read boundaries, projection completion and lifecycle operations. Start with the [feature tour](/docs/fluxzero-2-overview) to see what you can build, then use this guide to choose the right contract for your application.
+This chapter defines Model and Graph behavior: registration and ownership, persistence representations, mutation dependencies, historical read boundaries, projection completion and lifecycle operations. Start with the [feature tour](/docs/fluxzero-2) to see what you can build, then use this guide to choose the right contract for your application.
 
 The Java and Kotlin examples form a Project/Task domain. Configuration variants replace earlier declarations; they are not extra classes to register alongside them.
 
@@ -19,7 +19,7 @@ The Java and Kotlin examples form a Project/Task domain. Configuration variants 
 
 The API distinction is between an `Entity<T>` inside an Aggregate boundary and an independently persisted `@Model` reached through `Graph<T>`. A Model operation can span several such boundaries. Existing `@Apply`, `@AssertLegal`, `@InterceptApply` and fixture patterns remain applicable.
 
-Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2-overview) shows the programming model in action; the rest of this chapter defines its contracts.
+Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2) shows the programming model in action; the rest of this chapter defines its contracts.
 
 ## Why move beyond one growing aggregate?
 
@@ -100,7 +100,7 @@ Do not infer lifecycle ownership from JSON nesting, or mutation atomicity from a
 
 ## An example: home automation
 
-The [Home example](https://github.com/fluxzero-io/fluxzero-sample-home) exercises these distinctions with recursive Spaces, independent Device observations and integration links. Its [overview diagram](/docs/fluxzero-2-overview#multiple-parents) shows the domain; for implementation, distinguish persisted relationships from ordinary references or application selections. A scene referencing a device does not make the scene the device's lifecycle owner.
+The [Home example](https://github.com/fluxzero-io/fluxzero-sample-home) exercises these distinctions with recursive Spaces, independent Device observations and integration links. Its [overview diagram](/docs/fluxzero-2#multiple-parents) shows the domain; for implementation, distinguish persisted relationships from ordinary references or application selections. A scene referencing a device does not make the scene the device's lifecycle owner.
 
 ### One Model can belong in two views
 

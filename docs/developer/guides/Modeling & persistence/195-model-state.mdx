@@ -183,7 +183,7 @@ Automatic Model command handling still needs application registration. Spring di
 component-scan scope; outside Spring, register the owning types explicitly. Sharing a Model class for reads is not a
 reason to register its write behavior in every application. Separate consumers can each execute the same command.
 
-The [2.0 handling walkthrough](/docs/fluxzero-2#automatic-command-handling-and-existing-handlers) shows before/after
+The [2.0 handling walkthrough](/docs/fluxzero-2-deep-dive#automatic-command-handling-and-existing-handlers) shows before/after
 examples, Spring discovery, consumer placement, disabling automatic handling and calling `Fluxzero.assertAndApply`
-from an existing handler. The [storage table](/docs/fluxzero-2#which-documents-are-stored) explains which configurations
+from an existing handler. The [storage table](/docs/fluxzero-2-deep-dive#which-documents-are-stored) explains which configurations
 maintain per-Model documents or a complete Graph.

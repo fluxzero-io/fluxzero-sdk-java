@@ -290,4 +290,4 @@ unconditional default for all applications. A consumer on a separate Model class
 self-applying command classes. When an explicit command handler owns orchestration, disable that command's automatic
 entry point and call `Fluxzero.assertAndApply` from the handler.
 
-See the [complete handling examples](https://fluxzero.io/docs/fluxzero-2#automatic-command-handling-and-existing-handlers).
+See the [complete handling examples](https://fluxzero.io/docs/fluxzero-2-deep-dive#automatic-command-handling-and-existing-handlers).
