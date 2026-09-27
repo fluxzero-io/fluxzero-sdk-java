@@ -67,6 +67,15 @@ jobs:
         if: steps.changes.outputs.documentation_only != 'true'
         run: ./mvnw -B install
 
+      - name: Preserve test reports and output
+        if: always() && steps.changes.outputs.documentation_only != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: '**/target/surefire-reports/**'
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify standard Maven publication and release attachments
         if: steps.changes.outputs.documentation_only != 'true'
         run: |
