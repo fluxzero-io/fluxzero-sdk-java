@@ -17,6 +17,7 @@ package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.DelegatingClock;
 import io.fluxzero.common.InMemoryTaskScheduler;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.Registration;
@@ -726,8 +727,9 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
-            var deliveryGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource);
-            var requestGuarantee = ApplicationProperties.getRequestDeliveryGuarantee(propertySource);
+            var deliveryOverride = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource, null);
+            var deliveryGuarantee = deliveryOverride == null ? Guarantee.NONE : deliveryOverride;
+            var requestGuarantee = deliveryOverride == null ? Guarantee.SENT : deliveryOverride;
             configureTypeAliases();
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);

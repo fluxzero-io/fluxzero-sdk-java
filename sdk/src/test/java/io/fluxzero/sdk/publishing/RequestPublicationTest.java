@@ -83,12 +83,12 @@ class RequestPublicationTest {
 
     @ParameterizedTest
     @EnumSource(value = Guarantee.class, names = {"NONE", "SENT", "STORED"})
-    void requestUsesStoredRegardlessOfDefaultAndResponseDoesNotWaitForAck(Guarantee configuredDefault) throws Exception {
+    void requestUsesSharedDefaultAndResponseDoesNotWaitForAck(Guarantee configuredDefault) throws Exception {
         try (var fixture = new Fixture()) {
             fixture.gateway.withDefaultGuarantee(configuredDefault);
             var result = fixture.gateway.sendForMessage(new Message("request"), null);
             var publication = fixture.publications.getFirst();
-            assertEquals(Guarantee.STORED, publication.guarantee());
+            assertEquals(configuredDefault, publication.guarantee());
             assertFalse(result.isDone());
             fixture.handler.respond(publication.messages()[0]);
             assertEquals("response", result.get(2, TimeUnit.SECONDS).getPayload());
@@ -185,7 +185,7 @@ class RequestPublicationTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = Guarantee.class, names = {"DEFAULT", "SENT", "STORED"})
+    @EnumSource(value = Guarantee.class, names = {"DEFAULT", "NONE", "SENT", "STORED"})
     void perCallGuaranteeReachesBuiltInGatewaysWithoutWaitingForStorage(Guarantee guarantee) {
         try (var fixture = new Fixture()) {
             fixture.onAppend = fixture.handler::respond;
@@ -274,14 +274,8 @@ class RequestPublicationTest {
             HandlerRegistry local = mock(HandlerRegistry.class);
             DispatchInterceptor interceptor = mock(DispatchInterceptor.class);
             var gateway = fixture.gateway(fixture.handler, local, interceptor);
-            assertThrows(IllegalArgumentException.class,
-                         () -> gateway.send(new LocalCommand(), Metadata.empty(), Guarantee.NONE));
-            assertThrows(IllegalArgumentException.class,
-                         () -> gateway.sendAndWait(new LocalCommand(), Metadata.empty(), Guarantee.NONE));
             assertThrows(NullPointerException.class,
                          () -> gateway.sendForMessage(new Message("request"), Duration.ZERO, null));
-            assertThrows(IllegalArgumentException.class,
-                         () -> gateway.sendForMessages(Guarantee.NONE, new Message[0]));
             verifyNoInteractions(local, interceptor);
             assertTrue(fixture.publications.isEmpty());
         }
@@ -383,7 +377,7 @@ class RequestPublicationTest {
             var mapper = mock(ResponseMapper.class);
             when(mapper.map(any())).thenAnswer(invocation -> new Message(invocation.getArgument(0)));
             return new DefaultGenericGateway(client, transport, requestHandler, new JacksonSerializer(), interceptor,
-                                             MessageType.COMMAND, null, local, mapper).withRequestGuarantee(Guarantee.STORED);
+                                             MessageType.COMMAND, null, local, mapper).withDefaultGuarantee(Guarantee.STORED);
         }
 
         private List<SerializedMessage> requests() {
