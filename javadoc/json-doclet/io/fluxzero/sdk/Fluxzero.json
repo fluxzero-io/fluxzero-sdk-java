@@ -2308,6 +2308,32 @@
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
     "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
+  }, {
+    "name" : "query",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#query",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
       "name" : "query",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -2337,6 +2363,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a query with given payload and metadata and returns a future that will be completed with the query's\n result.\n"
+  }, {
+    "name" : "query",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#query",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
   }, {
     "name" : "queryAndWait",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#queryAndWait",
@@ -2382,6 +2434,32 @@
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
     "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
+  }, {
+    "name" : "queryAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#queryAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
       "name" : "query",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -2411,6 +2489,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a query with given payload and metadata and returns the query's result.\n"
+  }, {
+    "name" : "queryAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#queryAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
   }, {
     "name" : "queryGateway",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#queryGateway",
@@ -3031,6 +3135,32 @@
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
     "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
+  }, {
+    "name" : "sendCommand",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendCommand",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
       "name" : "command",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -3060,6 +3190,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a command with given payload and metadata and returns a future that will be completed with the command's\n result.\n"
+  }, {
+    "name" : "sendCommand",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendCommand",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
   }, {
     "name" : "sendCommandAndWait",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendCommandAndWait",
@@ -3105,6 +3261,32 @@
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
     "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
+  }, {
+    "name" : "sendCommandAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendCommandAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
       "name" : "command",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -3134,6 +3316,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a command with given payload and metadata and returns a future that will be completed with the command's\n result.\n"
+  }, {
+    "name" : "sendCommandAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendCommandAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the given publication guarantee for this request; completion still represents its business response. "
   }, {
     "name" : "sendCommands",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendCommands",

@@ -23,6 +23,22 @@
     "varArgs" : false,
     "documentation" : " Gracefully shuts down this gateway and releases any held resources.\n"
   }, {
+    "name" : "requireDefaultRequestGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#requireDefaultRequestGuarantee",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
     "returnType" : "java.util.concurrent.CompletableFuture<R>",
@@ -63,6 +79,32 @@
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
     "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sends a typed request with a per-call publication guarantee and returns its business response future. "
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
@@ -96,6 +138,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends the given query along with metadata asynchronously and returns a future representing the result.\n\n @param payload  the query payload\n @param metadata additional metadata to attach to the message\n @param <R>      the expected result type\n @return a {@link CompletableFuture} containing the query result\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request with the given publication guarantee. The future represents its business response.\n {@link Guarantee#DEFAULT} uses the configured request policy; {@link Guarantee#SENT} and\n {@link Guarantee#STORED} override it for this call only. {@link Guarantee#NONE} is not supported.\n\n @param payload request payload\n @param metadata request metadata; use {@link Metadata#empty()} when none is needed\n @param guarantee request publication guarantee\n @param <R> response payload type\n @return the business response future\n"
   }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",
@@ -153,6 +221,32 @@
     "name" : "sendAndWait",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
     "returnType" : "R",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sends a typed request with a per-call publication guarantee and waits for its business response. "
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
+    "returnType" : "R",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
@@ -187,6 +281,32 @@
     "varArgs" : false,
     "documentation" : " Sends the given query and metadata, then waits for the result.\n\n @param payload  the query payload\n @param metadata additional metadata to attach to the query\n @param <R>      the expected result type\n @return the result of the query\n"
   }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request with a per-call publication guarantee and waits for its business response.\n Storage acknowledgment does not replace or delay an already available business response.\n"
+  }, {
     "name" : "sendForMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendForMessage",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
@@ -202,6 +322,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends the given {@link Message} and returns a future representing the resulting message.\n This method gives access to the full {@link Message} returned by the query handler.\n\n @param message the message representing the query\n @return a {@link CompletableFuture} with the response message\n"
+  }, {
+    "name" : "sendForMessages",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendForMessages",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Sends full request messages with one publication guarantee and returns business response futures in input order.\n Custom gateways retain their existing batch behavior for {@code DEFAULT}; unsupported explicit guarantees fail.\n"
   }, {
     "name" : "sendForMessages",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#sendForMessages",
