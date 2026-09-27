@@ -15,11 +15,18 @@
 
 package io.fluxzero.sdk.publishing;
 
+import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.AbstractNamespaced;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.Namespaced;
+import io.fluxzero.sdk.tracking.handling.Request;
 import lombok.AllArgsConstructor;
 import lombok.With;
 import lombok.experimental.Delegate;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Default implementation of the {@link CommandGateway} interface.
@@ -35,6 +42,35 @@ public class DefaultCommandGateway extends AbstractNamespaced<CommandGateway> im
     @Delegate(excludes = Namespaced.class)
     @With
     private final GenericGateway delegate;
+
+    @Override
+    public <R> CompletableFuture<R> send(Object payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? send(payload, metadata)
+                : delegate.send(payload, metadata, guarantee);
+    }
+
+    @Override
+    public <R> CompletableFuture<R> send(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? send(payload, metadata)
+                : delegate.send(payload, metadata, guarantee);
+    }
+
+    @Override
+    public <R> R sendAndWait(Object payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? sendAndWait(payload, metadata)
+                : delegate.sendAndWait(payload, metadata, guarantee);
+    }
+
+    @Override
+    public <R> R sendAndWait(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? sendAndWait(payload, metadata)
+                : delegate.sendAndWait(payload, metadata, guarantee);
+    }
+
+    @Override
+    public List<CompletableFuture<Message>> sendForMessages(Guarantee guarantee, Message... messages) {
+        return guarantee == Guarantee.DEFAULT ? sendForMessages(messages) : delegate.sendForMessages(guarantee, messages);
+    }
 
     @Override
     protected CommandGateway createForNamespace(String namespace) {

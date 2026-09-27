@@ -48,3 +48,6 @@ list does not make later external dispatches atomic. Test late failure and inspe
 Use `allowedClasses` only for deliberately broad handler methods that must accept more than one payload type. Prefer a specific payload type on most command handlers so routing and annotation processing stay obvious.
 
 For externally retried command submissions, reuse the same request ID so runtime idempotency can return the prior result instead of reapplying the command. This is request-level behavior for stored WebSocket commands with `Guarantee.STORED` or stronger, keyed by runtime client and request ID. It is not business uniqueness, and it is not a permanent global message-ID dedupe guarantee for every message type.
+
+For request publication policy and per-call `SENT`/`STORED` overrides, see
+[delivery defaults and completion](events.md). The response future still represents the business result.

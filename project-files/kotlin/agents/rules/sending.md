@@ -431,9 +431,45 @@ SDK 2.x resolves it to `STORED`; SDK 1.x normally resolves it to `NONE`, while s
 property name, this setting applies beyond publication. The standard builder resolves its own property source
 before creating components, including namespace views and TestFixture components. Direct WebSocket client calls use
 that client's `ClientConfig.fromProperties(source)` policy, independent of application gateway configuration.
-Metrics retain `NONE`; request/result dispatch retains `SENT`; ordinary bulk execution and explicit `AndWait`
-operations retain `STORED`. Internal model/aggregate/stateful-handler persistence keeps explicit durable guarantees.
+Metrics retain `NONE`. Ordinary bulk execution and explicit `AndWait` operations use `STORED` independently
+of the configured default; result publication follows the configured delivery default. Internal model/aggregate/stateful-handler persistence keeps explicit durable guarantees.
 Explicit concrete guarantees remain unchanged. `DEFAULT` is an SDK choice, never a wire value.
+
+Remote request/reply publication has a separate setting: `fluxzero.publishing.requestGuarantee`
+(`FLUXZERO_PUBLISHING_REQUEST_GUARANTEE`), accepting only `SENT` or `STORED`. Without an override it remains
+`SENT` in compatibility mode and switches to `STORED` from defaults version `2026.09.27`. An explicit value
+wins in either direction; `publishing.defaultGuarantee` does not change it. The builder resolves the owning
+application's source once, including namespace and lazy custom gateways. Direct `DefaultGenericGateway`
+construction retains `SENT`; call `withRequestGuarantee(STORED)` to opt in programmatically.
+
+For a per-call override, use `send(payload, metadata, guarantee)` or
+`sendAndWait(payload, metadata, guarantee)` on a command/query gateway. The corresponding static methods are
+`Fluxzero.sendCommand`, `sendCommandAndWait`, `query`, and `queryAndWait`. Typed `Request<R>` payloads retain
+result-type inference. Pass `Metadata.empty()` when no metadata is needed.
+
+```java
+Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT);
+Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED);
+```
+
+```kotlin
+Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT)
+Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED)
+```
+
+`DEFAULT` uses the application's **request** policy described above; it is not an unconditional `STORED` and
+never resolves through the general `publishing.defaultGuarantee`. Existing calls without a guarantee keep that
+same policy. `SENT` or `STORED` overrides only this invocation. `NONE` is invalid for request/reply. Batch callers
+can use `gateway.sendForMessages(guarantee, messages...)`; `GenericGateway` also accepts
+`sendForMessage(message, timeout, guarantee)`. Neither override adds delay to form larger batches nor forces
+locally handled requests through the Runtime. Custom gateway implementations retain their existing behavior for
+`DEFAULT`; they must implement explicit guarantees to support `SENT`/`STORED`, otherwise these fail explicitly.
+
+Request/reply futures complete on the business response without waiting for storage acknowledgment. With `STORED`,
+the outgoing-write batch barrier does await storage before advancing the input position. This stronger boundary
+can reduce throughput in short request chains; qualify the application before opting in. An asynchronous publication
+failure fails pending response futures and removes correlation callbacks. Transport retries do not add a
+business-level retry or an exactly-once guarantee across Runtime replacement.
 
 Convenience calls return after dispatch/local handling, without waiting for each remote storage acknowledgement.
 The default consumer's `awaitOutgoingWrites=true` waits for registered outgoing-command futures before committing

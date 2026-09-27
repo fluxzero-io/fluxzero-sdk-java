@@ -107,11 +107,12 @@ public class DefaultWebRequestContext implements WebRequestContext {
                 .map(scheme -> scheme + "://" + uri.getHost() + Optional.of(uri.getPort())
                         .filter(p -> p >= 0).map(p -> ":" + p).orElse("")).orElse(null);
         queryParameters = parseParameters(uri.getRawQuery());
-        cookieMap = WebRequest.parseCookieHeaders(WebRequest.getHeaders(metadata).getOrDefault("Cookie", List.of()))
+        Map<String, List<String>> headers = WebRequest.getHeaders(metadata);
+        cookieMap = WebRequest.parseCookieHeaders(headers.getOrDefault("Cookie", List.of()))
                 .stream().collect(toMap(HttpCookie::getName, HttpCookie::getValue, (first, ignored) -> first,
                                         LinkedHashMap::new));
         remoteAddress = Stream.of("X-Forwarded-For", "Forwarded", "X-Real-IP")
-                .flatMap(h -> WebRequest.getHeader(metadata, h).stream())
+                .flatMap(h -> headers.getOrDefault(h, List.of()).stream().findFirst().stream())
                 .flatMap(s -> {
                     Matcher matcher = IP_PATTERN.matcher(s);
                     return matcher.find() ? Stream.of(matcher.group()) : Stream.empty();

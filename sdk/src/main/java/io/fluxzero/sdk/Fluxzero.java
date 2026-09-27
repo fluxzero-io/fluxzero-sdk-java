@@ -454,6 +454,46 @@ public interface Fluxzero extends AutoCloseable {
     }
 
 
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> CompletableFuture<R> sendCommand(Object payload, Metadata metadata, Guarantee guarantee) {
+        return get().commandGateway().send(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> CompletableFuture<R> sendCommand(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return get().commandGateway().send(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> R sendCommandAndWait(Object payload, Metadata metadata, Guarantee guarantee) {
+        return get().commandGateway().sendAndWait(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> R sendCommandAndWait(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return get().commandGateway().sendAndWait(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> CompletableFuture<R> query(Object payload, Metadata metadata, Guarantee guarantee) {
+        return get().queryGateway().send(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> CompletableFuture<R> query(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return get().queryGateway().send(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> R queryAndWait(Object payload, Metadata metadata, Guarantee guarantee) {
+        return get().queryGateway().sendAndWait(payload, metadata, guarantee);
+    }
+
+    /** Uses the given publication guarantee for this request; completion still represents its business response. */
+    static <R> R queryAndWait(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return get().queryGateway().sendAndWait(payload, metadata, guarantee);
+    }
+
     /**
      * Sends the given command and returns a future that will be completed with the command's result. The command may be
      * an instance of a {@link Message} in which case it will be sent as is. Otherwise the command is published using
