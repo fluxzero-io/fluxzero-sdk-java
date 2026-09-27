@@ -52,6 +52,32 @@
     "varArgs" : false,
     "documentation" : " Closes any open resources associated with this client.\n <p>\n Once closed, the client should no longer be used to fetch or commit tracking state.\n"
   }, {
+    "name" : "disconnectTerminatedTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#disconnectTerminatedTracker",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Releases a terminated local tracker, including any abandoned asynchronous reads still completing.\n The caller must have finished processing and must not issue further reads with this tracker identity.\n Wrappers that can initiate follow-up reads should override this method to release after those reads as well.\n This does not change the semantics of a temporary {@link #disconnectTracker}.\n"
+  }, {
     "name" : "disconnectTracker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient#disconnectTracker",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

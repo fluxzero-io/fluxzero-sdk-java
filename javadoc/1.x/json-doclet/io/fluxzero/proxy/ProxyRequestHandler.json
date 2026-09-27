@@ -330,6 +330,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "appendWebRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#appendWebRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "io.fluxzero.common.api.SerializedMessage[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "applyBenchmarkTraceHeaders",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#applyBenchmarkTraceHeaders",
     "returnType" : "void",

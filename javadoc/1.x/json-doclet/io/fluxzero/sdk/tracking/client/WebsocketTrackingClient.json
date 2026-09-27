@@ -29,6 +29,19 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "pendingDisconnects",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient.pendingDisconnects",
+    "type" : "java.util.Set<java.util.concurrent.CompletableFuture<java.lang.Void>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "topic",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient.topic",
     "type" : "java.lang.String",
@@ -104,6 +117,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "canAwaitTrackerShutdown",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#canAwaitTrackerShutdown",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "claimSegment",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#claimSegment",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.tracking.ClaimSegmentResult>",
@@ -140,6 +164,35 @@
     } ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "disconnectTerminatedTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#disconnectTerminatedTracker",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackerId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

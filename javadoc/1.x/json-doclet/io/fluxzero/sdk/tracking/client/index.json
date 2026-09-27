@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient",
     "kind" : "class"
   }, {
+    "file" : "CachingTrackingClient.PendingRead.json",
+    "name" : "CachingTrackingClient.PendingRead",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient$PendingRead",
+    "kind" : "class"
+  }, {
     "file" : "DefaultTracker.json",
     "name" : "DefaultTracker",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker",

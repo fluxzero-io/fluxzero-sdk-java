@@ -141,6 +141,22 @@
     "thrownTypes" : [ "java.lang.Exception" ],
     "varArgs" : false,
     "documentation" : " Starts Jetty on the given port.\n\n <p>The server does not register Jetty's JVM shutdown hook. When the returned server is stopped, the router shuts\n down any endpoints it created.</p>\n\n @return the started Jetty server, owned by the caller\n"
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter#start",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "address",
+      "type" : "java.net.InetSocketAddress",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : "Starts Jetty at the given address; the returned server is owned by the caller. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

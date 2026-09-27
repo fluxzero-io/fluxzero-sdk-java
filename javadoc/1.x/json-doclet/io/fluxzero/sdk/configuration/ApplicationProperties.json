@@ -448,6 +448,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getRequestDeliveryGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getRequestDeliveryGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves request/reply delivery from the shared {@link #DEFAULT_DELIVERY_GUARANTEE_PROPERTY}.\n Without an override SDK 2.x uses {@link Guarantee#STORED} and SDK 1.x retains {@link Guarantee#SENT}.\n The defaults version has no effect. Explicit NONE, SENT and STORED are all honored.\n Business responses remain independent of publication acknowledgments.\n\n @param propertySource application-local properties\n @return a concrete delivery guarantee\n @throws IllegalArgumentException if an explicit guarantee is invalid\n"
+  }, {
     "name" : "getTaskId",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getTaskId",
     "returnType" : "java.lang.String",

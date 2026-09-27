@@ -26,6 +26,22 @@
     "varArgs" : false,
     "documentation" : " Closes this gateway and releases any underlying resources.\n"
   }, {
+    "name" : "requireDefaultRequestGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#requireDefaultRequestGuarantee",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#send",
     "returnType" : "java.util.concurrent.CompletableFuture<R>",
@@ -86,6 +102,32 @@
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
     "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sends a typed request with a per-call publication guarantee and returns its business response future. "
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
       "name" : "message",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -115,6 +157,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a message with custom metadata and returns a future with its response.\n"
+  }, {
+    "name" : "send",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#send",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request with the given publication guarantee. The future represents its business response.\n {@link Guarantee#DEFAULT} uses {@code fluxzero.publishing.defaultGuarantee}, with the SDK major-version\n request default when unconfigured. {@link Guarantee#NONE}, {@link Guarantee#SENT} and\n {@link Guarantee#STORED} override publication for this call only; the business result is still awaited.\n\n @param payload request payload\n @param metadata request metadata; use {@link Metadata#empty()} when none is needed\n @param guarantee request publication guarantee\n @param <R> response payload type\n @return the business response future\n"
   }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#send",
@@ -369,6 +437,32 @@
     "annotations" : [ ],
     "typeParameters" : [ "R" ],
     "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sends a typed request with a per-call publication guarantee and waits for its business response. "
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
       "name" : "message",
       "type" : "java.lang.Object",
       "varArgs" : false,
@@ -401,6 +495,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a message with metadata and blocks for a response.\n"
+  }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request with a per-call publication guarantee and waits for its business response.\n Storage acknowledgment does not replace or delay an already available business response.\n"
   }, {
     "name" : "sendForMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendForMessage",
@@ -438,6 +558,53 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Sends a single request message with the given effective timeout.\n <p>\n The effective timeout is used for the returned future and is propagated as request metadata so tracking handlers\n can skip stale indexed requests before invocation. If {@code timeout} is {@code null}, the gateway falls back to\n timeout metadata already present on the message, then {@link Timeout @Timeout} on the payload class, and finally\n the request handler default. A negative timeout disables timeout handling for this request.\n\n @param message the message to send\n @param timeout the timeout for this request; {@code null} uses the gateway/request handler defaults\n @return a future that completes with the response message\n"
+  }, {
+    "name" : "sendForMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendForMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a full request with a per-call publication guarantee and effective timeout.\n Timeout interpretation is identical to {@link #sendForMessage(Message, Duration)}.\n Custom gateways retain their existing timeout behavior for {@code DEFAULT}; unsupported explicit guarantees fail.\n"
+  }, {
+    "name" : "sendForMessages",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendForMessages",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Sends full request messages with one publication guarantee and returns business response futures in input order.\n Custom gateways retain their existing batch behavior for {@code DEFAULT}; unsupported explicit guarantees fail.\n"
   }, {
     "name" : "sendForMessages",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GenericGateway#sendForMessages",

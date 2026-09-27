@@ -109,6 +109,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "requestGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.requestGuarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "requestHandler",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.requestHandler",
     "type" : "io.fluxzero.sdk.publishing.RequestHandler",
@@ -214,6 +222,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "appendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#appendRequest",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publication",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.common.api.SerializedMessage[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#close",
     "returnType" : "void",
@@ -235,6 +269,11 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "requests",
       "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest>",
       "varArgs" : false,
@@ -459,6 +498,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveRequestGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#resolveRequestGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendAndForget",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendAndForget",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -564,6 +619,59 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendAndWait",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendAndWait",
+    "returnType" : "R",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendAndWaitMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendAndWaitMessage",
+    "returnType" : "R",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendAndWaitTimeout",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendAndWaitTimeout",
     "returnType" : "java.time.Duration",
@@ -604,6 +712,59 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sendForMessage",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendForMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendForMessages",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendForMessages",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "sendForMessages",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendForMessages",
     "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
@@ -623,6 +784,53 @@
     "varArgs" : true,
     "documentation" : null
   }, {
+    "name" : "sendMessages",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendMessages",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendRequest",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sendRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#sendRequest",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.common.Message>",
@@ -630,6 +838,11 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "request",
       "type" : "io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest",
       "varArgs" : false,
@@ -646,6 +859,11 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "requests",
       "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
       "varArgs" : false,
@@ -667,6 +885,11 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "requests",
       "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultGenericGateway.PendingRequest>",
       "varArgs" : false,
@@ -683,6 +906,11 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.Message",
       "varArgs" : false,
@@ -817,7 +1045,23 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Configures the concrete application delivery default before first use. Namespace gateways inherit this value.\n The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.\n\n @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
+    "documentation" : " Configures the concrete application delivery default before first use. Namespace gateways inherit this value.\n The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.\n This applies to both fire-and-forget and request/reply publication, including an explicit NONE.\n\n @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
+  }, {
+    "name" : "withRequestGuarantee",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#withRequestGuarantee",
+    "returnType" : "io.fluxzero.sdk.publishing.DefaultGenericGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Configures remote request/reply delivery before first use. Direct construction defaults to {@code SENT};\n the standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source,\n independently of the defaults version. Namespace gateways inherit this value.\n Business response completion does not await storage.\n\n @param guarantee concrete publication guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

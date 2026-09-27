@@ -647,6 +647,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "canAwaitShutdownResults",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#canAwaitShutdownResults",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether orderly shutdown may wait for callbacks without waiting on the calling result worker itself. "
+  }, {
     "name" : "captureReceiveTiming",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#captureReceiveTiming",
     "returnType" : "boolean",
@@ -1767,6 +1778,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "pendingResponses",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#pendingResponses",
+    "returnType" : "java.util.List<java.util.concurrent.CompletableFuture<io.fluxzero.common.api.RequestResult>>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "filter",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.api.Request>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Snapshots pending responses for lifecycle cleanup without changing their delivery or retry behavior. "
   }, {
     "name" : "publishTransportMetric",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishTransportMetric",
