@@ -405,8 +405,10 @@ to compensate for lost revisions; historical inspection through `previous()` req
 Automatic model commands in one tracking batch and ordered routing segment have read-your-writes. A later command sees
 an earlier staged model update, including changed parent and ancestor relations, before the earlier commit completes.
 When their read/write sets overlap, the later command waits for the predecessor's durable result and is then
-reevaluated against canonical state before committing. Predecessor failure fails the dependent chain. Unrelated model
-chains remain parallel.
+reevaluated against canonical state before committing. A Model command that consumed provisional state is reevaluated
+after its predecessor settles, including when that predecessor is rejected during reevaluation; its own assertions
+then determine its result. This does not suppress commit transport failures or remove the producer-success barrier
+for ordinary handlers whose results depend on pending state. Unrelated Model chains remain parallel.
 
 A command rejected during validation does not fail independent commands in that batch, including deferred commits.
 Each command retains its own commit/result outcome. A real outer batch abort still stops pending batch work;
@@ -453,6 +455,10 @@ The same line belongs to its order and has a non-owning Graph relation to its pr
 to the line; deleting the product does not. Both relations support typed Graph navigation. The product edge has no
 `pathInParent`, so it is not automatically included in a product's composed document. Leave off `@Parent` on
 `productId` instead when only the reference value is needed, without Graph navigation.
+
+Deleting the non-owning Product removes the active Graph edge but does not rewrite the surviving LineItem's
+`productId` field. A current Graph no longer exposes that parent. Record a replacement or cleared reference with an
+explicit domain action when required. Deleting Order removes LineItem, never Product through that child relation.
 
 `deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Enforce a domain
 rule separately when deletion must be refused while references exist. `@Parent` is not an unrestricted foreign-key

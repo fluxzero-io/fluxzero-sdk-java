@@ -60,6 +60,36 @@ Head-only writes remain batchable. Physical cleanup advances the namespace and a
 payload/history formats are unchanged. Custom repositories must return SDK views such as `Graphs.compose` for
 transactional navigation; opaque custom Graphs fail explicitly, while ordinary custom reads remain supported.
 
+## Choose the reads a rule actually needs
+
+Membership and values are separate dependencies. For a Project limited to five Tasks:
+
+| Read | Java | Kotlin | Decision evidence |
+| --- | --- | --- | --- |
+| Count Task children | `project.children(Task.class).size()` | `project.children(Task::class.java).size` | Matching membership, including an empty result; no Task values are needed |
+| Inspect Task values | `project.childModels(Task.class)` | `project.childModels(Task::class.java)` | Membership and the returned Task values |
+
+Injected Project state is another read dependency if an apply requests `Project`, even if the assertion only counts
+children. Use the smallest read that expresses the rule; loading every child's value creates unnecessary conflicts.
+Class-based selection covers locally known types only. For a cross-application count that includes unknown types,
+use `namedChildren(exactModelName, false)` and count the returned placements without requesting their values.
+
+## Follow one composed operation
+
+Suppose Project has three Tasks and a registered `@InterceptApply` expands one command into ordered AddTask A and
+AddTask B payloads. Each AddTask checks the five-Task limit before returning its new Task:
+
+1. A sees three children and stages a fourth Task and its parent relationship.
+2. B sees four children, including staged A, and stages a fifth.
+3. Commit validates the consumed reads and persists both additions atomically. No intermediate commit exposes A alone.
+
+Starting with four Tasks instead, A stages successfully but B sees five and rejects. Neither addition is stored.
+A storage conflict under RETRY reruns the entire operation against a fresh attempt boundary; it does not retry only
+B against leftover staged A. The ordinary business rejection itself is not retried hoping the rule becomes valid.
+Put the capacity assertion on AddTask: an assertion matching only the intercepted wrapper does not protect its
+replacement payloads. Separately dispatched commands remain separate operations, even inside one handler.
+Keep outgoing HTTP, scheduling and other external effects outside retryable assertions, interceptors and applies.
+
 ## Automatic routing
 
 With `fluxzero.defaults.version >= 2026.09.10`, or `fluxzero.model.automaticRouting=true`, a command with one statically
