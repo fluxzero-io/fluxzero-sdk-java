@@ -21,6 +21,9 @@ import io.fluxzero.common.SearchUtils;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.search.DefaultDocumentSerializer;
+import io.fluxzero.common.search.Document;
+import io.fluxzero.common.search.JacksonInverter;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -34,6 +37,7 @@ import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -52,13 +56,16 @@ final class MaterializedGraphFactory {
             SerializedDocument document, Class<T> rootType, DocumentSerializer documentSerializer,
             Supplier<ModelRepository> repositorySupplier, Collection<Class<?>> registeredModelTypes,
             Map<String, String> pathOverrides) {
-        ModelGraphDocumentManifest manifest = ModelGraphDocumentManifest.from(document)
+        DocumentSnapshot snapshot = DocumentSnapshot.of(document);
+        ModelGraphDocumentManifest manifest = ModelGraphDocumentManifest.from(
+                snapshot == null ? document.getMetadata() : JacksonInverter.extractMetadata(snapshot.entries()))
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Graph document %s has no typed model graph manifest".formatted(document.getId())));
+        SerializedDocument sourceDocument = snapshot == null ? document : snapshot.document(document);
         return create(new Source(
                 document.getId(), document.getCollection(), document.getTimestamp(), document.getEnd(),
                 documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, manifest, null,
-                () -> Source.rawJson(document, documentSerializer)), rootType);
+                () -> Source.rawJson(sourceDocument, documentSerializer)), rootType);
     }
 
     static <T> Graph<T> create(
@@ -114,6 +121,35 @@ final class MaterializedGraphFactory {
         return Graphs.materialized(
                 nodes, rootType, source.manifest.stateIndex(), source.previousStateIndex, source.repository,
                 source.declaredPaths, source.pathOverrides);
+    }
+
+    /** Owns a Graph search result's bytes and entries; the manifest and lazy values use the same snapshot. */
+    private record DocumentSnapshot(byte[] bytes, String type, int revision,
+                                    Map<Document.Entry, List<Document.Path>> entries)
+            implements JacksonInverter.DocumentBytes {
+        private static DocumentSnapshot of(SerializedDocument document) {
+            Data<byte[]> source = document.serializedDataIfPresent().orElse(null);
+            if (source == null || !DefaultDocumentSerializer.INSTANCE.canDeserialize(source)) {
+                return null;
+            }
+            byte[] bytes = source.getValue().clone();
+            Map<Document.Entry, List<Document.Path>> entries = DefaultDocumentSerializer.INSTANCE.deserialize(
+                    new Data<>(bytes, source.getType(), source.getRevision(), source.getFormat()));
+            entries.replaceAll((entry, paths) -> Collections.unmodifiableList(paths));
+            return new DocumentSnapshot(bytes, source.getType(), source.getRevision(), Collections.unmodifiableMap(entries));
+        }
+
+        private SerializedDocument document(SerializedDocument original) {
+            // Custom serializers retain the complete envelope, but never obtain the private mutable decode cache.
+            return new SerializedDocument(original.getId(), original.getTimestamp(), original.getEnd(),
+                    original.getCollection(), new Data<>(this, type, revision, Data.DOCUMENT_FORMAT),
+                    original.getSummary(), original.getFacets(), original.getIndexes());
+        }
+
+        @Override public byte[] get() { return bytes.clone(); }
+        @Override public byte[] array() { return bytes; }
+        @Override public int offset() { return 0; }
+        @Override public int length() { return bytes.length; }
     }
 
     private static final class Source {

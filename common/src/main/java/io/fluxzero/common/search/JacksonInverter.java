@@ -507,12 +507,23 @@ public class JacksonInverter implements Inverter<JsonNode> {
         return data;
     }
 
+    /**
+     * Optional read-only input capability for entries decoded from the exact backing document bytes. Callers must
+     * own an immutable snapshot of both bytes and entries. Type/revision changes may retain this capability;
+     * replacing or mapping the payload must drop it. Converters still process the ordinary Data envelope.
+     */
+    public interface DocumentBytes extends Data.ByteArrayView {
+        Map<Entry, List<Path>> entries();
+    }
+
     @SuppressWarnings("unchecked")
     protected Data<JsonNode> fromData(Data<byte[]> data) {
         if (JSON_FORMAT.equals(data.getFormat())) {
             return data.map(d -> getObjectMapper().readTree(d));
         }
-        Map<Entry, List<Path>> entries = DefaultDocumentSerializer.INSTANCE.deserialize(data);
+        Map<Entry, List<Path>> entries = DOCUMENT_FORMAT.equals(data.getFormat())
+                && data.byteArrayView() instanceof DocumentBytes cached
+                ? cached.entries() : DefaultDocumentSerializer.INSTANCE.deserialize(data);
         if (entries.isEmpty()) {
             return toJsonData(NullNode.getInstance(), data);
         }

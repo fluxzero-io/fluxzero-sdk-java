@@ -114,6 +114,8 @@ node's search summary instead of reconstructing it from every deserializable fie
 
 Both live and stored searches return complete composed documents for the selected Graphs. Their typed Java node
 values are converted lazily and cached locally; NONE does not defer fetching each included child until serialization.
+For standard binary search results, structural metadata and lazy values share one private source snapshot. Its decoded
+entries are reused while node upcasters and configured document serializers still run through their normal routes.
 Serializing a complete Graph visits every included node, converts any unread values and builds the JSON output.
 Those included values need no additional repository reads. Custom Graph properties or content filters can perform
 their own work, including navigation outside the returned scope. Large result pages therefore still cost CPU,
