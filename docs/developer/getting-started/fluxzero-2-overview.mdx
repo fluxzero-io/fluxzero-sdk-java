@@ -7,26 +7,108 @@ sidebar:
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
+import OverviewFigure from './_components/OverviewFigure.astro';
 
-With a fixed Aggregate boundary, an application can outgrow the way its state was originally organised. A Project accumulates Tasks, notes and attachments. Reading or updating one small part can require loading an increasingly large whole. Moving a Task to another Project crosses the boundary that owns its history, while a new business rule may span objects stored in separate Aggregates.
+**Fluxzero 2.0 removes a fundamental constraint that has shaped every Fluxzero application until now.**
 
-Fluxzero 2.0 starts with a seemingly small change: **related objects no longer need to live inside the same Aggregate**. It introduces **independent Models connected through Graphs**. Each Model has its own state, history and lifecycle. A Graph provides access to related Models, and one operation can change several Models atomically.
+Before 2.0, Fluxzero used Aggregates to give domain state a clear, yet rigid structure. It was a powerful model, but it forced the domain into separate trees. Each tree had to serve four different concerns that did not necessarily share the same natural boundary. Whenever those boundaries diverged, the Aggregate model fell short.
 
-You can extend a domain without expanding its roots, change relationships while objects retain their own history, and choose which objects a rule or view needs. Those choices no longer all have to follow the same fixed boundary.
+1. **Relationships: what belongs together**
+   Consider a project-management domain. A Task belongs to a Project. But what if that same Task also belongs to the Sprint in which it is planned? A tree can place the Task below only one root. The other relationship must cross the tree boundary or be duplicated.
 
-Commands, queries, events, `@Apply`, `@AssertLegal`, `@InterceptApply` and `TestFixture` remain familiar. The examples below show the new capabilities; each section links to the detailed behavior and configuration.
+2. **Consistency: what changes together**
+   An Aggregate can change its root and Members atomically. But what if a Task moves from one Project to another? One business operation now affects two trees. Before 2.0, such a move required separate Aggregate commits, so it could not be stored atomically.
+
+   Atomicity was only part of the problem. The Task's existing events belonged to the original Project stream. Its history could not move with it. Nested notes and attachments also had to be transferred, while their earlier changes remained part of the old Aggregate's history.
+
+   <OverviewFigure name="aggregate-move" />
+
+3. **Persistence: what is stored together**
+   An event-sourced Aggregate gives its complete tree one shared history. But what if related state has different persistence needs? The business decisions made about a Task may need an event-sourced history. An externally reported progress status may change constantly while only its latest value matters. That status may be better stored as a document.
+
+4. **Loading: what is loaded together**
+   `@Member` and `loadEntity` made a Task directly addressable. But what if its Project contains thousands of other Tasks, notes and attachments? Loading that one Task still meant reconstructing the containing Project. Every Task change also passed through the same root. As the tree grew, that root became both a loading cost and a common gatekeeper for otherwise independent work.
+
+   <OverviewFigure name="aggregate-load" />
+
+**There was no Aggregate boundary that solved all four concerns.**
+
+One option was to make the tree larger. Project, Sprint and Task could all be placed below a common root such as Workspace. That would bring their changes back inside one Aggregate, but it would also produce a god model. More state, history and traffic would accumulate behind the same root.
+
+The other option was to split the tree into smaller Aggregates. That reduced loading costs, but lost atomic consistency across them. Moving a Task then required separate writes. All-or-nothing behavior needed custom coordination and compensation logic. Those writes and any rollback were still eventually consistent, so other processes could observe intermediate states.
+
+**Once chosen, that boundary became increasingly difficult to change.**
+
+Smaller Aggregates were difficult to evolve too. For example, if existing Projects later had to belong to different Organisations to support multiple tenants, their histories contained no Organisation ownership. Adding that boundary meant migrating the existing histories or making Organisation another, even larger Aggregate root.
+
+A boundary chosen to solve one concern constrained the others. Once events had been recorded against that boundary, the choice was also encoded into the domain's history.
+
+**Fluxzero 2.0 provides a way out by separating these four concerns.**
+
+It does so by shifting the consistency boundary from the Aggregate being changed to the change itself. At first glance, the programming model remains familiar. Commands, applies, assertions and tests still work much as before. Yet its consequences for the domain model are fundamental.
+
+**Before 2.0**
+
+```mermaid
+flowchart LR
+    C[Complete Task A]
+
+    subgraph aggregate["Project Aggregate"]
+        P[Project root] --> A[Task A]
+        P --> B[Task B]
+        A --> N[Note]
+    end
+
+    C --> P
+    classDef command fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a,rx:4,ry:4
+    classDef entity fill:#ede9fe,stroke:#8b5cf6,color:#3b276b,rx:4,ry:4
+    class C command
+    class P,A,B,N entity
+    style aggregate fill:#f8fafc,stroke:#94a3b8,color:#334155
+    linkStyle default stroke:#64748b,stroke-width:1.5px
+```
+
+**Fluxzero 2.0**
+
+<div style="background:rgba(0,0,0,0.02);border-radius:8px;padding:16px;margin:1.5rem 0">
+<svg viewBox="0 0 600 220" role="img" aria-labelledby="independent-models-title" style="display:block;width:100%;max-width:600px;margin:0 auto;color:#64748b;font:16px var(--sl-font)">
+  <title id="independent-models-title">Complete Task A addresses Task A directly. Note points to Task A, and Task A points to Project through dotted parent relationships.</title>
+  <defs>
+    <marker id="independent-models-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+    </marker>
+  </defs>
+  <rect x="215" y="20" width="170" height="48" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1" />
+  <g fill="#ede9fe" stroke="#8b5cf6" stroke-width="1">
+    <rect x="30" y="145" width="120" height="48" rx="4" />
+    <rect x="240" y="145" width="120" height="48" rx="4" />
+    <rect x="450" y="145" width="120" height="48" rx="4" />
+  </g>
+  <g fill="#3b276b" text-anchor="middle" dominant-baseline="middle">
+    <text x="300" y="44" fill="#1e3a8a">Complete Task A</text>
+    <text x="90" y="169">Note</text>
+    <text x="300" y="169">Task A</text>
+    <text x="510" y="169">Project</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#independent-models-arrow)">
+    <path d="M 300 68 V 143" />
+    <path d="M 150 169 H 238" stroke-dasharray="3 5" />
+    <path d="M 360 169 H 448" stroke-dasharray="3 5" />
+  </g>
+</svg>
+</div>
+
+The domain relationships have not changed. Before 2.0, completing Task A addressed the Project Aggregate, so its complete tree was the storage, loading and consistency boundary. In 2.0, the operation addresses Task A directly. Note, Task and Project remain connected, but no longer form one rigidly stored object tree. Children point to their parents through loose relationships.
+
+When an operation needs more than one Model, it can include those Models in the same consistency boundary without merging their state or histories.
+
+The following sections show those consequences one concern at a time, with links to the corresponding [deep dive](/docs/fluxzero-2-deep-dive).
 
 ## Independent state and history
 
 In an Aggregate design, an embedded Task shares the Project's state and event history. With Models, Project, Task, Note and Attachment can each have their own persistence boundary. `@Parent` connects them without embedding their state.
 
-```mermaid
-flowchart LR
-    P[Project] --> T1[Task]
-    P --> T2[Task]
-    T1 --> N[Note]
-    T1 --> A[Attachment]
-```
+<OverviewFigure name="streams" />
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -63,7 +145,40 @@ data class Task(
 
 A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, notes or attachments does not make them part of every Task load. Each Model also has its own history and erasure boundary. The examples use typed IDs (`ProjectId`, `TaskId`) and small value objects for details.
 
-[Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2-deep-dive#model-the-lifecycle-then-choose-storage)
+Consider a Project with **100,000 events**, while the Task you want to complete has only **10 events of its own**:
+
+<OverviewFigure name="replay" />
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+// Aggregate design: both lookups reconstruct the containing root.
+Fluxzero.loadAggregate("launch", Project.class);
+Fluxzero.loadEntity("task-a", Task.class);
+
+// Model design: load this Task's own state.
+Fluxzero.loadModel(taskId);
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+// Aggregate design: both lookups reconstruct the containing root.
+Fluxzero.loadAggregate("launch", Project::class.java)
+Fluxzero.loadEntity("task-a", Task::class.java)
+
+// Model design: load this Task's own state.
+Fluxzero.loadModel(taskId)
+```
+
+</TabItem>
+</Tabs>
+
+The Aggregate calls refer to the earlier embedded design; the Model call uses the independent declarations above. Snapshots and caching reduce repeated work; independent Models also reduce the amount of unrelated state that a Task load needs to retain.
+
+[Deep dive: load, cache and document costs](/docs/fluxzero-2-deep-dive#small-changes-large-persistence-boundaries) · [Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2-deep-dive#model-the-lifecycle-then-choose-storage)
 
 ## Automatic command handling
 
@@ -144,6 +259,8 @@ The same resolution is available in assertions and applies. The handler does not
 
 A Task with a stable ID can move to another Project by changing its parent reference. Its own history remains attached to the Task, and its notes and attachments remain connected to the same Task ID. Reorganising the work becomes a change to a relationship, without removing and recreating the Task and its descendants under another root.
 
+<OverviewFigure name="model-move" />
+
 <Tabs syncKey="language">
 <TabItem label="Java">
 
@@ -176,6 +293,8 @@ For an embedded member, moving between Aggregates requires changing both roots a
 ## Atomic updates across Models
 
 One Model operation can update several independent roots. It can also compose existing commands through `@InterceptApply`. In this example, all selected Tasks are completed in one atomic operation.
+
+<OverviewFigure name="atomic" />
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -261,6 +380,8 @@ Read dependencies can also include unrelated Models, such as an Account whose sp
 
 A Graph injected into a Model event handler is bound to that event's state. If a Task was completed and then reopened before the completion event is handled, this handler reads the completed revision. `previous()` selects the state before completion.
 
+<OverviewFigure name="history" />
+
 <Tabs syncKey="language">
 <TabItem label="Java">
 
@@ -329,6 +450,8 @@ A consumer maintaining a Project view does not need a separate handler for each 
 
 Keeping Models independent does not require clients to assemble every view themselves. A Project screen can receive its Tasks and notes together, even though each has its own state and lifecycle.
 
+<OverviewFigure name="response" />
+
 An endpoint can return `Graph<Project>` directly. Serialization combines the Project with its independently stored Tasks at their declared `pathInParent` paths.
 
 <Tabs syncKey="language">
@@ -361,7 +484,7 @@ The HTTP response contains the composed JSON:
   "details": { "name": "Launch" },
   "tasks": [
     {
-      "taskId": "ship",
+      "taskId": "task-a",
       "projectId": "launch",
       "details": { "title": "Ship 2.0" },
       "completed": true
@@ -479,19 +602,47 @@ data class InternalNote(
 
 A Model can have several parents. In the [Home example application](https://github.com/fluxzero-io/fluxzero-sample-home), one integration link connects a household Device and its Home Assistant connection:
 
-```mermaid
-flowchart LR
-    H[Home] --> S[Space]
-    S --> D[Device]
-    H --> C[Home Assistant connection]
-    D --> L[Integration link]
-    C --> L
-    D --> O[Device status]
-```
+<OverviewFigure name="parents" />
 
-The link is reachable through either parent and is stored once. Deleting the integration removes its links while the household Devices and their histories remain. Relationship ownership can therefore differ from the shape of an application view.
+Deleting the integration removes its links while the household Devices and their histories remain. Relationship ownership can therefore differ from the shape of an application view.
 
 [Deep dive: multiple parents, ownership and graph shape](/docs/fluxzero-2-deep-dive#more-than-one-hierarchy)
+
+## Persistence and retention per Model
+
+Different parts of the same domain can have different persistence needs. Task keeps its event history; an externally reported status may only need its latest value. The status can still belong to the Task Graph:
+
+<OverviewFigure name="persistence" />
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Model(persistence = ModelPersistence.DOCUMENT)
+record TaskStatus(
+        @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") TaskId taskId,
+        boolean online) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(persistence = [ModelPersistence.DOCUMENT])
+data class TaskStatus(
+    @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") val taskId: TaskId,
+    val online: Boolean
+)
+```
+
+</TabItem>
+</Tabs>
+
+Loading Task does not load its status. Updating the status does not append to Task's history. Adding event sourcing to the status is a per-Model choice when its own history matters.
+
+Independent history also gives you a smaller physical-erasure boundary. You can erase a completed approval process without erasing the Project and every Task beside it.
+
+[Deep dive: per-Model persistence](/docs/fluxzero-2-deep-dive#different-persistence-for-different-parts) · [Physical deletion scope](/docs/fluxzero-2-deep-dive#delete-one-part-without-deleting-the-whole)
 
 ## Parent-owned schedules and deletion
 

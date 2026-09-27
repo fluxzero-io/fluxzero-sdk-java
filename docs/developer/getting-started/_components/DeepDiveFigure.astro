@@ -1,0 +1,84 @@
+---
+import ModelFigure, { type Tone, type Box, type Panel, type Diagram } from './ModelFigure.astro';
+const box = (x: number, y: number, w: number, lines: string[], tone: Tone = 'entity', h = 64): Box => ({ x, y, w, h, lines, tone });
+const panel = (x: number, y: number, w: number, h: number, title: string, tone: Tone = 'neutral'): Panel => ({ x, y, w, h, title, tone });
+const diagrams: Record<string, Diagram> = {
+  schema: {
+    title: 'Project changes schema while its Task nodes keep their own revisions',
+    caption: 'Project’s upcaster moves name into details.name. Both Task nodes remain at schema revision 3; evolving the root does not force a new child schema.',
+    height: 310,
+    panels: [panel(16, 12, 288, 280, 'Stored schema'), panel(336, 12, 288, 280, 'After upcasting')],
+    boxes: [box(30, 55, 260, ['Project · schema revision 0', 'name: "Launch"']), box(350, 55, 260, ['Project · schema revision 1', 'details.name: "Launch"'], 'success'), box(30, 142, 260, ['Task A · schema revision 3']), box(350, 142, 260, ['Task A · schema revision 3']), box(30, 217, 260, ['Task B · schema revision 3']), box(350, 217, 260, ['Task B · schema revision 3'])],
+  },
+  migration: {
+    title: 'Migration separates reconstruction, handler cutover and retirement',
+    caption: 'The old application remains the business-write owner during reconstruction. Switch writers once, after qualifying the new state and read paths; then retire the old application.',
+    height: 255,
+    panels: [panel(8, 12, 190, 227, '1 · Reconstruct'), panel(225, 12, 190, 227, '2 · Move handlers'), panel(442, 12, 190, 227, '3 · Retire')],
+    boxes: [box(20, 61, 166, ['Define Models', 'Replay old events'], 'entity', 72), box(237, 61, 166, ['Move readers', 'Switch writers'], 'command', 72), box(454, 61, 166, ['Stop old app', 'New app owns flow'], 'entity', 72), box(20, 158, 166, ['Old app writes'], 'neutral', 54), box(237, 158, 166, ['One write owner'], 'warning', 54), box(454, 158, 166, ['New app writes'], 'neutral', 54)],
+    edges: [{ d: 'M 198 97 H 221' }, { d: 'M 415 97 H 438' }],
+  },
+  erasure: {
+    title: 'A physical deletion plan with cascade NONE selects only Approval',
+    caption: 'Selection follows the deletion plan. A relationship to Task does not make Task, Project or sibling Notes part of this erasure.',
+    height: 245,
+    panels: [panel(335, 123, 289, 104, 'Outside this deletion plan')],
+    boxes: [box(16, 25, 260, ['planDeletion(approvalId, NONE)'], 'command'), box(350, 25, 260, ['Approval', 'Selected for erasure'], 'warning'), box(350, 162, 260, ['Task · Project · Notes'], 'neutral', 48)],
+    edges: [{ d: 'M 276 57 H 346' }],
+  },
+  commit: {
+    title: 'Conflict validation precedes an atomic Model commit; Graph projection follows it',
+    caption: 'Persisted Model events, authoritative state and relationship changes commit together according to each Model’s persistence settings. Graph projections are maintained separately. Outgoing HTTP and payments are outside this boundary.',
+    height: 343,
+    panels: [panel(16, 131, 608, 102, 'One atomic storage commit', 'success')],
+    boxes: [box(16, 18, 266, ['Stage Model changes', 'Track consumed reads'], 'command'), box(372, 18, 252, ['Validate conflicts'], 'neutral'), box(32, 171, 175, ['Model events'], 'entity', 46), box(230, 171, 180, ['Authoritative state'], 'entity', 46), box(434, 171, 174, ['Relationships'], 'entity', 46), box(174, 280, 292, ['Update Graph projections'], 'neutral', 48)],
+    edges: [{ d: 'M 282 50 H 368' }, { d: 'M 498 82 V 103 H 320 V 127' }, { d: 'M 320 233 V 276' }],
+  },
+  home: {
+    title: 'An integration link joins two hierarchies through child-to-parent relationships',
+    caption: 'Dotted arrows point from child to parent. The Integration link has one identity and two parent references. Its Device and connection remain independent Models.',
+    height: 423,
+    boxes: [box(244, 12, 152, ['Home']), box(36, 117, 204, ['Space']), box(400, 117, 204, ['Home Assistant', 'connection']), box(36, 227, 204, ['Device']), box(16, 345, 175, ['Device status']), box(332, 345, 244, ['Integration link'])],
+    edges: [{ d: 'M 138 117 V 44 H 240', parent: true }, { d: 'M 502 117 V 44 H 400', parent: true }, { d: 'M 138 227 V 185', parent: true }, { d: 'M 103 345 V 295', parent: true }, { d: 'M 380 345 V 259 H 244', parent: true }, { d: 'M 502 345 V 185', parent: true }],
+  },
+  boundary: {
+    title: 'One Graph boundary selects different revision indexes for different Models',
+    caption: 'Illustrative ordered indexes: at boundary 30, Project comes from revision 10, Note from 20 and Task from 30. Task’s revision 40 is excluded. Equal read boundaries do not require equal revision indexes.',
+    height: 328,
+    panels: [panel(8, 50, 468, 242, 'Graph read boundary: 30')],
+    labels: [{ x: 84, y: 24, text: '10' }, { x: 241, y: 24, text: '20' }, { x: 398, y: 24, text: '30' }, { x: 556, y: 24, text: '40' }],
+    boxes: [box(20, 101, 129, ['Project', 'revision 10']), box(176, 171, 130, ['Note', 'revision 20']), box(333, 218, 130, ['Task', 'revision 30']), box(490, 218, 132, ['Task', 'revision 40'], 'warning')],
+    edges: [{ d: 'M 20 311 H 622' }],
+  },
+  projection: {
+    title: 'Default command completion and AWAIT differ in when the projection must be ready',
+    caption: 'By default, completion does not wait for the projection. AWAIT delays successful completion until affected projections reach this command’s committed boundary. It does not wait for arbitrary event handlers.',
+    height: 338,
+    labels: [{ x: 16, y: 22, text: 'Default · projection can still be catching up', start: true, bold: true }, { x: 16, y: 239, text: 'AWAIT · projection has reached this commit', start: true, bold: true }],
+    boxes: [box(16, 92, 175, ['Model commit'], 'entity', 48), box(365, 48, 259, ['Caller completes'], 'command', 48), box(365, 145, 259, ['Projection catches up'], 'neutral', 48), box(16, 266, 175, ['Model commit'], 'entity', 48), box(232, 266, 175, ['Projection ready'], 'neutral', 48), box(448, 266, 176, ['Caller completes'], 'command', 48)],
+    edges: [{ d: 'M 191 116 H 277 V 72 H 361' }, { d: 'M 277 116 V 169 H 361' }, { d: 'M 191 290 H 228' }, { d: 'M 407 290 H 444' }],
+  },
+};
+for (let step = 1; step <= 4; step++) {
+  const completed = step >= 3;
+  const captions = [
+    'Task A is created below an existing Project. Task A has no previous value; the Project’s previous Graph exists and has no Tasks.',
+    'Task B is added. The previous Project Graph contains only A; the current Graph contains A and B.',
+    'Task A is completed. Project’s own value is unchanged, but its composed Graph has changed.',
+    'Task B is logically deleted. The orange box is a reminder of the previous Graph; B is absent from the current children.',
+  ];
+  diagrams[`transition-${step}`] = {
+    title: `Graph transition ${step}: ${['create Task A', 'add Task B', 'complete Task A', 'delete Task B'][step - 1]}`,
+    caption: captions[step - 1],
+    height: 249,
+    boxes: [box(200, 16, 240, ['Project', 'Website launch']), box(24, 157, 254, ['Task A · Write copy', completed ? 'completed' : 'open'], step === 3 ? 'success' : 'entity'), box(362, 157, 254, step === 1 ? ['No Task B yet'] : ['Task B · Review copy', step === 4 ? 'previous Graph only' : 'open'], step === 1 ? 'neutral' : step === 4 ? 'warning' : step === 2 ? 'success' : 'entity')],
+    edges: [{ d: 'M 151 157 V 114 H 260 V 84', parent: true }, ...(step === 2 || step === 3 ? [{ d: 'M 489 157 V 114 H 380 V 84', parent: true }] : [])],
+  };
+}
+interface Props { name: string }
+const { name } = Astro.props;
+const diagram = diagrams[name];
+if (!diagram) throw new Error(`Unknown deep-dive figure: ${name}`);
+---
+
+<ModelFigure diagram={diagram} id={`deep-dive-${name}`} />

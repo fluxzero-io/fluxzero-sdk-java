@@ -1,0 +1,101 @@
+---
+// Fixed layouts keep comparisons aligned and parent arrows unambiguous.
+import ModelFigure, { type Tone, type Box, type Panel, type Diagram } from './ModelFigure.astro';
+const box = (x: number, y: number, w: number, lines: string[], tone: Tone = 'entity', h = 48): Box => ({ x, y, w, h, lines, tone });
+const panel = (x: number, y: number, w: number, h: number, title: string, tone: Tone = 'neutral'): Panel => ({ x, y, w, h, title, tone });
+const diagrams: Record<string, Diagram> = {
+  'aggregate-move': {
+    title: 'Before 2.0: moving one Task requires two Aggregate commits',
+    caption: 'In this remove-then-add move, another reader can see the gap between commits. Adding first would expose a duplicate instead. Earlier Task events still belong to the original Project stream.',
+    height: 270,
+    panels: [panel(8, 62, 180, 158, 'Before'), panel(230, 62, 180, 158, 'Between commits', 'warning'), panel(452, 62, 180, 158, 'After')],
+    boxes: [
+      box(20, 105, 156, ['Project A: Task A']), box(20, 165, 156, ['Project B: empty'], 'neutral'),
+      box(242, 105, 156, ['Project A: empty'], 'neutral'), box(242, 165, 156, ['Project B: empty'], 'neutral'),
+      box(464, 105, 156, ['Project A: empty'], 'neutral'), box(464, 165, 156, ['Project B: Task A']),
+    ],
+    labels: [{ x: 209, y: 25, text: '1. Remove from A' }, { x: 431, y: 25, text: '2. Add to B' }, { x: 320, y: 248, text: 'One move. Two writes. An observable intermediate state.', bold: true }],
+    edges: [{ d: 'M 150 43 H 265' }, { d: 'M 375 43 H 490' }],
+  },
+  'aggregate-load': {
+    title: 'Addressing one Member still loads the whole Aggregate',
+    caption: 'Only Task A is needed. The root, other Tasks, notes and attachments still belong to the same loaded object tree.',
+    height: 230,
+    panels: [panel(235, 12, 395, 203, 'Loaded Project Aggregate')],
+    boxes: [box(10, 94, 180, ['loadEntity(taskAId)', 'One Task requested'], 'command', 60), box(260, 55, 155, ['Project root'], 'neutral'), box(450, 55, 155, ['Task A']), box(260, 124, 155, ['Other Tasks', '…'], 'neutral', 66), box(450, 124, 155, ['Notes +', 'attachments'], 'neutral', 66)],
+    edges: [{ d: 'M 190 124 H 230' }],
+  },
+  'streams': {
+    title: 'One shared event stream becomes independently owned histories',
+    caption: 'Each event-sourced Model can be reconstructed from its own events. Relationships do not merge these streams.',
+    height: 388,
+    labels: [{ x: 16, y: 25, text: 'Before 2.0 · one stream for the whole tree', start: true, bold: true }, { x: 16, y: 133, text: '2.0 · one stream per event-sourced Model', start: true, bold: true }],
+    boxes: [box(16, 43, 220, ['Project events'], 'neutral'), box(315, 43, 308, ['Project + Tasks A/B + Note']),
+      ...['Project', 'Task A', 'Task B', 'Note'].flatMap((name, i) => [box(16, 154 + i * 57, 220, [name + ' events'], 'neutral'), box(315, 154 + i * 57, 308, [name])])],
+    edges: [43, 154, 211, 268, 325].map(y => ({ d: `M 236 ${y + 24} H 311` })),
+  },
+  'replay': {
+    title: 'Completing the same Task can require very different amounts of reconstruction',
+    caption: 'Illustrative cold loads without snapshots: event counts show which history is needed, not measured latency or a promised speedup.',
+    height: 228,
+    labels: [{ x: 16, y: 25, text: 'Task embedded in a Project', start: true, bold: true }, { x: 16, y: 135, text: 'Task stored as an independent Model', start: true, bold: true }],
+    boxes: [box(16, 44, 210, ['100,000 Project events'], 'neutral', 64), box(305, 44, 318, ['Rebuild the Project tree', 'Then select Task A'], 'entity', 64), box(16, 154, 210, ['10 Task events'], 'neutral', 64), box(305, 154, 318, ['Rebuild Task A'], 'entity', 64)],
+    edges: [{ d: 'M 226 76 H 301' }, { d: 'M 226 186 H 301' }],
+  },
+  'model-move': {
+    title: 'A move changes one parent reference while the Task and its children keep their identity',
+    caption: 'Read each row from child to parent. Only the Task’s Project reference changes; its ID, history and the Note’s parent reference stay the same.',
+    height: 243,
+    labels: [{ x: 16, y: 26, text: 'Before', start: true, bold: true }, { x: 16, y: 141, text: 'After', start: true, bold: true }],
+    boxes: [box(16, 45, 135, ['Note n1']), box(242, 45, 135, ['Task A']), box(468, 45, 155, ['Project Launch']), box(16, 160, 135, ['Note n1']), box(242, 160, 135, ['Task A']), box(468, 160, 155, ['Project Next'])],
+    edges: [69, 184].flatMap(y => [{ d: `M 151 ${y} H 238`, parent: true }, { d: `M 377 ${y} H 464`, parent: true }]),
+  },
+  'atomic': {
+    title: 'Tasks in different Projects can change in one atomic operation',
+    caption: 'The boundary belongs to this operation. Either both Tasks are completed, or neither change is stored; the Projects do not need a shared Aggregate root.',
+    height: 295,
+    panels: [panel(236, 12, 388, 162, 'One operation · one commit')],
+    boxes: [box(16, 69, 175, ['CompleteTasks(A, B)'], 'command', 56), box(255, 61, 165, ['Task A', 'Project Launch'], 'entity', 70), box(440, 61, 165, ['Task B', 'Project Next'], 'entity', 70), box(55, 225, 235, ['Both completed'], 'success'), box(350, 225, 235, ['Neither changed'], 'warning')],
+    edges: [{ d: 'M 191 97 H 231' }],
+    labels: [{ x: 320, y: 202, text: 'Possible stored outcomes', bold: true }, { x: 320, y: 250, text: 'or' }],
+  },
+  'history': {
+    title: 'A delayed completion handler reads the completion state, even after the Task has reopened',
+    caption: 'At 10:10, task.get() is completed and task.previous().get() is not. Neither read is replaced by the later reopened revision.',
+    height: 300,
+    labels: [{ x: 105, y: 26, text: '10:00', bold: true }, { x: 320, y: 26, text: '10:05', bold: true }, { x: 535, y: 26, text: '10:10', bold: true }, { x: 320, y: 166, text: 'State available in the completion handler', bold: true }],
+    boxes: [box(16, 43, 178, ['Task completed'], 'success', 64), box(231, 43, 178, ['Task reopened'], 'neutral', 64), box(446, 43, 178, ['Completion handler', 'runs later'], 'command', 64), box(48, 193, 244, ['task.previous().get()', 'completed = false'], 'entity', 64), box(348, 193, 244, ['task.get()', 'completed = true'], 'entity', 64)],
+    edges: [{ d: 'M 194 75 H 227' }, { d: 'M 409 75 H 442' }, { d: 'M 535 107 V 127 H 320 V 144' }],
+  },
+  'response': {
+    title: 'Independent Model state is assembled into one nested response',
+    caption: 'Nesting is the shape of the response. The Project, Task and Note are still stored and updated independently.',
+    height: 280,
+    labels: [{ x: 125, y: 25, text: 'Stored separately', bold: true }, { x: 475, y: 25, text: 'One Graph response', bold: true }],
+    panels: [panel(327, 43, 296, 220, 'Project Launch'), panel(353, 95, 252, 151, 'tasks: [Task A]')],
+    boxes: [box(16, 43, 215, ['Project Launch']), box(16, 128, 215, ['Task A']), box(16, 213, 215, ['Note n1']), box(378, 168, 202, ['notes: [Note n1]'])],
+    edges: [{ d: 'M 246 153 H 312' }],
+  },
+  'parents': {
+    title: 'One integration link has two parents without being duplicated',
+    caption: 'The dotted arrows run from the one stored Integration link to its two parents. Both sides can discover the same link.',
+    height: 265,
+    boxes: [box(24, 30, 230, ['Device', 'Living-room lamp'], 'entity', 64), box(386, 30, 230, ['Home Assistant', 'connection'], 'entity', 64), box(218, 175, 204, ['Integration link', 'Stored once'], 'entity', 64)],
+    edges: [{ d: 'M 267 175 L 139 98', parent: true }, { d: 'M 373 175 L 501 98', parent: true }],
+  },
+  'persistence': {
+    title: 'Related Models can retain different kinds of state',
+    caption: 'These Models can belong to the same Graph. Keeping business history, replacing a latest value and erasing one process are separate choices.',
+    height: 283,
+    boxes: [box(16, 20, 165, ['Task']), box(244, 12, 379, ['Event stream', 'Created → Assigned → Completed'], 'neutral', 64), box(16, 114, 165, ['TaskStatus']), box(244, 106, 379, ['Latest document', 'online = true replaces online = false'], 'neutral', 64), box(16, 208, 165, ['Approval']), box(244, 200, 379, ['Erase this process when appropriate', 'Keep Task and Project'], 'neutral', 64)],
+    edges: [44, 138, 232].map(y => ({ d: `M 181 ${y} H 240` })),
+  },
+};
+interface Props { name: string }
+const { name } = Astro.props;
+const diagram = diagrams[name];
+if (!diagram) throw new Error(`Unknown overview figure: ${name}`);
+const id = `overview-${name}`;
+---
+
+<ModelFigure diagram={diagram} id={id} />
