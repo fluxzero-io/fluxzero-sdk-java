@@ -18,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.common.AbstractNamespaced;
@@ -30,8 +31,8 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
-import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 import io.fluxzero.sdk.tracking.handling.LocalExecution;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
@@ -187,11 +188,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     @Override
     public List<CompletableFuture<Message>> sendForMessages(Message... messages) {
+        return sendMessages(requestGuarantee, messages);
+    }
+
+    @Override
+    public List<CompletableFuture<Message>> sendForMessages(Guarantee guarantee, Message... messages) {
+        return guarantee == Guarantee.DEFAULT ? sendForMessages(messages)
+                : sendMessages(resolveRequestGuarantee(guarantee), messages);
+    }
+
+    private List<CompletableFuture<Message>> sendMessages(Guarantee guarantee, Message... messages) {
         List<PendingRequest> requests = new ArrayList<>(messages.length);
         for (Message message : messages) {
             requests.add(prepareRequest(message, requestTimeout(message).orElse(null)));
         }
-        return completeRequests(requests);
+        return completeRequests(guarantee, requests);
     }
 
     @Override
@@ -237,6 +248,17 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @Override
     @SneakyThrows
     public <R> R sendAndWait(Message message) {
+        return sendAndWaitMessage(requestGuarantee, message);
+    }
+
+    @Override
+    public <R> R sendAndWait(Object payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? sendAndWait(payload, metadata)
+                : sendAndWaitMessage(resolveRequestGuarantee(guarantee), new Message(payload, metadata));
+    }
+
+    @SneakyThrows
+    private <R> R sendAndWaitMessage(Guarantee guarantee, Message message) {
         Duration timeout = sendAndWaitTimeout(message);
         Message original = message;
         boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
@@ -258,7 +280,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         } finally {
             dispatchInterceptor.completeLocalDispatch(message);
         }
-        CompletableFuture<R> future = (request.isExternal() ? sendRequest(request) : request.result())
+        CompletableFuture<R> future = (request.isExternal() ? sendRequest(guarantee, request) : request.result())
                 .thenApply(Message::getPayload);
         return waitForResult(future, message, timeout);
     }
@@ -283,12 +305,19 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     @Override
     public CompletableFuture<Message> sendForMessage(Message message, Duration timeout) {
-        return sendSingle(message, timeout == null ? requestTimeout(message).orElse(null) : timeout);
+        return sendSingle(requestGuarantee, message, timeout == null ? requestTimeout(message).orElse(null) : timeout);
     }
 
-    private CompletableFuture<Message> sendSingle(Message message, Duration timeout) {
+    @Override
+    public CompletableFuture<Message> sendForMessage(Message message, Duration timeout, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? sendForMessage(message, timeout)
+                : sendSingle(resolveRequestGuarantee(guarantee), message,
+                             timeout == null ? requestTimeout(message).orElse(null) : timeout);
+    }
+
+    private CompletableFuture<Message> sendSingle(Guarantee guarantee, Message message, Duration timeout) {
         PendingRequest request = prepareRequest(message, timeout);
-        return request.isExternal() ? sendRequest(request) : request.result();
+        return request.isExternal() ? sendRequest(guarantee, request) : request.result();
     }
 
     private PendingRequest prepareRequest(Message message, Duration timeout) {
@@ -373,7 +402,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 : dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
     }
 
-    private List<CompletableFuture<Message>> completeRequests(List<PendingRequest> requests) {
+    private List<CompletableFuture<Message>> completeRequests(Guarantee guarantee, List<PendingRequest> requests) {
         List<PendingRequest> externalRequests = new ArrayList<>();
         for (PendingRequest request : requests) {
             if (request.isExternal()) {
@@ -381,7 +410,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             }
         }
         Map<SerializedMessage, CompletableFuture<Message>> externalResults = new IdentityHashMap<>();
-        List<CompletableFuture<Message>> sentRequests = sendRequests(externalRequests);
+        List<CompletableFuture<Message>> sentRequests = sendRequests(guarantee, externalRequests);
         for (int i = 0; i < externalRequests.size(); i++) {
             externalResults.put(externalRequests.get(i).serializedMessage(), sentRequests.get(i));
         }
@@ -392,17 +421,17 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return results;
     }
 
-    private CompletableFuture<Message> sendRequest(PendingRequest request) {
+    private CompletableFuture<Message> sendRequest(Guarantee guarantee, PendingRequest request) {
         SerializedMessage message = request.serializedMessage();
-        CompletableFuture<SerializedMessage> result = sendRequest(message, request.timeout());
+        CompletableFuture<SerializedMessage> result = sendRequest(guarantee, message, request.timeout());
         return trackCallback(message.getMessageId(), result.thenCompose(this::deserializeResponse));
     }
 
-    private CompletableFuture<SerializedMessage> sendRequest(SerializedMessage message, Duration timeout) {
+    private CompletableFuture<SerializedMessage> sendRequest(Guarantee guarantee, SerializedMessage message, Duration timeout) {
         var publication = new CompletableFuture<Void>();
         CompletableFuture<SerializedMessage> result = timeout == null
-                ? requestHandler.sendRequest(message, m -> appendRequest(publication, m))
-                : requestHandler.sendRequest(message, m -> appendRequest(publication, m), timeout);
+                ? requestHandler.sendRequest(message, m -> appendRequest(guarantee, publication, m))
+                : requestHandler.sendRequest(message, m -> appendRequest(guarantee, publication, m), timeout);
         publication.whenComplete((ignored, error) -> {
             if (error != null) {
                 result.completeExceptionally(unwrap(error));
@@ -413,9 +442,9 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return result;
     }
 
-    private void appendRequest(CompletableFuture<Void> publication, SerializedMessage... messages) {
+    private void appendRequest(Guarantee guarantee, CompletableFuture<Void> publication, SerializedMessage... messages) {
         try {
-            gatewayClient.append(requestGuarantee, messages).whenComplete((ignored, error) -> {
+            gatewayClient.append(guarantee, messages).whenComplete((ignored, error) -> {
                 if (error == null) {
                     publication.complete(null);
                 } else {
@@ -427,7 +456,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }
     }
 
-    private List<CompletableFuture<Message>> sendRequests(List<PendingRequest> requests) {
+    private List<CompletableFuture<Message>> sendRequests(Guarantee guarantee, List<PendingRequest> requests) {
         if (requests.isEmpty()) {
             return List.of();
         }
@@ -437,7 +466,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             serializedMessages.add(request.serializedMessage());
             requestTimeouts.put(request.serializedMessage(), request.timeout());
         }
-        List<CompletableFuture<SerializedMessage>> results = sendRequests(serializedMessages, requestTimeouts);
+        List<CompletableFuture<SerializedMessage>> results = sendRequests(guarantee, serializedMessages, requestTimeouts);
         List<CompletableFuture<Message>> mappedResults = new ArrayList<>(results.size());
         for (int i = 0; i < results.size(); i++) {
             SerializedMessage request = serializedMessages.get(i);
@@ -447,16 +476,16 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return mappedResults;
     }
 
-    private List<CompletableFuture<SerializedMessage>> sendRequests(List<SerializedMessage> requests,
+    private List<CompletableFuture<SerializedMessage>> sendRequests(Guarantee guarantee, List<SerializedMessage> requests,
                                                                     Map<SerializedMessage, Duration> timeouts) {
         Duration firstTimeout = timeouts.get(requests.getFirst());
         boolean sameTimeout = requests.stream().allMatch(r -> Objects.equals(firstTimeout, timeouts.get(r)));
         if (sameTimeout) {
             var publication = new CompletableFuture<Void>();
             var results = firstTimeout == null ? requestHandler.sendRequests(
-                    requests, m -> appendRequest(publication, m.toArray(SerializedMessage[]::new)))
+                    requests, m -> appendRequest(guarantee, publication, m.toArray(SerializedMessage[]::new)))
                     : requestHandler.sendRequests(
-                            requests, m -> appendRequest(publication, m.toArray(SerializedMessage[]::new)),
+                            requests, m -> appendRequest(guarantee, publication, m.toArray(SerializedMessage[]::new)),
                             firstTimeout);
             publication.whenComplete((ignored, error) -> {
                 if (error != null) {
@@ -468,7 +497,15 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             completion.whenComplete((ignored, error) -> publication.complete(null));
             return results;
         }
-        return requests.stream().map(request -> sendRequest(request, timeouts.get(request))).toList();
+        return requests.stream().map(request -> sendRequest(guarantee, request, timeouts.get(request))).toList();
+    }
+
+    private Guarantee resolveRequestGuarantee(Guarantee guarantee) {
+        return switch (Objects.requireNonNull(guarantee, "guarantee")) {
+            case DEFAULT -> requestGuarantee;
+            case SENT, STORED -> guarantee;
+            case NONE -> throw new IllegalArgumentException("Request publication requires SENT or STORED");
+        };
     }
 
     private Optional<Duration> requestTimeout(Message message) {

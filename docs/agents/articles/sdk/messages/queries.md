@@ -20,3 +20,6 @@ Keep query handlers read-only. They may load aggregates, read documents, or sear
 Prefer dedicated query payloads over static utility methods for reusable reads. A standalone query without `@LocalHandler` still participates in normal tracking and request handling; use `@LocalHandler` only when local synchronous execution is the intended behavior.
 
 For lightweight local caching in self-handling commands or queries, use `Fluxzero.memoize(...)` or `Fluxzero.memoizeIfAbsent(...)` instead of ad hoc static caches.
+
+For request publication policy and per-call `SENT`/`STORED` overrides, see
+[delivery defaults and completion](events.md). The response future still represents the business result.
