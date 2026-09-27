@@ -189,4 +189,57 @@ public interface CommandGateway extends Namespaced<CommandGateway>, HasLocalHand
      * Shuts down the command gateway.
      */
     void close();
+
+    /**
+     * Sends a request with the given publication guarantee. The future represents its business response.
+     * {@link Guarantee#DEFAULT} uses the configured request policy; {@link Guarantee#SENT} and
+     * {@link Guarantee#STORED} override it for this call only. {@link Guarantee#NONE} is not supported.
+     *
+     * @param payload request payload
+     * @param metadata request metadata; use {@link Metadata#empty()} when none is needed
+     * @param guarantee request publication guarantee
+     * @param <R> response payload type
+     * @return the business response future
+     */
+    default <R> CompletableFuture<R> send(Object payload, Metadata metadata, Guarantee guarantee) {
+        requireDefaultRequestGuarantee(guarantee);
+        return send(payload, metadata);
+    }
+
+    /** Sends a typed request with a per-call publication guarantee and returns its business response future. */
+    default <R> CompletableFuture<R> send(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? send(payload, metadata) : send((Object) payload, metadata, guarantee);
+    }
+
+    /**
+     * Sends a request with a per-call publication guarantee and waits for its business response.
+     * Storage acknowledgment does not replace or delay an already available business response.
+     */
+    default <R> R sendAndWait(Object payload, Metadata metadata, Guarantee guarantee) {
+        requireDefaultRequestGuarantee(guarantee);
+        return sendAndWait(payload, metadata);
+    }
+
+    /** Sends a typed request with a per-call publication guarantee and waits for its business response. */
+    default <R> R sendAndWait(Request<R> payload, Metadata metadata, Guarantee guarantee) {
+        return guarantee == Guarantee.DEFAULT ? sendAndWait(payload, metadata)
+                : sendAndWait((Object) payload, metadata, guarantee);
+    }
+
+    /**
+     * Sends full request messages with one publication guarantee and returns business response futures in input order.
+     * Custom gateways retain their existing batch behavior for {@code DEFAULT}; unsupported explicit guarantees fail.
+     */
+    default List<CompletableFuture<Message>> sendForMessages(Guarantee guarantee, Message... messages) {
+        requireDefaultRequestGuarantee(guarantee);
+        return sendForMessages(messages);
+    }
+
+    private static void requireDefaultRequestGuarantee(Guarantee guarantee) {
+        switch (java.util.Objects.requireNonNull(guarantee, "guarantee")) {
+            case DEFAULT -> { }
+            case NONE -> throw new IllegalArgumentException("Request publication requires SENT or STORED");
+            default -> throw new UnsupportedOperationException("This gateway does not support per-call request guarantees");
+        }
+    }
 }

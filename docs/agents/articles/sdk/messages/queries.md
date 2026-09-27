@@ -23,3 +23,6 @@ For lightweight local caching in self-handling commands or queries, use `Fluxzer
 
 These examples assume `@Model` state. For existing persisted Models, keep their Model loading API until a
 deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.
+
+For request publication policy and per-call `SENT`/`STORED` overrides, see
+[delivery defaults and completion](events.md). The response future still represents the business result.
