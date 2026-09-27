@@ -147,7 +147,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                                                             Duration timeout) {
         List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
         CompletableFuture<SerializedMessage> future = sendRequest(request, requestSender, timeout, intermediates::add);
-        return future.thenApply(m -> {
+        CompletableFuture<SerializedMessage> result = future.thenApply(m -> {
             if (intermediates.isEmpty()) {
                 return m;
             }
@@ -157,6 +157,12 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                     Stream.of(data.getValue())).toArray(byte[][]::new));
             return m.withData(new Data<>(allBytes, data.getType(), data.getRevision(), data.getFormat()));
         });
+        result.whenComplete((response, error) -> {
+            if (error != null) {
+                future.completeExceptionally(error);
+            }
+        });
+        return result;
     }
 
     @Override

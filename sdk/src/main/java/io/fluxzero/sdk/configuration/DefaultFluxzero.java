@@ -727,6 +727,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public Fluxzero build(@NonNull Client client) {
             var deliveryGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource);
+            var requestGuarantee = ApplicationProperties.getRequestDeliveryGuarantee(propertySource);
             configureTypeAliases();
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
@@ -961,7 +962,7 @@ public class DefaultFluxzero implements Fluxzero {
             //create gateways
             UnaryOperator<GenericGateway> configureDelivery = gateway -> {
                 if (gateway instanceof DefaultGenericGateway defaultGateway) {
-                    defaultGateway.withDefaultGuarantee(deliveryGuarantee);
+                    defaultGateway.withDefaultGuarantee(deliveryGuarantee).withRequestGuarantee(requestGuarantee);
                 }
                 return gateway;
             };
