@@ -118,13 +118,16 @@ when no override is configured. SDK 2.x uses `STORED`. This setting is independe
 compatibility behavior when the property is absent. Use `yyyy.MM.dd` values. Each version includes the defaults from
 earlier versions, and each behavior can still be overridden with its dedicated property.
 
+Remote request/reply uses the same property, with a major-version fallback: `STORED` in SDK 2.x and `SENT` in SDK 1.x.
+An explicit `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) value of
+`NONE`, `SENT`, or `STORED` overrides it. The defaults date has no effect on delivery guarantees.
+
 | Defaults version | Equivalent property | What changes |
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
-| `>= 2026.09.27` | `fluxzero.publishing.requestGuarantee = STORED` | Remote request/reply publication participates in storage-acknowledged outgoing-write batch barriers. Business responses remain asynchronous. Set `SENT` for compatibility or `STORED` to opt in independently. The environment variable is `FLUXZERO_PUBLISHING_REQUEST_GUARANTEE`. |
 
 For example:
 

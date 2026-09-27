@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class RequestGuaranteeDownstreamTest {
     @ParameterizedTest
-    @EnumSource(value = Guarantee.class, names = {"DEFAULT", "SENT", "STORED"})
+    @EnumSource(value = Guarantee.class, names = {"DEFAULT", "NONE", "SENT", "STORED"})
     void typedRequestsKeepResultInferenceAndLocalHandling(Guarantee guarantee) {
         try (var fluxzero = TestFixture.create(new Handler()).getFluxzero()) {
             fluxzero.execute(f -> {
