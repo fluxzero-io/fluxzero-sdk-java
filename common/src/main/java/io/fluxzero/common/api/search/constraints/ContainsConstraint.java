@@ -167,18 +167,18 @@ public class ContainsConstraint extends PathConstraint {
      */
     boolean postfixSearch;
 
-    /**
-     * Checks whether a single document entry matches the constraint. The entry is converted to a normalized phrase
-     * string, and the compiled regular expression is applied.
-     *
-     * @param entry the document entry
-     * @return {@code true} if the entry matches the pattern, otherwise {@code false}
-     */
     @Override
     protected boolean matchesPath(Document.Path path, Document document) {
         return document.isSearchablePath(path);
     }
 
+    /**
+     * Checks whether a document entry occurs in its search summary and matches the normalized phrase pattern.
+     *
+     * @param entry the document entry
+     * @param document the document supplying the search summary
+     * @return whether the entry matches the pattern
+     */
     @Override
     protected boolean matches(Document.Entry entry, Document document) {
         String summary = document.getSummary();

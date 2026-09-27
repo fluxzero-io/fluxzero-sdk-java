@@ -175,7 +175,9 @@ aggregate behavior); that is not permission to mix old and new writers.
    controlled state migration; changing an annotation alone does not copy or adopt existing data.
 3. Backfill all newly searchable node types before exposing queries. Types without existing node documents require
    reconstruction from their authoritative state through a controlled migration. A document consumer cannot visit
-   documents that do not exist. This SDK change does not automatically perform a storage/backfill migration.
+   documents that do not exist. There is currently no public, fenced operation to create a missing canonical source
+   from an existing Model head. Treat this case as a migration blocker until a dedicated backfill is implemented and
+   qualified. Ordinary index writes or fabricated domain events are not substitutes for that operation.
 4. Reindex existing canonical sources with their exact search summaries/exclusions, facets and sortables. An unchanged
    type/revision handler return is a no-op; use an explicit schema revision and a state-preserving upcast when using
    the guarded source migration route. A source rewrite never acts as a business-state update.

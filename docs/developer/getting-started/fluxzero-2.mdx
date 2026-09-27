@@ -2893,7 +2893,7 @@ you do not need a parallel validation or messaging vocabulary.
 
 ### Upgrading existing 2.x search configurations
 
-This contract requires coordinated Runtime and writer upgrades. Existing applications must choose `searchable` on every Model and replace the removed `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and `HandleDocument.modelState` settings. Keep canonical collection identities stable; preserve DOCUMENT-only state and its head proofs. Missing node documents need a controlled backfill, existing indexes need reindexing, and registered Graph definitions must be updated explicitly. Stopping an old projector in one process does not remove its durable Runtime definition.
+This contract requires coordinated Runtime and writer upgrades. Existing applications must choose `searchable` on every Model and replace the removed `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and `HandleDocument.modelState` settings. Keep canonical collection identities stable; preserve DOCUMENT-only state and its head proofs. Missing node documents need a controlled backfill; the SDK currently has no public operation to create those missing canonical sources safely, so that case blocks migration. Existing indexes need reindexing, and registered Graph definitions must be updated explicitly. Stopping an old projector in one process does not remove its durable Runtime definition.
 
 Follow the [complete upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade) before resuming writers or exposing the changed queries. Reading the old stored definition format is supported; concurrent old/new Model writers are not.
 

@@ -185,7 +185,7 @@ public class SerializedDocument {
 
     /**
      * Returns directly supplied serialized data without evaluating a lazy source. Empty for documents created from
-     * a Document or an arbitrary data supplier, including replacements made through {@link #withData(Supplier)}.
+     * a Document or an arbitrary data supplier, including replacements made through {@code withData(...)}.
      * This identifies the source representation only; callers needing stable bytes must take their own snapshot.
      */
     public Optional<Data<byte[]>> serializedDataIfPresent() {
