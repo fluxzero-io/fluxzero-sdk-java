@@ -355,6 +355,29 @@ wins in either direction; `publishing.defaultGuarantee` does not change it. The 
 application's source once, including namespace and lazy custom gateways. Direct `DefaultGenericGateway`
 construction retains `SENT`; call `withRequestGuarantee(STORED)` to opt in programmatically.
 
+For a per-call override, use `send(payload, metadata, guarantee)` or
+`sendAndWait(payload, metadata, guarantee)` on a command/query gateway. The corresponding static methods are
+`Fluxzero.sendCommand`, `sendCommandAndWait`, `query`, and `queryAndWait`. Typed `Request<R>` payloads retain
+result-type inference. Pass `Metadata.empty()` when no metadata is needed.
+
+```java
+Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT);
+Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED);
+```
+
+```kotlin
+Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT)
+Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED)
+```
+
+`DEFAULT` uses the application's **request** policy described above; it is not an unconditional `STORED` and
+never resolves through the general `publishing.defaultGuarantee`. Existing calls without a guarantee keep that
+same policy. `SENT` or `STORED` overrides only this invocation. `NONE` is invalid for request/reply. Batch callers
+can use `gateway.sendForMessages(guarantee, messages...)`; `GenericGateway` also accepts
+`sendForMessage(message, timeout, guarantee)`. Neither override adds delay to form larger batches nor forces
+locally handled requests through the Runtime. Custom gateway implementations retain their existing behavior for
+`DEFAULT`; they must implement explicit guarantees to support `SENT`/`STORED`, otherwise these fail explicitly.
+
 Request/reply futures complete on the business response without waiting for storage acknowledgment. With `STORED`,
 the outgoing-write batch barrier does await storage before advancing the input position. This stronger boundary
 can reduce throughput in short request chains; qualify the application before opting in. An asynchronous publication
