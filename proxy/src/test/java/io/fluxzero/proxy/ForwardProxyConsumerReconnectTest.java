@@ -101,6 +101,7 @@ class ForwardProxyConsumerReconnectTest {
                 client, ForwardProxyConsumer.defaultSettings.getConsumer(), 0L, true, false,
                 httpClient, new AtomicBoolean());
         List<RequestHandler> handlers = List.of(startRequest(consumer, "first", 1), startRequest(consumer, "second", 2));
+        Throwable primaryFailure = null;
         try {
             handlers.forEach(RequestHandler::awaitResponseWait);
 
@@ -120,6 +121,9 @@ class ForwardProxyConsumerReconnectTest {
                                "Response publication must leave a worker available to complete the handshake");
             assertTrue(publishedResponses.await(5, SECONDS), "Both responses must be published");
             verify(gateway, times(2)).append(eq(STORED), any(SerializedMessage.class));
+        } catch (Exception | Error failure) {
+            primaryFailure = failure;
+            throw failure;
         } finally {
             handshake.complete(session);
             firstResponse.complete(response);
@@ -132,6 +136,11 @@ class ForwardProxyConsumerReconnectTest {
                     handler.thread().join(5000);
                     assertFalse(handler.thread().isAlive(), "Request handler must terminate");
                 }
+            } catch (Exception | Error cleanupFailure) {
+                if (primaryFailure == null) {
+                    throw cleanupFailure;
+                }
+                primaryFailure.addSuppressed(cleanupFailure);
             } finally {
                 httpCompletions.shutdownNow();
                 sessions.close();
