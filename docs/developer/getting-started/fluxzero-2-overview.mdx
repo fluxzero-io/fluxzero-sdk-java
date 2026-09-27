@@ -106,7 +106,7 @@ First, let's see what this looks like in code. Then we will revisit the four con
 
 ## From Aggregates to Models
 
-**The key change: an entity can belong to a larger whole without being stored inside it.** Fluxzero 2.0 calls that independent entity a **Model**. A Model owns its state and history; its relationships connect it to other Models.
+In Fluxzero 2.0, an entity can belong to a larger whole without being stored inside it. This independent entity is called a Model. A Model keeps its own state and history; its relationships connect it to other Models.
 
 In our project-management example, this is the familiar Aggregate declaration. Project holds the Task collection, and `@Member` lets the SDK find and update each Task inside it.
 
@@ -188,11 +188,11 @@ Relationships, consistency, persistence and loading can now have different bound
 
 ### Independent state and history
 
-Project and Task now have their own state and history. The same applies to independently changing notes and attachments: being related does not mean sharing one event stream.
+Project and Task now have their own state and history. Notes and Attachments within a Task can be Models too, each with its own state and history. Being related does not mean sharing one event stream.
 
 <OverviewFigure name="streams" />
 
-A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, notes or attachments does not make them part of every Task load. Each Model also has its own history and erasure boundary.
+A Task update can load and change that Task without reconstructing the Project or its other Tasks. Adding more Tasks, Notes or Attachments does not make them part of every Task load.
 
 For example, completing Task A after a cold load could mean reconstructing **100,000 Project events** in the Aggregate design, versus just **10 events belonging to Task A** with Models:
 
@@ -225,7 +225,7 @@ Fluxzero.loadModel(taskId)
 </TabItem>
 </Tabs>
 
-The benefit also applies to document-based storage. Loading a small Task document avoids reading and deserializing a large Project document containing thousands of other Tasks.
+The benefit also applies to document-based storage. Loading a small Task document avoids reading and deserializing a large Project document containing hundreds of other Tasks.
 
 [Deep dive: load, cache and document costs](/docs/fluxzero-2-deep-dive#small-changes-large-persistence-boundaries) · [Deep dive: Model boundaries, identities and storage choices](/docs/fluxzero-2-deep-dive#model-the-lifecycle-then-choose-storage)
 
@@ -272,7 +272,7 @@ Project and Sprint can each discover their Tasks. Neither has to contain the oth
 
 ### Moving Models between parents
 
-A Task with a stable ID can move to another Project by changing its parent reference. Its own history remains attached to the Task, and its notes and attachments remain connected to the same Task ID. Reorganising the work becomes a change to a relationship, without removing and recreating the Task and its descendants under another root.
+A Task with a stable ID can move to another Project just by changing its parent reference. Its own history remains attached to the Task, and its Notes and Attachments remain connected to the same Task ID. Reorganising the work becomes a change to a relationship, without removing and recreating the Task and its descendants under another root.
 
 <OverviewFigure name="model-move" />
 
@@ -335,6 +335,8 @@ data class InternalNote(
 
 </TabItem>
 </Tabs>
+
+The extension can even live in another application. Its `InternalNote` Model class can remain private to that application; the application owning Task does not need it. Both applications share the relationship, without having to share every Model class.
 
 [Deep dive: shared relationships across applications](/docs/fluxzero-2-deep-dive#6-share-relationships-without-sharing-every-applications-implementation)
 
@@ -472,9 +474,18 @@ data class TaskStatus(
 
 Each status update replaces its stored document. It does not append to Task's history, and loading Task does not load the status. Caching is also a per-Model choice; it is enabled by default.
 
-Independent storage gives you a smaller physical-erasure boundary too. You can erase a completed approval process without erasing the Project and every Task beside it.
+[Deep dive: per-Model persistence](/docs/fluxzero-2-deep-dive#different-persistence-for-different-parts)
 
-[Deep dive: per-Model persistence](/docs/fluxzero-2-deep-dive#different-persistence-for-different-parts) · [Physical deletion scope](/docs/fluxzero-2-deep-dive#delete-one-part-without-deleting-the-whole)
+### Four concerns, separate choices
+
+The four concerns no longer have to fit inside one Aggregate boundary:
+
+- **Relationships:** Task can belong to both Project and Sprint, and move between Projects.
+- **Consistency:** an operation can commit changes to several Models together, wherever they belong.
+- **Persistence:** Task can retain its events while TaskStatus stores only its latest document.
+- **Loading:** completing Task A loads Task A, without reconstructing the rest of its Project.
+
+These choices can evolve independently. Adding a relationship or a business rule no longer requires reshaping one stored tree to accommodate it.
 
 ## Working with Models and Graphs
 
@@ -482,7 +493,7 @@ The storage boundaries have changed. Commands, handlers and tests remain familia
 
 ### Automatic command handling
 
-A registered command with an applicable Model `@Apply` can be handled directly. Fluxzero resolves its target, runs validation and assertions, and commits the result. The forwarding handler that previously loaded an Aggregate and called `assertAndApply` is no longer needed for this command.
+A registered command with an applicable Model `@Apply` can now be handled directly. Fluxzero automatically resolves its target, runs validation and assertions, and commits the result. The command handler that previously loaded an Aggregate and called `assertAndApply` is no longer needed for this command. This is all that's needed now:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -512,6 +523,8 @@ Fluxzero.sendCommandAndWait<Any?>(CompleteTask(taskId))
 
 </TabItem>
 </Tabs>
+
+There is no need for a command interface annotated with `@TrackSelf` either.
 
 Existing handlers can also invoke the Model pipeline explicitly with `Fluxzero.assertAndApply(command)`.
 
@@ -645,9 +658,71 @@ fun taskChanged(task: Graph<Task>) {
 
 [Deep dive: Graph-change handlers and before/after transitions](/docs/fluxzero-2-deep-dive#5-react-to-the-whole-graph-without-enumerating-its-events)
 
-### Parent-owned schedules and deletion
+### Deleting Models and their children
 
-A scheduled command can declare a parent Model. Deleting that Model triggers cancellation of its owned schedules, so each deletion flow does not need to enumerate and cancel them itself.
+Returning `null` from an apply deletes the Model. For example, this command deletes a Task:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+record DeleteTask(TaskId taskId) {
+    @Apply
+    Task apply(Task task) {
+        return null;
+    }
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class DeleteTask(val taskId: TaskId) {
+    @Apply
+    fun apply(task: Task): Task? = null
+}
+```
+
+</TabItem>
+</Tabs>
+
+By default, deletion cascades through parent relationships: deleting a Project deletes its Tasks and their Notes. A child can opt out with `@Parent(deleteOnParentDeletion = false)`. Logical deletion removes current state while retaining event-sourced history.
+
+Physical erasure is separate. For example, to erase a completed Approval Model without erasing its Task or Project, select only that Model:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+ModelDeletionPlan plan = Fluxzero.get().modelRepository()
+        .planDeletion(approvalId, ModelDeletionCascade.NONE);
+// Review the selected scope before executing the plan.
+Fluxzero.get().modelRepository().deleteModel(plan).join();
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val plan = Fluxzero.get().modelRepository()
+    .planDeletion(approvalId, ModelDeletionCascade.NONE)
+// Review the selected scope before executing the plan.
+Fluxzero.get().modelRepository().deleteModel(plan).join()
+```
+
+</TabItem>
+</Tabs>
+
+`NONE` selects only the Approval. The erasure covers its Model storage; globally published events and application-maintained copies have separate retention.
+
+[Deep dive: cascading deletion, retained history and physical erasure](/docs/fluxzero-2-deep-dive#9-deleting-models-and-retaining-the-right-history)
+
+### Automatically cancel schedules
+
+A scheduled command or message can declare a parent Model. Deleting that Model triggers cancellation of its owned schedules. Cancellation also follows a deletion cascade: deleting Project deletes its Tasks and cancels their reminders. There is no need to enumerate those schedules in each deletion flow.
+
+For example, schedule a reminder after its Task has been created:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -672,46 +747,9 @@ Fluxzero.scheduleCommand(RemindTask(taskId, deadline),
 </TabItem>
 </Tabs>
 
-Parent ownership also controls cascading deletion of child Models. Children can be configured to survive parent deletion. Logical deletion retains event-sourced history; physical erasure uses an explicit plan for the selected Models.
+Cancellation follows ownership: a Task configured to survive Project deletion keeps its reminders. Cancellation is asynchronous; a handler still needs to check whether work that has already been delivered remains relevant.
 
-[Deep dive: parent-owned schedules](/docs/fluxzero-2-deep-dive#7-delayed-work-can-follow-its-owners-lifetime) · [Deletion and retained history](/docs/fluxzero-2-deep-dive#9-deleting-models-and-retaining-the-right-history)
-
-### Testing with TestFixture
-
-Models use the existing given/when/then fixture API. This test creates a Project and Task, completes the Task and verifies the query response:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-TestFixture.create()
-        .givenCommands(new CreateProject(projectId, new ProjectDetails("Launch")),
-                       new AddTask(taskId, projectId, new TaskDetails("Ship 2.0")),
-                       new CompleteTask(taskId))
-        .whenQuery(new GetTask(taskId))
-        .expectResult(new TaskSummary("Ship 2.0", "Launch", true))
-        .expectNoErrors();
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-TestFixture.create()
-    .givenCommands(CreateProject(projectId, ProjectDetails("Launch")),
-                   AddTask(taskId, projectId, TaskDetails("Ship 2.0")),
-                   CompleteTask(taskId))
-    .whenQuery(GetTask(taskId))
-    .expectResult(TaskSummary("Ship 2.0", "Launch", true))
-    .expectNoErrors()
-```
-
-</TabItem>
-</Tabs>
-
-The fixture also supports reconstruction from Model events, schema evolution and migration scenarios.
-
-[Deep dive: testing the application and its history](/docs/fluxzero-2-deep-dive#test-the-application-including-its-history)
+[Deep dive: parent-owned schedules and cancellation](/docs/fluxzero-2-deep-dive#7-delayed-work-can-follow-its-owners-lifetime)
 
 ### Composed Graph responses
 
@@ -721,7 +759,7 @@ UIs and third-party APIs often need one complete view. For example, a Project pa
 
 <OverviewFigure name="response" />
 
-For a Project with one Task, the JSON includes:
+For a Project with one Task and one Note, the JSON includes:
 
 ```json
 {
@@ -732,7 +770,14 @@ For a Project with one Task, the JSON includes:
       "taskId": "task-a",
       "projectId": "launch",
       "details": { "title": "Ship 2.0" },
-      "completed": true
+      "completed": true,
+      "notes": [
+        {
+          "noteId": "n1",
+          "taskId": "task-a",
+          "details": { "text": "Ready for review" }
+        }
+      ]
     }
   ]
 }
@@ -762,7 +807,7 @@ fun getProject(@PathParam("projectId") projectId: String): Graph<Project> =
 </TabItem>
 </Tabs>
 
-`selectPaths(...)` limits the included branches. Project still needs no embedded Task collection, and the endpoint needs no separate projection handler to keep that response assembled.
+Project still needs no embedded Task collection, and the endpoint needs no separate projection handler to keep that response assembled.
 
 [Deep dive: Graph responses, view selection and JSON contracts](/docs/fluxzero-2-deep-dive#serialize-the-graph-as-a-composed-response)
 
@@ -793,9 +838,105 @@ fun projectName(project: Graph<Project>): String? =
 </TabItem>
 </Tabs>
 
-Each serialized Task includes `"projectName": "Launch"`. This is a serialization field, not an extra persisted field on Task. Renaming the Project is reflected in the next current response without rewriting any Tasks. Graph responses also support content filtering and composed OpenAPI schemas.
+Each serialized Task includes `"projectName": "Launch"`. This is a serialization field, not an extra persisted field on Task. Renaming the Project is reflected in the next current response without rewriting any Tasks.
 
-[Deep dive: derived fields](/docs/fluxzero-2-deep-dive#derived-values-without-duplicated-state) · [Content filtering](/docs/fluxzero-2-deep-dive#filter-graph-content-for-its-audience) · [OpenAPI](/docs/fluxzero-2-deep-dive#openapi-that-understands-the-composed-response)
+[Deep dive: derived fields](/docs/fluxzero-2-deep-dive#derived-values-without-duplicated-state)
+
+### Content filtering across the Graph
+
+Each Model can decide which content to expose to a caller. For example, add this method **inside InternalNote** to make its content visible only to team members:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@FilterContent
+InternalNote visibleTo(User user) {
+    return user != null && user.hasRole("team") ? this : null;
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@FilterContent
+fun visibleTo(user: User?): InternalNote? =
+    if (user != null && user.hasRole("team")) this else null
+```
+
+</TabItem>
+</Tabs>
+
+Enable filtering on the endpoint returning the Graph:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@HandleGet("/projects/{projectId}")
+@FilterContent
+Graph<Project> getProject(@PathParam("projectId") String projectId) {
+    return Fluxzero.loadGraph(new ProjectId(projectId));
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@HandleGet("/projects/{projectId}")
+@FilterContent
+fun getProject(@PathParam("projectId") projectId: String): Graph<Project> =
+    Fluxzero.loadGraph(ProjectId(projectId))
+```
+
+</TabItem>
+</Tabs>
+
+Filtering applies throughout the composed response, including Notes nested beneath Tasks. A team member receives the Project, Tasks and Notes. Another authorized reader receives the same Project and Tasks without the note values. The endpoint does not need to traverse the Graph or assemble a second response type. Request authorization remains separate.
+
+[Deep dive: filtering Graph content for its audience](/docs/fluxzero-2-deep-dive#filter-graph-content-for-its-audience)
+
+### OpenAPI for composed responses
+
+The API schema can describe the same nested Project → Tasks → Notes response, even though those collections are absent from the Project and Task classes. Select the composed schema with `modelGraph`:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@ApiDoc
+class ProjectApi {
+    @ApiDocResponse(status = 200, modelGraph = Project.class)
+    @HandleGet("/projects/{projectId}")
+    @FilterContent
+    Graph<Project> getProject(@PathParam("projectId") String projectId) {
+        return Fluxzero.loadGraph(new ProjectId(projectId));
+    }
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@ApiDoc
+class ProjectApi {
+    @ApiDocResponse(status = 200, modelGraph = Project::class)
+    @HandleGet("/projects/{projectId}")
+    @FilterContent
+    fun getProject(@PathParam("projectId") projectId: String): Graph<Project> =
+        Fluxzero.loadGraph(ProjectId(projectId))
+}
+```
+
+</TabItem>
+</Tabs>
+
+The schema follows the Models' declared composition paths. Filtering still determines which content each caller receives.
+
+[Deep dive: composed OpenAPI schemas](/docs/fluxzero-2-deep-dive#openapi-that-understands-the-composed-response)
 
 ### Materialized Graph search
 
