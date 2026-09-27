@@ -225,8 +225,10 @@ to compensate for lost revisions; historical inspection through `previous()` req
 Automatic model commands in one tracking batch and ordered routing segment have read-your-writes. A later command sees
 an earlier staged model update, including changed parent and ancestor relations, before the earlier commit completes.
 When their read/write sets overlap, the later command waits for the predecessor's durable result and is then
-reevaluated against canonical state before committing. Predecessor failure fails the dependent chain. Unrelated model
-chains remain parallel.
+reevaluated against canonical state before committing. A Model command that consumed provisional state is reevaluated
+after its predecessor settles, including when that predecessor is rejected during reevaluation; its own assertions
+then determine its result. This does not suppress commit transport failures or remove the producer-success barrier
+for ordinary handlers whose results depend on pending state. Unrelated Model chains remain parallel.
 
 A command rejected during validation does not fail independent commands in that batch, including deferred commits.
 Each command retains its own commit/result outcome. A real outer batch abort still stops pending batch work;

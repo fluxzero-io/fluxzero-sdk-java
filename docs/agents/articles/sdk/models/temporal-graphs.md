@@ -188,6 +188,18 @@ requested durable boundary, without overlaying pending current writes.
 became effective. `sequenceNumber()` counts that Model's revisions. These are different coordinates: do not use a
 Model sequence number as a global state index, or assume a wall-clock timestamp identifies a unique commit.
 
+For example, suppose Project last changed at state index 10, Note at 20 and Task at 30, followed by another Task
+change at 40. A Graph selected at boundary 30 reads:
+
+| Model | Graph `stateIndex()` | Selected `revisionStateIndex()` |
+| --- | --- | --- |
+| Project | 30 | 10 |
+| Note | 30 | 20 |
+| Task | 30 | 30 |
+
+The Task revision at 40 is outside this view even when already stored. Equal read boundaries do not mean equal
+revision indexes. These numbers are illustrative global state indexes, not per-Model sequence numbers.
+
 Use `playBackToCondition(...)` or `playBackToEvent(...)` when selecting a retained revision by a condition or an event.
 These return an `Optional`, because a matching revision may not be available.
 

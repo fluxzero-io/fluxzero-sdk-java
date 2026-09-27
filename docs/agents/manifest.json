@@ -7222,7 +7222,7 @@
     {
       "path": "/docs/sdk/models/conflicts",
       "title": "Model and Graph read conflicts",
-      "summary": "Pinned read sets, lazy membership tracking, empty collections, RETRY/FAIL/ACCEPT, mixed Runtime versions and conditional validation costs.",
+      "summary": "Choose membership versus value reads, follow staged actions and whole-operation rollback/retry, and configure conflict policy and routing.",
       "source": "articles/sdk/models/conflicts.md",
       "symbols": [
         "ModelConflictPolicy",
@@ -7232,6 +7232,11 @@
         "fluxzero.model.conflictPolicy",
         "Graph<Ancestor>",
         "relationship read dependencies",
+        "Graph.children",
+        "Graph.childModels",
+        "namedChildren",
+        "staged membership",
+        "composed operation rollback",
         "empty child collection",
         "lazy loading",
         "fluxzero.model.automaticRouting",
@@ -7242,6 +7247,22 @@
         {
           "description": "Choose a Model topic and language",
           "path": "/docs/sdk/models"
+        },
+        {
+          "path": "/docs/sdk/models/actions-java",
+          "description": "Compose Java actions and register their command ownership"
+        },
+        {
+          "path": "/docs/sdk/models/actions-kotlin",
+          "description": "Compose Kotlin actions and register their command ownership"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Select typed or metadata-only Graph reads across Java applications"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Select typed or metadata-only Graph reads across Kotlin applications"
         }
       ]
     },
