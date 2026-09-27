@@ -115,40 +115,17 @@ public class ApplicationProperties {
 
 
     /**
-     * Delivery guarantee for remote request/reply publication, independent of the outgoing-operation default.
-     * The conventional environment variable is {@code FLUXZERO_PUBLISHING_REQUEST_GUARANTEE}.
-     * Accepts {@code SENT} or {@code STORED}; explicit values override the defaults version in either direction.
-     */
-    public static final String REQUEST_DELIVERY_GUARANTEE_PROPERTY = "fluxzero.publishing.requestGuarantee";
-
-    private static final LocalDate REQUEST_STORAGE_DEFAULTS_VERSION = LocalDate.of(2026, 9, 27);
-
-    /**
-     * Resolves request/reply delivery once from the owning application's properties. Compatibility mode uses
-     * {@link Guarantee#SENT}; defaults version {@code 2026.09.27} or later uses {@link Guarantee#STORED}.
-     * Business responses remain independent of storage acknowledgments, but outgoing-write batch barriers await them.
+     * Resolves request/reply delivery from the shared {@link #DEFAULT_DELIVERY_GUARANTEE_PROPERTY}.
+     * Without an override SDK 2.x uses {@link Guarantee#STORED} and SDK 1.x retains {@link Guarantee#SENT}.
+     * The defaults version has no effect. Explicit NONE, SENT and STORED are all honored.
+     * Business responses remain independent of publication acknowledgments.
      *
      * @param propertySource application-local properties
-     * @return {@code SENT} or {@code STORED}
-     * @throws IllegalArgumentException if an explicit guarantee, or the defaults version used without an override,
-     *                                  is invalid
+     * @return a concrete delivery guarantee
+     * @throws IllegalArgumentException if an explicit guarantee is invalid
      */
     public static Guarantee getRequestDeliveryGuarantee(PropertySource propertySource) {
-        String configured = propertySource.get(REQUEST_DELIVERY_GUARANTEE_PROPERTY);
-        if (configured != null) {
-            try {
-                Guarantee result = Guarantee.valueOf(configured.trim().toUpperCase(java.util.Locale.ROOT));
-                if (result == Guarantee.SENT || result == Guarantee.STORED) {
-                    return result;
-                }
-            } catch (IllegalArgumentException ignored) {
-                // Report the accepted request/reply guarantees consistently.
-            }
-            throw new IllegalArgumentException("Property `" + REQUEST_DELIVERY_GUARANTEE_PROPERTY
-                                               + "` must be SENT or STORED");
-        }
-        return defaultsVersionAtLeast(propertySource, REQUEST_STORAGE_DEFAULTS_VERSION)
-                ? Guarantee.STORED : Guarantee.SENT;
+        return getDefaultDeliveryGuarantee(propertySource);
     }
 
     /**
@@ -273,13 +250,6 @@ public class ApplicationProperties {
      *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
      *         Set the property to {@code false} to retain compatibility behavior.</td>
      *     </tr>
-     *     <tr>
-     *         <td>{@code >= 2026.09.27}</td>
-     *         <td>{@code fluxzero.publishing.requestGuarantee = STORED}</td>
-     *         <td>Remote request/reply publication waits for Runtime storage acknowledgement at outgoing-write batch
-     *         barriers. Business responses remain asynchronous. Set the property to {@code SENT} for compatibility,
-     *         or to {@code STORED} to opt in independently of the defaults version.</td>
-     *     </tr>
      * </table>
      * <p>
      * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this
@@ -289,6 +259,8 @@ public class ApplicationProperties {
      * Outgoing delivery defaults to STORED in SDK 2.x and normally NONE in SDK 1.x, independently of this date.
      * Unconfigured 1.x scheduling clients and cancellation retain SENT.
      * Override it with {@link #DEFAULT_DELIVERY_GUARANTEE_PROPERTY}.
+     * Remote request/reply separately defaults to STORED in SDK 2.x and SENT in SDK 1.x.
+     * The same {@link #DEFAULT_DELIVERY_GUARANTEE_PROPERTY} overrides request/reply; the defaults date has no effect.
      * <p>
      * Memory-aware cache pressure can be tuned with
      * {@code fluxzero.cache.memoryPressure.heapThresholdPercent},

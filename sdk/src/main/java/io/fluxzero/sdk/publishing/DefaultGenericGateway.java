@@ -96,7 +96,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private volatile PreparedDispatchEntry lastPreparedDispatch;
 
     private Guarantee defaultGuarantee = Guarantee.STORED;
-    private Guarantee requestGuarantee = Guarantee.SENT;
+    private Guarantee requestGuarantee = Guarantee.STORED;
 
     private Supplier<Duration> shutdownTimeout = () -> Duration.ofSeconds(2);
 
@@ -731,8 +731,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private Guarantee resolveRequestGuarantee(Guarantee guarantee) {
         return switch (Objects.requireNonNull(guarantee, "guarantee")) {
             case DEFAULT -> requestGuarantee;
-            case SENT, STORED -> guarantee;
-            case NONE -> throw new IllegalArgumentException("Request publication requires SENT or STORED");
+            case NONE, SENT, STORED -> guarantee;
         };
     }
 
@@ -844,16 +843,17 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     /**
-     * Configures remote request/reply delivery before first use. Direct construction defaults to {@code SENT};
-     * the standard builder resolves {@code fluxzero.publishing.requestGuarantee} and the defaults version from its
-     * own property source. Namespace gateways inherit this value. Business response completion does not await storage.
+     * Configures remote request/reply delivery before first use. Direct construction defaults to {@code STORED};
+     * the standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source,
+     * independently of the defaults version. Namespace gateways inherit this value.
+     * Business response completion does not await storage.
      *
-     * @param guarantee {@code SENT} for compatibility or {@code STORED} for storage-acknowledged publication
+     * @param guarantee concrete publication guarantee; {@code DEFAULT} is not allowed
      * @return this gateway
      */
     public DefaultGenericGateway withRequestGuarantee(Guarantee guarantee) {
-        if (guarantee != Guarantee.SENT && guarantee != Guarantee.STORED) {
-            throw new IllegalArgumentException("The request delivery guarantee must be SENT or STORED");
+        if (Objects.requireNonNull(guarantee) == Guarantee.DEFAULT) {
+            throw new IllegalArgumentException("The request delivery guarantee must be concrete");
         }
         requestGuarantee = guarantee;
         return this;
@@ -862,7 +862,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     /**
      * Configures the concrete application delivery default before first use. Namespace gateways inherit this value.
      * The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.
-     * Request/reply publication uses {@link #withRequestGuarantee(Guarantee)} independently of this default.
+     * This applies to both fire-and-forget and request/reply publication, including an explicit NONE.
      *
      * @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed
      * @return this gateway
@@ -872,6 +872,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             throw new IllegalArgumentException("The default delivery guarantee must be concrete");
         }
         defaultGuarantee = guarantee;
+        requestGuarantee = guarantee;
         return this;
     }
 

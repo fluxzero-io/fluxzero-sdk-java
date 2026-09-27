@@ -192,8 +192,9 @@ public interface CommandGateway extends Namespaced<CommandGateway>, HasLocalHand
 
     /**
      * Sends a request with the given publication guarantee. The future represents its business response.
-     * {@link Guarantee#DEFAULT} uses the configured request policy; {@link Guarantee#SENT} and
-     * {@link Guarantee#STORED} override it for this call only. {@link Guarantee#NONE} is not supported.
+     * {@link Guarantee#DEFAULT} uses {@code fluxzero.publishing.defaultGuarantee}, with the SDK major-version
+     * request default when unconfigured. {@link Guarantee#NONE}, {@link Guarantee#SENT} and
+     * {@link Guarantee#STORED} override publication for this call only; the business result is still awaited.
      *
      * @param payload request payload
      * @param metadata request metadata; use {@link Metadata#empty()} when none is needed
@@ -238,7 +239,6 @@ public interface CommandGateway extends Namespaced<CommandGateway>, HasLocalHand
     private static void requireDefaultRequestGuarantee(Guarantee guarantee) {
         switch (java.util.Objects.requireNonNull(guarantee, "guarantee")) {
             case DEFAULT -> { }
-            case NONE -> throw new IllegalArgumentException("Request publication requires SENT or STORED");
             default -> throw new UnsupportedOperationException("This gateway does not support per-call request guarantees");
         }
     }
