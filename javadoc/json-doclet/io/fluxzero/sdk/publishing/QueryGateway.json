@@ -163,7 +163,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends a request with the given publication guarantee. The future represents its business response.\n {@link Guarantee#DEFAULT} uses the configured request policy; {@link Guarantee#SENT} and\n {@link Guarantee#STORED} override it for this call only. {@link Guarantee#NONE} is not supported.\n\n @param payload request payload\n @param metadata request metadata; use {@link Metadata#empty()} when none is needed\n @param guarantee request publication guarantee\n @param <R> response payload type\n @return the business response future\n"
+    "documentation" : " Sends a request with the given publication guarantee. The future represents its business response.\n {@link Guarantee#DEFAULT} uses {@code fluxzero.publishing.defaultGuarantee}, with the SDK major-version\n request default when unconfigured. {@link Guarantee#NONE}, {@link Guarantee#SENT} and\n {@link Guarantee#STORED} override publication for this call only; the business result is still awaited.\n\n @param payload request payload\n @param metadata request metadata; use {@link Metadata#empty()} when none is needed\n @param guarantee request publication guarantee\n @param <R> response payload type\n @return the business response future\n"
   }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.QueryGateway#send",

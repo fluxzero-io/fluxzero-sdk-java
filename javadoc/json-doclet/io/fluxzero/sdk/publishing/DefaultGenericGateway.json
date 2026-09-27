@@ -1169,7 +1169,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Configures the concrete application delivery default before first use. Namespace gateways inherit this value.\n The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.\n Request/reply publication uses {@link #withRequestGuarantee(Guarantee)} independently of this default.\n\n @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
+    "documentation" : " Configures the concrete application delivery default before first use. Namespace gateways inherit this value.\n The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.\n This applies to both fire-and-forget and request/reply publication, including an explicit NONE.\n\n @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
   }, {
     "name" : "withRequestGuarantee",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#withRequestGuarantee",
@@ -1185,7 +1185,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Configures remote request/reply delivery before first use. Direct construction defaults to {@code SENT};\n the standard builder resolves {@code fluxzero.publishing.requestGuarantee} and the defaults version from its\n own property source. Namespace gateways inherit this value. Business response completion does not await storage.\n\n @param guarantee {@code SENT} for compatibility or {@code STORED} for storage-acknowledged publication\n @return this gateway\n"
+    "documentation" : " Configures remote request/reply delivery before first use. Direct construction defaults to {@code STORED};\n the standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source,\n independently of the defaults version. Namespace gateways inherit this value.\n Business response completion does not await storage.\n\n @param guarantee concrete publication guarantee; {@code DEFAULT} is not allowed\n @return this gateway\n"
   }, {
     "name" : "withShutdownTimeout",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#withShutdownTimeout",
