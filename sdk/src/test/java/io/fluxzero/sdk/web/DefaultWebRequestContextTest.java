@@ -35,6 +35,45 @@ import static org.mockito.Mockito.mock;
 class DefaultWebRequestContextTest {
 
     @Test
+    void readsCaseInsensitiveCookiesAndPrefersFirstForwardedAddress() {
+        DefaultWebRequestContext context = context(Map.of(
+                "cOoKiE", List.of("session=first; theme=dark", "session=second"),
+                "x-FoRwArDeD-fOr", List.of("203.0.113.1, 203.0.113.2", "203.0.113.3"),
+                "Forwarded", List.of("198.51.100.1"),
+                "X-Real-IP", List.of("192.0.2.1")));
+
+        assertEquals(Map.of("session", "first", "theme", "dark"), context.getCookieMap());
+        assertEquals("203.0.113.1", context.getRemoteAddress());
+    }
+
+    @Test
+    void onlyConsidersFirstValueOfEachAddressHeader() {
+        DefaultWebRequestContext context = context(Map.of(
+                "X-Forwarded-For", List.of("xyz", "203.0.113.1"),
+                "Forwarded", List.of("198.51.100.1"),
+                "X-Real-IP", List.of("192.0.2.1")));
+
+        assertEquals("198.51.100.1", context.getRemoteAddress());
+    }
+
+    @Test
+    void fallsBackPastEmptyAddressHeaders() {
+        DefaultWebRequestContext context = context(Map.of(
+                "X-Forwarded-For", List.of(), "Forwarded", List.of(),
+                "x-real-ip", List.of("2001:db8::1")));
+
+        assertEquals("2001:db8::1", context.getRemoteAddress());
+    }
+
+    @Test
+    void missingHeadersProduceEmptyCookiesAndAddress() {
+        DefaultWebRequestContext context = context(Map.of());
+
+        assertEquals(Map.of(), context.getCookieMap());
+        assertEquals("", context.getRemoteAddress());
+    }
+
+    @Test
     @SneakyThrows
     void multipartFormDataExposesTextAndFileParts() {
         String boundary = "FluxzeroBoundary";
@@ -69,6 +108,15 @@ class DefaultWebRequestContextTest {
 
     private static DefaultWebRequestContext context(String contentType, byte[] body) {
         Metadata metadata = WebRequest.post("/upload").contentType(contentType).build().getMetadata();
+        return context(metadata, body);
+    }
+
+    private static DefaultWebRequestContext context(Map<String, List<String>> headers) {
+        return context(WebRequest.get("/headers").build().getMetadata().with(WebRequest.headersKey, headers),
+                       new byte[0]);
+    }
+
+    private static DefaultWebRequestContext context(Metadata metadata, byte[] body) {
         SerializedMessage message = new SerializedMessage(
                 new Data<>(body, byte[].class.getName(), 0, "application/octet-stream"),
                 metadata, "message-id", 0L);
