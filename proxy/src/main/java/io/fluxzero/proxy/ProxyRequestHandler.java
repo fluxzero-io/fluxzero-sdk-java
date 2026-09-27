@@ -520,9 +520,23 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         SerializedMessage requestMessage = webRequest.serialize(serializer);
         applyConfiguredSegment(webRequest, requestMessage);
         requestHandler.sendRequest(
-                        requestMessage, m -> requestGateway.append(Guarantee.SENT, m),
+                        requestMessage, this::appendWebRequest,
                         intermediateResponse -> handleResponse(intermediateResponse, responseContext))
                 .whenComplete((r, e) -> completeResponse(r, e, responseContext));
+    }
+
+    private CompletableFuture<Void> appendWebRequest(SerializedMessage... messages) {
+        int requestId = messages[0].getRequestId();
+        try {
+            return requestGateway.append(Guarantee.STORED, messages).whenComplete((ignored, error) -> {
+                if (error != null) {
+                    requestHandler.cancelRequest(requestId, unwrapException(error));
+                }
+            });
+        } catch (Throwable error) {
+            requestHandler.cancelRequest(requestId, unwrapException(error));
+            return CompletableFuture.failedFuture(error);
+        }
     }
 
     void applyConfiguredSegment(WebRequest webRequest, SerializedMessage requestMessage) {
@@ -581,7 +595,6 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             if (!chunkedRequest.hasDispatchedFinalChunk()) {
                 chunkedRequest = dispatchReadableChunks(webRequest, pending, true, chunkedRequest);
             }
-            chunkedRequest.dispatchFuture().join();
             ChunkedProxyRequest finalChunkedRequest = chunkedRequest;
             finalChunkedRequest.responseFuture()
                     .whenComplete((response, error) -> completeChunkedResponse(finalChunkedRequest, response, error,
@@ -780,7 +793,7 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
                     new AtomicReference<>(CompletableFuture.completedFuture(null));
             requestHandler.sendRequest(firstChunk, message -> {
                 try {
-                    initialDispatch.set(requestGateway.append(Guarantee.SENT, message));
+                    initialDispatch.set(appendWebRequest(message));
                 } catch (Throwable e) {
                     initialDispatch.set(CompletableFuture.failedFuture(e));
                     throw e;
@@ -810,7 +823,8 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
             SerializedMessage[] batch = pendingContinuations.toArray(SerializedMessage[]::new);
             pendingContinuations.clear();
             pendingContinuationBytes = 0;
-            dispatch(lastDispatch.get().thenCompose(ignored -> requestGateway.append(Guarantee.SENT, batch)));
+            dispatch(lastDispatch.get().thenCompose(ignored -> responseFuture.isCompletedExceptionally()
+                    ? responseFuture.thenApply(response -> null) : appendWebRequest(batch)));
         }
 
         private int continuationBatchByteLimit() {

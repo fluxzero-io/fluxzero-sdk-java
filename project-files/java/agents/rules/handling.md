@@ -567,6 +567,11 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
 
 <a name="http-mapping"></a>
 
+The inbound HTTP proxy publishes requests and body chunks with `Guarantee.STORED`, using the SDK transport's
+acknowledgment and retry flow. Publication failures fail a still-pending HTTP response; a business response or request
+timeout does not wait for a storage acknowledgment. This adds no HTTP-level retry or exactly-once guarantee across
+Runtime replacement: keep externally visible effects replay-safe when an unconfirmed append is retried.
+
 ## HTTP Status Mapping
 
 Fluxzero's `DefaultWebResponseMapper` automatically maps every endpoint handler result or exception to the outgoing
