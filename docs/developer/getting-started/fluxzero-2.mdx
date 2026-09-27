@@ -98,8 +98,6 @@ A screen may need a Project with Tasks and notes, while an individual Task updat
 
 Do not infer lifecycle ownership from JSON nesting, or mutation atomicity from a shared parent. Use independent Models for independently changing state and ordinary values for data wholly owned by a Model. `@Member` remains supported for deliberate embedding; `@Aggregate` remains the legacy/migration API.
 
-For the broader design motivation, Sara Pellegrini's *Kill the Aggregate* series examines why [business concepts and consistency boundaries do not always coincide](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-3-the-aggregate-mixes-technical-and-business-aspects.html), how fixed boundaries can introduce [unnecessary coordination](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-6-the-aggregate-could-cause-unecessary-complexity.html), and why coupling event history to those boundaries can make [later refactoring expensive](https://sara.event-thinking.io/2023/04/kill-aggregate-chapter-5-event-sourced-aggregate-are-hard-to-refactor.html). The Model and Graph contracts below specify how Fluxzero separates these concerns.
-
 ## An example: home automation
 
 The [Home example](https://github.com/fluxzero-io/fluxzero-sample-home) exercises these distinctions with recursive Spaces, independent Device observations and integration links. Its [overview diagram](/docs/fluxzero-2-overview#multiple-parents) shows the domain; for implementation, distinguish persisted relationships from ordinary references or application selections. A scene referencing a device does not make the scene the device's lifecycle owner.
