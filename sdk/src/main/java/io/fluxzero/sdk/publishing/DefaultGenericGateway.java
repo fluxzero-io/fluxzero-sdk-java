@@ -55,7 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
-import static io.fluxzero.common.Guarantee.SENT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotations;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeMetadata;
@@ -96,6 +95,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private volatile PreparedDispatchEntry lastPreparedDispatch;
 
     private Guarantee defaultGuarantee = Guarantee.STORED;
+    private Guarantee requestGuarantee = Guarantee.SENT;
 
     private Supplier<Duration> shutdownTimeout = () -> Duration.ofSeconds(2);
 
@@ -127,6 +127,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                                             requestHandlerForNamespace, serializer, dispatchInterceptor,
                                             messageType, topic, localHandlerRegistry, responseMapper)
                         .withDefaultGuarantee(defaultGuarantee)
+                        .withRequestGuarantee(requestGuarantee)
                         .withShutdownTimeout(shutdownTimeout);
     }
 
@@ -620,10 +621,37 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     private CompletableFuture<Message> sendRequest(PendingRequest request) {
         SerializedMessage message = request.serializedMessage();
-        CompletableFuture<SerializedMessage> result = request.timeout() == null
-                ? requestHandler.sendRequest(message, m -> gatewayClient.append(SENT, m))
-                : requestHandler.sendRequest(message, m -> gatewayClient.append(SENT, m), request.timeout());
+        CompletableFuture<SerializedMessage> result = sendRequest(message, request.timeout());
         return trackCallback(message.getMessageId(), result.thenApply(this::deserializeResponse));
+    }
+
+    private CompletableFuture<SerializedMessage> sendRequest(SerializedMessage message, Duration timeout) {
+        var publication = new CompletableFuture<Void>();
+        CompletableFuture<SerializedMessage> result = timeout == null
+                ? requestHandler.sendRequest(message, m -> appendRequest(publication, m))
+                : requestHandler.sendRequest(message, m -> appendRequest(publication, m), timeout);
+        publication.whenComplete((ignored, error) -> {
+            if (error != null) {
+                result.completeExceptionally(unwrap(error));
+            }
+        });
+        // Release the bridge's response reference when the request finishes, without canceling the transport append.
+        result.whenComplete((ignored, error) -> publication.complete(null));
+        return result;
+    }
+
+    private void appendRequest(CompletableFuture<Void> publication, SerializedMessage... messages) {
+        try {
+            gatewayClient.append(requestGuarantee, messages).whenComplete((ignored, error) -> {
+                if (error == null) {
+                    publication.complete(null);
+                } else {
+                    publication.completeExceptionally(unwrap(error));
+                }
+            });
+        } catch (Exception error) {
+            publication.completeExceptionally(error);
+        }
     }
 
     private List<CompletableFuture<Message>> sendRequests(List<PendingRequest> requests) {
@@ -642,19 +670,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }
         List<CompletableFuture<SerializedMessage>> results;
         if (sameTimeout) {
+            var publication = new CompletableFuture<Void>();
             results = firstTimeout == null ? requestHandler.sendRequests(
-                    serializedMessages, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)))
+                    serializedMessages, m -> appendRequest(publication, m.toArray(SerializedMessage[]::new)))
                     : requestHandler.sendRequests(
-                            serializedMessages, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)),
+                            serializedMessages, m -> appendRequest(publication, m.toArray(SerializedMessage[]::new)),
                             firstTimeout);
+            publication.whenComplete((ignored, error) -> {
+                if (error != null) {
+                    results.forEach(result -> result.completeExceptionally(unwrap(error)));
+                }
+            });
+            CompletableFuture<?> completion = results.size() == 1 ? results.getFirst()
+                    : CompletableFuture.allOf(results.toArray(CompletableFuture[]::new));
+            completion.whenComplete((ignored, error) -> publication.complete(null));
         } else {
             results = new ArrayList<>(requests.size());
             for (PendingRequest request : requests) {
-                Duration timeout = request.timeout();
-                results.add(timeout == null ? requestHandler.sendRequest(
-                        request.serializedMessage(), m -> gatewayClient.append(SENT, m))
-                                    : requestHandler.sendRequest(
-                                            request.serializedMessage(), m -> gatewayClient.append(SENT, m), timeout));
+                results.add(sendRequest(request.serializedMessage(), request.timeout()));
             }
         }
         List<CompletableFuture<Message>> mappedResults = new ArrayList<>(results.size());
@@ -774,8 +807,25 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     /**
+     * Configures remote request/reply delivery before first use. Direct construction defaults to {@code SENT};
+     * the standard builder resolves {@code fluxzero.publishing.requestGuarantee} and the defaults version from its
+     * own property source. Namespace gateways inherit this value. Business response completion does not await storage.
+     *
+     * @param guarantee {@code SENT} for compatibility or {@code STORED} for storage-acknowledged publication
+     * @return this gateway
+     */
+    public DefaultGenericGateway withRequestGuarantee(Guarantee guarantee) {
+        if (guarantee != Guarantee.SENT && guarantee != Guarantee.STORED) {
+            throw new IllegalArgumentException("The request delivery guarantee must be SENT or STORED");
+        }
+        requestGuarantee = guarantee;
+        return this;
+    }
+
+    /**
      * Configures the concrete application delivery default before first use. Namespace gateways inherit this value.
      * The standard builder resolves {@code fluxzero.publishing.defaultGuarantee} from its own property source.
+     * Request/reply publication uses {@link #withRequestGuarantee(Guarantee)} independently of this default.
      *
      * @param guarantee concrete delivery guarantee; {@code DEFAULT} is not allowed
      * @return this gateway

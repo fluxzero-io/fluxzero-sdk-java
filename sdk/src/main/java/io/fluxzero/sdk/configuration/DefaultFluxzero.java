@@ -903,6 +903,7 @@ public class DefaultFluxzero implements Fluxzero {
         @Override
         public Fluxzero build(@NonNull Client client) {
             var deliveryGuarantee = ApplicationProperties.getDefaultDeliveryGuarantee(propertySource);
+            var requestGuarantee = ApplicationProperties.getRequestDeliveryGuarantee(propertySource);
             PropertySource shutdownProperties = propertySource;
             requestShutdownTimeout(shutdownProperties); // Validate before allocating application resources.
             configureTypeAliases();
@@ -1220,7 +1221,7 @@ public class DefaultFluxzero implements Fluxzero {
             //create gateways
             UnaryOperator<GenericGateway> configureDelivery = gateway -> {
                 if (gateway instanceof DefaultGenericGateway defaultGateway) {
-                    defaultGateway.withDefaultGuarantee(deliveryGuarantee);
+                    defaultGateway.withDefaultGuarantee(deliveryGuarantee).withRequestGuarantee(requestGuarantee);
                 }
                 return gateway;
             };
