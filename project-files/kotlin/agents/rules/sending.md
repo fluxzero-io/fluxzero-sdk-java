@@ -431,16 +431,16 @@ SDK 2.x resolves it to `STORED`; SDK 1.x normally resolves it to `NONE`, while s
 property name, this setting applies beyond publication. The standard builder resolves its own property source
 before creating components, including namespace views and TestFixture components. Direct WebSocket client calls use
 that client's `ClientConfig.fromProperties(source)` policy, independent of application gateway configuration.
-Metrics retain `NONE`. Ordinary bulk execution and explicit `AndWait` operations use `STORED` independently
+Metrics retain `NONE`. Ordinary bulk execution and explicit storage `AndWait` operations use `STORED` independently
 of the configured default; result publication follows the configured delivery default. Internal model/aggregate/stateful-handler persistence keeps explicit durable guarantees.
 Explicit concrete guarantees remain unchanged. `DEFAULT` is an SDK choice, never a wire value.
 
-Remote request/reply publication has a separate setting: `fluxzero.publishing.requestGuarantee`
-(`FLUXZERO_PUBLISHING_REQUEST_GUARANTEE`), accepting only `SENT` or `STORED`. Without an override it remains
-`SENT` in compatibility mode and switches to `STORED` from defaults version `2026.09.27`. An explicit value
-wins in either direction; `publishing.defaultGuarantee` does not change it. The builder resolves the owning
-application's source once, including namespace and lazy custom gateways. Direct `DefaultGenericGateway`
-construction retains `SENT`; call `withRequestGuarantee(STORED)` to opt in programmatically.
+Remote request/reply publication uses the same `fluxzero.publishing.defaultGuarantee`
+(`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`). Without an override, SDK 2.x uses `STORED` and SDK 1.x retains
+`SENT` for requests. An explicit `NONE`, `SENT`, or `STORED` applies to requests as well as other outgoing
+operations, independently of `fluxzero.defaults.version`. The builder resolves the owning application's source
+once, including namespace and lazy custom gateways. Direct `DefaultGenericGateway` construction keeps the same
+major-version request default; `withDefaultGuarantee(...)` configures both publication paths.
 
 For a per-call override, use `send(payload, metadata, guarantee)` or
 `sendAndWait(payload, metadata, guarantee)` on a command/query gateway. The corresponding static methods are
@@ -457,18 +457,20 @@ Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT)
 Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED)
 ```
 
-`DEFAULT` uses the application's **request** policy described above; it is not an unconditional `STORED` and
-never resolves through the general `publishing.defaultGuarantee`. Existing calls without a guarantee keep that
-same policy. `SENT` or `STORED` overrides only this invocation. `NONE` is invalid for request/reply. Batch callers
-can use `gateway.sendForMessages(guarantee, messages...)`; `GenericGateway` also accepts
+`DEFAULT` follows this shared property and the major-version request fallback when unconfigured.
+Existing calls without a guarantee use the same policy. `NONE`, `SENT`, or `STORED` overrides only this invocation.
+Batch callers can use `gateway.sendForMessages(guarantee, messages...)`; `GenericGateway` also accepts
 `sendForMessage(message, timeout, guarantee)`. Neither override adds delay to form larger batches nor forces
 locally handled requests through the Runtime. Custom gateway implementations retain their existing behavior for
-`DEFAULT`; they must implement explicit guarantees to support `SENT`/`STORED`, otherwise these fail explicitly.
+`DEFAULT`; they must implement explicit guarantees to support `NONE`/`SENT`/`STORED`, otherwise these fail explicitly.
 
-Request/reply futures complete on the business response without waiting for storage acknowledgment. With `STORED`,
+Even with `NONE`, request/reply futures still complete on the business response; publication acknowledgment
+is a separate boundary. `sendAndWait()` waits for that response as well. With `STORED`,
 the outgoing-write batch barrier does await storage before advancing the input position. This stronger boundary
-can reduce throughput in short request chains; qualify the application before opting in. An asynchronous publication
-failure fails pending response futures and removes correlation callbacks. Transport retries do not add a
+can reduce throughput in short request chains; qualify the application when choosing a guarantee. A failure reported
+by the publication future fails pending response futures and removes correlation callbacks.
+With `NONE`, transport may return before an asynchronous failure, leaving the request to its normal response timeout.
+Transport retries do not add a
 business-level retry or an exactly-once guarantee across Runtime replacement.
 
 Convenience calls return after dispatch/local handling, without waiting for each remote storage acknowledgement.

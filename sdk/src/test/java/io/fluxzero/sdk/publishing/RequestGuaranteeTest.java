@@ -30,6 +30,8 @@ import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.HashMap;
 import java.util.List;
@@ -44,35 +46,35 @@ import static org.mockito.Mockito.*;
 
 class RequestGuaranteeTest {
     @ParameterizedTest
-    @CsvSource({",,SENT", "2026.09.26,,SENT", "2026.09.27,,STORED", "2026.09.28,,STORED",
-                ",STORED,STORED", "2026.09.26,STORED,STORED", "2026.09.27,SENT,SENT",
+    @CsvSource({",,STORED", "2026.09.26,,STORED", "2026.09.27,,STORED", "2099.01.01,,STORED",
+                "invalid,,STORED",
+                ",NONE,NONE", ",SENT,SENT", ",STORED,STORED", "2026.09.26,STORED,STORED", "2026.09.27,SENT,SENT",
                 "2026.09.28,SENT,SENT", ",sent,SENT", ",stored,STORED"})
-    void resolvesVersionAndExplicitOverrides(String version, String override, Guarantee expected) {
+    void resolvesOnlyExplicitOverridesRegardlessOfDefaultsVersion(String version, String override, Guarantee expected) {
         Map<String, String> properties = new HashMap<>();
         if (version != null) properties.put(DEFAULTS_VERSION_PROPERTY, version);
-        if (override != null) properties.put(REQUEST_DELIVERY_GUARANTEE_PROPERTY, override);
+        if (override != null) properties.put(DEFAULT_DELIVERY_GUARANTEE_PROPERTY, override);
         assertEquals(expected, getRequestDeliveryGuarantee(new SimplePropertySource(properties)));
     }
 
     @Test
-    void rejectsWeakerUnresolvedOrInvalidConfiguration() {
-        for (String value : List.of("NONE", "DEFAULT", "", "invalid")) {
+    void rejectsUnresolvedOrInvalidConfiguration() {
+        for (String value : List.of("DEFAULT", "", "invalid")) {
             assertThrows(IllegalArgumentException.class, () -> getRequestDeliveryGuarantee(
-                    new SimplePropertySource(Map.of(REQUEST_DELIVERY_GUARANTEE_PROPERTY, value))));
+                    new SimplePropertySource(Map.of(DEFAULT_DELIVERY_GUARANTEE_PROPERTY, value))));
         }
-        assertThrows(IllegalArgumentException.class, () -> getRequestDeliveryGuarantee(
-                new SimplePropertySource(Map.of(DEFAULTS_VERSION_PROPERTY, "invalid"))));
     }
 
     @Test
-    void directGatewaysRetainCompatibilityAndValidateOverrides() {
+    void directGatewaysValidateOverrides() {
         var gateway = new DefaultGenericGateway(mock(io.fluxzero.sdk.configuration.client.Client.class),
                 mock(GatewayClient.class), mock(RequestHandler.class), new JacksonSerializer(),
                 DispatchInterceptor.noOp, MessageType.COMMAND, null, HandlerRegistry.noOp(), mock(ResponseMapper.class));
-        for (Guarantee guarantee : List.of(Guarantee.NONE, Guarantee.DEFAULT)) {
+        for (Guarantee guarantee : List.of(Guarantee.DEFAULT)) {
             assertThrows(IllegalArgumentException.class, () -> gateway.withRequestGuarantee(guarantee));
         }
-        assertThrows(IllegalArgumentException.class, () -> gateway.withRequestGuarantee(null));
+        assertThrows(NullPointerException.class, () -> gateway.withRequestGuarantee(null));
+        assertSame(gateway, gateway.withRequestGuarantee(Guarantee.NONE));
         assertSame(gateway, gateway.withRequestGuarantee(Guarantee.SENT));
         assertSame(gateway, gateway.withRequestGuarantee(Guarantee.STORED));
     }
@@ -80,10 +82,10 @@ class RequestGuaranteeTest {
     @Test
     void applicationsNamespacesAndLazyGatewaysKeepTheirOwningSource() {
         var builder = DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(Map.of(
-                DEFAULTS_VERSION_PROPERTY, "2026.09.27", DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "NONE")));
+                DEFAULTS_VERSION_PROPERTY, "2026.09.27", DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "STORED")));
         try (var first = application(builder)) {
             builder.replacePropertySource(ignored -> new SimplePropertySource(Map.of(
-                    DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "STORED")));
+                    DEFAULT_DELIVERY_GUARANTEE_PROPERTY, "SENT")));
             try (var second = application(builder)) {
                 // Another active application and a reused builder must not change the first application's policy.
                 second.apply(f -> { failRequest(first); return null; });
@@ -103,19 +105,37 @@ class RequestGuaranteeTest {
                 var firstTransport = first.client().getGatewayClient(MessageType.COMMAND);
                 doReturn(CompletableFuture.completedFuture(null))
                         .when(firstTransport)
-                        .append(eq(Guarantee.NONE), any(SerializedMessage[].class));
+                        .append(eq(Guarantee.STORED), any(SerializedMessage[].class));
+                clearInvocations(firstTransport);
                 first.commandGateway().sendAndForget("event");
                 verify(first.client().getGatewayClient(MessageType.COMMAND))
-                        .append(eq(Guarantee.NONE), any(SerializedMessage[].class));
+                        .append(eq(Guarantee.STORED), any(SerializedMessage[].class));
             }
         }
     }
 
     @ParameterizedTest
-    @CsvSource({"2026.09.26,STORED,STORED", "2026.09.27,SENT,SENT"})
+    @NullSource
+    @ValueSource(strings = {"2026.09.26", "2026.09.27", "2099.01.01"})
+    void builderPreservesMajorRequestDefaultRegardlessOfDefaultsVersion(String version) {
+        Map<String, String> properties = new HashMap<>();
+        if (version != null) properties.put(DEFAULTS_VERSION_PROPERTY, version);
+        try (var app = application(DefaultFluxzero.builder().replacePropertySource(
+                ignored -> new SimplePropertySource(properties)))) {
+            failRequest(app);
+            assertThrows(CompletionException.class, () -> app.queryGateway().send("query").join());
+            for (var type : List.of(MessageType.COMMAND, MessageType.QUERY)) {
+                verify(app.client().getGatewayClient(type))
+                        .append(eq(Guarantee.STORED), any(SerializedMessage[].class));
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"2026.09.26,STORED,STORED", "2026.09.27,SENT,SENT", "2099.01.01,NONE,NONE"})
     void builderAppliesExplicitRequestOverrides(String version, String override, Guarantee expected) {
         try (var app = application(DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(
-                Map.of(DEFAULTS_VERSION_PROPERTY, version, REQUEST_DELIVERY_GUARANTEE_PROPERTY, override))))) {
+                Map.of(DEFAULTS_VERSION_PROPERTY, version, DEFAULT_DELIVERY_GUARANTEE_PROPERTY, override))))) {
             failRequest(app);
             verify(app.client().getGatewayClient(MessageType.COMMAND))
                     .append(eq(expected), any(SerializedMessage[].class));

@@ -28,7 +28,7 @@ import java.util.concurrent.CompletableFuture
 
 class RequestGuaranteeKotlinTest {
     @ParameterizedTest
-    @EnumSource(value = Guarantee::class, names = ["DEFAULT", "SENT", "STORED"])
+    @EnumSource(value = Guarantee::class, names = ["DEFAULT", "NONE", "SENT", "STORED"])
     fun typedRequestsKeepResultInferenceAndLocalHandling(guarantee: Guarantee) {
         TestFixture.create(Handler()).fluxzero.use { fluxzero ->
             fluxzero.execute { f ->
