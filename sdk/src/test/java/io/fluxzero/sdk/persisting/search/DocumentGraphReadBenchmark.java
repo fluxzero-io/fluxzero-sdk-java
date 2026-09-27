@@ -121,14 +121,13 @@ public class DocumentGraphReadBenchmark {
                 "root", 0L));
     }
 
-    @Model(name = "BenchmarkRoot", materializeGraph = true,
-            graphProjection = @GraphProjection(collection = COLLECTION))
+    @Model(searchable = true, name = "BenchmarkRoot", graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC, collection = COLLECTION))
     @Revision(1)
     record Root(@EntityId String id, String name) {}
-    @Model(name = "BenchmarkChild")
+    @Model(searchable = false, name = "BenchmarkChild")
     record Child(@EntityId String id, int value) {}
     static class Reader {
-        @HandleDocument(modelGraph = Root.class)
+        @HandleDocument
         void read(Graph<Root> graph) {}
     }
     static class RootCaster {

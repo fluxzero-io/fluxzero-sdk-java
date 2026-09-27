@@ -535,7 +535,7 @@ public class FluxzeroSpringConfigTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record ScannedModel(
             @EntityId String id,
             String value) {

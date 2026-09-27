@@ -142,14 +142,14 @@ class GraphCurrentTest {
         app.apply(fc -> fc.executeModelCommit(new Message(command)).join());
     }
 
-    @Model record Project(@EntityId(prefix = "model-", postfix = "-state") ProjectId projectId, int version) {}
-    @Model record Aliased(@EntityId String id, @Alias String alias) {}
+    @Model(searchable = false) record Project(@EntityId(prefix = "model-", postfix = "-state") ProjectId projectId, int version) {}
+    @Model(searchable = false) record Aliased(@EntityId String id, @Alias String alias) {}
     static class ProjectId extends Id<Project> {
         ProjectId(String value) { super(value, "project-"); }
     }
-    @Model record Note(@EntityId(parentScoped = true) String noteId,
+    @Model(searchable = false) record Note(@EntityId(parentScoped = true) String noteId,
                        @Parent(pathInParent = "notes") ProjectId projectId, int version) {}
-    @Model record Device(@EntityId String deviceId, @Parent(pathInParent = "devices") ProjectId projectId) {}
+    @Model(searchable = false) record Device(@EntityId String deviceId, @Parent(pathInParent = "devices") ProjectId projectId) {}
     record PutProject(ProjectId projectId, int version) {
         @Apply Project apply(@Nullable Project current) { return new Project(projectId, version); }
     }

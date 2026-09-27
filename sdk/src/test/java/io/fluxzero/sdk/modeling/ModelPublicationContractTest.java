@@ -94,14 +94,14 @@ class ModelPublicationContractTest {
     record SilentDelete(String id) {}
     record Notify(String id) {}
 
-    @Model(persistence = ModelPersistence.DOCUMENT, publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
     record PublishedDocument(@EntityId String id, int value) {
         @Apply static PublishedDocument create(Create event) { return new PublishedDocument(event.id(), 1); }
         @Apply PublishedDocument update(Update event) { return new PublishedDocument(id, value + 1); }
         @Apply PublishedDocument delete(Delete event) { return null; }
     }
 
-    @Model
+    @Model(searchable = false)
     record Sourced(@EntityId String id, int value) {
         @Apply static Sourced create(Create event) { return new Sourced(event.id(), 1); }
         @Apply(eventPublication = EventPublication.NEVER)

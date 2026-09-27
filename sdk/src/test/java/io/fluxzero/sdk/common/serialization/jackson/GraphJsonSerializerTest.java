@@ -272,7 +272,7 @@ class GraphJsonSerializerTest {
         return entity;
     }
 
-    @Model
+    @Model(searchable = false)
     private record Root(@EntityId String id, String name) {
 
         @GraphProperty
@@ -288,7 +288,7 @@ class GraphJsonSerializerTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Child(
             @EntityId String id,
             @Parent(value = Root.class, pathInParent = "children") String rootId,
@@ -305,7 +305,7 @@ class GraphJsonSerializerTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Leaf(
             @EntityId String id,
             @Parent(value = Child.class, pathInParent = "details/leaves") String childId,
@@ -320,7 +320,7 @@ class GraphJsonSerializerTest {
     private record DerivedContext(String value) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ViewRoot(@EntityId String id) {
         private static final AtomicInteger filterInvocations = new AtomicInteger();
 
@@ -332,7 +332,7 @@ class GraphJsonSerializerTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ViewChild(
             @EntityId String id,
             @Parent(value = ViewRoot.class, pathInParent = "children") String rootId,

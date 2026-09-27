@@ -64,7 +64,7 @@ its owning Model, not a separate entity update. The Model/Member lifecycle rules
 ## Define a model
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -109,7 +109,7 @@ substitutes for a durable event history. Every historical Graph node whose value
 
 The default above is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
 read requirement. Use [the central Model query matrix](model-queries.md).
-Relationship-scoped search can use an internal component without `DOCUMENT`; ordinary `search(T.class)` lists cannot.
+All Model searches use effectively searchable canonical node documents, independently of persistence.
 
 Important settings:
 
@@ -119,16 +119,16 @@ Important settings:
   `Invoice` = `billingInvoice`). Changing either value after data exists requires an application-managed data
   transition.
 - `persistence`: selects a non-empty set of durable representations:
-  - `[EVENT_SOURCED]` (default): reconstruct from Model events, without a direct document.
-  - `[EVENT_SOURCED, DOCUMENT]`: reconstruct from events; maintain an internal source and separate public DOCUMENT projection.
-  - `[DOCUMENT]`: load authoritative state from the internal source, not an independently rewritten public projection.
+  - `EVENT_SOURCED` (default): reconstruct from Model events; indexing is independent.
+  - `EVENT_SOURCED, DOCUMENT`: reconstruct from events and maintain a canonical current-state document.
+  - `DOCUMENT`: load authoritative state from its canonical internal document; no history is implied.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `document`: optional `DocumentProjection` configuration for the direct collection, timestamp paths, and public
-  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
-  remains parent/ancestor-queryable but has no public content indexes. The separate internal source supports Model
-  loads, verified state and Graph composition; a Graph role retains its own internal indexes. Public rewrites cannot
-  change that source. Use `@HandleDocument(modelState = T.class)` (Kotlin: `T::class`) for schema-only source reindexing;
-  `documentClass` selects the public projection and `modelGraph` the materialized Graph. See the migration guide.
+- `searchable`: required explicit choice. True activates indexed node state and, by default, typed composition
+  descendants. False does not veto participation through a searchable ancestor.
+- `searchSettings`: node collection and timestamp paths; `includeDescendants = false` selects only the node.
+  Settings alone do not activate indexing. The default collection preserves the canonical internal source.
+- Document handlers infer scope from a node value or `Graph<T>`. Use `source = DocumentSource.MODEL_STATE`
+  for guarded internal schema migration without requiring searchability.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
@@ -137,14 +137,11 @@ Important settings:
 - `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
 - `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `materializeGraph`: enables the optional durable whole-tree read model.
-- `graphProjection`: optional advanced `GraphProjection` configuration; its collection defaults to the resolved direct
-  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
-  materializes the complete finite graph without implicit size limits.
+- `graphProjection`: mode NONE (default) stitches indexed nodes when read. ASYNC/AWAIT additionally maintain
+  a composed Graph document; AWAIT waits at commit completion. Collection and path overrides belong here.
 
 Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
-`publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
-make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
+`publicationStrategy` and per-apply overrides. Search indexing does not change the Model load authority. Event-sourcing-only options such as
 `ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT`-only Models.
 
 Compact Model-event reads accept mixed historical MessagePack and binary records, including compressed blocks,
@@ -160,8 +157,7 @@ compatible responses prepared by the Runtime. Older runtimes may ignore the opti
 Storage and query visibility are not authorization. `DOCUMENT` with effective `eventPublication = NEVER`
 can persist current state without Model events, but has no history or `previous()`. Event-sourced state changes
 must store their event. This does not suppress incoming request logs, results or application logs.
-`@DocumentProjection(searchable = false)` removes unrestricted typed search, not identity or exact
-parent/ancestor reads. Graph predicates can still use internal content indexes independently of the public projection.
+`searchable = false` with no searchable ancestor keeps document state internal. Searchability is not authorization.
 
 `@ProtectData` on an input does not carry over to copies in Model state, snapshots, documents or return values.
 Result payloads can declare their own protected fields for normal RESULT dispatch; do not infer HTTP-body protection.
@@ -424,7 +420,7 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, one Model can have two parents with different meanings:
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class LineItem(
     @EntityId val lineItemId: LineItemId,
     @Parent(pathInParent = "lines") val orderId: OrderId,
@@ -444,7 +440,7 @@ rule separately when deletion must be refused while references exist. `@Parent` 
 annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks")
@@ -495,7 +491,7 @@ fun assertOpen(
 
 Every root and descendant in a materialized Graph retains its own serialized type and `@Revision`. The ordinary
 serializer upcasts nodes independently and lazily; do not create a Graph-wide upcaster. Use
-`@HandleDocument(modelGraph = Root::class)` and return the complete Graph only when evolved node JSON must be persisted
+`@HandleDocument` and return the complete Graph only when evolved node JSON must be persisted
 back into the derived projection. That operation must preserve the root, state boundary, nodes and placements and does
 not modify direct Models, histories or relationships.
 
@@ -504,7 +500,7 @@ not modify direct Models, histories or relationships.
 `@Model` plus `@Member` is the intentional shared-stream option:
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Invoice(
     @EntityId val invoiceId: InvoiceId,
     @Member val lines: List<InvoiceLine>
@@ -664,7 +660,7 @@ Persistent instability fails with an explicit platform error.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Project(
     @EntityId val projectId: ProjectId,
     @Alias(prefix = "external:") val externalId: String
@@ -736,12 +732,21 @@ a separate limit; there is no general automatic event-retention policy implied h
 Read [Choosing Model and Graph queries](model-queries.md) before selecting storage or query APIs. Its matrix covers plain event-sourced Models, explicit component paths, direct documents, reference-only
 documents and materialized Graphs, with executable Java/Kotlin query examples and state guarantees.
 
-Start with `@Model`. An explicit `@Parent(pathInParent = "...")` maintains an indexed internal component and supports
-relationship-scoped search without `DOCUMENT`. Use a direct public document for unrestricted typed Model lists.
-Identity-based Graph navigation needs neither document nor composition path. Search Graphs include explicit paths
-only and are document-backed; they do not inherit an event handler's historical boundary or transaction readset.
-Materialized Graphs may lag, whereas live composition can require broad candidate work before filtering/pagination.
-Relation queries and live Graph composition do not support the statistics-based `count()` terminal.
+Declare `@Model(searchable = true)` on the root to maintain canonical indexed nodes for it and its typed
+composition descendants. `pathInParent` only defines composition. Node and related-content queries use the same
+canonical sources. `searchable = false` means no independent request; participation through an ancestor still applies.
+`SearchSettings(includeDescendants = false)` limits the root's request and Graph scope to itself.
+
+Use `@HandleDocument` with a node value for node updates, or `Graph<T>` for root and included-descendant updates.
+`source = DocumentSource.MODEL_STATE` explicitly selects internal state, including non-searchable DOCUMENT Models.
+NONE handlers stitch current nodes after a durable notification; their `previous()` is unavailable and Graph returns
+are observational. ASYNC/AWAIT maintain a separate composed document whose schema can be conditionally evolved.
+Ancestor-only content changes do not trigger a child Graph handler.
+
+Identity-based Graph navigation needs neither searchability nor composition paths. Search Graphs follow composition
+paths and read current documents, without inheriting an event handler's historical boundary or transaction readset.
+Counts, grouped statistics and facets work in all modes; live statistics may read many documents. Broad child filters
+or sorts can require many compositions before paging. Use stored materialization for those workloads.
 
 ## Conflict policy
 

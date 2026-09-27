@@ -1006,7 +1006,7 @@ class ModelEntityParameterResolverTest {
             List<Integer> balances, long distinctStateIndices) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record Account(
             @EntityId AccountId accountId, int balance) {
     }
@@ -1092,7 +1092,7 @@ class ModelEntityParameterResolverTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record Inventory(
             @EntityId InventoryId inventoryId, int quantity) {
     }
@@ -1120,7 +1120,7 @@ class ModelEntityParameterResolverTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Company(
             @EntityId CompanyId companyId) {
     }
@@ -1132,7 +1132,7 @@ class ModelEntityParameterResolverTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Department(
             @EntityId DepartmentId departmentId,
             @Parent(pathInParent = "departments")
@@ -1146,7 +1146,7 @@ class ModelEntityParameterResolverTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Worker(
             @EntityId WorkerId workerId,
             @Parent(pathInParent = "workers")

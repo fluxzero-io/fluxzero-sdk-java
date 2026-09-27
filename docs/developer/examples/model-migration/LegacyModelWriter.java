@@ -37,9 +37,7 @@ public class LegacyModelWriter {
         }
     }
 
-    @Model(name = "migration-project", persistence = {EVENT_SOURCED, DOCUMENT},
-            document = @DocumentProjection(collection = "migration-projects"), materializeGraph = true,
-            graphProjection = @GraphProjection(collection = "migration-project-graphs", completion = AWAIT))
+    @Model(searchable = true, name = "migration-project", persistence = {EVENT_SOURCED, DOCUMENT}, searchSettings = @SearchSettings(collection = "migration-projects"), graphProjection = @GraphProjection(collection = "migration-project-graphs", mode = io.fluxzero.sdk.modeling.GraphProjectionMode.AWAIT))
     @Revision(1)
     record Project(@EntityId String projectId, String name) {}
 
@@ -52,7 +50,7 @@ public class LegacyModelWriter {
         @Apply Project apply(Project current) { return new Project(projectId, name); }
     }
 
-    @Model(name = "migration-note")
+    @Model(searchable = false, name = "migration-note")
     record Note(@EntityId String noteId, @Parent(value = Project.class, pathInParent = "notes") String projectId) {}
 
     record CreateNote(String noteId, String projectId) {

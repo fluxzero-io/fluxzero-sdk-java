@@ -80,7 +80,7 @@ Now define the information we want to remember:
 public record TaskDetails(@NotBlank String name) {
 }
 
-@Model
+@Model(searchable = false)
 public record Task(@EntityId TaskId taskId,
                    @With TaskDetails details,
                    @With UserId assignee,
@@ -94,7 +94,7 @@ public record Task(@EntityId TaskId taskId,
 ```kotlin
 data class TaskDetails(@field:NotBlank val name: String)
 
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     val details: TaskDetails,
@@ -490,7 +490,7 @@ public record ProjectDetails(@NotBlank String name,
                              @Size(max = 1000) String description) {
 }
 
-@Model
+@Model(searchable = false)
 public record Project(@EntityId ProjectId id,
                       @With ProjectDetails details,
                       UserId ownerId) {
@@ -508,7 +508,7 @@ data class ProjectDetails(
     @field:Size(max = 1000) val description: String? = null
 )
 
-@Model
+@Model(searchable = false)
 data class Project(
     @EntityId val id: ProjectId,
     val details: ProjectDetails,
@@ -592,7 +592,7 @@ We already have standalone tasks. Now let a task optionally belong to a project 
   <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 public record Task(@EntityId TaskId taskId,
                    @With @Parent(pathInParent = "tasks") ProjectId projectId,
                    @With TaskDetails details,
@@ -605,7 +605,7 @@ public record Task(@EntityId TaskId taskId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId?,
@@ -1069,7 +1069,7 @@ To list and search projects, let Fluxzero maintain a searchable Graph for each p
   <TabItem label="Java">
 
 ```java
-@Model(materializeGraph = true)
+@Model(searchable = true, graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC))
 public record Project(@EntityId ProjectId id, @With ProjectDetails details, UserId ownerId) {
 }
 ```
@@ -1078,14 +1078,14 @@ public record Project(@EntityId ProjectId id, @With ProjectDetails details, User
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(materializeGraph = true)
+@Model(searchable = true, graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC))
 data class Project(@EntityId val id: ProjectId, val details: ProjectDetails, val ownerId: UserId)
 ```
 
   </TabItem>
 </Tabs>
 
-With `materializeGraph = true`, Fluxzero keeps a searchable view of each project and its tasks. We can query it
+With `searchable = true`, Fluxzero indexes each project and its composition descendants. GraphProjection AWAIT additionally maintains the composed search document. We can query it
 with `searchGraph`. This view updates in the background; an identity-based load still gives you the accepted state immediately.
 
 

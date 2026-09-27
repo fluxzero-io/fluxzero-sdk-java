@@ -226,12 +226,12 @@ public class InMemorySearchStore implements SearchClient {
             documentStream = documentStream.map(d -> d.deserializeDocument().filterPaths(pathFilter))
                     .map(SerializedDocument::new);
         }
-        if (searchDocuments.getSkip() > 0) {
-            documentStream = documentStream.skip(searchDocuments.getSkip());
-        }
         if (searchDocuments.getLastHit() != null) {
             documentStream = documentStream.dropWhile(d -> !d.getId().equals(searchDocuments.getLastHit().getId()))
                     .skip(1);
+        }
+        if (searchDocuments.getSkip() > 0) {
+            documentStream = documentStream.skip(searchDocuments.getSkip());
         }
         if (searchDocuments.getMaxSize() != null) {
             documentStream = documentStream.limit(searchDocuments.getMaxSize());
@@ -372,6 +372,13 @@ public class InMemorySearchStore implements SearchClient {
                                 graphSearch.getDocumentIds())
                         .maxSize(candidateLimit)
                         .build();
+        boolean pageRoots = ModelGraphDocumentSearch.canPageRoots(request);
+        if (pageRoots) {
+            Integer requested = graphSearch.getMaxSize();
+            candidateSearch = graphSearch.toBuilder().pathFilters(List.of())
+                    .maxSize(candidateLimit == null ? requested : requested == null ? candidateLimit
+                            : Integer.valueOf(Math.min(requested, candidateLimit))).build();
+        }
         List<SerializedDocument> roots =
                 (request.getRelations().isEmpty()
                         ? search(
@@ -445,7 +452,7 @@ public class InMemorySearchStore implements SearchClient {
                                 graphModelTypes(graphDocuments),
                                 request.getComposition(),
                                 modelStateIndex),
-                        graphSearch)
+                        pageRoots ? ModelGraphDocumentSearch.afterRootSelection(graphSearch) : graphSearch)
                 .stream().map(
                 SearchHit::fromDocument);
     }
@@ -479,6 +486,13 @@ public class InMemorySearchStore implements SearchClient {
                 request.getRequestId(), document, head, request.isVerifyModelState());
     }
 
+    private java.util.function.Consumer<String> modelSchemaInvalidation = ignored -> { };
+
+    /** Binds schema-only source rewrites to the local worker's retained rebuild requests. */
+    public void setModelSchemaInvalidation(java.util.function.Consumer<String> listener) {
+        modelSchemaInvalidation = java.util.Objects.requireNonNull(listener);
+    }
+
     @Override
     public CompletableFuture<Void> rewriteModelSourceDocument(
             io.fluxzero.common.api.search.RewriteModelSourceDocument request) {
@@ -488,7 +502,7 @@ public class InMemorySearchStore implements SearchClient {
             var document = request.getDocument();
             String key = asIdentifier(document.getCollection(), document.getId());
             DirectDocumentVersion version = modelDocumentVersions.get(key);
-            if (version == null || !version.head().equals(request.getExpectedHead())
+            if (version == null || version.projection() || !version.head().equals(request.getExpectedHead())
                 || !request.getExpectedProof().equals(version.proof())
                 || !request.getExpectedProof().equals(of(documents.get(key), version.head()))) {
                 return CompletableFuture.completedFuture(null);
@@ -498,6 +512,7 @@ public class InMemorySearchStore implements SearchClient {
             modelDocumentVersions.put(key, new DirectDocumentVersion(document.getCollection(), version.head(), document));
             publication = prepareMessages(Map.of(key, document));
         }
+        modelSchemaInvalidation.accept(request.getExpectedHead().getModelType());
         publication.run();
         return CompletableFuture.completedFuture(null);
     }
@@ -1136,6 +1151,15 @@ public class InMemorySearchStore implements SearchClient {
                 }
                 continue;
             }
+            if (!configuration.isStoreGraph()) {
+                SerializedDocument marker = io.fluxzero.common.search.ModelGraphInvalidation.create(
+                        root, configuration, stateIndex);
+                documents.put(projectionKey, marker);
+                indexed.put(projectionKey, marker);
+                collections.add(configuration.getCollection());
+                modelGraphProjectionStateIndices.put(projectionKey, stateIndex);
+                continue;
+            }
             List<ModelGraphEdge> edges =
                     modelGraphResolver.resolve(
                                     Set.of(rootId),
@@ -1406,6 +1430,9 @@ public class InMemorySearchStore implements SearchClient {
                         ModelGraphDocumentManifest.METADATA_KEY,
                         manifest);
             }
+        }
+        if (document.getMetadata().containsKey(io.fluxzero.common.search.ModelGraphInvalidation.METADATA_KEY)) {
+            metadata = metadata.with(io.fluxzero.common.search.ModelGraphInvalidation.METADATA_KEY, true);
         }
         var result = new SerializedMessage(document.getDocument(), metadata, document.getId(),
                                            IndexUtils.millisFromIndex(index));

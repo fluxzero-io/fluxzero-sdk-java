@@ -209,7 +209,7 @@ class ModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AffixedModel(
             @EntityId(prefix = "move-", postfix = "-state") AffixedId id,
             @Alias String code) {

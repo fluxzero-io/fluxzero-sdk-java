@@ -156,7 +156,7 @@ For example, keep Task's event-sourced history but store only the latest externa
 <TabItem label="Java">
 
 ```java
-@Model(persistence = ModelPersistence.DOCUMENT)
+@Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
 record TaskStatus(
         @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") TaskId taskId,
         boolean online) {}
@@ -166,7 +166,7 @@ record TaskStatus(
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(persistence = [ModelPersistence.DOCUMENT])
+@Model(searchable = true, persistence = [ModelPersistence.DOCUMENT])
 data class TaskStatus(
     @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") val taskId: TaskId,
     val online: Boolean
@@ -261,7 +261,7 @@ The overview shows one integration link with two parents. In that home-automatio
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record HomeAssistantDevice(
         @EntityId String linkId,
         @Parent(pathInParent = "links") DeviceId deviceId,
@@ -272,7 +272,7 @@ record HomeAssistantDevice(
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class HomeAssistantDevice(
     @EntityId val linkId: String,
     @Parent(pathInParent = "links") val deviceId: DeviceId,
@@ -307,7 +307,7 @@ A new note feature can attach its own Model to Task, without adding a notes coll
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {}
@@ -319,7 +319,7 @@ record NoteDetails(String text) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -380,12 +380,12 @@ Snippets omit imports and use the normal [SDK project setup](/docs/getting-start
 <TabItem label="Java">
 
 ```java
-@Model(name = "project")
+@Model(searchable = false, name = "project")
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
 record ProjectDetails(@NotBlank String name) {}
 
-@Model(name = "task")
+@Model(searchable = false, name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -407,12 +407,12 @@ static class TaskId extends Id<Task> {
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(name = "project")
+@Model(searchable = false, name = "project")
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
 data class ProjectDetails(@field:NotBlank val name: String)
 
-@Model(name = "task")
+@Model(searchable = false, name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -637,7 +637,7 @@ an operational-status companion to Project: one per Project, but independently u
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record ProjectStatus(
         @EntityId(prefix = "status-") @Parent(pathInParent = "status") ProjectId projectId,
         boolean online) {}
@@ -654,7 +654,7 @@ record PutProjectStatus(ProjectId projectId, boolean online) {
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class ProjectStatus(
     @EntityId(prefix = "status-") @Parent(pathInParent = "status") val projectId: ProjectId,
     val online: Boolean
@@ -811,12 +811,12 @@ record PlaceOrder(@NotNull OrderId orderId,
     }
 }
 
-@Model
+@Model(searchable = false)
 record Order(@EntityId OrderId orderId, InventoryId inventoryId, OrderDetails details) {}
 
 record OrderDetails(int quantity) {}
 
-@Model
+@Model(searchable = false)
 @With
 record Inventory(@EntityId InventoryId inventoryId, int available) {}
 ```
@@ -844,7 +844,7 @@ data class PlaceOrder(
     fun reserve(inventory: Inventory) = inventory.copy(available = inventory.available - quantity)
 }
 
-@Model
+@Model(searchable = false)
 data class Order(
     @EntityId val orderId: OrderId,
     val inventoryId: InventoryId,
@@ -853,7 +853,7 @@ data class Order(
 
 data class OrderDetails(val quantity: Int)
 
-@Model
+@Model(searchable = false)
 data class Inventory(@EntityId val inventoryId: InventoryId, val available: Int)
 ```
 
@@ -934,7 +934,7 @@ record CompleteTask(TaskId taskId) {
     }
 }
 
-@Model(name = "task")
+@Model(searchable = false, name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -945,7 +945,7 @@ record Task(@EntityId TaskId taskId,
     }
 }
 
-@Model(name = "project")
+@Model(searchable = false, name = "project")
 @With
 record Project(@EntityId ProjectId projectId, ProjectDetails details,
                TaskId lastCompletedTaskId) {}
@@ -960,7 +960,7 @@ data class CompleteTask(val taskId: TaskId) {
     fun apply(task: Task) = task.copy(completed = true)
 }
 
-@Model(name = "task")
+@Model(searchable = false, name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -971,7 +971,7 @@ data class Task(
         project.copy(lastCompletedTaskId = taskId)
 }
 
-@Model(name = "project")
+@Model(searchable = false, name = "project")
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails,
                    val lastCompletedTaskId: TaskId?)
 ```
@@ -1082,32 +1082,33 @@ val namedTasks = project.namedChildren("task", false)
 </TabItem>
 </Tabs>
 
-These are different selectors: class selects locally known assignable Models; a path selects the declared composition placement; no selector returns direct children; logical name selects metadata and `false` includes types unknown to this application. Use `childModels(...)` for values and `children(...)` for navigable Graph nodes. None of these identity-based operations requires `DOCUMENT` or `materializeGraph`.
+These are different selectors: class selects locally known assignable Models; a path selects the declared composition placement; no selector returns direct children; logical name selects metadata and `false` includes types unknown to this application. Use `childModels(...)` for values and `children(...)` for navigable Graph nodes. None of these identity-based operations requires document persistence, searchability or Graph materialization.
 
 #### Which documents are stored?
 
-A **Model source document** contains one Model's own current state. A **public document** is its separate direct-search projection. A **Graph document** contains a root and recursively composed children. These are separate storage roles, even when two initially contain the same fields.
+A **node document** contains one Model's current state. DOCUMENT uses it for internal state; `searchable`
+adds the indexes used by node, relationship and Graph queries. Those uses share one canonical representation.
+A **stored Graph document** optionally contains the root and recursively composed children as an additional read projection.
 
-The following rows describe the Model carrying the configuration. They do not implicitly change the configuration of its parent or children.
-
-| Configuration | Authoritative state | Documents maintained per Model | Whole Graph stored? |
+| Configuration | Authoritative state | Node document | Whole Graph stored? |
 | --- | --- | --- | --- |
-| Plain `@Model`, no composition path | Events | None | No |
-| `@Model` with `@Parent(pathInParent = "tasks")` | Events | One internal, indexed source for this child | No |
-| `@Model(persistence = {EVENT_SOURCED, DOCUMENT})` | Events | Internal source plus separate public document | No |
-| `@Model(persistence = DOCUMENT)` | Current internal source | Internal source plus separate public document; no durable previous versions promised | No |
-| `@Model(materializeGraph = true)` | Events, unless configured otherwise | Internal source for this root plus a composed Graph projection | Yes, under declared composition paths |
-| `DOCUMENT` plus `materializeGraph = true` | Events if `EVENT_SOURCED` is also selected; otherwise current internal source | Internal source, public document and composed Graph projection | Yes |
+| `@Model(searchable = false)`, with or without a parent path, outside any searchable ancestor scope | Events | None | No |
+| DOCUMENT, no effective searchability | Current internal document | One unindexed internal document | No |
+| `@Model(searchable = true)` | Events | One indexed current representation per included node | No: live composition |
+| DOCUMENT and effective searchability | Current canonical node document | The same document, indexed | No: live composition |
+| Searchable plus `graphProjection.mode = ASYNC` or AWAIT | Unchanged persistence policy | Same indexed nodes | Yes: an additional composed projection |
 
-The explicit `tasks` path therefore creates a source for each Task even when Project is plain event-sourced and has no document at all. Project does **not** need `materializeGraph = true` for the child to be stored or searched beneath its parent. Adding `DOCUMENT` to a child also enables parent/ancestor-scoped search, even if its parent relation has no composition path. A root only needs its own source when a query searches its contents or uses it as a `searchGraph` root.
-
-`document = @DocumentProjection(searchable = false)` keeps the public document retrievable by identity and parent/ancestor IDs but removes its normal content indexes and unrestricted typed search visibility. A separate composition role can still require an indexed internal source. The [query guide](/docs/guides/modeling-and-persistence/model-query-guide) covers these advanced combinations.
+Every Model declares `searchable` explicitly. It defaults to including its composed descendants in the search scope;
+`SearchSettings(includeDescendants = false)` limits the request to that node. A child's false value does not veto an
+ancestor's scope. A typed parent path specifies placement, never storage by itself. Per-node `SearchSettings` select
+collection and time fields independently of who activates searchability. See the
+[query guide](/docs/guides/modeling-and-persistence/model-query-guide).
 
 #### Search a Model or search a Graph?
 
 `search(Task.class)` returns Task values. `searchGraph(Project.class)` returns composed Project Graphs. Neither reconstructs historical events to answer a search.
 
-The original Task has an indexed source because of its `tasks` path. That supports a scoped query immediately, without adding `DOCUMENT`:
+Enable `searchable = true` on Project to index its own state and the Tasks composed under its `tasks` path. The Tasks are then searchable directly or under a known parent ID, without changing their persistence:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -1132,9 +1133,9 @@ val completed: List<Task> = Fluxzero.search(Task::class.java)
 </TabItem>
 </Tabs>
 
-Task remains event-sourced: the source is a maintained read representation, not a change to its persistence policy. For a list of **all** Tasks, without a parent/ancestor selector, add `persistence = {EVENT_SOURCED, DOCUMENT}` to Task (`[EVENT_SOURCED, DOCUMENT]` in Kotlin). Ordinary `search(Task.class)` reads that public projection and includes only Task's own fields, not independently stored notes or children.
+Task remains event-sourced. Ordinary `search(Task.class)` reads the canonical indexed node and includes only Task's own fields. The inherited search activation also permits queries without a parent selector; no second document setting is needed. Set searchable on Task itself when its searchability should not depend on a searchable ancestor contract.
 
-To find Tasks by their Project's name, Project needs an indexed source too. For example, add `{EVENT_SOURCED, DOCUMENT}` to Project and query:
+To find Tasks by their Project's name, Project needs an indexed source too. The searchable Project configuration supplies that source:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -1182,13 +1183,13 @@ val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
 </TabItem>
 </Tabs>
 
-This works with the DOCUMENT-enabled Project above: the SDK composes Graphs **live** from root and child source documents. It also works with `materializeGraph = true`: the SDK searches the **stored whole-Graph projection** instead. `searchGraph(Project.class, true)` explicitly chooses live composition when materialization is enabled. Plain Project with no source supports `loadGraph(projectId)` but cannot be a `searchGraph` root.
+With searchable Project and the default NONE projection mode, the SDK composes Graphs **live** from canonical root and child documents. ASYNC and AWAIT maintain a **stored whole-Graph projection** instead. `searchGraph(Project.class, true)` explicitly chooses live composition when materialization is enabled. A Project without effective searchability still supports `loadGraph(projectId)`, but cannot be a `searchGraph` root.
 
 A matching Project includes its composed Tasks, not only the completed ones. `whereDescendant(Task.class, MatchConstraint.match(true, "completed"))` can instead narrow candidate roots using Task source documents before composition. Live composition costs work at query time; materialization pays that work after commits and can lag. [Materialization and completion](#automatically-materialize-the-complete-graph) explains when to wait for the stored view.
 
 #### A search projection is not a second way to edit domain state
 
-Suppose Project's public search document is reindexed by a document handler to add a display label. That does not apply a domain command, rename the authoritative Project, or change the source used to compose its Graph. Model commits maintain the source and public projection; independent public projection updates change only the search view. With `DOCUMENT`-only persistence, the **internal source** is still the authoritative state, not an independently edited public projection.
+Model operations own the canonical node document. Ordinary manual indexing is not a supported way to change Model state: it bypasses commit consistency, history and relationship maintenance. Document handlers can persist guarded schema upcasts; independent business projections belong in separate read models. Returning a composed Graph never applies business changes to its nodes.
 
 Search sees current documents or a possibly delayed materialized projection. It does not join a command's transactional read dependencies and does not become historical inside an old event handler. For the five-Task invariant, keep the Graph read inside `@AssertLegal`; a search count cannot protect that decision at commit.
 
@@ -1313,7 +1314,7 @@ For a Project with Graph materialization enabled, you can instead observe the st
 <TabItem label="Java">
 
 ```java
-@HandleDocument(modelGraph = Project.class)
+@HandleDocument
 void projectViewChanged(Graph<Project> project) {
     // React to an updated materialized Project Graph.
 }
@@ -1323,7 +1324,7 @@ void projectViewChanged(Graph<Project> project) {
 <TabItem label="Kotlin">
 
 ```kotlin
-@HandleDocument(modelGraph = Project::class)
+@HandleDocument
 fun projectViewChanged(project: Graph<Project>) {
     // React to an updated materialized Project Graph.
 }
@@ -1848,7 +1849,7 @@ Suppose Tasks have internal notes:
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {
@@ -1865,7 +1866,7 @@ record NoteDetails(String text) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -2001,7 +2002,11 @@ The [storage table](#which-documents-are-stored) distinguishes a composed Graph 
 <TabItem label="Java">
 
 ```java
-@Model(name = "project", materializeGraph = true)
+@Model(
+    searchable = true,
+    name = "project",
+    graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC)
+)
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 ```
 
@@ -2009,7 +2014,11 @@ record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(name = "project", materializeGraph = true)
+@Model(
+    searchable = true,
+    name = "project",
+    graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC)
+)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 ```
 
@@ -2072,8 +2081,11 @@ updated projection immediately after a command, select `AWAIT`:
 <TabItem label="Java">
 
 ```java
-@Model(name = "project", materializeGraph = true,
-       graphProjection = @GraphProjection(completion = GraphProjectionCompletion.AWAIT))
+@Model(
+    searchable = true,
+    name = "project",
+    graphProjection = @GraphProjection(mode = GraphProjectionMode.AWAIT)
+)
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 ```
 
@@ -2081,8 +2093,11 @@ record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(name = "project", materializeGraph = true,
-    graphProjection = GraphProjection(completion = GraphProjectionCompletion.AWAIT))
+@Model(
+    searchable = true,
+    name = "project",
+    graphProjection = GraphProjection(mode = GraphProjectionMode.AWAIT)
+)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 ```
 
@@ -2093,7 +2108,7 @@ data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetai
 
 The result waits for affected projections to reach that command's committed boundary—not for future changes
 or arbitrary event handlers. Prefer an operation-level override when only selected commands need to wait.
-The projection can be tracked through `@HandleDocument(modelGraph = Project.class)` and evolved using the
+The projection can be tracked through `@HandleDocument` and evolved using the
 node-aware schema migration described next.
 
 ### Evolving stored Graphs with @HandleDocument
@@ -2162,7 +2177,7 @@ and caster chains. See [Model migration tests](/docs/guides/modeling-and-persist
 Read-time upcasting gives application code the new shape, but it does not change the paths already indexed
 for search. A predicate on `details/name` cannot match a stored document that still has only `name`.
 
-For the Project variant with `materializeGraph = true`, register the caster and this consumer:
+For the Project variant with `graphProjection.mode = ASYNC` or AWAIT, register the caster and this consumer:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2170,7 +2185,7 @@ For the Project variant with `materializeGraph = true`, register the caster and 
 ```java
 @Consumer(name = "project-graphs-schema-1", minIndex = 0)
 class EvolveProjectGraphs {
-    @HandleDocument(modelGraph = Project.class)
+    @HandleDocument
     Graph<Project> evolve(Graph<Project> graph) {
         return graph;
     }
@@ -2183,7 +2198,7 @@ class EvolveProjectGraphs {
 ```kotlin
 @Consumer(name = "project-graphs-schema-1", minIndex = 0)
 class EvolveProjectGraphs {
-    @HandleDocument(modelGraph = Project::class)
+    @HandleDocument
     fun evolve(graph: Graph<Project>): Graph<Project> = graph
 }
 ```
@@ -2191,7 +2206,9 @@ class EvolveProjectGraphs {
 </TabItem>
 </Tabs>
 
-Keep `modelGraph = Project.class` here (`Project::class` in Kotlin). It selects the materialized Graph collection and its node-aware handling. It is not inferred from the generic `Graph<Project>` parameter; an unqualified `@HandleDocument` uses ordinary first-parameter collection inference instead.
+The bare annotation infers the Graph subscription from `Graph<Project>`. It works for NONE as well as ASYNC/AWAIT.
+The stored-projection schema rewrite shown here applies to ASYNC/AWAIT. NONE hydrates current canonical nodes and
+ignores Graph returns; migrate the source schemas instead. It does not provide a retained previous Graph.
 
 **The handler returns the Graph it received.** The SDK applies the registered node upcasters and
 serializes the complete evolved Graph. When a node's serialized type or revision changed, it conditionally
@@ -2235,9 +2252,9 @@ that choice explicit:
 
 | Handler | Representation it evolves | What that enables |
 | --- | --- | --- |
-| `@HandleDocument(modelGraph = Project.class)` | The complete materialized Graph | New root and nested paths in stored Graph searches |
-| `@HandleDocument(modelState = Project.class)` | The verified internal current Model source | Updated source paths for live composition and related-content searches |
-| `@HandleDocument(documentClass = Project.class)` | The separate public `DOCUMENT` projection, if enabled | Updated paths for direct Project searches |
+| `@HandleDocument` with `Graph<Project>` (ASYNC/AWAIT) | The complete materialized Graph | New root and nested paths in stored Graph searches |
+| `@HandleDocument(source = DocumentSource.MODEL_STATE)` | The verified internal current Model source | Updated source paths for live composition and related-content searches |
+| `@HandleDocument` with `Project` | The same canonical source, requiring effective searchability | Updated paths for node and live Graph queries |
 
 For a maintained internal source, the schema-only handler is similarly small:
 
@@ -2247,7 +2264,7 @@ For a maintained internal source, the schema-only handler is similarly small:
 ```java
 @Consumer(name = "project-sources-schema-1", minIndex = 0)
 class EvolveProjectSources {
-    @HandleDocument(modelState = Project.class)
+    @HandleDocument(source = DocumentSource.MODEL_STATE)
     Project evolve(Project project) {
         return project;
     }
@@ -2260,7 +2277,7 @@ class EvolveProjectSources {
 ```kotlin
 @Consumer(name = "project-sources-schema-1", minIndex = 0)
 class EvolveProjectSources {
-    @HandleDocument(modelState = Project::class)
+    @HandleDocument(source = DocumentSource.MODEL_STATE)
     fun evolve(project: Project): Project = project
 }
 ```
@@ -2580,7 +2597,7 @@ same event using a Model-side replay apply:
 // The existing event contract, reused in the new app with its original serialized identity.
 record TaskAdded(TaskId taskId, ProjectId projectId, String title) {}
 
-@Model(name = "task")
+@Model(searchable = false, name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -2600,7 +2617,7 @@ record Task(@EntityId TaskId taskId,
 // The existing event contract, reused in the new app with its original serialized identity.
 data class TaskAdded(val taskId: TaskId, val projectId: ProjectId, val title: String)
 
-@Model(name = "task")
+@Model(searchable = false, name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -2762,7 +2779,7 @@ show the normal route; this overview makes the available controls discoverable i
 | `@Model` | An independent state, persistence and lifecycle boundary. |
 | `@Parent` | A directed relationship to another Model; also ownership for scheduled payloads. |
 | `@GraphProperty` | A serialized value derived from the current node or its typed ancestor Graphs. Its optional `value` sets the JSON property name. |
-| `@DocumentProjection` | Settings for the separate direct Model document, nested in `@Model(document = ...)`. |
+| `@SearchSettings` | Per-node search collection, temporal paths and descendant scope, nested in `@Model(searchSettings = ...)`. |
 | `@GraphProjection` | Settings for the complete materialized view, nested in `@Model(graphProjection = ...)`. |
 | `@GraphPathOverride` | A projection-local replacement of a relationship path; does not change the domain relation. |
 | `@EntityId`, `@Alias` | Primary and alternative identity, including prefixes and scoped identity. |
@@ -2795,9 +2812,9 @@ additional behavior alongside the resolved policy.
 | `cached` | `true` | Shared application caching of the latest Model state. Commit-local state is a separate concern. |
 | `cachingDepth` | `1` | Older versions retained in cache: `0` keeps only current; `-1` retains all available cached versions. This is not durable history retention. |
 | `checkpointPeriod` | `100` | Intermediate replay checkpoints within a reconstruction session, not extra stored document versions. |
-| `document` | `@DocumentProjection` | Configure the direct document when `DOCUMENT` persistence is enabled. |
-| `materializeGraph` | `false` | Automatically maintain a searchable complete composed Graph. |
-| `graphProjection` | `@GraphProjection` | Configure that Graph's collection, paths and completion behavior. Does not enable materialization by itself. |
+| `searchable` | Required explicit boolean | Request indexed canonical node documents; the scope includes descendants by default. |
+| `searchSettings` | `@SearchSettings` | Configure this node's collection, temporal fields and descendant scope, including when searchability is inherited. |
+| `graphProjection` | `@GraphProjection(mode = NONE)` | Choose live composition or optional ASYNC/AWAIT storage of the whole Graph. Does not activate searchability. |
 
 Changing persistence or durable identities on existing data deserves a migration plan. Enabling a cache,
 snapshot or projection does not redefine which object owns a domain lifecycle.
@@ -2826,9 +2843,9 @@ must be unique across independent Models. An alias is not another Model or anoth
 
 | Configuration | Settings and defaults |
 | --- | --- |
-| `@DocumentProjection` | `searchable = true`; `collection = ""` resolves to the logical Model name; `timestampPath = ""` and `endPath = ""` optionally select document time fields. |
-| `@GraphProjection` | `completion = DEFAULT`, ultimately `ASYNC`; `collection = ""` derives the Graph collection; `pathOverrides = {}` leaves canonical paths unchanged. Use `AWAIT` when result completion must include the projection. |
-| `@GraphPathOverride` | Required `path` and `projectionPath`: replace a canonical path only inside this materialized projection. |
+| `@SearchSettings` | `includeDescendants = true`; blank collection derives an internal type-isolated name; optional `timestampPath` and `endPath` select node document time fields. |
+| `@GraphProjection` | `mode = NONE`; ASYNC stores a complete Graph without normally waiting and AWAIT waits for it. Blank collection derives the Graph collection; `pathOverrides = {}` leaves canonical paths unchanged. |
+| `@GraphPathOverride` | Required `path` and `projectionPath`: replace a canonical path in this Graph search view, both live and stored. |
 
 For example, keep the relationship named `tasks` while placing it differently in one stored view:
 
@@ -2836,10 +2853,13 @@ For example, keep the relationship named `tasks` while placing it differently in
 <TabItem label="Java">
 
 ```java
-@Model(name = "project", materializeGraph = true,
-       graphProjection = @GraphProjection(collection = "project-views", pathOverrides = {
+@Model(
+    searchable = true,
+    name = "project",
+    graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC, collection = "project-views", pathOverrides = {
            @GraphPathOverride(path = "tasks", projectionPath = "work/tasks")
-       }))
+       })
+)
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 ```
 
@@ -2847,10 +2867,13 @@ record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(name = "project", materializeGraph = true,
-    graphProjection = GraphProjection(collection = "project-views", pathOverrides = [
+@Model(
+    searchable = true,
+    name = "project",
+    graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC, collection = "project-views", pathOverrides = [
         GraphPathOverride(path = "tasks", projectionPath = "work/tasks")
-    ]))
+    ])
+)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 ```
 

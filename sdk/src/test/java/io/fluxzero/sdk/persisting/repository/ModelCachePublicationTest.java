@@ -31,7 +31,7 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.any;
 
 class ModelCachePublicationTest {
-    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "probeDocuments"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "probeDocuments"))
     public record Doc(@EntityId String id, String value) {}
 
     @org.junit.jupiter.params.ParameterizedTest

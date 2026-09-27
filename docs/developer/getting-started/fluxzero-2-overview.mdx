@@ -114,10 +114,10 @@ In an Aggregate design, an embedded Task shares the Project's state and event hi
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
-@Model
+@Model(searchable = false)
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -128,10 +128,10 @@ record Task(@EntityId TaskId taskId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -530,13 +530,13 @@ Each serialized Task includes `"projectName": "Launch"`. Renaming the Project is
 
 ## Materialized Graph search
 
-`materializeGraph = true` maintains a searchable document containing the Project and its composed children. A query can match Task fields and return the containing Project Graph:
+`searchable = true` maintains indexed node documents for Project and its composed children. The default NONE mode stitches them when queried. Optional ASYNC/AWAIT materialization stores the complete Graph in advance. Both routes can match Task fields and return the containing Project Graph:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
-@Model(materializeGraph = true)
+@Model(searchable = true, graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC))
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
 List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
@@ -548,7 +548,7 @@ List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(materializeGraph = true)
+@Model(searchable = true, graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC))
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
 val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
@@ -575,7 +575,7 @@ The same pattern connects independently managed notes to a Task:
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {}
@@ -585,7 +585,7 @@ record InternalNote(@EntityId String noteId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -618,7 +618,7 @@ Different parts of the same domain can have different persistence needs. Task ke
 <TabItem label="Java">
 
 ```java
-@Model(persistence = ModelPersistence.DOCUMENT)
+@Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
 record TaskStatus(
         @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") TaskId taskId,
         boolean online) {}
@@ -628,7 +628,7 @@ record TaskStatus(
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(persistence = [ModelPersistence.DOCUMENT])
+@Model(searchable = true, persistence = [ModelPersistence.DOCUMENT])
 data class TaskStatus(
     @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") val taskId: TaskId,
     val online: Boolean

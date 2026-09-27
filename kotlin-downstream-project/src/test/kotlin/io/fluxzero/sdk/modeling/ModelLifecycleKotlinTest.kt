@@ -103,8 +103,8 @@ class ModelLifecycleKotlinTest {
             }
     }
 
-    @Model data class Project(@EntityId val projectId: ProjectId)
-    @Model data class Task(@EntityId val taskId: TaskId, @Parent val projectId: ProjectId?, val completed: Boolean)
+    @Model(searchable = false) data class Project(@EntityId val projectId: ProjectId)
+    @Model(searchable = false) data class Task(@EntityId val taskId: TaskId, @Parent val projectId: ProjectId?, val completed: Boolean)
     data class CreateTask(val taskId: TaskId, val projectId: ProjectId?) {
         @AssertLegal fun validParent(project: Project?) { assertNull(project) }
         @Apply fun apply() = Task(taskId, projectId, false)
@@ -115,7 +115,7 @@ class ModelLifecycleKotlinTest {
     class ProjectId(value: String) : Id<Project>(value)
     class TaskId(value: String) : Id<Task>(value)
 
-    @Model data class Reminder(@EntityId val reminderId: ReminderId, @Parent val projectId: ProjectId,
+    @Model(searchable = false) data class Reminder(@EntityId val reminderId: ReminderId, @Parent val projectId: ProjectId,
                               val deadline: Instant, val completed: Boolean)
     class ReminderId(value: String) : Id<Reminder>(value)
     data class CreateProject(val projectId: ProjectId) {

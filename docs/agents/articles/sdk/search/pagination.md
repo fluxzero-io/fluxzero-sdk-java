@@ -8,6 +8,8 @@ Use this when a query, endpoint, admin list, export, or WebSocket snapshot might
 
 `fetch(100, Item.class)` returning `List<Item>` with no offset, cursor, or continuation is not pagination. It silently makes rows after 100 unreachable and must not implement contracts named “all,” “complete,” or “current knowledge base.” Raising the hidden cap to 250 or 1,000 does not fix that contract.
 
+`skip(n)` applies once to the complete ordered result. Internal transport batches continue after the last hit without applying the offset again, for both synchronous and asynchronous fetches. Changing the transport fetch size does not change which results are returned.
+
 ## Return an explicit page
 
 Use indexed filters, count the same constrained search, apply a deterministic order, then skip and fetch:

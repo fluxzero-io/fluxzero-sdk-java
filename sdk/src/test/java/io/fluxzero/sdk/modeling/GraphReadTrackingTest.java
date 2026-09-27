@@ -184,7 +184,7 @@ class GraphReadTrackingTest {
         org.mockito.Mockito.verifyNoInteractions(source);
     }
 
-    @Model record AliasedNode(@EntityId String id, @Alias String name) {}
+    @Model(searchable = false) record AliasedNode(@EntityId String id, @Alias String name) {}
 
     @Test
     void injectedAliasSelectionEntersTheApplySetWhenTheInjectedViewIsConsumed() {
@@ -397,7 +397,7 @@ class GraphReadTrackingTest {
         return ImmutableEntity.<Node>builder().id(id).type(Node.class).value(value).build();
     }
 
-    @Model
+    @Model(searchable = false)
     record Node(@EntityId String id, String label) {
     }
 }

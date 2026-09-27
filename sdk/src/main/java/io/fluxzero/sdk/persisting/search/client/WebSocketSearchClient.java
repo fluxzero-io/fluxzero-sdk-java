@@ -161,7 +161,7 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
                                         .maxSize(maxSize == null
                                                          ? maxFetchSize
                                                          : Math.min(maxSize - count.get(), maxFetchSize))
-                                        .lastHit(result.lastMatch())
+                                        .lastHit(result.lastMatch()).skip(0)
                                         .build())),
                         result -> result.size() < maxFetchSize
                                   || maxSize != null
@@ -199,7 +199,7 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
             if (nextMaxSize <= 0) {
                 return CompletableFuture.completedFuture(hits);
             }
-            return searchAsync(request.toBuilder().maxSize(nextMaxSize).lastHit(result.lastMatch()).build(),
+            return searchAsync(request.toBuilder().maxSize(nextMaxSize).lastHit(result.lastMatch()).skip(0).build(),
                                maxSize, maxFetchSize, hits, requestFactory);
         });
     }

@@ -13,7 +13,7 @@ import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.EntityId;
 
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record KnowledgeArticle(
         @EntityId @Sortable ArticleId articleId,
         @Sortable String title,

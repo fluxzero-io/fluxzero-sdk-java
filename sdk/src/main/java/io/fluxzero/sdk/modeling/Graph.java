@@ -77,9 +77,10 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
  * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or
  * separate graph-upcaster contract. Returning a complete materialized graph from a
- * {@link io.fluxzero.sdk.tracking.handling.HandleDocument @HandleDocument}{@code (modelGraph = ...)} handler can
+ * {@link io.fluxzero.sdk.tracking.handling.HandleDocument @HandleDocument} handler receiving {@code Graph<T>} can
  * persist those evolved node schemas into the derived projection without changing the authoritative Models or
- * relationships.
+ * relationships. With {@link GraphProjectionMode#NONE}, the Graph is assembled for consumption and handler return
+ * values do not rewrite the underlying Models or create a stored Graph projection.
  *
  * Metadata-first child selection does not reconstruct selected child values. The default repository also resolves
  * lazy root aliases from head metadata without replay. Initial alias lookup uses the current alias table, including

@@ -176,7 +176,7 @@ class PublishedEventModelMigrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record LegacyModel(@EntityId String id, int value) {
     }
 

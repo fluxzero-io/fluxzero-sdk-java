@@ -130,14 +130,14 @@ class GraphWebResponseTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record Root(@EntityId RootId id, String description) {}
 
     static class RootId extends Id<Root> {
         RootId(String id) { super(id); }
     }
 
-    @Model
+    @Model(searchable = false)
     record Child(@EntityId String id, @Parent(pathInParent = "children") RootId rootId, boolean visible) {
         @GraphProperty
         String rootName(Graph<Root> root) { return root.functionalId(); }

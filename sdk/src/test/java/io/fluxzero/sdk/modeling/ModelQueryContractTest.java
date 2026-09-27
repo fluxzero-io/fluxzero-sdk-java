@@ -38,20 +38,15 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void publicDocumentUpdatesDoNotChangeModelSourcesOrRelatedPredicates(boolean async) {
+    void nodeQueriesAndRelationQueriesUseTheSameCanonicalState(boolean async) {
         fixture(async).whenExecuting(ignored -> {
-            Fluxzero.index(new DirectChild("direct-child", "document-root", "projected"), "direct-child", DirectChild.class).join();
-            Fluxzero.index(new DocumentOnly("document-only", "projected"), "document-only", DocumentOnly.class).join();
             assertEquals("open", Fluxzero.loadCurrentModelState("direct-child", DirectChild.class).value().status());
-            assertEquals("open", Fluxzero.loadModel("document-only", DocumentOnly.class).get().status());
-            assertEquals("open", Fluxzero.loadCurrentModelState("document-only", DocumentOnly.class).value().status());
-            assertEquals(List.of(new DirectChild("direct-child", "document-root", "projected")),
+            assertEquals(List.of(new DirectChild("direct-child", "document-root", "open")),
                          Fluxzero.search(DirectChild.class).whereAncestor("document-root", DocumentRoot.class)
-                                 .match("projected", "status").fetchAll());
+                                 .match("open", "status").fetchAll());
             assertEquals(1, Fluxzero.search(DocumentRoot.class)
                     .whereChild(DirectChild.class, match("open", "status")).fetchAll().size());
-            assertTrue(Fluxzero.search(DocumentRoot.class)
-                               .whereChild(DirectChild.class, match("projected", "status")).fetchAll().isEmpty());
+            assertFalse(Fluxzero.hasDocument("direct-child", "DirectChild"));
         }).expectNoErrors();
     }
 
@@ -73,9 +68,9 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void compositionPathEnablesScopedContentSearchWithoutDocumentPersistence(boolean async) {
+    void searchableNodeSupportsAncestorIdsWithoutSearchableAncestors(boolean async) {
         fixture(async).whenExecuting(ignored -> {
-            assertTrue(Fluxzero.search(Component.class).fetchAll().isEmpty());
+            assertEquals(1, Fluxzero.search(Component.class).fetchAll().size());
             var expected = List.of(new Component("component", "plain-root", "open"));
             assertEquals(expected, Fluxzero.search(Component.class)
                     .whereParent(new PlainRootId("plain-root")).match("open", "status").fetchAll());
@@ -93,7 +88,7 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void documentPersistenceEnablesDirectAndScopedSearchButDoesNotInventACompositionPath(boolean async) {
+    void searchabilityEnablesDirectAndScopedSearchButDoesNotInventACompositionPath(boolean async) {
         fixture(async).whenExecuting(ignored -> {
             var expected = List.of(new DirectChild("direct-child", "document-root", "open"));
             assertEquals(expected, Fluxzero.search(DirectChild.class).match("open", "status").fetchAll());
@@ -115,29 +110,25 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void referenceOnlyDocumentsRemainRelationLoadableWithoutContentIndexes(boolean async) {
+    void internalDocumentStateDoesNotEnableSearch(boolean async) {
         fixture(async).whenExecuting(ignored -> {
-            var expected = List.of(new ReferenceChild("reference-child", "document-root", "open"));
+            var expected = new ReferenceChild("reference-child", "document-root", "open");
             assertTrue(Fluxzero.hasDocument("reference-child", ReferenceChild.class));
             assertTrue(Fluxzero.search(ReferenceChild.class).fetchAll().isEmpty());
-            assertEquals(expected, Fluxzero.search(ReferenceChild.class)
-                    .whereParent("document-root", DocumentRoot.class).fetchAll());
-            assertTrue(Fluxzero.search(ReferenceChild.class)
-                               .whereParent("document-root", DocumentRoot.class)
-                               .match("open", "status").fetchAll().isEmpty());
-            assertTrue(Fluxzero.search(DocumentRoot.class)
-                               .whereChild(ReferenceChild.class, match("open", "status")).fetchAll().isEmpty());
-            assertEquals(expected.getFirst(), Fluxzero.loadCurrentModelState("reference-child", ReferenceChild.class)
-                    .value());
+            assertThrows(IllegalArgumentException.class, () -> Fluxzero.search(ReferenceChild.class)
+                    .whereParent("document-root", DocumentRoot.class));
+            assertThrows(IllegalArgumentException.class, () -> Fluxzero.search(DocumentRoot.class)
+                    .whereChild(ReferenceChild.class, match("open", "status")));
+            assertEquals(expected, Fluxzero.loadCurrentModelState("reference-child", ReferenceChild.class).value());
         }).expectNoErrors();
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void graphParticipationIndexesOnlyTheInternalSourceOfReferenceOnlyDocuments(boolean async) {
+    void ancestorSearchScopeActivatesDirectAndGraphQueriesFromTheSameNode(boolean async) {
         fixture(async).whenExecuting(ignored -> {
-            assertTrue(Fluxzero.search(ReferenceComponent.class).fetchAll().isEmpty());
-            assertEquals(0, Fluxzero.search(ReferenceComponent.class)
+            assertEquals(1, Fluxzero.search(ReferenceComponent.class).fetchAll().size());
+            assertEquals(1, Fluxzero.search(ReferenceComponent.class)
                     .whereParent("document-root", DocumentRoot.class).match("open", "status").fetchAll().size());
             assertEquals(1, Fluxzero.search(ReferenceComponent.class)
                     .whereParent("document-root", DocumentRoot.class).fetchAll().size());
@@ -150,9 +141,9 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void materializationNeedsNoPublicRootDocumentAndSupportsWholeGraphFilters(boolean async) {
+    void materializationAddsWholeGraphQueriesToSearchableNodes(boolean async) {
         fixture(async).whenExecuting(ignored -> {
-            assertTrue(Fluxzero.search(MaterializedRoot.class).fetchAll().isEmpty());
+            assertEquals(1, Fluxzero.search(MaterializedRoot.class).fetchAll().size());
             for (boolean forceLive : List.of(false, true)) {
                 List<Graph<MaterializedRoot>> graphs = Fluxzero.searchGraph(MaterializedRoot.class, forceLive)
                         .match("open", "children/status").fetchAll();
@@ -191,30 +182,25 @@ class ModelQueryContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void relationAndLiveGraphSearchRejectUnsupportedStatistics(boolean async) {
+    void relationAndLiveGraphSearchSupportStatistics(boolean async) {
         fixture(async).whenExecuting(ignored -> {
-            assertThrows(UnsupportedOperationException.class, () -> Fluxzero.search(Component.class)
-                    .whereParent("plain-root", PlainRoot.class).facetStats());
-            assertThrows(UnsupportedOperationException.class, () -> Fluxzero.search(Component.class)
-                    .whereParent("plain-root", PlainRoot.class).count());
-            assertThrows(UnsupportedOperationException.class,
-                         () -> Fluxzero.searchGraph(MaterializedRoot.class, true).count());
-            assertThrows(UnsupportedOperationException.class,
-                         () -> Fluxzero.searchGraph(MaterializedRoot.class, true).groupBy("id"));
-            // An ordinary materialized projection query has no live composition step.
-            Fluxzero.searchGraph(MaterializedRoot.class).facetStats();
-            assertEquals(1L, Fluxzero.searchGraph(MaterializedRoot.class).count());
+            assertEquals(1L, Fluxzero.search(Component.class).whereParent("plain-root", PlainRoot.class).count());
+            for (boolean forceLive : List.of(false, true)) {
+                assertEquals(1L, Fluxzero.searchGraph(MaterializedRoot.class, forceLive).count());
+                assertEquals(1, Fluxzero.searchGraph(MaterializedRoot.class, forceLive).groupBy("id").count().size());
+                Fluxzero.searchGraph(MaterializedRoot.class, forceLive).facetStats();
+            }
         }).expectNoErrors();
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void liveEntryFiltersCanInspectValuesExcludedFromTheStoredTextSummary(boolean async) {
+    void liveAndStoredGraphsRespectTextSearchExclusions(boolean async) {
         fixture(async).whenExecuting(ignored -> {
             assertTrue(Fluxzero.searchGraph(MaterializedRoot.class)
                                .match("hiddenvalue", "children/secret").fetchAll().isEmpty());
-            assertEquals(1, Fluxzero.searchGraph(MaterializedRoot.class, true)
-                    .match("hiddenvalue", "children/secret").fetchAll().size());
+            assertTrue(Fluxzero.searchGraph(MaterializedRoot.class, true)
+                               .match("hiddenvalue", "children/secret").fetchAll().isEmpty());
             assertTrue(Fluxzero.searchGraph(MaterializedRoot.class, true)
                                .whereChild(MaterializedChild.class, match("hiddenvalue", "secret"))
                                .fetchAll().isEmpty());
@@ -234,42 +220,42 @@ class ModelQueryContractTest {
                 new CreateMaterializedChild("materialized-b", "closed", "b"));
     }
 
-    @Model
+    @Model(searchable = false)
     record PlainRoot(@EntityId String id, String label) {}
 
     static class PlainRootId extends Id<PlainRoot> {
         PlainRootId(String id) { super(id); }
     }
 
-    @Model
+    @Model(searchable = false)
     record PlainChild(@EntityId String id, @Parent(PlainRoot.class) String rootId, String status) {}
 
-    @Model
+    @Model(searchable = true)
     record Component(@EntityId String id,
                      @Parent(value = PlainRoot.class, pathInParent = "components") String rootId,
                      String status) {}
 
-    @Model(persistence = {EVENT_SOURCED, DOCUMENT})
+    @Model(searchable = true, persistence = {EVENT_SOURCED, DOCUMENT})
     record DocumentRoot(@EntityId String id, String label) {}
 
-    @Model(persistence = {EVENT_SOURCED, DOCUMENT})
+    @Model(searchable = true, persistence = {EVENT_SOURCED, DOCUMENT})
     record DirectChild(@EntityId String id, @Parent(DocumentRoot.class) String rootId, String status) {}
 
-    @Model(persistence = DOCUMENT)
+    @Model(searchable = true, persistence = DOCUMENT)
     record DocumentOnly(@EntityId String id, String status) {}
 
-    @Model(persistence = DOCUMENT, document = @DocumentProjection(searchable = false))
+    @Model(searchable = false, persistence = DOCUMENT)
     record ReferenceChild(@EntityId String id, @Parent(DocumentRoot.class) String rootId, String status) {}
 
-    @Model(persistence = DOCUMENT, document = @DocumentProjection(searchable = false))
+    @Model(searchable = false, persistence = DOCUMENT)
     record ReferenceComponent(@EntityId String id,
                               @Parent(value = DocumentRoot.class, pathInParent = "references") String rootId,
                               String status) {}
 
-    @Model(materializeGraph = true)
+    @Model(searchable = true, graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     record MaterializedRoot(@EntityId String id) {}
 
-    @Model
+    @Model(searchable = false)
     record MaterializedChild(@EntityId String id,
                              @Parent(value = MaterializedRoot.class, pathInParent = "children") String rootId,
                              String status, String label, @SearchExclude String secret) {}

@@ -160,9 +160,7 @@ class ModelStorageContractTest {
     record CreateTimedDocument(String id, Window window) {}
     record ChangeWindow(String id, Window window) {}
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(collection = "contract-windows",
-                    timestampPath = "window/start", endPath = "window/end"))
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "contract-windows", timestampPath = "window/start", endPath = "window/end"))
     record TimedDocument(@EntityId String id, Window window) {
         @Apply
         static TimedDocument create(CreateTimedDocument event) {
@@ -195,55 +193,55 @@ class ModelStorageContractTest {
     record Add(String id, int amount) {}
     record Delete(String id) {}
 
-    @Model
+    @Model(searchable = false)
     record DefaultCounter(@EntityId String id, int value) implements Counter<DefaultCounter> {
         @Apply static DefaultCounter create(Create event) { return new DefaultCounter(event.id(), 1); }
         public DefaultCounter withValue(int value) { return new DefaultCounter(id, value); }
     }
 
-    @Model(cachingDepth = 0)
+    @Model(searchable = false, cachingDepth = 0)
     record LatestCounter(@EntityId String id, int value) implements Counter<LatestCounter> {
         @Apply static LatestCounter create(Create event) { return new LatestCounter(event.id(), 1); }
         public LatestCounter withValue(int value) { return new LatestCounter(id, value); }
     }
 
-    @Model(cachingDepth = -1)
+    @Model(searchable = false, cachingDepth = -1)
     record HistoryCounter(@EntityId String id, int value) implements Counter<HistoryCounter> {
         @Apply static HistoryCounter create(Create event) { return new HistoryCounter(event.id(), 1); }
         public HistoryCounter withValue(int value) { return new HistoryCounter(id, value); }
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     record UncachedCounter(@EntityId String id, int value) implements Counter<UncachedCounter> {
         @Apply static UncachedCounter create(Create event) { return new UncachedCounter(event.id(), 1); }
         public UncachedCounter withValue(int value) { return new UncachedCounter(id, value); }
     }
 
-    @Model(snapshotPeriod = 2, maxSnapshotCount = 2, cached = false)
+    @Model(searchable = false, snapshotPeriod = 2, maxSnapshotCount = 2, cached = false)
     record SnapshotCounter(@EntityId String id, int value) implements Counter<SnapshotCounter> {
         @Apply static SnapshotCounter create(Create event) { return new SnapshotCounter(event.id(), 1); }
         public SnapshotCounter withValue(int value) { return new SnapshotCounter(id, value); }
     }
 
-    @Model(snapshotPeriod = 2, maxSnapshotCount = 0, cached = false)
+    @Model(searchable = false, snapshotPeriod = 2, maxSnapshotCount = 0, cached = false)
     record ClampedSnapshotCounter(@EntityId String id, int value) implements Counter<ClampedSnapshotCounter> {
         @Apply static ClampedSnapshotCounter create(Create event) { return new ClampedSnapshotCounter(event.id(), 1); }
         public ClampedSnapshotCounter withValue(int value) { return new ClampedSnapshotCounter(id, value); }
     }
 
-    @Model(checkpointPeriod = 1, cached = false)
+    @Model(searchable = false, checkpointPeriod = 1, cached = false)
     record CheckpointCounter(@EntityId String id, int value) implements Counter<CheckpointCounter> {
         @Apply static CheckpointCounter create(Create event) { return new CheckpointCounter(event.id(), 1); }
         public CheckpointCounter withValue(int value) { return new CheckpointCounter(id, value); }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record DocumentCounter(@EntityId String id, int value) implements Counter<DocumentCounter> {
         @Apply static DocumentCounter create(Create event) { return new DocumentCounter(event.id(), 1); }
         public DocumentCounter withValue(int value) { return new DocumentCounter(id, value); }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     record CombinedCounter(@EntityId String id, int value) implements Counter<CombinedCounter> {
         @Apply static CombinedCounter create(Create event) { return new CombinedCounter(event.id(), 1); }
         public CombinedCounter withValue(int value) { return new CombinedCounter(id, value); }

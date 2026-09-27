@@ -209,7 +209,7 @@ type and revision. If that evolved JSON must be made durable for search, return 
 ```java
 @Consumer(name = "rematerialize-project-graphs-v2", minIndex = 0)
 public class ProjectGraphRebuilder {
-    @HandleDocument(modelGraph = Project.class)
+    @HandleDocument
     Graph<Project> onProject(Graph<Project> graph) {
         return graph;
     }

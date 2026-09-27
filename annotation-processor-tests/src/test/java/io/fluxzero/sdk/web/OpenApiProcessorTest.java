@@ -532,7 +532,7 @@ class OpenApiProcessorTest {
         String value;
     }
 
-    @Model
+    @Model(searchable = false)
     record ProcessorOrganisation(@EntityId String id, String name, ProcessorOrganisationInfo info) {
     }
 
@@ -545,7 +545,7 @@ class OpenApiProcessorTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record ProcessorLocation(
             @EntityId String id,
             @Parent(pathInParent = "locations",
@@ -554,7 +554,7 @@ class OpenApiProcessorTest {
             ProcessorOrganisationId organisationId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ProcessorConnection(
             @EntityId String id,
             @Parent(value = ProcessorLocation.class, pathInParent = "assets/connections",
@@ -562,18 +562,18 @@ class OpenApiProcessorTest {
             String locationId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ProcessorAlternateRoot(@EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ProcessorContact(
             @EntityId String id,
             @Parent(types = {ProcessorOrganisation.class, ProcessorAlternateRoot.class}, pathInParent = "contacts")
             Id<?> parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ProcessorHiddenChild(
             @EntityId String id,
             @Parent(value = ProcessorOrganisation.class, pathInParent = "hiddenChildren",
@@ -581,23 +581,23 @@ class OpenApiProcessorTest {
             String organisationId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record SelectedRoot(@EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     record SelectedChild(
             @EntityId String id,
             @Parent(value = SelectedRoot.class, pathInParent = "children") String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record SelectedLeaf(
             @EntityId String id,
             @Parent(value = SelectedChild.class, pathInParent = "leaves") String childId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ExcludedChild(
             @EntityId String id,
             @Parent(value = SelectedRoot.class, pathInParent = "excludedChildren") String rootId) {

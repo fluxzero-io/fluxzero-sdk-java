@@ -997,7 +997,7 @@ class GraphTest {
         return entity;
     }
 
-    @Model
+    @Model(searchable = false)
     private record Root(@EntityId RootId id, String name) {
     }
 
@@ -1007,43 +1007,43 @@ class GraphTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Child(
             @EntityId ChildId id,
             @Parent(pathInParent = "children") RootId rootId,
             String name) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record Grandchild(
             @EntityId String id,
             @Parent(value = Child.class, pathInParent = "details/grandchildren") ChildId childId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedChild(
             @EntityId(parentScoped = true) String id,
             @Parent(value = Root.class, pathInParent = "scopedChildren") RootId rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedLeaf(
             @EntityId(parentScoped = true) String id,
             @Parent(value = Child.class, pathInParent = "scopedLeaves") ChildId childId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record AliasedChild(
             @EntityId String id,
             @Alias String alias,
             @Parent(value = Root.class, pathInParent = "aliasedChildren") RootId rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record OtherRoot(@EntityId String id, String name) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record MultiChild(
             @EntityId String id,
             @Parent(pathInParent = "rootChildren") RootId rootId,

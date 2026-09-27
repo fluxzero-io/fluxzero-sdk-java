@@ -484,6 +484,11 @@ public final class Graphs {
         return pathOverrides.isEmpty() ? result : remapPaths(result, pathOverrides);
     }
 
+    /** Marks a live indexed view as having no retained previous Graph snapshot, including its descendants. */
+    public static <T> Graph<T> withoutHistory(Graph<T> graph) {
+        return withPrevious(graph, null);
+    }
+
     static List<GraphMutation> stagedChanges(Graph<?> graph) {
         return graph instanceof GraphView<?> view ? List.copyOf(view.state().stagedChanges().values()) : List.of();
     }

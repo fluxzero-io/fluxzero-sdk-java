@@ -51,7 +51,7 @@ class ModelMigrationDocumentationTest {
     @TempDir Path temporary;
 
     @Test
-    void readsLegacyStorageAndReindexesEachRepresentationIndependently() throws Exception {
+    void readsLegacySchemasAndReindexesCanonicalNodesAndStoredGraphs() throws Exception {
         var server = TestServer.startServer(0);
         String url = "ws://localhost:" + server.getURI().getPort();
         String namespace = "migration-" + UUID.randomUUID();
@@ -63,7 +63,7 @@ class ModelMigrationDocumentationTest {
             try {
                 observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "migration-project-graphs")
                         .readFromIndex(0, 1);
-                observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "$modelGraphComponents/migration-project")
+                observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "migration-projects")
                         .readFromIndex(0, 1);
                 observer.getTrackingClient(io.fluxzero.common.MessageType.DOCUMENT, "migration-projects")
                         .readFromIndex(0, 1);
@@ -83,7 +83,8 @@ class ModelMigrationDocumentationTest {
             var originalGraph = client.getSearchClient().fetch(new io.fluxzero.common.api.search.GetDocument(
                     "project-1", "migration-project-graphs")).orElseThrow();
             var originalHead = client.getSearchClient().fetchModelDocument(new io.fluxzero.common.api.search.GetDocument(
-                    "project-1", "$modelGraphComponents/migration-project", true, true)).getModelHead();
+                    "project-1", "migration-projects", true, true)).getModelHead();
+            org.junit.jupiter.api.Assertions.assertNotNull(originalHead);
             var fixture = TestFixture.createAsync(builder, client).consumerTimeout(Duration.ofSeconds(10));
             try (var reader = fixture.getFluxzero()) {
                 fixture.whenExecuting(fc -> {
@@ -139,7 +140,7 @@ class ModelMigrationDocumentationTest {
                             TimingUtils.retryOnFailure(() -> {
                                 if (Fluxzero.search(Project.class).match("Renamed", "details/name").count() != 1
                                     || Fluxzero.searchGraph(Project.class, true).match("Renamed", "details/name").fetchAll().size() != 1) {
-                                    throw new IllegalStateException("Independent source/projection migration has not caught up");
+                                    throw new IllegalStateException("Canonical node migration has not caught up");
                                 }
                                 return null;
                             }, RetryConfiguration.builder().delay(Duration.ofMillis(25)).maxRetries(200)
@@ -190,9 +191,7 @@ class ModelMigrationDocumentationTest {
         try { return Files.readString(output); } catch (Exception e) { return e.toString(); }
     }
 
-    @Model(name = "migration-project", persistence = {EVENT_SOURCED, DOCUMENT},
-            document = @DocumentProjection(collection = "migration-projects"), materializeGraph = true,
-            graphProjection = @GraphProjection(collection = "migration-project-graphs", completion = AWAIT))
+    @Model(searchable = true, name = "migration-project", persistence = {EVENT_SOURCED, DOCUMENT}, searchSettings = @SearchSettings(collection = "migration-projects"), graphProjection = @GraphProjection(collection = "migration-project-graphs", mode = io.fluxzero.sdk.modeling.GraphProjectionMode.AWAIT))
     @Revision(2)
     record Project(@EntityId String projectId, ProjectDetails details) {}
     record ProjectDetails(String name) {}
@@ -203,7 +202,7 @@ class ModelMigrationDocumentationTest {
     record RenameProject(String projectId, String name) {
         @Apply Project apply(Project current) { return new Project(projectId, new ProjectDetails(name)); }
     }
-    @Model(name = "migration-note")
+    @Model(searchable = false, name = "migration-note")
     record Note(@EntityId String noteId, @Parent(value = Project.class, pathInParent = "notes") String projectId) {}
     record CreateNote(String noteId, String projectId) {
         @Apply Note apply() { return new Note(noteId, projectId); }
@@ -227,13 +226,13 @@ class ModelMigrationDocumentationTest {
 
     @Consumer(name = "migration-project-graph-revision-2", minIndex = 0)
     static class RematerializeProjects {
-        @HandleDocument(modelGraph = Project.class)
+        @HandleDocument
         Graph<Project> migrate(Graph<Project> graph) { return graph; }
     }
 
     @Consumer(name = "migration-project-source-revision-2", minIndex = 0)
     static class ReindexProjectSources {
-        @HandleDocument(modelState = Project.class)
+        @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
         Project migrate(Project project) { return project; }
     }
 

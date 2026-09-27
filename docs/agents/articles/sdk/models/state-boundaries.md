@@ -8,7 +8,7 @@ query visibility, authorization and protection of secrets are different decision
 | Create or change related state atomically | One Model action with multiple `@Apply` targets, including parent/child creation | External calls, schedules and unrelated repositories are not in that transaction |
 | Load by identity | `Fluxzero.loadModel(id)` | Uses the Model's authoritative load path; identity knowledge is not authorization |
 | Persist current state without Model events | `DOCUMENT` plus `eventPublication = NEVER` | No Model history or `previous()`; does not suppress incoming command/webrequest logs, results or application logs |
-| Exclude unrestricted typed Model search | `@DocumentProjection(searchable = false)` | Exact parent/ancestor searches and identity reads remain possible; not a security boundary |
+| Keep DOCUMENT state internal | `searchable = false`, outside a searchable ancestor scope | Identity reads remain possible; search and search-based parent/ancestor selection require effective searchability |
 | Check concurrent changes | `RETRY` or `FAIL` and injected Models/Graphs | Use assertions within the action; a separate query/read followed by a write is not an atomic check |
 | Delete from current state | Return `null` from `@Apply` | Does not erase retained history; follows configured parent ownership |
 | Erase selected Model storage | `modelRepository().deleteModel(...)` or a confirmed deletion plan | Fences stale writes; global event logs, other copies and backups have separate lifecycles |
@@ -16,16 +16,20 @@ query visibility, authorization and protection of secrets are different decision
 For example, current delivery status may need identity loads but neither replay nor unrestricted search:
 
 ```java
-@Model(persistence = ModelPersistence.DOCUMENT,
-       eventPublication = EventPublication.NEVER,
-       document = @DocumentProjection(searchable = false))
+@Model(
+    searchable = false,
+    persistence = ModelPersistence.DOCUMENT,
+    eventPublication = EventPublication.NEVER
+)
 record DeliveryProgress(@EntityId DeliveryProgressId progressId, boolean completed) {}
 ```
 
 ```kotlin
-@Model(persistence = [ModelPersistence.DOCUMENT],
-       eventPublication = EventPublication.NEVER,
-       document = DocumentProjection(searchable = false))
+@Model(
+    searchable = false,
+    persistence = [ModelPersistence.DOCUMENT],
+    eventPublication = EventPublication.NEVER
+)
 data class DeliveryProgress(@EntityId val progressId: DeliveryProgressId, val completed: Boolean)
 ```
 
@@ -48,15 +52,14 @@ exists. Ordinary storage conflicts instead have `result` and no `readConflict`, 
 
 ## Non-searchable is not private
 
-The internal current Model source and the optional public DOCUMENT projection are independent stored roles.
-DOCUMENT-only loads use the internal source; direct typed searches use the public projection. Model commits maintain
-both. Public document indexing or `@HandleDocument(documentClass = ...)` does not change authoritative Model state.
+A DOCUMENT Model keeps one internal current document. Searchability adds indexes to that canonical representation;
+node queries, related-content predicates and Graph composition share it. There is no separately editable public Model
+copy. Use Model operations for business changes and the guarded schema migration route for serializer upcasts.
 
-A Model used in Graph composition may require its own internal content indexes even when its public projection is
-not searchable. `whereChild`/`whereDescendant` predicates use that internal source; exact parent/ancestor searches
-can still retrieve a non-searchable public projection. Do not use collection names or `searchable = false` to hide
-values from another application that can read the same store. Enforce access through trusted handlers and the
-deployment's actual namespace/access controls; an injected Graph is not itself an authorization check.
+A false value on the node means no independent search request. A composed searchable ancestor can still include that
+node. Do not use collection names or searchability as authorization: another application with direct access to the
+store can still read stored content. Enforce access through trusted handlers and namespace/access controls; an
+injected Graph is not itself an authorization check.
 
 `@ProtectData` redacts annotated fields in stored messages and restores retained values for handling. Protection on
 an input does **not** carry over to values copied into Model state, documents, snapshots, results or application logs.
@@ -73,10 +76,9 @@ its own explicitly selected scope/plan. Shared event payloads can remain while a
 them. The global event log is not removed by Model erasure. Copies in other stores, logs, exports and backups require
 their own retention/deletion and restore policy.
 
-Use a matching SDK and service implementation for the storage/wire capabilities you enable. Older shared
-DOCUMENT storage is not automatically equivalent to independent internal sources and public projections:
-preserve DOCUMENT-only state and follow the explicit migration/rebuild procedure before switching writers.
-Do not let a mixed set of unsupported writers replace newly separated state or silently drop conflict dependencies.
+Use a matching SDK and service implementation for the storage/wire capabilities you enable. Older separate public Model projections are not authoritative canonical nodes. Preserve DOCUMENT-only state,
+choose the existing canonical collection deliberately and rebuild search indexes before changing writers. Recompile
+Model contracts and coordinate writer rollout; do not let old writers restore obsolete projection definitions.
 
 ## Historical event blocks
 

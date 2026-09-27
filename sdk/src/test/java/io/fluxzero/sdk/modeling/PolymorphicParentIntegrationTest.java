@@ -65,11 +65,11 @@ class PolymorphicParentIntegrationTest {
                 }).expectSuccessfulResult().expectNoErrors();
     }
 
-    @Model(name = "wire-project", materializeGraph = true, cached = false)
+    @Model(searchable = true, name = "wire-project", cached = false, graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     record Project(@EntityId ProjectId id) { }
-    @Model(name = "wire-folder", cached = false)
+    @Model(searchable = false, name = "wire-folder", cached = false)
     record Folder(@EntityId FolderId id) { }
-    @Model(name = "wire-item", cached = false)
+    @Model(searchable = false, name = "wire-item", cached = false)
     record Item(@EntityId String itemId,
                 @Parent(types = {Project.class, Folder.class}, pathInParent = "items") Id<?> parentId) { }
     record CreateProject(ProjectId id) {

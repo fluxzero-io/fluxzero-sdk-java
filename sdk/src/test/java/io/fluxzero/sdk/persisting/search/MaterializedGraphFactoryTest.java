@@ -392,7 +392,7 @@ class MaterializedGraphFactoryTest {
     }
 
     @Test
-    void rejectsMismatchedMaterializedGraphHandlerType() throws Exception {
+    void rejectsInternalStateGraphHandler() throws Exception {
         var method = InvalidHandler.class.getDeclaredMethod(
                 "handle", Graph.class);
         var resolver = new MaterializedGraphParameterResolver(
@@ -406,7 +406,7 @@ class MaterializedGraphFactoryTest {
                         method.getAnnotation(HandleDocument.class)));
     }
 
-    @Model
+    @Model(searchable = false)
     private record CountingRoot(@EntityId String id) {
         private static final AtomicInteger constructions =
                 new AtomicInteger();
@@ -416,14 +416,14 @@ class MaterializedGraphFactoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(1)
     private record RevisionedRoot(
             @EntityId String id,
             String name) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(1)
     private record RevisionedChild(
             @EntityId String id,
@@ -462,7 +462,7 @@ class MaterializedGraphFactoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record CountingChild(
             @EntityId String id,
             @Parent(value = CountingRoot.class, pathInParent = "children")
@@ -475,25 +475,25 @@ class MaterializedGraphFactoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record MultiParentRoot(@EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record PrimaryParent(
             @EntityId String id,
             @Parent(value = MultiParentRoot.class, pathInParent = "primaryParents")
             String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record SecondaryParent(
             @EntityId String id,
             @Parent(value = MultiParentRoot.class, pathInParent = "secondaryParents")
             String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record MultiParentChild(
             @EntityId String id,
             @Parent(value = PrimaryParent.class, pathInParent = "children")
@@ -505,7 +505,7 @@ class MaterializedGraphFactoryTest {
     }
 
     private static final class InvalidHandler {
-        @HandleDocument(modelGraph = CountingRoot.class)
+        @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
         void handle(Graph<CountingChild> graph) {
         }
     }

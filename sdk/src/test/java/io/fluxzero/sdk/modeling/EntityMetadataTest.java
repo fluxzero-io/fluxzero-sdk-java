@@ -139,11 +139,10 @@ class EntityMetadataTest {
     void ownsDirectModelDocumentCollectionResolution() {
         assertEquals("models", EntityMetadata.validate(ConfiguredModel.class)
                 .modelDocumentCollection().orElseThrow());
-        assertEquals(privateModelDocumentCollection(ChildModel.class.getSimpleName()), EntityMetadata.validate(ChildModel.class)
-                .modelDocumentCollection().orElseThrow());
+        assertTrue(EntityMetadata.validate(ChildModel.class).modelDocumentCollection().isEmpty());
         assertTrue(EntityMetadata.validate(ParentModel.class)
                            .modelDocumentCollection().isEmpty());
-        assertEquals("ParentModel", EntityMetadata.validate(ParentModel.class)
+        assertEquals("$modelGraphComponents/ParentModel", EntityMetadata.validate(ParentModel.class)
                 .modelDocumentReadCollection());
         assertTrue(EntityMetadata.validate(ConfiguredAggregate.class)
                            .modelDocumentCollection().isEmpty());
@@ -157,7 +156,7 @@ class EntityMetadataTest {
                         .orElseThrow();
 
         assertEquals(
-                "$modelGraphComponents/ProjectedModel",
+                "projected-models",
                 configuration.getRootCollection());
         assertEquals(
                 "projected-graphs",
@@ -189,7 +188,7 @@ class EntityMetadataTest {
         var referenceOnlyConfiguration =
                 EntityMetadata.validate(ReferenceOnlyProjectedModel.class)
                         .graphProjectionConfiguration().orElseThrow();
-        assertEquals("$modelGraphComponents/ReferenceOnlyProjectedModel",
+        assertEquals("reference-only-projected-models",
                      referenceOnlyConfiguration.getRootCollection());
         assertEquals("reference-only-projected-models-graphs",
                      referenceOnlyConfiguration.getCollection());
@@ -227,10 +226,10 @@ class EntityMetadataTest {
     @Test
     void keepsApplicationResolvedGraphConfigurationOutOfTheClassCache() {
         assertEquals(
-                List.of("$modelGraphComponents/ConfiguredProjectionCollections", "first-models", "first-graphs"),
+                List.of("first-models", "first-models", "first-graphs"),
                 projectionCollections("first"));
         assertEquals(
-                List.of("$modelGraphComponents/ConfiguredProjectionCollections", "second-models", "second-graphs"),
+                List.of("second-models", "second-models", "second-graphs"),
                 projectionCollections("second"));
     }
 
@@ -303,15 +302,16 @@ class EntityMetadataTest {
                                              !Set.of(
                                                      "automaticHandling",
                                                      "conflictPolicy",
-                                                     "document",
+                                                     "searchSettings",
+                                                     "searchable",
                                                      "graphProjection",
-                                                     "materializeGraph",
                                                      "name",
                                                      "persistence")
                                                      .contains(name))
                              .collect(toSet()));
         Set<String> expectedConfiguration = new java.util.HashSet<>(modelSettings);
-        expectedConfiguration.removeAll(Set.of("document", "name", "persistence"));
+        expectedConfiguration.removeAll(Set.of("searchSettings", "searchable", "name", "persistence"));
+        expectedConfiguration.add("materializeGraph");
         expectedConfiguration.addAll(Set.of(
                 "eventSourced", "directDocument", "publicDocument", "collection", "timestampPath", "endPath"));
         assertEquals(expectedConfiguration, configurationSettings);
@@ -591,21 +591,15 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ParentModel(@EntityId ParentModelId parentId) {
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(collection = "models"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "models"))
     private record ConfiguredModel(@EntityId String id) {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(collection = "projected-models"),
-            materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "projected-models"), graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "projected-graphs",
                     pathOverrides = @GraphPathOverride(
                             path = "children",
@@ -614,7 +608,7 @@ class EntityMetadataTest {
             @EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(2)
     private record RevisionedProjectedChild(
             @EntityId String id,
@@ -622,7 +616,7 @@ class EntityMetadataTest {
             String parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(3)
     private record RevisionedProjectedGrandchild(
             @EntityId String id,
@@ -630,57 +624,39 @@ class EntityMetadataTest {
             String parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(9)
     private record UnrelatedRevisionedModel(
             @EntityId String id) {
     }
 
-    @Model(materializeGraph = true)
+    @Model(searchable = true, graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     private record UnsearchableProjectedModel(
             @EntityId String id) {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(collection = "default-projected-models"),
-            materializeGraph = true)
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "default-projected-models"), graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     private record DefaultProjectedModel(
             @EntityId String id) {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(
-                    searchable = false,
-                    collection = "reference-only-projected-models"),
-            materializeGraph = true)
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "reference-only-projected-models"), graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     private record ReferenceOnlyProjectedModel(
             @EntityId String id) {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            graphProjection = @GraphProjection(collection = "ignored-graphs"))
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(collection = "ignored-graphs"))
     private record ConfiguredUnmaterializedModel(
             @EntityId String id) {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(collection = "same-collection"),
-            materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "same-collection"), graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "same-collection"))
     private record ConflictingProjectionCollection(
             @EntityId String id) {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(collection = "${graphRootCollection}"),
-            materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "${graphRootCollection}"), graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "${graphProjectionCollection}"))
     private record ConfiguredProjectionCollections(
             @EntityId String id) {
@@ -690,7 +666,7 @@ class EntityMetadataTest {
     private record ConfiguredAggregate(@EntityId String id) {
     }
 
-    @Model(snapshotPeriod = 3, maxSnapshotCount = 2)
+    @Model(searchable = false, snapshotPeriod = 3, maxSnapshotCount = 2)
     private record SnapshotModel(@EntityId String id) {
     }
 
@@ -704,7 +680,7 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AlternateParentModel(@EntityId AlternateParentModelId parentId) {
     }
 
@@ -714,20 +690,20 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record PolymorphicChildModel(
             @EntityId String id,
             @Parent(types = {ParentModel.class, AlternateParentModel.class}, pathInParent = "children") Id<?> parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ChildModel(
             @EntityId ChildModelId childId,
             @Parent(pathInParent = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
             @Parent(value = ParentModel.class, pathInParent = "externalItems") String externalParentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record DuplicateParentModel(
             @EntityId String id,
             @Parent(value = ParentModel.class, pathInParent = "items", deleteOnParentDeletion = false)
@@ -741,7 +717,7 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AffixedModel(
             @EntityId(prefix = "move-", postfix = "-state") AffixedModelId id) {
     }
@@ -752,17 +728,17 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedRootModel(@EntityId String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedBranchModel(
             @EntityId String branchId,
             @Parent(value = ScopedRootModel.class, pathInParent = "branches") String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedLeafModel(
             @EntityId(parentScoped = true) String leafId,
             @Parent(value = ScopedRootModel.class, pathInParent = "leaves") String rootId,
@@ -772,16 +748,16 @@ class EntityMetadataTest {
     private record ScopedTargetPayload(String rootId, String branchId, String leafId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ParentlessScopedModel(
             @EntityId(parentScoped = true) String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record OtherScopedRootModel(@EntityId String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record AmbiguousScopedModel(
             @EntityId(parentScoped = true) String leafId,
             @Parent(value = ScopedRootModel.class, pathInParent = "leaves") String firstRootId,
@@ -793,7 +769,7 @@ class EntityMetadataTest {
         ParentModelId parentId();
     }
 
-    @Model
+    @Model(searchable = false)
     private record InterfaceChildModel(
             @EntityId String id, ParentModelId parentId) implements ParentLink {
     }
@@ -824,7 +800,7 @@ class EntityMetadataTest {
     private record GenericParentUpdate(ParentModelId parentId) implements GenericUpdate<ParentModel> {
     }
 
-    @Model
+    @Model(searchable = false)
     private static class ConstructorModel {
         @EntityId
         String id;
@@ -835,7 +811,7 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ReceiverModel(@EntityId String id) {
         @Apply
         ReceiverModel apply(RenameReceiver command) {
@@ -858,7 +834,7 @@ class EntityMetadataTest {
     private record CreateConstructorModel(String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private static class OuterModel {
         @EntityId
         String id;
@@ -888,15 +864,15 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private static class MissingIdModel {
     }
 
-    @Model
+    @Model(searchable = false)
     private record DuplicateIdModel(@EntityId String first, @EntityId String second) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Aggregate
     private record ModelAggregate(@EntityId String id) {
     }
@@ -904,40 +880,40 @@ class EntityMetadataTest {
     private record ParentOnNonModel(@Parent String parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record CollectionParentModel(@EntityId String id, @Parent List<String> parentIds) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record PaddedPathModel(@EntityId String id,
                                    @Parent(value = ParentModel.class, pathInParent = " items ") String parent) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record InvalidPathModel(@EntityId String id,
                                     @Parent(value = ParentModel.class, pathInParent = "items//archived") String parent) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record TraversalPathModel(@EntityId String id,
                                       @Parent(value = ParentModel.class, pathInParent = "items/../archived") String parent) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record NumericPathModel(
             @EntityId String id,
             @Parent(value = ParentModel.class, pathInParent = "items/0")
             String parent) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record MetadataPathModel(
             @EntityId String id,
             @Parent(value = ParentModel.class, pathInParent = "$metadata/items")
             String parent) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record UntypedPathModel(@EntityId String id, @Parent(pathInParent = "items") String parent) {
     }
 
@@ -950,32 +926,32 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record InvalidTypedParentModel(@EntityId String id, @Parent NotAModelId parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record InvalidExplicitParentModel(@EntityId String id, @Parent(NotAModel.class) String parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record MismatchedParentModel(
             @EntityId String id, @Parent(value = ChildModel.class) ParentModelId parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ConflictingPolymorphicParentModel(
             @EntityId String id,
             @Parent(value = ParentModel.class, types = AlternateParentModel.class) Id<?> parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record UntypedPolymorphicParentModel(
             @EntityId String id,
             @Parent(types = {ParentModel.class, AlternateParentModel.class}) String parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record InvalidPolymorphicParentModel(
             @EntityId String id,
             @Parent(types = {ParentModel.class, NotAModel.class}) Id<?> parentId) {
@@ -1013,21 +989,21 @@ class EntityMetadataTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record RecursiveFolder(
             @EntityId RecursiveFolderId id,
             @Parent(pathInParent = "children") RecursiveFolderId parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record CycleA(@EntityId CycleAId id, @Parent CycleBId parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record CycleB(@EntityId CycleBId id, @Parent CycleAId parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record UntypedParentModel(@EntityId String id, @Parent String parentId) {
     }
 }

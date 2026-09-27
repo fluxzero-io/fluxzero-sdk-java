@@ -78,12 +78,17 @@ public class ModelGraphComposition {
     @Builder.Default
     long maxBytes = UNBOUNDED;
 
+    /** Whether to include descendants. False returns only the root while retaining a Graph result. */
+    @Builder.Default
+    boolean includeDescendants = true;
+
     public ModelGraphComposition(
             int maxDepth,
             int maxModels,
             int maxPlacements,
             int maxCollections,
-            long maxBytes) {
+            long maxBytes,
+            boolean includeDescendants) {
         validateMaximum("maxDepth", maxDepth);
         validateMaximum("maxModels", maxModels);
         validateMaximum("maxPlacements", maxPlacements);
@@ -94,6 +99,7 @@ public class ModelGraphComposition {
         this.maxPlacements = maxPlacements;
         this.maxCollections = maxCollections;
         this.maxBytes = maxBytes;
+        this.includeDescendants = includeDescendants;
     }
 
     private static void validateMaximum(String name, long maximum) {

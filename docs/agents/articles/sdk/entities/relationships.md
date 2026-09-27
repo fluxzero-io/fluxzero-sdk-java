@@ -5,7 +5,7 @@
 Use `@Parent` on the child:
 
 ```java
-@Model
+@Model(searchable = false)
 public record Task(
         @EntityId TaskId taskId,
         @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -47,7 +47,7 @@ Use `@Association` when the relation/path or same-type target would otherwise be
 
 Every root and descendant in a materialized Graph retains its own serialized type and `@Revision`. The ordinary
 serializer upcasts nodes independently and lazily; do not create a Graph-wide upcaster. Use
-`@HandleDocument(modelGraph = Root.class)` and return the complete Graph only when evolved node JSON must be persisted
+`@HandleDocument` and return the complete Graph only when evolved node JSON must be persisted
 back into the derived projection. That operation must preserve the root, state boundary, nodes and placements and does
 not modify direct Models, histories or relationships.
 
@@ -56,7 +56,7 @@ not modify direct Models, histories or relationships.
 `@Model` plus `@Member` is the intentional shared-stream option:
 
 ```java
-@Model
+@Model(searchable = false)
 public record Invoice(
         @EntityId InvoiceId invoiceId,
         @Member List<InvoiceLine> lines) {

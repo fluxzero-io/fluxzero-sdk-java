@@ -23,7 +23,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
-import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.SearchSettings;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Parent;
@@ -299,11 +299,11 @@ class TestFixtureModelApiTest {
                         event.getMetadata().get(Entity.AGGREGATE_TYPE_METADATA_KEY))));
     }
 
-    @Model
+    @Model(searchable = false)
     private record TestModel(@EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record FixtureModel(@EntityId String id) {
     }
 
@@ -353,11 +353,7 @@ class TestFixtureModelApiTest {
         }
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(searchable = false),
-            eventPublication = EventPublication.NEVER,
-            cached = false)
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER, cached = false)
     private record UncachedDocument(@EntityId String id, int value) {
     }
 
@@ -375,29 +371,29 @@ class TestFixtureModelApiTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record FixtureRoot(@EntityId String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record FixtureLocation(
             @EntityId String locationId,
             @Parent(value = FixtureRoot.class, pathInParent = "locations") String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record FixtureParent(
             @EntityId String parentId,
             @Parent(value = FixtureLocation.class, pathInParent = "parents") String locationId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record FixtureChild(
             @EntityId String childId,
             @Parent(value = FixtureParent.class, pathInParent = "children") String parentId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedFixtureChild(
             @EntityId(parentScoped = true) String childId,
             @Parent(value = FixtureRoot.class, pathInParent = "scopedChildren") String rootId) {
@@ -520,7 +516,7 @@ class TestFixtureModelApiTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ContextualModel(@EntityId String id, String tenant) {
     }
 

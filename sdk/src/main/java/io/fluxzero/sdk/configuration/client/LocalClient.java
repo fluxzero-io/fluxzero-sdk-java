@@ -232,6 +232,7 @@ public class LocalClient extends AbstractClient {
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(
                         result::prepareModelGraphProjection);
+        result.setModelSchemaInvalidation(eventStore.getMessageStore()::invalidateModelGraphSchema);
         return result;
     }
 

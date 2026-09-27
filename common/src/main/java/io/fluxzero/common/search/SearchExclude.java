@@ -52,6 +52,12 @@ import java.lang.annotation.Target;
  * Subclasses can re-enable indexing using {@link SearchInclude} or by specifying a {@link #value()} of {@code false} on
  * the overridden property or class.
  *
+ * The standard Jackson inverter records exclusions per concrete field path, independently of identical values in
+ * other fields. Readers without this support still retain the complete document body. To correct previously indexed
+ * documents, upgrade both the writing SDK and the Runtime, then reindex the typed values; an old document's summary
+ * alone cannot reconstruct which fields were excluded. A custom inverter or custom summarizer owns its own indexing
+ * semantics.
+ *
  * @see SearchInclude
  */
 @Target({ElementType.ANNOTATION_TYPE, ElementType.METHOD, ElementType.FIELD, ElementType.TYPE})

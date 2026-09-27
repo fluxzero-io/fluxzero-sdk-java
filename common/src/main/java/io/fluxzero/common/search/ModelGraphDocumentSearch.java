@@ -34,6 +34,19 @@ public final class ModelGraphDocumentSearch {
     private ModelGraphDocumentSearch() {
     }
 
+    /** Whether ordinary document search can select and page the roots before loading descendants. */
+    public static boolean canPageRoots(io.fluxzero.common.api.search.SearchModelGraphDocuments request) {
+        return !request.getComposition().isIncludeDescendants()
+                || request.getSearch().getQuery().getConstraints().isEmpty()
+                   && request.getSearch().getSorting().stream().allMatch(sort ->
+                           sort.equals("timestamp") || sort.equals("-timestamp"));
+    }
+
+    /** Retains result field selection after the database has applied filtering, order and root pagination. */
+    public static SearchDocuments afterRootSelection(SearchDocuments search) {
+        return search.toBuilder().skip(0).maxSize(null).lastHit(null).build();
+    }
+
     /**
      * Applies the complete search request to already composed graph documents.
      */
@@ -62,10 +75,6 @@ public final class ModelGraphDocumentSearch {
                                                         .filterPaths(
                                                                 pathFilter)));
         }
-        if (search.getSkip() > 0) {
-            result = result.skip(
-                    search.getSkip());
-        }
         if (search.getLastHit() != null) {
             SerializedDocument lastHit =
                     search.getLastHit();
@@ -74,6 +83,10 @@ public final class ModelGraphDocumentSearch {
                                                       document,
                                                       lastHit))
                     .skip(1);
+        }
+        if (search.getSkip() > 0) {
+            result = result.skip(
+                    search.getSkip());
         }
         if (search.getMaxSize() != null) {
             result = result.limit(
@@ -85,20 +98,8 @@ public final class ModelGraphDocumentSearch {
     private static boolean matches(
             SerializedDocument document,
             io.fluxzero.common.api.search.SearchQuery query) {
-        /*
-         * A JDBC search result exposes its PostgreSQL tsvector as a summary. That representation is deliberately
-         * lossy: for example, "root-00000" may be returned as the lexemes "root -00000". Summary checks are a safe
-         * prefilter while PostgreSQL owns the complete query, but can cause false negatives when constraints are
-         * evaluated in Java after graph composition. The composed document contains every entry, so evaluate those
-         * entries without the summary shortcut and return the original document unchanged.
-         */
-        Document searchable =
-                document.deserializeDocument()
-                        .toBuilder()
-                        .summary(() -> null)
-                        .build();
-        return query.matches(
-                new SerializedDocument(searchable));
+        return query.matches(new SerializedDocument(
+                ModelSearchDocument.restoreSummary(document.deserializeDocument())));
     }
 
     private static boolean sameDocument(

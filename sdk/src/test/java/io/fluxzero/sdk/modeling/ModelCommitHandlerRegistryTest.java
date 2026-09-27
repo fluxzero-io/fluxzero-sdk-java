@@ -111,7 +111,7 @@ class ModelCommitHandlerRegistryTest {
     }
 
     private void verifyInFlightResultIsolation(RuntimeException transportFailure) {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         AtomicReference<CommitModels> submitted = new AtomicReference<>();
@@ -163,7 +163,7 @@ class ModelCommitHandlerRegistryTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void deferredCommitsKeepTheirResultsWhenAPeerIsRejected(boolean synchronous) {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
@@ -265,7 +265,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void explicitAssertAndApplyWithoutLocalApplyAssertsThenWarns() {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         EventStoreClient eventStoreClient =
                 mock(EventStoreClient.class);
         stubModelLoads(repository);
@@ -299,7 +299,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void explicitlySuppressedUpdateDoesNotWarnAboutAMissingApply() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         stubModelLoads(repository);
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
@@ -327,7 +327,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void retryReevaluatesAllHandlersAtTheConflictBoundary() {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         when(repository.loadCurrentContext(any(), anyMap(), anyBoolean()))
                 .thenAnswer(invocation -> repository.loadContext(invocation.getArgument(0), null,
                                                                  invocation.getArgument(1), invocation.getArgument(2)));
@@ -396,7 +396,7 @@ class ModelCommitHandlerRegistryTest {
                         eventStoreClient,
                         serializer,
                         serializer,
-                        mock(DocumentSerializer.class),
+                        new JacksonSerializer(),
                         DispatchInterceptor.noOp,
                         DispatchInterceptor.noOp,
                         "test",
@@ -433,7 +433,7 @@ class ModelCommitHandlerRegistryTest {
         BatchParentId id = new BatchParentId("cross-batch-accept");
         AtomicReference<BatchParent> durable = new AtomicReference<>(new BatchParent(id, 0));
         AtomicLong durableStateIndex = new AtomicLong();
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         org.mockito.stubbing.Answer<CommitAttempt> load = invocation -> {
             MutationPlan.Resolution resolution = invocation.getArgument(0);
             Long requestedBoundary = invocation.getArgument(1);
@@ -529,7 +529,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void explicitBulkAssertAndApplyBatchesTransportButCompletesEachDurableCommit() throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(
                 EventStoreClient.class,
@@ -574,7 +574,7 @@ class ModelCommitHandlerRegistryTest {
     void explicitAssertAndApplyParticipatesInTheCurrentMessageBatchView()
             throws Exception {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient =
                 mock(EventStoreClient.class);
@@ -644,7 +644,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void heterogeneousCollectionApplyCommitsAllCreatedModelsAtomically() {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient =
                 mock(EventStoreClient.class);
@@ -699,7 +699,7 @@ class ModelCommitHandlerRegistryTest {
     void storedEventApplyParticipatesInTheCurrentMessageBatchView()
             throws Exception {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient =
                 mock(EventStoreClient.class);
@@ -760,7 +760,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void publishedEventMigrationRetainsItsIdentityWithoutRepublishing() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> captured = new CompletableFuture<>();
@@ -798,7 +798,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void publishedEventMigrationStagesDocumentBackedModelsThroughTheSameCommit() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> captured = new CompletableFuture<>();
@@ -833,7 +833,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void publishedEventMigrationDoesNotStartMaterializedGraphProjection() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
@@ -856,7 +856,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void explicitBulkAssertAndApplyFlushesValidCommitsWhenAnotherUpdateFails() throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(
                 EventStoreClient.class,
@@ -1096,7 +1096,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void directSingleTargetUsesProvenCurrentCacheWithoutGenericContextLoad() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         ImmutableModelRoot<ReceiverModel> cached = ImmutableModelRoot.<ReceiverModel>builder()
                 .id("cached")
                 .type(ReceiverModel.class)
@@ -1143,8 +1143,8 @@ class ModelCommitHandlerRegistryTest {
                     any(MutationPlan.Resolution.class),
                     nullable(Long.class), anyMap(), anyBoolean());
             assertEquals(
-                    committedEventId.join(),
-                    updatedModels.join().getFirst().commit().getSubsteps()
+                    committedEventId.orTimeout(5, TimeUnit.SECONDS).join(),
+                    updatedModels.orTimeout(5, TimeUnit.SECONDS).join().getFirst().commit().getSubsteps()
                             .getFirst().getEvent().getMessageId());
         } finally {
             subject.close();
@@ -1154,7 +1154,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void defaultPolicyStartsCommitBeforeBatchCompletionAndBatchAwaitsIt()
             throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
@@ -1204,7 +1204,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void disablingResultCommitWaitingRetainsRawBatchFailure() throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
@@ -1253,7 +1253,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void preparedAsyncModelInvocationMayStartAfterBatchClose() throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
@@ -1308,7 +1308,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void preparedInvocationCanTransferFailureOwnershipAfterBatchClose() throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
@@ -1368,7 +1368,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void abandonedPreparedAsyncModelInvocationDoesNotFailBatch() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
@@ -1404,7 +1404,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void defaultPolicyBuffersReadyTransportBeforeBatchCloseAndFlushesTailAtClose()
             throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(
                 EventStoreClient.class,
@@ -1480,7 +1480,7 @@ class ModelCommitHandlerRegistryTest {
         Map<String, Object> durable = new ConcurrentHashMap<>();
         BatchParentId parentId = new BatchParentId("handler-dependent");
         durable.put(parentId.toString(), new BatchParent(parentId, 0));
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubBatchModelLoads(repository, durable);
         EventStoreClient eventStoreClient = mock(
                 EventStoreClient.class,
@@ -1502,7 +1502,7 @@ class ModelCommitHandlerRegistryTest {
                 CompletableFuture.completedFuture(acceptedResult(invocation.getArgument(0))));
         doAnswer(invocation -> {
             transportFlushed.complete(null);
-            firstResponse.complete(acceptedResult(firstPrepared.join()));
+            firstResponse.complete(acceptedResult(firstPrepared.orTimeout(5, TimeUnit.SECONDS).join()));
             return null;
         }).when(transportBatch).flush();
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
@@ -1538,7 +1538,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void explicitAfterBatchPolicyDefersCommitUntilBatchCompletion()
             throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
@@ -1595,7 +1595,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void explicitCommitReleasesTheExistingAfterBatchCommitExactlyOnce()
             throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
@@ -1659,7 +1659,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void explicitCommitDoesNotOpenTransportForAnEmptyModelChange() {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
@@ -1686,7 +1686,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void synchronousAfterBatchPolicyCommitsSequentially()
             throws Exception {
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
@@ -1730,7 +1730,7 @@ class ModelCommitHandlerRegistryTest {
         String unrelatedId = "unrelated";
         durable.put(parentId.toString(), new BatchParent(parentId, 0));
         durable.put(childId.toString(), new BatchChild(childId, parentId, 0));
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubBatchModelLoads(repository, durable);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
@@ -1818,7 +1818,7 @@ class ModelCommitHandlerRegistryTest {
         Map<String, Object> durable = new ConcurrentHashMap<>();
         BatchParentId parentId = new BatchParentId("repeated");
         durable.put(parentId.toString(), new BatchParent(parentId, 0));
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubBatchModelLoads(repository, durable);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
@@ -1867,7 +1867,7 @@ class ModelCommitHandlerRegistryTest {
         Map<String, Object> durable = new ConcurrentHashMap<>();
         String modelId = "after-batch";
         durable.put(modelId, new StagedAfterBatchModel(modelId, 0));
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubBatchModelLoads(repository, durable);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
@@ -1920,7 +1920,7 @@ class ModelCommitHandlerRegistryTest {
         BatchChildId childId = new BatchChildId("failed");
         durable.put(parentId.toString(), new BatchParent(parentId, 0));
         durable.put(childId.toString(), new BatchChild(childId, parentId, 0));
-        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        DefaultModelRepository repository = mockRepository();
         stubBatchModelLoads(repository, durable);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
         LinkedBlockingQueue<PendingResponse> started = new LinkedBlockingQueue<>();
@@ -2084,7 +2084,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void delegatesAutomaticGraphProjectionRegistrationToRepository() {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         EventStoreClient eventStoreClient =
                 mock(EventStoreClient.class);
         JacksonSerializer serializer =
@@ -2095,7 +2095,7 @@ class ModelCommitHandlerRegistryTest {
                         eventStoreClient,
                         serializer,
                         serializer,
-                        mock(DocumentSerializer.class),
+                        new JacksonSerializer(),
                         DispatchInterceptor.noOp,
                         DispatchInterceptor.noOp,
                         "test",
@@ -2123,7 +2123,7 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void migrationRegistrationAddsOnlyModelDefinitions() {
         DefaultModelRepository repository =
-                mock(DefaultModelRepository.class);
+                mockRepository();
         ModelCommitHandlerRegistry subject = subject(
                 repository, mock(EventStoreClient.class));
 
@@ -2140,6 +2140,14 @@ class ModelCommitHandlerRegistryTest {
                 RetryRoot.class));
     }
 
+    private static DefaultModelRepository mockRepository() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        // The real nested Commit uses the owning repository's catalog; Mockito skips its field initializer.
+        io.fluxzero.common.reflection.ReflectionUtils.setField("modelTypes", repository,
+                (java.util.function.Supplier<List<Class<?>>>) List::of);
+        return repository;
+    }
+
     private static ModelCommitHandlerRegistry subject(
             AutomaticModelHandling automaticHandling) {
         return subject(
@@ -2153,7 +2161,7 @@ class ModelCommitHandlerRegistryTest {
         JacksonSerializer serializer =
                 new JacksonSerializer();
         return subject(
-                mock(DefaultModelRepository.class),
+                mockRepository(),
                 mock(EventStoreClient.class),
                 serializer,
                 automaticHandling,
@@ -2186,7 +2194,7 @@ class ModelCommitHandlerRegistryTest {
                 eventStoreClient,
                 serializer,
                 serializer,
-                mock(DocumentSerializer.class),
+                new JacksonSerializer(),
                 DispatchInterceptor.noOp,
                 DispatchInterceptor.noOp,
                 "test",
@@ -2409,8 +2417,7 @@ class ModelCommitHandlerRegistryTest {
                 null, false);
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "retryRoots"))
     private record RetryRoot(
             @EntityId String id) {
@@ -2423,7 +2430,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ReceiverModel(
             @EntityId String id) {
         @Apply(eventPublication = EventPublication.ALWAYS)
@@ -2432,7 +2439,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record RetryBoundaryModel(
             @EntityId String id,
             String value) {
@@ -2484,7 +2491,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record CrossApplicationModel(
             @EntityId String id) {
         @Apply
@@ -2495,7 +2502,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record StaticApplyModel(
             @EntityId String id) {
         @Apply
@@ -2510,7 +2517,7 @@ class ModelCommitHandlerRegistryTest {
             String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record InterceptingModel(
             @EntityId String id) {
         @InterceptApply
@@ -2524,7 +2531,7 @@ class ModelCommitHandlerRegistryTest {
             String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record TimingModel(
             @EntityId String id) {
     }
@@ -2536,12 +2543,12 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record CollectionModelA(
             @EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record CollectionModelB(
             @EntityId String id) {
     }
@@ -2557,7 +2564,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
+    @Model(searchable = false, commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
     private record BatchTimingModel(
             @EntityId String id) {
     }
@@ -2576,7 +2583,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(commitPolicy = ModelCommitPolicy.SYNC_AFTER_BATCH)
+    @Model(searchable = false, commitPolicy = ModelCommitPolicy.SYNC_AFTER_BATCH)
     private record SyncBatchTimingModel(
             @EntityId String id) {
     }
@@ -2616,13 +2623,13 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record BatchParent(
             @EntityId BatchParentId id,
             int version) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record BatchChild(
             @EntityId BatchChildId id,
             @Parent(pathInParent = "children") BatchParentId parentId,
@@ -2673,7 +2680,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record UnrelatedBatchModel(
             @EntityId String id) {
     }
@@ -2686,7 +2693,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
+    @Model(searchable = false, commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
     private record StagedAfterBatchModel(
             @EntityId String id,
             int version) {
@@ -2712,7 +2719,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(automaticHandling = AutomaticModelHandling.ENABLED)
+    @Model(searchable = false, automaticHandling = AutomaticModelHandling.ENABLED)
     private record ExplicitlyEnabledModel(
             @EntityId String id) {
         @Apply
@@ -2725,7 +2732,7 @@ class ModelCommitHandlerRegistryTest {
     private record ExplicitlyEnabledCommand(String id) {
     }
 
-    @Model(automaticHandling = AutomaticModelHandling.DISABLED)
+    @Model(searchable = false, automaticHandling = AutomaticModelHandling.DISABLED)
     private record ApplyEnabledModel(
             @EntityId String id) {
         @Apply(automaticHandling = AutomaticModelHandling.ENABLED)
@@ -2738,7 +2745,7 @@ class ModelCommitHandlerRegistryTest {
     private record ApplyEnabledCommand(String id) {
     }
 
-    @Model(automaticHandling = AutomaticModelHandling.ENABLED)
+    @Model(searchable = false, automaticHandling = AutomaticModelHandling.ENABLED)
     private record ApplyDisabledModel(
             @EntityId String id) {
         @Apply(automaticHandling = AutomaticModelHandling.DISABLED)
@@ -2751,7 +2758,7 @@ class ModelCommitHandlerRegistryTest {
     private record ApplyDisabledCommand(String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record MixedEnabledModel(
             @EntityId String id) {
         @Apply
@@ -2760,7 +2767,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record MixedDisabledModel(
             @EntityId String id) {
         @Apply(automaticHandling = AutomaticModelHandling.DISABLED)
@@ -2774,7 +2781,7 @@ class ModelCommitHandlerRegistryTest {
             String disabledId) {
     }
 
-    @Model(commitPolicy = ModelCommitPolicy.SYNC_AFTER_HANDLER)
+    @Model(searchable = false, commitPolicy = ModelCommitPolicy.SYNC_AFTER_HANDLER)
     private record HandlerPolicyModel(
             @EntityId String id) {
         @Apply
@@ -2783,7 +2790,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
+    @Model(searchable = false, commitPolicy = ModelCommitPolicy.ASYNC_AFTER_BATCH)
     private record BatchPolicyModel(
             @EntityId String id) {
         @Apply
@@ -2797,10 +2804,9 @@ class ModelCommitHandlerRegistryTest {
             String batchId) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(
                     collection = "awaited-graphs",
-                    completion = GraphProjectionCompletion.AWAIT))
+                    mode = io.fluxzero.sdk.modeling.GraphProjectionMode.AWAIT))
     private record ProjectionRoot(
             @EntityId ProjectionRootId id) {
     }
@@ -2812,29 +2818,27 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ProjectionChild(
             @EntityId String id,
             @Parent(pathInParent = "children")
             ProjectionRootId rootId) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "default-graphs"))
     private record DefaultProjectionRoot(
             @EntityId String id) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(
                     collection = "async-graphs",
-                    completion = GraphProjectionCompletion.ASYNC))
+                    mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     private record AsyncProjectionRoot(
             @EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record RegistryKnownModel(
             @EntityId String id) {
     }

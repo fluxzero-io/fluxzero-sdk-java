@@ -55,7 +55,7 @@ public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHan
 
     public LocalDocumentHandlerRegistry(Client client, HandlerRegistry handlerRegistry,
                                          DispatchInterceptor dispatchInterceptor, Serializer serializer) {
-        this(client, handlerRegistry, dispatchInterceptor, serializer, new DocumentMessageReader());
+        this(client, handlerRegistry, dispatchInterceptor, serializer, new DocumentMessageReader(client::getSearchClient));
     }
 
     @Override
@@ -78,7 +78,9 @@ public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHan
                 || !(local.getHandlerFactory() instanceof DefaultHandlerFactory)) {
             return handlerRegistry.registerHandler(target, handlerFilter);
         }
-        Registration readRegistration = documentReader.register(target, handlerFilter);
+        Registration readRegistration = documentReader.register(target, handlerFilter,
+                io.fluxzero.sdk.Fluxzero.getOptionally().map(io.fluxzero.sdk.Fluxzero::modelRepository)
+                        .map(repository -> repository.forNamespace(client.namespace())).orElse(null));
         try {
             return handlerRegistry.registerHandler(target, handlerFilter).merge(readRegistration);
         } catch (RuntimeException | Error e) {
@@ -90,7 +92,7 @@ public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHan
     private void initializeMonitor() {
         if (initialized.compareAndSet(false, true)) {
             ((InMemorySearchStore) client.getSearchClient()).registerMonitor(
-                    (collection, messages) -> documentReader.read(messages, collection, serializer).forEach(message -> {
+                    (collection, messages) -> documentReader.read(messages, collection, serializer, client.getSearchClient()).forEach(message -> {
                         message = setConsumerNamespace(
                                 message, isApplicationNamespace(client) ? null : client.namespace());
                         dispatchInterceptor.monitorDispatch(

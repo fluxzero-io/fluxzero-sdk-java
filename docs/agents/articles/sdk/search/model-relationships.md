@@ -1,8 +1,8 @@
 # Search Through Model Relationships
 
 Use the central capability/freshness matrix at `/docs/sdk/entities/graph-search` before configuring storage. Start at
-plain `@Model`; an explicit composition path already maintains the indexed component needed for relationship search.
-Relation queries do not support the statistics-based `count()` terminal and do not join a transaction readset.
+`@Model(searchable = true)`; typed composition descendants participate by default. `DOCUMENT` and `pathInParent`
+do not activate indexing. Relation queries support counts/statistics but do not join a transaction readset.
 
 Search current relationships without a precomputed tree document:
 
@@ -30,13 +30,10 @@ The ID overload starts from durable relationships and does not require a documen
 `Id<T>` supplies its Model type; otherwise pass the functional ID and Model class. Use a loaded `Graph` for a
 parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
 
-Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
-Model's own public document or independently maintained internal Graph-component document; an explicit composition
-path or `materializeGraph = true` supplies the latter. A reference-only `DOCUMENT` projection without such a Graph role
-supplies no content, facet or sortable indexes. The whole materialized Graph projection is not searched as the Model
-itself. The returned target
-also needs a direct document (public or reference-only) or internal Graph-component document. A standalone event-sourced target
-without either is loaded by ID rather than searched.
+Use the class-and-constraint overload to select related Models by their own indexed content. Both the returned
+Model and the related Model must be effectively searchable. They use their canonical node documents; a composed Graph
+is not used as a node source. Ancestor-ID filters only require the returned Model to be searchable: the ancestor need
+not have a document. `DOCUMENT` and `pathInParent` do not activate search. Load a non-searchable Model by ID instead.
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for content-based traversal. Prefer
 `searchGraph(Root.class).whereDescendant(Child.class, constraint)` for selective live Graph search based on children.

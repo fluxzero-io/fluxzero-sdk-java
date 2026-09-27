@@ -53,6 +53,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -96,6 +97,13 @@ public class JacksonInverter implements Inverter<JsonNode> {
     private final JsonMapper objectMapper;
     private final ThrowingFunction<Object, String> summarizer;
 
+    @Getter(value = AccessLevel.PRIVATE, lazy = true)
+    private final boolean defaultSummary = getClass() == JacksonInverter.class
+            || ReflectionUtils.getAllMethods(getClass()).stream()
+            .filter(m -> m.getName().equals("summarize") && m.getParameterCount() == 1
+                         && m.getParameterTypes()[0] == Object.class)
+            .allMatch(m -> m.getDeclaringClass() == JacksonInverter.class);
+
     @SuppressWarnings("unused")
     public JacksonInverter() {
         this(JsonUtils.writer);
@@ -134,10 +142,22 @@ public class JacksonInverter implements Inverter<JsonNode> {
                 }).build(), o -> {
             throw new UnsupportedOperationException();
         });
-        return value -> {
-            var entries = summarizer.invert(summarizer.objectMapper.writeValueAsBytes(value));
-            return entries.keySet().stream().map(Entry::asPhrase).distinct().collect(joining(" "));
-        };
+        return new SearchSummarizer(summarizer);
+    }
+
+    private record SearchSummarizer(JacksonInverter inverter) implements ThrowingFunction<Object, String> {
+        Map<Entry, List<Path>> entries(Object value) throws Exception {
+            return inverter.invert(inverter.objectMapper.writeValueAsBytes(value));
+        }
+
+        @Override
+        public String apply(Object value) throws Exception {
+            return summarizeEntries(entries(value));
+        }
+    }
+
+    private static String summarizeEntries(Map<Entry, List<Path>> entries) {
+        return entries.keySet().stream().map(Entry::asPhrase).distinct().collect(joining(" "));
     }
 
     @SneakyThrows
@@ -155,8 +175,33 @@ public class JacksonInverter implements Inverter<JsonNode> {
                                          Instant timestamp, Instant end, Metadata metadata) {
         byte[] data = objectMapper.writeValueAsBytes(value);
         Map<Entry, List<Path>> entries = new LinkedHashMap<>(invert(data));
+        var searchableEntries = summarizer instanceof SearchSummarizer s && isDefaultSummary()
+                ? s.entries(value) : null;
+        // Reuse the filtered inversion while retaining custom constructors and virtual summarize() overrides.
+        String valueSummary = searchableEntries == null ? summarize(value) : summarizeEntries(searchableEntries);
+        metadata = metadata == null ? Metadata.empty() : metadata;
+        if (metadata.containsKey(SearchExclusions.METADATA_KEY)) {
+            metadata = metadata.without(SearchExclusions.METADATA_KEY);
+        }
+        Set<String> exclusions = new LinkedHashSet<>();
+        if (searchableEntries != null) {
+            entries.forEach((entry, paths) -> {
+                var included = searchableEntries.get(entry);
+                if (paths.equals(included)) {
+                    return;
+                }
+                Set<Path> includedPaths = included == null ? Set.of()
+                        : included.isEmpty() ? Set.of(Path.EMPTY_PATH) : new HashSet<>(included);
+                for (Path path : paths.isEmpty() ? List.of(Path.EMPTY_PATH) : paths) {
+                    if (!includedPaths.contains(path)) {
+                        exclusions.add(path.getValue());
+                    }
+                }
+            });
+        }
         addMetadataEntries(entries, metadata);
-        String summary = combineSummary(summarize(value), summarizeMetadata(metadata));
+        String summary = combineSummary(valueSummary, summarizeMetadata(metadata));
+        SearchExclusions.addTo(entries, exclusions);
         return new SerializedDocument(new Document(id, type, revision, collection,
                                                    timestamp, end, entries, () -> summary,
                                                    getFacets(value),

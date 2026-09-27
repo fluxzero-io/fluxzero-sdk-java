@@ -133,8 +133,8 @@ class ModelAsyncContentionTest {
                 }).expectSuccessfulResult().expectNoErrors();
     }
 
-    @Model(name = "ModelAsyncContentionTest.Stock") record Stock(@EntityId String stockId, int remaining) {}
-    @Model(name = "ModelAsyncContentionTest.Receipt") record Receipt(@EntityId String receiptId) {}
+    @Model(searchable = false, name = "ModelAsyncContentionTest.Stock") record Stock(@EntityId String stockId, int remaining) {}
+    @Model(searchable = false, name = "ModelAsyncContentionTest.Receipt") record Receipt(@EntityId String receiptId) {}
     record SetStock(String stockId, int remaining) {
         @Apply Stock apply(@jakarta.annotation.Nullable Stock previous) { return new Stock(stockId, remaining); }
     }

@@ -157,7 +157,7 @@ class ModelCommitContextTest {
         return ImmutableEntity.<T>builder().id(id).type(type).value(value).build();
     }
 
-    @Model
+    @Model(searchable = false)
     private record Order(@EntityId OrderId orderId, String status) {
     }
 
@@ -167,7 +167,7 @@ class ModelCommitContextTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Inventory(@EntityId InventoryId inventoryId, int available) {
     }
 
@@ -198,7 +198,7 @@ class ModelCommitContextTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Account(@EntityId AccountId accountId, int balance) {
     }
 

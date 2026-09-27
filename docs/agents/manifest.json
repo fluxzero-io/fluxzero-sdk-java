@@ -212,10 +212,10 @@
         "searchGraph",
         "loadCurrentModelState",
         "Model document proof",
-        "modelState",
-        "@HandleDocument(modelState)",
+        "DocumentSource.MODEL_STATE",
+        "@HandleDocument(source = MODEL_STATE)",
         "internal Model source",
-        "independent DOCUMENT projection",
+        "canonical Model document",
         "schema reindexing"
       ],
       "links": [
@@ -7509,7 +7509,8 @@
       "symbols": [
         "@Model",
         "ModelPersistence",
-        "DocumentProjection.searchable",
+        "Model.searchable",
+        "SearchSettings",
         "Parent.pathInParent",
         "whereParent",
         "whereAncestor",
@@ -7668,8 +7669,10 @@
       "symbols": [
         "@Model",
         "ModelPersistence",
-        "materializeGraph",
-        "DocumentProjection",
+        "Model.searchable",
+        "SearchSettings",
+        "DocumentSource",
+        "GraphProjectionMode",
         "GraphProjection",
         "snapshotPeriod",
         "eventPublication",

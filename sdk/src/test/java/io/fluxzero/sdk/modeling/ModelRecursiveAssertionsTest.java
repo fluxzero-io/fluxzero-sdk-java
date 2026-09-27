@@ -384,7 +384,7 @@ class ModelRecursiveAssertionsTest {
         assertNull(fixture.getFluxzero().modelRepository().load(id, State.class).get());
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     record State(@EntityId String id, int count) {
     }
 
@@ -650,7 +650,7 @@ class ModelRecursiveAssertionsTest {
         public boolean hasRole(String role) { return false; }
     }
 
-    @Model
+    @Model(searchable = false)
     record Inventory(@EntityId String inventoryId, boolean allowed) { }
 
     record SetInventory(String inventoryId, boolean allowed) {
@@ -761,7 +761,7 @@ class ModelRecursiveAssertionsTest {
         FieldModelId(String id) { super(id); }
     }
 
-    @Model
+    @Model(searchable = false)
     record FieldModel(@EntityId FieldModelId fieldModelId, @AssertLegal Deny guard) { }
 
     record CreateFieldModel(FieldModelId fieldModelId) {
@@ -773,7 +773,7 @@ class ModelRecursiveAssertionsTest {
 
     record CheckRegisteredFieldModel(String fieldModelId) { }
 
-    @Model
+    @Model(searchable = false)
     static class FieldOnly {
         @EntityId
         String otherId;
@@ -803,7 +803,7 @@ class ModelRecursiveAssertionsTest {
         }
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     record Child(@EntityId String childId, @Parent(Inventory.class) String inventoryId, int count) { }
 
     record SetChild(String childId, String inventoryId, int count) {

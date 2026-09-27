@@ -175,6 +175,11 @@ public class ContainsConstraint extends PathConstraint {
      * @return {@code true} if the entry matches the pattern, otherwise {@code false}
      */
     @Override
+    protected boolean matchesPath(Document.Path path, Document document) {
+        return document.isSearchablePath(path);
+    }
+
+    @Override
     protected boolean matches(Document.Entry entry, Document document) {
         String summary = document.getSummary();
         if (summary != null && !summary.contains(entry.asPhrase())) {

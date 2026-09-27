@@ -55,8 +55,8 @@ class ModelIdentityContractTest {
     }
 
     static final class FolderId extends Id<Folder> { FolderId(String value) { super(value); } }
-    @Model record Folder(@EntityId FolderId folderId) {}
-    @Model record Entry(@EntityId(parentScoped = true) String entryId,
+    @Model(searchable = false) record Folder(@EntityId FolderId folderId) {}
+    @Model(searchable = false) record Entry(@EntityId(parentScoped = true) String entryId,
                         @Parent(pathInParent = "entries") FolderId folderId, String value) {}
     record CreateFolder(FolderId folderId) {
         @Apply Folder create() { return new Folder(folderId); }

@@ -84,7 +84,7 @@ Use `@Parent` on the child model. Creating or updating it does not rewrite the p
 
 [//]: # (@formatter:off)
 ```kotlin
-// Task is @Model and has @Parent(pathInParent = "tasks") ProjectId projectId.
+// Task is @Model(searchable = false) and has @Parent(pathInParent = "tasks") ProjectId projectId.
 data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) {
     @Apply
     fun apply(): Task {

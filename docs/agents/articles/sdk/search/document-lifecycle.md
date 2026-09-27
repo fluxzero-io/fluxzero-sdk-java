@@ -46,3 +46,8 @@ upcaster does not backfill existing documents by itself.
 Targeted delete/move/bulk operations and collection deletion belong to search maintenance. Before deletion, count and
 preview the exact constrained set; after the stored acknowledgement, query again. Deleting a searchable Model's
 document does not delete its event-sourced Model. Use Model deletion when the Model itself must disappear.
+
+Text exclusions are field-specific, even when another field contains the same value. They preserve the returned
+body and do not disable existence, range, facet or sorting operations. Documents written before per-path exclusion
+metadata was available must be reindexed from typed values after both the writing SDK and Runtime are upgraded;
+the old summary cannot reconstruct the excluded paths. Custom inverters/summarizers own their indexing semantics.

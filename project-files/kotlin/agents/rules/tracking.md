@@ -202,7 +202,7 @@ type and revision. If that evolved JSON must be made durable for search, return 
 ```kotlin
 @Consumer(name = "rematerialize-project-graphs-v2", minIndex = 0)
 class ProjectGraphRebuilder {
-    @HandleDocument(modelGraph = Project::class)
+    @HandleDocument
     fun onProject(graph: Graph<Project>): Graph<Project> = graph
 }
 ```

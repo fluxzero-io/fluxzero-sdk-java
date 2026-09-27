@@ -272,7 +272,7 @@ class CurrentDocumentGraphRaceTest {
         CompletableFuture.runAsync(action, task -> Thread.ofVirtual().name("document-race-writer").start(task)).join();
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record CurrentDocument(@EntityId String id, int version) {}
 
     record CreateDocument(String id) {
@@ -287,7 +287,7 @@ class CurrentDocumentGraphRaceTest {
         @Apply CurrentDocument apply(CurrentDocument current) { return null; }
     }
 
-    @Model record Receipt(@EntityId String id, int version) {}
+    @Model(searchable = false) record Receipt(@EntityId String id, int version) {}
 
     record ReadIntoReceipt(String id, boolean explicitCurrent, AtomicInteger firstObserved) {
         @Apply Receipt apply() {
@@ -299,7 +299,7 @@ class CurrentDocumentGraphRaceTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record AliasDocument(@EntityId(prefix = "alias-") String id, @Alias String alias) {}
 
     record PutAlias(String id, String alias) {

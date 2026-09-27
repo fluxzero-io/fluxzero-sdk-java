@@ -244,7 +244,7 @@ class InMemorySearchStoreModelMaterializationTest {
         String rootId = "root-1";
         var configuration = new ModelGraphProjectionConfiguration(
                 "Root", "roots", "rootGraphs", ModelGraphComposition.builder().build(),
-                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of());
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of(), true);
         materialize(subject, rootId, 1L,
                     new ModelDocumentMutation("roots", structuredDocument(rootId, "roots", "root")));
         subject.materializeModelGraphProjection(configuration, Set.of(rootId), 1L, false);
@@ -313,7 +313,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         List.of(
                                 new ModelGraphPathOverride(
                                         "children",
-                                        "components")));
+                                        "components")), true);
 
         graphStore.materializeModelGraphProjection(
                 configuration,
@@ -423,7 +423,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         "Root", "roots", "rootGraphs",
                         ModelGraphComposition.builder().build(),
                         List.of(new ModelGraphProjectionConfiguration.ModelRevision(
-                                "Root", 0)), List.of());
+                                "Root", 0)), List.of(), true);
         graphStore.materializeModelGraphProjection(
                 configuration, Set.of(rootId), 11L, true);
 
@@ -483,7 +483,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         "Root", "roots", "rollbackGraphs",
                         ModelGraphComposition.builder().build(),
                         List.of(new ModelGraphProjectionConfiguration.ModelRevision(
-                                "Root", 0)), List.of());
+                                "Root", 0)), List.of(), true);
         graphStore.materializeModelGraphProjection(
                 configuration, Set.of(rootId), 11L, true);
         assertEquals("normalized one", graphStore.fetch(
@@ -548,7 +548,7 @@ class InMemorySearchStoreModelMaterializationTest {
                 current.getDocument(), current.getModelHead()), STORED)).join();
         var configuration = new ModelGraphProjectionConfiguration("Root", sourceCollection, "rootGraphs",
                 ModelGraphComposition.builder().build(),
-                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 1)), List.of());
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 1)), List.of(), true);
         store.materializeModelGraphProjection(configuration, Set.of(id), 10L, true);
         assertEquals("current", store.fetch(new GetDocument(id, "rootGraphs")).orElseThrow()
                 .deserializeDocument().getEntryAtPath("details/name").orElseThrow().getValue());
@@ -572,7 +572,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         "TestModel", "roots", "rootGraphs",
                         ModelGraphComposition.builder().build(),
                         List.of(new ModelGraphProjectionConfiguration.ModelRevision(
-                                "TestModel", 0)), List.of());
+                                "TestModel", 0)), List.of(), true);
         graphStore.materializeModelGraphProjection(
                 configuration, Set.of(rootId), 10L, false);
         SerializedDocument original = graphStore.fetch(

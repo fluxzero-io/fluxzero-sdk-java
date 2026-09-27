@@ -4,13 +4,13 @@ Use immutable `@Model` state for a domain concept with its own creation, changes
 Connect independent lifecycles with `@Parent`; use ordinary value objects for details replaced with their owner.
 
 ```java
-@Model
+@Model(searchable = false)
 public record Project(@EntityId ProjectId projectId, ProjectDetails details) {
 }
 ```
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 ```
 

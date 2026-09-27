@@ -15,7 +15,7 @@ import jakarta.validation.constraints.NotBlank
 
 class ProjectId(value: String) : Id<Project>(value, "project-")
 
-@Model
+@Model(searchable = false)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
 data class ProjectDetails(@field:NotBlank val name: String)

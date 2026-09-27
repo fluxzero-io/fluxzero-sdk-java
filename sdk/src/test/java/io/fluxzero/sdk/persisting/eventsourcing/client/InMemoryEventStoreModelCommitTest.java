@@ -72,6 +72,25 @@ class InMemoryEventStoreModelCommitTest {
         assertTrue(operations.awaitTermination(2, TimeUnit.SECONDS), "Test operations did not terminate");
     }
 
+    @Test
+    void schemaInvalidationDuringRebuildCannotBeAcknowledgedByTheEarlierRebuild() {
+        var store = denseStore();
+        var calls = new AtomicInteger();
+        store.setModelGraphProjectionMaterializer((definition, roots, boundary, rebuild) -> {
+            if (calls.incrementAndGet() == 1) { store.invalidateModelGraphSchema("Root"); }
+            return () -> { };
+        });
+        var configuration = new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration(
+                "Root", "roots", "graphs", io.fluxzero.common.api.search.ModelGraphComposition.builder().build(),
+                List.of(new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision("Root", 0)),
+                List.of(), false);
+        store.registerModelGraphProjection(new io.fluxzero.common.api.modeling.RegisterModelGraphProjection(
+                configuration, false)).join();
+        assertEquals(2, calls.get(), "A rewrite during materialization must retain a second rebuild request");
+        assertFalse(store.getModelGraphProjectionStatus(
+                new io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus("graphs")).isRebuilding());
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void deletionLineageSurvivesSameStepTreeDeletion(boolean reverseOrder) {

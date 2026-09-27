@@ -150,7 +150,7 @@ class ModelEventRoutingTest {
                                 .findFirst().orElseThrow().getSegment()));
     }
 
-    @Model
+    @Model(searchable = false)
     private record RoutedModel(@EntityId String id) {
     }
 
@@ -176,7 +176,7 @@ class ModelEventRoutingTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record PrefixedModel(@EntityId(prefix = "model-prefix-") PrefixedId id) {
     }
 
@@ -200,7 +200,7 @@ class ModelEventRoutingTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record OtherModel(@EntityId String otherId) {
     }
 

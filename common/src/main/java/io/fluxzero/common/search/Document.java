@@ -22,6 +22,7 @@ import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.SortableEntry;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -145,6 +146,19 @@ public class Document {
     @ToString.Exclude
     Metadata metadata = JacksonInverter.extractMetadata(entries);
 
+    @Getter(lazy = true, value = AccessLevel.PRIVATE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    Set<String> searchExcludedPaths = SearchExclusions.read(entries);
+
+    /**
+     * Returns whether this concrete property path participates in text matching. Excluded values remain available
+     * for deserialization, existence and range constraints, facets, and sorting.
+     */
+    public boolean isSearchablePath(Path path) {
+        return !SearchExclusions.isMetadataPath(path) && !getSearchExcludedPaths().contains(path.getValue());
+    }
+
     /**
      * Retrieves the summary of the document or {@code null} if no summary is available.
      * <p>
@@ -167,7 +181,8 @@ public class Document {
      */
     public Stream<Entry> getMatchingEntries(Predicate<Path> pathPredicate) {
         return entries.entrySet().stream()
-                .filter(e -> e.getValue().stream().anyMatch(pathPredicate))
+                .filter(e -> e.getValue().stream().anyMatch(
+                        p -> !SearchExclusions.isMetadataPath(p) && pathPredicate.test(p)))
                 .map(Map.Entry::getKey);
     }
 
@@ -180,12 +195,14 @@ public class Document {
     }
 
     /**
-     * Filters document entries by a {@link Path} predicate.
+     * Filters document entries by a {@link Path} predicate, retaining internal search exclusions so that
+     * subsequent matching cannot make an excluded property searchable.
      */
     public Document filterPaths(Predicate<Path> pathFilter) {
         Map<Entry, List<Path>> result = new LinkedHashMap<>();
         for (Map.Entry<Entry, List<Path>> e : entries.entrySet()) {
-            List<Path> filtered = e.getValue().stream().filter(pathFilter).toList();
+            List<Path> filtered = e.getValue().stream()
+                    .filter(p -> SearchExclusions.isMetadataPath(p) || pathFilter.test(p)).toList();
             if (!filtered.isEmpty()) {
                 result.put(e.getKey(), filtered);
             }

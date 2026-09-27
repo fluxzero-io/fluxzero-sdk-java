@@ -47,7 +47,7 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
         return ReflectionUtils.getAnnotation(executable, HandleDocument.class)
                 .filter(handleDocument -> message.getMetadata().get(TOMBSTONE_METADATA_KEY) == null
-                        || handleDocument.modelGraph() != Void.class)
+                        || DocumentHandlerTopics.graphType(handleDocument, executable) != Void.class)
                 .map(handleDocument -> DocumentHandlerTopics.resolve(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);

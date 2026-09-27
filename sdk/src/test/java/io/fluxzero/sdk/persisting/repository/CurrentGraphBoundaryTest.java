@@ -207,7 +207,7 @@ class CurrentGraphBoundaryTest {
     }
 
 
-    @Model(persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
     record AliasedDocument(@EntityId String documentId, @io.fluxzero.sdk.modeling.Alias String alias) {}
     record CreateAliasedDocument(String documentId, String alias) {
         @Apply AliasedDocument apply(@jakarta.annotation.Nullable AliasedDocument existing) {
@@ -491,14 +491,14 @@ class CurrentGraphBoundaryTest {
         }
     }
 
-    @Model(name = "freshness-root")
+    @Model(searchable = false, name = "freshness-root")
     record FreshnessRoot(@EntityId String rootId, int version) {}
 
     static class FreshnessRootId extends Id<FreshnessRoot> {
         FreshnessRootId(String value) { super(value); }
     }
 
-    @Model(name = "freshness-child")
+    @Model(searchable = false, name = "freshness-child")
     record FreshnessChild(@EntityId String childId,
                           @Parent(value = FreshnessRoot.class, pathInParent = "children") String rootId) {}
 
@@ -541,9 +541,9 @@ class CurrentGraphBoundaryTest {
         }
     }
 
-    @Model(persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
     record DocumentRoot(@EntityId String rootId) {}
-    @Model(persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT)
     record DocumentChild(@EntityId String childId,
                          @Parent(value = DocumentRoot.class, pathInParent = "children") String rootId) {}
     record CreateDocumentRoot(String rootId) {

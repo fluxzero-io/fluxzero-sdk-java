@@ -35,8 +35,8 @@ class ModelReadBoundaryDocumentationKotlinTest {
         } finally { fixture.fluxzero.close() }
     }
 
-    @Model data class Product(@EntityId val productId: String, val active: Boolean)
-    @Model data class Reservation(@EntityId val reservationId: String)
+    @Model(searchable = false) data class Product(@EntityId val productId: String, val active: Boolean)
+    @Model(searchable = false) data class Reservation(@EntityId val reservationId: String)
 
     data class Reserve(val reservationId: String, val productId: String) {
         @AssertLegal

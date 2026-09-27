@@ -617,7 +617,7 @@ class OpenApiRendererTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record OrganisationModel(@EntityId String id, String name) {
         @GraphProperty
         @ApiDoc(description = "Number of locations")
@@ -626,7 +626,7 @@ class OpenApiRendererTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record LocationModel(
             @EntityId String id,
             @Parent(value = OrganisationModel.class, pathInParent = "locations",
@@ -636,7 +636,7 @@ class OpenApiRendererTest {
             String name) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ConnectionModel(
             @EntityId String id,
             @Parent(value = LocationModel.class, pathInParent = "infrastructure/connections",
@@ -645,18 +645,18 @@ class OpenApiRendererTest {
             String ean) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ContractModel(
             @EntityId String id,
             @Parent(value = OrganisationModel.class, pathInParent = "contracts",
                     apiDoc = @ApiDoc(exclude = true)) String organisationId) {
     }
 
-    @Model
+    @Model(searchable = false)
     record AlternateRootModel(@EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     record ContactModel(
             @EntityId String id,
             @Parent(types = {OrganisationModel.class, AlternateRootModel.class}, pathInParent = "contacts")

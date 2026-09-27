@@ -32,6 +32,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelGraphDocumentSearchTest {
 
     @Test
+    void internalSummaryDoesNotBecomeAnotherTextField() {
+        var source = ModelSearchDocument.preserveSummary(document("one", Map.of("first", "alpha", "second", "beta")));
+        assertTrue(!match(source.deserializeDocument().getSummary(), true).matches(source.deserializeDocument()));
+        assertTrue(match("alpha", "first").matches(source.deserializeDocument()));
+        var entries = new java.util.LinkedHashMap<>(source.deserializeDocument().getEntries());
+        new JacksonInverter().addMetadataEntries(entries, io.fluxzero.common.api.Metadata.of("tenant", "tenant-one"));
+        assertTrue(match("tenant-one", "$metadata/tenant").matches(source.deserializeDocument().toBuilder()
+                .entries(entries).summary(() -> "alpha beta tenant-one").build()));
+    }
+
+    @Test
     void appliesConstraintsAndPathFiltersToComposedChildPaths() {
         SerializedDocument wanted =
                 document(
@@ -112,13 +123,13 @@ class ModelGraphDocumentSearchTest {
     }
 
     @Test
-    void doesNotUseLossyJdbcSummaryAsConstraintPrefilter() {
+    void restoresOriginalSummaryInsteadOfUsingLossyJdbcLexemes() {
         SerializedDocument root =
-                document(
+                ModelSearchDocument.preserveSummary(document(
                         "root-00000",
                         Map.of(
                                 "rootId",
-                                "root-00000"))
+                                "root-00000")))
                         .toBuilder()
                         .summary("root -00000")
                         .build();
@@ -141,6 +152,19 @@ class ModelGraphDocumentSearchTest {
                 "root -00000",
                 result.getFirst()
                         .getSummary());
+    }
+
+    @Test
+    void appliesAnExplicitOffsetAfterTheContinuationCursor() {
+        List<SerializedDocument> documents = java.util.stream.IntStream.range(0, 7)
+                .mapToObj(i -> document("root-" + i, Map.of("children/0/rank", Integer.toString(i))))
+                .toList();
+        SearchDocuments request = SearchDocuments.builder()
+                .query(SearchQuery.builder().collection("roots").build())
+                .sorting(List.of("children/0/rank")).lastHit(documents.get(1)).skip(2).maxSize(2).build();
+
+        assertEquals(List.of("root-4", "root-5"), ModelGraphDocumentSearch.apply(documents, request)
+                .stream().map(SerializedDocument::getId).toList());
     }
 
     private static SerializedDocument document(

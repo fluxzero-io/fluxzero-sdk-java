@@ -46,7 +46,7 @@ class ModelKotlinTest {
 
         assertNotNull(annotation)
         assertContentEquals(arrayOf(ModelPersistence.DOCUMENT), annotation.persistence)
-        assertEquals("kotlin-models", annotation.document.collection)
+        assertEquals("kotlin-models", annotation.searchSettings.collection)
         assertEquals(1, KotlinModel("model", emptyList()).rename(RenameKotlinModel("new")).parts.size)
     }
 
@@ -76,7 +76,7 @@ class ModelKotlinTest {
     }
 }
 
-@Model
+@Model(searchable = false)
 data class KotlinMemberOwner(@EntityId val id: String, @Member val parts: List<KotlinMember>)
 data class KotlinMember(@EntityId val memberId: String, val name: String) {
     @Apply fun rename(command: RenameMember) = copy(name = command.name)
@@ -86,10 +86,7 @@ data class CreateMemberOwner(val id: String) {
     @Apply fun create() = KotlinMemberOwner(id, listOf(KotlinMember("member", "before")))
 }
 
-@Model(
-    persistence = [ModelPersistence.DOCUMENT],
-    document = DocumentProjection(collection = "kotlin-models"),
-)
+@Model(searchable = true, persistence = [ModelPersistence.DOCUMENT], searchSettings = SearchSettings(collection = "kotlin-models"))
 data class KotlinModel(
     @EntityId val id: String,
     @Member val parts: List<KotlinModelPart>,
@@ -104,12 +101,12 @@ data class KotlinModelPart(@EntityId val id: String)
 
 data class RenameKotlinModel(val value: String)
 
-@Model
+@Model(searchable = false)
 data class KotlinParent(@EntityId val id: KotlinParentId)
 
 class KotlinParentId(id: String) : Id<KotlinParent>(id, "kotlin-parent-")
 
-@Model
+@Model(searchable = false)
 data class KotlinChild(
     @EntityId val id: String,
     @Parent(pathInParent = "children") val parentId: KotlinParentId,

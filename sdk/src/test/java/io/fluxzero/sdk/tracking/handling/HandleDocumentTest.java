@@ -30,7 +30,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
-import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.SearchSettings;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.Id;
@@ -103,7 +103,7 @@ public class HandleDocumentTest {
     @Test
     void handleMaterializedModelGraph() {
         testFixture.registerHandlers(new Object() {
-                    @HandleDocument(modelGraph = GraphRoot.class)
+                    @HandleDocument("graph-roots-graphs")
                     void handleGraph(Object document) {
                         Fluxzero.publishEvent("modelGraph");
                     }
@@ -122,7 +122,7 @@ public class HandleDocumentTest {
     @Test
     void returnedMaterializedGraphMigratesThroughTheLocalRuntimeBoundary() {
         testFixture.registerHandlers(new Object() {
-                    @HandleDocument(modelGraph = GraphRoot.class)
+                    @HandleDocument
                     Graph<GraphRoot> migrate(Graph<GraphRoot> graph) {
                         return graph;
                     }
@@ -161,7 +161,7 @@ public class HandleDocumentTest {
     @Test
     void explicitCollectionOverridesModelGraph() {
         testFixture.registerHandlers(new Object() {
-                    @HandleDocument(value = "overridden", modelGraph = GraphRoot.class)
+                    @HandleDocument("overridden")
                     void handle(Object document) {
                         Fluxzero.publishEvent("overridden");
                     }
@@ -170,12 +170,12 @@ public class HandleDocumentTest {
     }
 
     @Test
-    void rejectsModelWithoutMaterializedGraph() {
+    void rejectsGraphOfNonSearchableModel() {
         org.junit.jupiter.api.Assertions.assertThrows(
                 IllegalArgumentException.class,
                 () -> testFixture.registerHandlers(new Object() {
-                    @HandleDocument(modelGraph = DirectOnlyModel.class)
-                    void handle(Object document) {
+                    @HandleDocument
+                    void handle(Graph<HiddenModel> document) {
                     }
                 }));
     }
@@ -300,7 +300,7 @@ public class HandleDocumentTest {
         AtomicReference<io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration.Migration>
                 migration = new AtomicReference<>();
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
-                new GraphMigrationHandler(graph), HandleDocument.class, List.of());
+                new GraphMigrationHandler(graph), HandleDocument.class, List.of((parameter, annotation) -> message -> graph));
         Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(
                 () -> store, value -> {
                     migration.set(value);
@@ -332,7 +332,7 @@ public class HandleDocumentTest {
         when(graph.get()).thenReturn(new GraphRoot("root"));
         when(graph.children()).thenReturn(List.of());
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
-                new GraphMigrationHandler(graph), HandleDocument.class, List.of());
+                new GraphMigrationHandler(graph), HandleDocument.class, List.of((parameter, annotation) -> message -> graph));
         Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(
                 () -> store, ignored -> CompletableFuture.failedFuture(
                         new UnsupportedOperationException("old runtime"))).wrap(handler);
@@ -348,7 +348,7 @@ public class HandleDocumentTest {
     void nonGraphResultFromModelGraphHandlerDoesNotMutateTheProjection() {
         DocumentStore store = mock(DocumentStore.class);
         Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
-                new ObjectGraphHandler(), HandleDocument.class, List.of());
+                new ObjectGraphHandler(), HandleDocument.class, List.of((parameter, annotation) -> message -> null));
         Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(
                 () -> store, ignored -> {
                     throw new AssertionError("Unexpected graph rewrite");
@@ -400,15 +400,15 @@ public class HandleDocumentTest {
     }
 
     record GraphMigrationHandler(Graph<GraphRoot> graph) {
-        @HandleDocument(modelGraph = GraphRoot.class)
-        Graph<GraphRoot> migrate() {
+        @HandleDocument
+        Graph<GraphRoot> migrate(Graph<GraphRoot> ignored) {
             return graph;
         }
     }
 
     static class ObjectGraphHandler {
-        @HandleDocument(modelGraph = GraphRoot.class)
-        Object observe() {
+        @HandleDocument
+        Object observe(Graph<GraphRoot> ignored) {
             return null;
         }
     }
@@ -429,13 +429,15 @@ public class HandleDocumentTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, document = @DocumentProjection(collection = "graph-roots"),
-            materializeGraph = true)
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "graph-roots"), graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     @Revision(1)
     record GraphRoot(@EntityId String id) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+    record HiddenModel(@EntityId String id) { }
+
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     record DirectOnlyModel(@EntityId String id) {
     }
 

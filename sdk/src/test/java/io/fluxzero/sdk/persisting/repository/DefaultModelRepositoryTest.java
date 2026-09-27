@@ -63,7 +63,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
-import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.SearchSettings;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
@@ -305,10 +305,10 @@ class DefaultModelRepositoryTest {
 
     @Test
     void rejectsDuplicateLogicalModelNamesAtCatalogRegistration() {
-        @Model(name = "DuplicateLogicalName")
+        @Model(searchable = false, name = "DuplicateLogicalName")
         record First(@EntityId String id) {
         }
-        @Model(name = "DuplicateLogicalName")
+        @Model(searchable = false, name = "DuplicateLogicalName")
         record Second(@EntityId String id) {
         }
         IllegalStateException failure = assertThrows(
@@ -507,14 +507,14 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record HeadlessAliasedDocument(@EntityId(prefix = "headless-") String id, @Alias String alias) {}
 
     @Test
     void loadsDocumentBasedModelFromItsInternalSourceCollection() {
         ProductId id = new ProductId("1");
         Product product = new Product(id, "first");
-        when(documentStore.fetchDocument(id.toString(), "$modelGraphComponents/Product", Product.class))
+        when(documentStore.fetchDocument(id.toString(), "products", Product.class))
                 .thenReturn(Optional.of(product));
 
         var result = repository.load(id);
@@ -525,26 +525,32 @@ class DefaultModelRepositoryTest {
         assertEquals("productId", result.idProperty());
         assertEquals(0L, result.sequenceNumber());
         assertEquals(0L, ((ModelRoot<?>) result.root()).stateIndex());
-        verify(documentStore).fetchDocument(id.toString(), "$modelGraphComponents/Product", Product.class);
+        verify(documentStore).fetchDocument(id.toString(), "products", Product.class);
         verify(eventStoreClient, times(0)).getModelEvents(any());
     }
 
     @Test
     void missingDirectDocumentReturnsTypedEmptyEntity() {
         ProductId id = new ProductId("missing");
-        when(documentStore.fetchDocument(id.toString(), "$modelGraphComponents/Product", Product.class))
+        when(documentStore.fetchDocument(id.toString(), "products", Product.class))
                 .thenReturn(Optional.empty());
 
-        var result = repository.load(id);
-
-        assertEquals(id.toString(), result.id());
-        assertEquals(Product.class, result.type());
-        assertFalse(result.isPresent());
+        LocalClient local = LocalClient.newInstance(null);
+        try {
+            when(eventStoreClient.getModelEvents(any())).thenAnswer(invocation ->
+                    local.getEventStoreClient().getModelEvents(invocation.getArgument(0)));
+            var result = repository.load(id);
+            assertEquals(id.toString(), result.id());
+            assertEquals(Product.class, result.type());
+            assertFalse(result.isPresent());
+        } finally {
+            local.shutDown();
+        }
     }
 
     @Test
     void rejectsDocumentWhoseEntityIdDoesNotMatchStorageKey() {
-        when(documentStore.fetchDocument("product-1", "$modelGraphComponents/Product", Product.class))
+        when(documentStore.fetchDocument("product-1", "products", Product.class))
                 .thenReturn(Optional.of(new Product(new ProductId("other"), "wrong")));
 
         EventSourcingException exception = assertThrows(
@@ -564,7 +570,7 @@ class DefaultModelRepositoryTest {
             commitDirectDocument(
                     fluxzero, "renamed-type", id.toString(),
                     io.fluxzero.sdk.modeling.ModelNames.name(AliasedAccount.class),
-                    "$modelGraphComponents/" + io.fluxzero.sdk.modeling.ModelNames.name(AliasedAccount.class),
+                    "aliasedAccounts",
                     new AliasedAccount(id, 7));
 
             Entity<Object> loaded =
@@ -992,7 +998,7 @@ class DefaultModelRepositoryTest {
                 .build(LocalClient.newInstance(null))) {
             commitDirectDocument(
                     fluxzero, "configured-product", id.toString(),
-                    Product.class.getSimpleName(), "$modelGraphComponents/Product", product);
+                    Product.class.getSimpleName(), "products", product);
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -1024,12 +1030,12 @@ class DefaultModelRepositoryTest {
             commitDirectDocument(
                     client, serializer, documentSerializer,
                     "enveloped-first", firstId.toString(),
-                    Product.class.getSimpleName(), "$modelGraphComponents/Product", first,
+                    Product.class.getSimpleName(), "products", first,
                     timestamp, end, metadata);
             commitDirectDocument(
                     client, serializer, documentSerializer,
                     "enveloped-second", secondId.toString(),
-                    Product.class.getSimpleName(), "$modelGraphComponents/Product", second,
+                    Product.class.getSimpleName(), "products", second,
                     timestamp, end, metadata);
 
             DefaultModelRepository restarted =
@@ -1054,14 +1060,14 @@ class DefaultModelRepositoryTest {
                     client.forNamespace(namespace), serializer,
                     documentSerializer, "enveloped-namespaced",
                     namespacedId.toString(), Product.class.getSimpleName(),
-                    "$modelGraphComponents/Product", namespaced, timestamp, end, metadata);
+                    "products", namespaced, timestamp, end, metadata);
             assertEquals(
                     namespaced,
                     restarted.forNamespace(namespace)
                             .load(namespacedId).get());
 
             assertTrue(documentSerializer.reads().stream().allMatch(
-                    read -> "$modelGraphComponents/Product".equals(read.collection())
+                    read -> "products".equals(read.collection())
                             && timestamp.toEpochMilli()
                             == read.timestamp()
                             && end.toEpochMilli() == read.end()
@@ -1154,7 +1160,7 @@ class DefaultModelRepositoryTest {
                             id, "first-code", 5))).join();
             String collection = EntityMetadata.validate(AliasAccount.class)
                     .modelDocumentCollection().orElseThrow();
-            assertEquals("AliasAccount", collection);
+            assertEquals("$modelGraphComponents/AliasAccount", collection);
             SerializedDocument stored = client.getSearchClient()
                     .fetch(new GetDocument(id.toString(), collection)).orElseThrow();
             assertNotNull(stored);
@@ -1412,7 +1418,7 @@ class DefaultModelRepositoryTest {
             fluxzero.commandGateway().send(
                     new CreateEvolvedDocument(id, 2)).join();
             downgradeOnlyDocument(
-                    fluxzero, "$modelGraphComponents/EvolvedDocument", id.toString());
+                    fluxzero, "evolvedDocuments", id.toString());
             serializer.registerUpcasters(
                     new ModelStateUpcaster());
             DefaultModelRepository repository =
@@ -2497,9 +2503,7 @@ class DefaultModelRepositoryTest {
     private record CommitEvent(Object payload, String targetId, Class<?> modelType) {
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(collection = "products"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "products"))
     private record Product(@EntityId ProductId productId, String name) {
     }
 
@@ -2509,7 +2513,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AffixedDeletion(
             @EntityId(prefix = "move-", postfix = "-state") AffixedDeletionId id) {
     }
@@ -2520,7 +2524,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Account(@EntityId AccountId accountId, int balance) {
     }
 
@@ -2544,7 +2548,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(checkpointPeriod = 1)
+    @Model(searchable = false, checkpointPeriod = 1)
     private record CheckpointAccount(
             @EntityId CheckpointAccountId accountId,
             int balance) {
@@ -2574,8 +2578,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(name = "RenamedAccount", persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(collection = "aliasedAccounts"))
+    @Model(searchable = true, name = "RenamedAccount", persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "aliasedAccounts"))
     private record AliasedAccount(
             @EntityId AliasedAccountId accountId,
             int balance) {
@@ -2592,9 +2595,7 @@ class DefaultModelRepositoryTest {
             AliasedAccountId accountId, int balance) {
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(searchable = false))
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
     private record AliasAccount(
             @EntityId AliasAccountId accountId,
             @Alias String code,
@@ -2643,7 +2644,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(cachingDepth = 2)
+    @Model(searchable = false, cachingDepth = 2)
     private record HistoryAccount(
             @EntityId HistoryAccountId accountId,
             int balance) {
@@ -2683,7 +2684,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Inventory(@EntityId InventoryId inventoryId, int available) {
     }
 
@@ -2708,7 +2709,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "documentInventory"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "documentInventory"))
     private record DocumentInventory(
             @EntityId DocumentInventoryId inventoryId,
             int available) {
@@ -2757,7 +2758,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Order(@EntityId OrderId orderId, int observedInventory) {
     }
 
@@ -2767,7 +2768,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record DocumentOrder(
             @EntityId DocumentOrderId orderId,
             int observedInventory) {
@@ -2792,7 +2793,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record UpcastAccount(
             @EntityId UpcastAccountId accountId,
             int balance) {
@@ -2839,7 +2840,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(cached = true)
+    @Model(searchable = false, cached = true)
     private record EvolvedLedger(
             @EntityId EvolvedLedgerId id,
             int balance) {
@@ -2911,10 +2912,7 @@ class DefaultModelRepositoryTest {
     }
 
     @Revision(1)
-    @Model(persistence = ModelPersistence.DOCUMENT, cached = true,
-
-            document = @DocumentProjection(
-                    collection = "evolvedDocuments"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, cached = true, searchSettings = @SearchSettings(collection = "evolvedDocuments"))
     private record EvolvedDocument(
             @EntityId EvolvedDocumentId id,
             int balance,
@@ -2939,10 +2937,7 @@ class DefaultModelRepositoryTest {
     }
 
     @Revision(1)
-    @Model(
-            snapshotPeriod = 2,
-            maxSnapshotCount = 2,
-            cached = false)
+    @Model(searchable = false, snapshotPeriod = 2, maxSnapshotCount = 2, cached = false)
     private record EvolvedSnapshot(
             @EntityId EvolvedSnapshotId id,
             int balance,
@@ -3008,7 +3003,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(snapshotPeriod = 2, cached = false)
+    @Model(searchable = false, snapshotPeriod = 2, cached = false)
     private record SnapshotAccount(
             @EntityId SnapshotAccountId accountId, int balance) {
     }
@@ -3039,7 +3034,7 @@ class DefaultModelRepositoryTest {
     private record UnknownAccountEvent(AccountId accountId) {
     }
 
-    @Model(ignoreUnknownEvents = true)
+    @Model(searchable = false, ignoreUnknownEvents = true)
     private record LenientAccount(
             @EntityId LenientAccountId accountId, int balance) {
     }
@@ -3061,7 +3056,7 @@ class DefaultModelRepositoryTest {
     private record UnknownLenientEvent(LenientAccountId accountId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record Shipment(
             @EntityId ShipmentId shipmentId, int score) {
     }
@@ -3083,19 +3078,18 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record GraphRoot(
             @EntityId GraphRootId graphRootId, String name) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "repository-graphs"))
     private record ProjectedRoot(
             @EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(1)
     private record RevisionedProjectedChild(
             @EntityId String id,
@@ -3103,8 +3097,7 @@ class DefaultModelRepositoryTest {
             String rootId) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "repository-graphs"))
     private record AlternateProjectedRoot(
             @EntityId String id) {
@@ -3130,7 +3123,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record GraphChild(
             @EntityId GraphChildId graphChildId,
             @Parent(pathInParent = "children") GraphRootId graphRootId,
@@ -3159,7 +3152,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record GraphGrandchild(
             @EntityId GraphGrandchildId graphGrandchildId,
             @Parent(pathInParent = "grandchildren") GraphChildId graphChildId,
@@ -3183,7 +3176,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record UnplacedChild(
             @EntityId UnplacedChildId unplacedChildId,
             @Parent GraphRootId graphRootId) {

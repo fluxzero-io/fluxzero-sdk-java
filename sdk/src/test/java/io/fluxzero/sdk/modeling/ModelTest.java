@@ -63,11 +63,11 @@ class ModelTest {
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
         assertEquals("", model.name());
-        assertFalse(model.materializeGraph());
-        assertTrue(model.document().searchable());
-        assertEquals("", model.document().collection());
-        assertEquals("", model.document().timestampPath());
-        assertEquals("", model.document().endPath());
+        assertEquals(GraphProjectionMode.NONE, model.graphProjection().mode());
+        assertFalse(model.searchable());
+        assertEquals("", model.searchSettings().collection());
+        assertEquals("", model.searchSettings().timestampPath());
+        assertEquals("", model.searchSettings().endPath());
     }
 
     @Test
@@ -102,9 +102,9 @@ class ModelTest {
         assertEquals(STORE_ONLY, model.publicationStrategy());
         assertEquals(ModelConflictPolicy.FAIL, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DISABLED, model.automaticHandling());
-        assertEquals("configured-models", model.document().collection());
-        assertEquals("createdAt", model.document().timestampPath());
-        assertEquals("expiresAt", model.document().endPath());
+        assertEquals("configured-models", model.searchSettings().collection());
+        assertEquals("createdAt", model.searchSettings().timestampPath());
+        assertEquals("expiresAt", model.searchSettings().endPath());
     }
 
     @Test
@@ -118,9 +118,8 @@ class ModelTest {
                 Set.of(
                         "automaticHandling",
                         "conflictPolicy",
-                        "document",
+                        "searchSettings",
                         "graphProjection",
-                        "materializeGraph",
                         "name",
                         "persistence"),
                 modelSettings.stream()
@@ -129,7 +128,7 @@ class ModelTest {
                                                 .contains(setting))
                         .collect(
                                 Collectors.toSet()));
-        assertEquals(Set.of("collection", "timestampPath", "endPath", "eventRouting", "eventSourced", "searchable"),
+        assertEquals(Set.of("collection", "timestampPath", "endPath", "eventRouting", "eventSourced"),
                      aggregateSettings.stream()
                              .filter(setting -> !modelSettings.contains(setting))
                              .collect(Collectors.toSet()));
@@ -173,7 +172,7 @@ class ModelTest {
                         ModelPersistence.EVENT_SOURCED,
                         ModelPersistence.DOCUMENT},
                 annotation.persistence());
-        assertEquals("base-models", annotation.document().collection());
+        assertEquals("base-models", annotation.searchSettings().collection());
     }
 
     @Test
@@ -195,12 +194,12 @@ class ModelTest {
 
         assertTrue(metadata.rootConfiguration().orElseThrow().directDocument());
         assertFalse(metadata.rootConfiguration().orElseThrow().publicDocument());
-        assertEquals("ReferenceOnlyDocumentModel",
+        assertEquals("$modelGraphComponents/ReferenceOnlyDocumentModel",
                      metadata.modelDocumentCollection().orElseThrow());
-        assertEquals("billingReferenceOnlyDocumentModel",
+        assertEquals("$modelGraphComponents/billingReferenceOnlyDocumentModel",
                      metadata.modelDocumentCollection("billing").orElseThrow());
         assertFalse(search.isSearchable());
-        assertEquals("ReferenceOnlyDocumentModel", search.getCollection());
+        assertEquals("$modelGraphComponents/ReferenceOnlyDocumentModel", search.getCollection());
         assertEquals("private-models",
                      EntityMetadata.validate(PrivateDocumentWithConfiguredCollection.class)
                              .modelDocumentCollection().orElseThrow());
@@ -221,12 +220,9 @@ class ModelTest {
     }
 
     @Test
-    void documentConfigurationRequiresDirectDocumentPersistence() {
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> EntityMetadata.validate(InvalidDocumentConfiguration.class));
-
-        assertTrue(exception.getMessage().contains("requires persistence that stores a direct document"));
+    void searchConfigurationDoesNotRequireDocumentPersistence() {
+        assertEquals("inactive-models", InvalidDocumentConfiguration.class.getAnnotation(Model.class)
+                .searchSettings().collection());
     }
 
     @Test
@@ -275,100 +271,77 @@ class ModelTest {
         assertDoesNotThrow(() -> DefaultEntityHelper.validateModelApplyMethods(ImmutableModelUpdate.class));
     }
 
-    @Model
+    @Model(searchable = false)
     private static class DefaultModel {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            ignoreUnknownEvents = true,
-            snapshotPeriod = 20,
-            maxSnapshotCount = 3,
-            cached = false,
-            cachingDepth = 5,
-            checkpointPeriod = 8,
-            commitPolicy = ASYNC_AFTER_BATCH,
-            eventPublication = IF_MODIFIED,
-            publicationStrategy = STORE_ONLY,
-            conflictPolicy = ModelConflictPolicy.FAIL,
-            automaticHandling = AutomaticModelHandling.DISABLED,
-            document = @DocumentProjection(
-                    collection = "configured-models",
-                    timestampPath = "createdAt",
-                    endPath = "expiresAt"))
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, ignoreUnknownEvents = true, snapshotPeriod = 20, maxSnapshotCount = 3, cached = false, cachingDepth = 5, checkpointPeriod = 8, commitPolicy = ASYNC_AFTER_BATCH, eventPublication = IF_MODIFIED, publicationStrategy = STORE_ONLY, conflictPolicy = ModelConflictPolicy.FAIL, automaticHandling = AutomaticModelHandling.DISABLED, searchSettings = @SearchSettings(collection = "configured-models", timestampPath = "createdAt", endPath = "expiresAt"))
     private static class ConfiguredModel {
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(collection = "base-models"))
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, searchSettings = @SearchSettings(collection = "base-models"))
     private static class BaseModel {
     }
 
-    @Model(document = @DocumentProjection(collection = "inactive-models"))
+    @Model(searchable = false, searchSettings = @SearchSettings(collection = "inactive-models"))
     private static class InvalidDocumentConfiguration {
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(searchable = false))
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
     private record ReferenceOnlyDocumentModel(@EntityId String id) {
     }
 
-    @Model(persistence = {})
+    @Model(searchable = false, persistence = {})
     private static class EmptyPersistenceModel {
     }
 
-    @Model(persistence = {
+    @Model(searchable = false, persistence = {
             ModelPersistence.EVENT_SOURCED,
             ModelPersistence.EVENT_SOURCED})
     private static class DuplicatePersistenceModel {
     }
 
-    @Model(document = @DocumentProjection(searchable = false))
+    @Model(searchable = false)
     private static class InvalidReferenceOnlyProjection {
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(
-                    searchable = false,
-                    collection = "private-models"))
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "private-models"))
     private record PrivateDocumentWithConfiguredCollection(
             @EntityId String id) {
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, ignoreUnknownEvents = true)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, ignoreUnknownEvents = true)
     private static class DocumentWithUnknownEventPolicy {
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, snapshotPeriod = 1)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, snapshotPeriod = 1)
     private static class DocumentWithSnapshots {
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, maxSnapshotCount = 2)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, maxSnapshotCount = 2)
     private static class DocumentWithSnapshotRetention {
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, checkpointPeriod = 10)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, checkpointPeriod = 10)
     private static class DocumentWithReplayCheckpoints {
     }
 
     private static class InheritedModel extends BaseModel {
     }
 
-    @Model
+    @Model(searchable = false)
     private static class NamedModel {
         @EntityId
         String id;
     }
 
-    @Model(name = "OriginalName")
+    @Model(searchable = false, name = "OriginalName")
     private static class RenamedModel {
         @EntityId
         String id = "id";
     }
 
-    @Model(name = "BaseName")
+    @Model(searchable = false, name = "BaseName")
     private static class NamedBaseModel {
         @EntityId
         String id;
@@ -377,13 +350,13 @@ class ModelTest {
     private static class ConcreteNamedModel extends NamedBaseModel {
     }
 
-    @Model(name = " ")
+    @Model(searchable = false, name = " ")
     private static class BlankNamedModel {
         @EntityId
         String id;
     }
 
-    @Model
+    @Model(searchable = false)
     private static class MutableModel {
         @EntityId
         String id;
@@ -418,7 +391,7 @@ class ModelTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ImmutableModel(@EntityId String id) {
         @Apply
         ImmutableModel apply(Object update) {

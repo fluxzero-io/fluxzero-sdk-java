@@ -104,8 +104,8 @@ storage written by an older SDK.
 
 Read-time upcasting does not rewrite stored JSON or search indexes. Ordinary derived documents can be reindexed by a
 revision-aware `@HandleDocument` migration. A materialized Model Graph has its own complete-Graph return contract.
-For internal sources use `@HandleDocument(modelState = Project.class)` and return the upcast value unchanged:
+For internal sources use `@HandleDocument(source = DocumentSource.MODEL_STATE)` and return the upcast value unchanged:
 identity/state changes and split/drop upcasts are rejected; a full-head/body/proof guard skips stale rewrites.
-The independent public DOCUMENT projection uses ordinary `documentClass` handling and stays ancestor-queryable.
+The typed searchable node uses the same guarded schema route and stays ancestor-queryable.
 Do not use ordinary writes to replace internal Model state. Follow the Model migration recipe for
 before/after queries and the distinction between these representations.

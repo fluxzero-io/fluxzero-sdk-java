@@ -153,7 +153,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AncestorCustomer(@EntityId String customerId, String name) {
     }
 
@@ -164,7 +164,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AncestorOrder(@EntityId String orderId, @Parent(AncestorCustomer.class) String customerId) {
     }
 
@@ -175,7 +175,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AncestorReport(@EntityId String reportId, String customerName) {
     }
 
@@ -1913,7 +1913,7 @@ class ModelCommitHandlerIntegrationTest {
                                             .search(
                                                     ProjectionChild.class)
                                             .fetchAll()
-                                            .isEmpty())
+                                            .size() == 1)
                 .expectTrue(fluxzero ->
                                     {
                                         List<Graph<ProjectionRoot>> stored =
@@ -1957,7 +1957,7 @@ class ModelCommitHandlerIntegrationTest {
                                 .configureGraphProjectionCompletion(
                                         GraphProjectionCompletion.AWAIT))
                 .registerHandlers(new Object() {
-                    @HandleDocument(modelGraph = ProjectionRoot.class)
+                    @HandleDocument
                     void handle(Graph<ProjectionRoot> graph) {
                         handled.set(graph);
                     }
@@ -1986,7 +1986,7 @@ class ModelCommitHandlerIntegrationTest {
                                 .configureGraphProjectionCompletion(
                                         GraphProjectionCompletion.AWAIT))
                 .registerHandlers(new Object() {
-                    @HandleDocument(modelGraph = ProjectionRoot.class)
+                    @HandleDocument
                     void handle(Graph<ProjectionRoot> graph) {
                         if (graph.isEmpty()
                             || !graph.childModels(
@@ -2056,7 +2056,7 @@ class ModelCommitHandlerIntegrationTest {
                                 .configureGraphProjectionCompletion(
                                         GraphProjectionCompletion.AWAIT))
                 .registerHandlers(new Object() {
-                    @HandleDocument(modelGraph = ProjectionRoot.class)
+                    @HandleDocument
                     void handle(Graph<ProjectionRoot> graph) {
                         if (graph.isEmpty()) {
                             deletion.set(graph);
@@ -2797,7 +2797,7 @@ class ModelCommitHandlerIntegrationTest {
         throw lastError;
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record Account(@EntityId AccountId accountId, int balance) {
         @Apply
         Account apply(SetExplicitValue command) {
@@ -2818,7 +2818,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ExplicitAlternative(
             @EntityId ExplicitAlternativeId alternativeId,
             int value) {
@@ -2889,7 +2889,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record CollectionPeer(
             @EntityId CollectionPeerId id,
             String value) {
@@ -2966,7 +2966,7 @@ class ModelCommitHandlerIntegrationTest {
     @NonFinal
     @SuperBuilder(toBuilder = true)
     @Jacksonized
-    @Model
+    @Model(searchable = false)
     private static class BaseCounter {
         @EntityId String counterId;
         int value;
@@ -2976,7 +2976,7 @@ class ModelCommitHandlerIntegrationTest {
     @EqualsAndHashCode(callSuper = true)
     @SuperBuilder(toBuilder = true)
     @Jacksonized
-    @Model
+    @Model(searchable = false)
     private static class SpecialCounter extends BaseCounter {
         String marker;
     }
@@ -3215,7 +3215,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ReceiverAccount(
             @EntityId ReceiverAccountId receiverAccountId, String name) {
         @Apply
@@ -3264,7 +3264,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     private record StaticCreatedModel(
             @EntityId String staticCreatedModelId,
             String value) {
@@ -3282,7 +3282,7 @@ class ModelCommitHandlerIntegrationTest {
             String staticCreatedModelId) {
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     private record IntegratedPhasedModel(
             @EntityId IntegratedPhasedModelId integratedPhasedModelId,
             String value) {
@@ -3317,7 +3317,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record Inventory(
             @EntityId InventoryId inventoryId, int available) {
     }
@@ -3345,7 +3345,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record FixedDocument(
             @EntityId FixedDocumentId id, int value) {
         private FixedDocument(int value) {
@@ -3364,7 +3364,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     private record Order(
             @EntityId OrderId orderId, int observedInventory) {
     }
@@ -3403,7 +3403,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
     private record PrivateInventory(
             @EntityId PrivateInventoryId inventoryId, int available) {
     }
@@ -3423,7 +3423,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     private record PrivateOrder(
             @EntityId PrivateOrderId orderId, int observedInventory) {
     }
@@ -3446,7 +3446,7 @@ class ModelCommitHandlerIntegrationTest {
     private static final AtomicInteger receiverInvocations =
             new AtomicInteger();
 
-    @Model
+    @Model(searchable = false)
     private record FirstCounter(
             @EntityId FirstCounterId firstCounterId, int value) {
         @Apply
@@ -3471,7 +3471,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record SecondCounter(
             @EntityId SecondCounterId secondCounterId, int value) {
         @Apply
@@ -3502,7 +3502,7 @@ class ModelCommitHandlerIntegrationTest {
             SecondCounterId secondCounterId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record RootConsumerModel(
             @EntityId String rootConsumerModelId,
             String state) {
@@ -3527,7 +3527,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record FamilyRoot(
             @EntityId FamilyRootId familyRootId,
             String name) {
@@ -3608,7 +3608,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record PathlessFamilyChild(
             @EntityId String id,
             @Parent FamilyRootId familyRootId) {
@@ -3640,7 +3640,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record StringGrandparent(@EntityId String grandparentId) {
     }
 
@@ -3651,7 +3651,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record StringParent(
             @EntityId String parentId,
             @Parent(value = StringGrandparent.class, pathInParent = "parents") String grandparentId) {
@@ -3664,7 +3664,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record StringChild(
             @EntityId String childId,
             @Parent(value = StringParent.class, pathInParent = "children") String parentId) {
@@ -3682,7 +3682,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record RetainedFamilyChild(
             @EntityId String id,
             @Parent(deleteOnParentDeletion = false)
@@ -3698,7 +3698,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record AffixedRoot(
             @EntityId(prefix = "move-", postfix = "-state") AffixedRootId affixedRootId) {
     }
@@ -3716,7 +3716,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record OuterAffixedRoot(
             @EntityId(prefix = "outer-") OuterAffixedRootId id,
             @Alias String alias) {
@@ -3747,7 +3747,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedNote(
             @EntityId(parentScoped = true) String noteId,
             @Parent(pathInParent = "notes") FamilyRootId familyRootId,
@@ -3774,7 +3774,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AffixedChild(
             @EntityId(prefix = "nested-") AffixedChildId affixedChildId,
             @Parent(pathInParent = "children") AffixedRootId affixedRootId) {
@@ -3795,7 +3795,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AffixedCompanion(
             @EntityId(prefix = "companion-")
             @Parent(pathInParent = "companion")
@@ -3812,7 +3812,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record FamilyChild(
             @EntityId FamilyChildId familyChildId,
             @Parent(pathInParent = "children")
@@ -3838,9 +3838,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(searchable = false))
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
     private record DocumentFamilyChild(
             @EntityId DocumentFamilyChildId documentFamilyChildId,
             @Parent(pathInParent = "documentChildren")
@@ -3866,7 +3864,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, cached = false)
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, cached = false)
     private record FamilyGrandchild(
             @EntityId FamilyGrandchildId familyGrandchildId,
             @Parent(pathInParent = "primaryGrandchildren")
@@ -4002,8 +4000,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC,
                     collection = "projectionRoots",
                     pathOverrides = @GraphPathOverride(
                             path = "children",
@@ -4036,7 +4033,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ProjectionChild(
             @EntityId ProjectionChildId projectionChildId,
             @Parent(pathInParent = "children")

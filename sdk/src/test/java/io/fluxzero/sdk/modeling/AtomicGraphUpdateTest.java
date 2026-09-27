@@ -214,7 +214,7 @@ class AtomicGraphUpdateTest {
                     });
         }
     }
-    @Model(conflictPolicy = ModelConflictPolicy.ACCEPT)
+    @Model(searchable = false, conflictPolicy = ModelConflictPolicy.ACCEPT)
     record Counter(@EntityId String id, int value) {}
     record Create(String id, int value) { @Apply Counter apply() { return new Counter(id, value); } }
     record Set(String id, int value) {

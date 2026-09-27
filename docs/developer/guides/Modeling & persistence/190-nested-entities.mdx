@@ -27,13 +27,13 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, an order line belongs to an order and has a non-owning relation to a product:
 
 ```java
-@Model
+@Model(searchable = false)
 record Order(
         @EntityId OrderId orderId,
         String customerName) {
 }
 
-@Model
+@Model(searchable = false)
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -58,7 +58,7 @@ The named parent path lets Fluxzero include it in the order’s composed Graph.
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
 
 ```java
-@Model
+@Model(searchable = false)
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
@@ -161,7 +161,7 @@ When `pathInParent` is omitted, Fluxzero still stores and traverses the relation
 that edge into a search or serialized graph document. Typed `Graph` traversal and parent-deletion lifecycle handling
 still follow it. This keeps package and class renames from silently changing public document structure.
 
-When you need to find whole order Graphs, enable `@Model(materializeGraph = true)` on Order:
+When you need to find whole order Graphs, enable `@Model(searchable = true)` on Order; optionally store the composed result with GraphProjection ASYNC/AWAIT:
 
 ```java
 Graph<Order> order = Fluxzero.searchGraph(Order.class)
@@ -265,9 +265,10 @@ For repeated whole-root queries, opt in to a durable graph projection:
 
 ```java
 @Model(
-    materializeGraph = true,
-    graphProjection = @GraphProjection(
-        collection = "order-graphs"))
+    searchable = true,
+    graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC,
+        collection = "order-graphs")
+)
 record Order(@EntityId OrderId orderId, String customerName) {
 }
 ```
@@ -290,7 +291,7 @@ root before releasing an awaited command result.
 Each node in a materialized graph retains its own serialized Model type and `@Revision`. Ordinary serializer upcasters
 therefore evolve the root and descendants independently and lazily; there is no Graph-wide revision or Graph upcaster.
 Read-time upcasting is enough for correctness. To persist the evolved JSON back into the derived search projection,
-return the complete Graph from `@HandleDocument(modelGraph = Order.class)`. That rematerialization cannot change the
+return the complete Graph from `@HandleDocument`. That rematerialization cannot change the
 root, state boundary, nodes or placements, and never modifies direct Models or relationships.
 
 ## Embedded members
@@ -298,7 +299,7 @@ root, state boundary, nodes or placements, and never modifies direct Models or r
 Use `@Member` inside a model when the nested value intentionally shares everything with its owner:
 
 ```java
-@Model
+@Model(searchable = false)
 record Invoice(
         @EntityId InvoiceId invoiceId,
         @Member List<InvoiceNote> notes) {

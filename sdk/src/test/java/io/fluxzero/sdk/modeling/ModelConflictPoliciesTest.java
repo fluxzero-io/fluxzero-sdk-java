@@ -192,17 +192,17 @@ class ModelConflictPoliciesTest {
         }
     }
 
-    @Model(conflictPolicy = ModelConflictPolicy.FAIL)
+    @Model(searchable = false, conflictPolicy = ModelConflictPolicy.FAIL)
     private record FailModel(
             @EntityId String id) {
     }
 
-    @Model(conflictPolicy = ModelConflictPolicy.RETRY)
+    @Model(searchable = false, conflictPolicy = ModelConflictPolicy.RETRY)
     private record RetryModel(
             @EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record DefaultModel(
             @EntityId String id) {
     }

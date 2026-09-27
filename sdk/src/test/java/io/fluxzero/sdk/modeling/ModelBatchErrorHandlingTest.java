@@ -192,7 +192,7 @@ class ModelBatchErrorHandlingTest {
                 .expectThat(fc -> assertEquals(new Item("custom"), Fluxzero.loadModel("custom", Item.class).get()));
     }
 
-    @Model
+    @Model(searchable = false)
     record Item(@EntityId String id) {}
 
     record Create(String id, boolean reject, boolean technical) {

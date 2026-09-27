@@ -54,7 +54,7 @@ class ModelGraphComponentSearchTest {
                                 .fetchAll().stream()
                                 .map(PrivateProjectionChild::id).toList()))
                 .expectResult(List.of(
-                        true, List.of(childId), List.of(childId),
+                        false, List.of(childId), List.of(childId),
                         List.of(childId)));
     }
 
@@ -95,7 +95,7 @@ class ModelGraphComponentSearchTest {
                 .whenApplying(ignored -> List.of(
                         Fluxzero.search(PrivateChild.class).fetchAll().isEmpty(),
                         Fluxzero.search(OtherPrivateChild.class).fetchAll().isEmpty()))
-                .expectResult(List.of(true, true));
+                .expectResult(List.of(false, false));
     }
 
     @Test
@@ -150,7 +150,7 @@ class ModelGraphComponentSearchTest {
                 .modelDocumentCollection().orElseThrow();
 
         assertNotEquals(first, second);
-        assertEquals("PrivateChild", first);
+        assertEquals("$modelGraphComponents/PrivateChild", first);
         assertTrue(second.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), second);
     }
 
@@ -190,13 +190,13 @@ class ModelGraphComponentSearchTest {
                                 .whereAncestor("selected", NoDocumentRoot.class)
                                 .fetchAll().stream()
                                 .map(NoDocumentLeaf::id).toList(),
-                        Fluxzero.search(NoDocumentLeaf.class).fetchAll()))
+                        Fluxzero.search(NoDocumentLeaf.class).fetchAll().size()))
                 .expectResult(List.of(
                         List.of(selectedMiddle),
                         List.of(selectedLeaf),
                         List.of(selectedLeaf),
                         List.of(selectedLeaf),
-                        List.of()));
+                        2));
     }
 
     private static List<SearchRootId> graphIds(List<Graph<SearchRoot>> graphs) {
@@ -222,7 +222,7 @@ class ModelGraphComponentSearchTest {
                                  .fetchAll()));
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true)
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     private record SearchRoot(@EntityId SearchRootId searchRootId) {
     }
 
@@ -239,7 +239,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model(materializeGraph = true)
+    @Model(searchable = true, graphProjection = @io.fluxzero.sdk.modeling.GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC))
     private record PrivateProjectionRoot(@EntityId String id) {
     }
 
@@ -250,7 +250,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record PrivateProjectionChild(
             @EntityId String id,
             @Parent(value = PrivateProjectionRoot.class, pathInParent = "children")
@@ -264,9 +264,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model(
-            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-            document = @DocumentProjection(searchable = false))
+    @Model(searchable = false, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record PrivateChild(
             @EntityId PrivateChildId privateChildId,
             @Parent(pathInParent = "privateChildren") SearchRootId searchRootId,
@@ -305,7 +303,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record OtherPrivateChild(
             @EntityId OtherPrivateChildId otherPrivateChildId,
             @Parent(pathInParent = "otherPrivateChildren") SearchRootId searchRootId,
@@ -328,7 +326,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record SearchLeaf(
             @EntityId SearchLeafId searchLeafId,
             @Parent(pathInParent = "searchLeaves") PrivateChildId privateChildId) {
@@ -349,7 +347,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record NoDocumentRoot(
             @EntityId NoDocumentRootId id) {
     }
@@ -367,7 +365,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model
+    @Model(searchable = true)
     private record NoDocumentMiddle(
             @EntityId NoDocumentMiddleId id,
             @Parent(pathInParent = "middles") NoDocumentRootId rootId) {
@@ -388,7 +386,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record NoDocumentLeaf(
             @EntityId NoDocumentLeafId id,
             @Parent(pathInParent = "leaves") NoDocumentMiddleId middleId) {

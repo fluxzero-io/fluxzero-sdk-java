@@ -85,7 +85,7 @@ public class SearchParameters implements Substitutable<SearchParameters> {
     /**
      * Resolves the effective search configuration for a model or searchable document type.
      *
-     * <p>Models own their direct-document projection through {@link Model#document()}; other document types continue
+     * <p>Models own their direct-document projection through {@link Model#searchSettings()}; other document types continue
      * to use {@link Searchable}. An unspecified collection resolves to the simple name for an ordinary document and
      * the resolved logical name for a Model.</p>
      */
@@ -94,8 +94,15 @@ public class SearchParameters implements Substitutable<SearchParameters> {
                 .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
                 .orElse(null);
         if (model != null) {
+            String prefix = ApplicationProperties.getProperty(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, "");
+            boolean hasIdentity = !io.fluxzero.common.reflection.ReflectionUtils.getTypeMetadata(type)
+                    .annotatedProperties(EntityId.class).isEmpty();
             return new SearchParameters(
-                    model.publicDocument(), model.resolvedCollection(type),
+                    model.publicDocument() || hasIdentity && EntityMetadata.of(type).isSearchable(),
+                    model.collection().isEmpty()
+                            ? io.fluxzero.common.api.modeling.ModelDocumentMutation.privateModelDocumentCollection(
+                                    ModelNames.name(type, prefix))
+                            : model.resolvedCollection(type, prefix),
                     model.timestampPath(), model.endPath());
         }
         return io.fluxzero.common.reflection.ReflectionUtils

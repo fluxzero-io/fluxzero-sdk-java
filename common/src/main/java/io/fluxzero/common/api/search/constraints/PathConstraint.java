@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import io.fluxzero.common.api.search.Constraint;
 import io.fluxzero.common.search.Document;
 import io.fluxzero.common.search.Document.Path;
+import io.fluxzero.common.search.SearchExclusions;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -91,6 +92,14 @@ public abstract class PathConstraint implements Constraint {
         return false;
     }
 
+    /**
+     * Checks document-specific path eligibility in addition to the requested path pattern. Subclasses that perform
+     * text matching also exclude paths marked by {@link io.fluxzero.common.search.SearchExclude}.
+     */
+    protected boolean matchesPath(Path path, Document document) {
+        return !SearchExclusions.isMetadataPath(path);
+    }
+
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
     @Accessors(fluent = true)
     @EqualsAndHashCode.Exclude
@@ -98,13 +107,15 @@ public abstract class PathConstraint implements Constraint {
 
     private Predicate<Document> computeDocumentPredicate() {
         Predicate<Path> pathPredicate = getPaths().stream().map(
-                Path::pathPredicate).reduce(Predicate::or).orElseGet(() -> p -> true);
+                Path::pathPredicate).reduce(Predicate::or).orElseGet(() -> p -> true)
+                .and(io.fluxzero.common.search.ModelSearchDocument::isSearchablePath);
         return checkPathBeforeEntry()
                 ? d -> d.getEntries().entrySet().stream()
-                .anyMatch(e -> e.getValue().stream().anyMatch(pathPredicate) && matches(e.getKey(), d))
+                .anyMatch(e -> e.getValue().stream().anyMatch(p -> pathPredicate.test(p) && matchesPath(p, d))
+                               && matches(e.getKey(), d))
                 : d -> d.getEntries().entrySet().stream()
                 .anyMatch(e -> matches(e.getKey(), d) && (e.getValue().isEmpty()
-                        ? pathPredicate.test(Path.EMPTY_PATH)
-                        : e.getValue().stream().anyMatch(pathPredicate)));
+                        ? pathPredicate.test(Path.EMPTY_PATH) && matchesPath(Path.EMPTY_PATH, d)
+                        : e.getValue().stream().anyMatch(p -> pathPredicate.test(p) && matchesPath(p, d))));
     }
 }

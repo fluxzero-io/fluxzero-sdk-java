@@ -26,7 +26,7 @@ Put `@Sortable` on the exact property path used by each sort instruction. For a 
 portable model is an ordinary serializable property of the searchable Model or projection:
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+@Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record KnowledgeArticle(
         @EntityId @Sortable ArticleId articleId,
         @Sortable int editorialRank,

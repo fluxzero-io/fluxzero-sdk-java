@@ -211,10 +211,10 @@ class ModelCurrentStateTest {
         @Override public InMemorySearchStore getSearchClient() { return (InMemorySearchStore) super.getSearchClient(); }
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     record Account(@EntityId String id, String value) {}
 
-    @Model record ReplayOnly(@EntityId String id) {}
+    @Model(searchable = false) record ReplayOnly(@EntityId String id) {}
 
     record Create(String id, String value) {
         @Apply Account apply(@jakarta.annotation.Nullable Account existing) { return new Account(id, value); }

@@ -1138,7 +1138,7 @@ class WebSocketTransportCodecsTest {
                                 List.of(
                                         new ModelGraphPathOverride(
                                                 "lines",
-                                                "items"))),
+                                                "items")), true),
                         true);
         GetModelGraphProjectionStatus statusRequest =
                 new GetModelGraphProjectionStatus(
@@ -1337,7 +1337,7 @@ class WebSocketTransportCodecsTest {
                                 new ModelGraphPathOverride(
                                         "lines", "items"),
                                 new ModelGraphPathOverride(
-                                        "discounts", "items"))));
+                                        "discounts", "items")), true));
     }
 
     private static JsonType roundTrip(WebSocketTransportCodec codec, JsonType value) throws Exception {

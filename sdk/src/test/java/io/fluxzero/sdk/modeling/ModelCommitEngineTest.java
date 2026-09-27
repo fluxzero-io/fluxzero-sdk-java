@@ -1209,7 +1209,7 @@ class ModelCommitEngineTest {
         return ImmutableEntity.<T>builder().id(id).type(type).value(value).build();
     }
 
-    @Model
+    @Model(searchable = false)
     private record Order(@EntityId OrderId orderId, String status) {
     }
 
@@ -1219,7 +1219,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Inventory(
             @EntityId InventoryId inventoryId, int available, String observation) {
         private Inventory(InventoryId inventoryId, int available) {
@@ -1388,7 +1388,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Account(@EntityId AccountId accountId, int balance) {
     }
 
@@ -1551,7 +1551,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ReceiverOrder(
             @EntityId ReceiverOrderId receiverOrderId, String name) {
         @InterceptApply
@@ -1582,7 +1582,7 @@ class ModelCommitEngineTest {
             ReceiverOrderId receiverOrderId, String name, List<String> observations) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record PhasedOrder(
             @EntityId PhasedOrderId phasedOrderId,
             String value) {
@@ -1660,7 +1660,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record PhaseLeft(
             @EntityId PhaseLeftId phaseLeftId,
             String value) {
@@ -1677,7 +1677,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record PhaseRight(
             @EntityId PhaseRightId phaseRightId,
             String value) {
@@ -1708,7 +1708,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record StaticPhaseModel(
             @EntityId StaticPhaseModelId staticPhaseModelId,
             String value) {
@@ -1734,7 +1734,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record DeletedPhaseModel(
             @EntityId DeletedPhaseModelId deletedPhaseModelId,
             String value) {
@@ -1758,7 +1758,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record FailingPhaseModel(
             @EntityId FailingPhaseModelId failingPhaseModelId,
             String value) {
@@ -1783,7 +1783,7 @@ class ModelCommitEngineTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record FastOrder(
             @EntityId FastOrderId fastOrderId,
             String name) {

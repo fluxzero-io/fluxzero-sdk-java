@@ -191,8 +191,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final List<ModelGraphProjectionSignal>
             modelGraphProjectionSignals =
             new ArrayList<>();
-    private final Set<String> modelGraphProjectionRebuilds =
-            new LinkedHashSet<>();
+    private final Map<String, Long> modelGraphProjectionRebuilds = new LinkedHashMap<>();
+    private long modelGraphProjectionRebuildGeneration;
     private final Map<String, Long>
             modelGraphProjectionPositions =
             new ConcurrentHashMap<>();
@@ -795,8 +795,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             if (previous == null
                 || request.isRebuild()
                 || !previous.equals(configuration)) {
-                modelGraphProjectionRebuilds.add(
-                        configuration.getCollection());
+                modelGraphProjectionRebuilds.put(configuration.getCollection(), ++modelGraphProjectionRebuildGeneration);
             }
         }
         drainModelGraphProjections();
@@ -1216,7 +1215,20 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 modelGraphProjectionMaterializer
                 == null
                 || modelGraphProjectionRebuilds
-                        .contains(collection));
+                        .containsKey(collection));
+    }
+
+    /** Retains affected projection rebuilds when a source schema changes without a Model commit. */
+    public void invalidateModelGraphSchema(String modelType) {
+        synchronized (this) {
+            modelGraphProjections.values().stream()
+                    .filter(configuration -> configuration.getModelRevisions().stream()
+                            .anyMatch(revision -> revision.modelType().equals(modelType)))
+                    .map(ModelGraphProjectionConfiguration::getCollection)
+                    .forEach(collection -> modelGraphProjectionRebuilds.put(
+                            collection, ++modelGraphProjectionRebuildGeneration));
+        }
+        drainModelGraphProjections();
     }
 
     private void drainModelGraphProjections() {
@@ -1250,9 +1262,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         modelGraphProjections.values()) {
                     String collection =
                             configuration.getCollection();
-                    boolean rebuild =
-                            modelGraphProjectionRebuilds
-                                    .contains(collection);
+                    Long rebuildGeneration = modelGraphProjectionRebuilds.get(collection);
+                    boolean rebuild = rebuildGeneration != null;
                     if (!rebuild
                         && signals.isEmpty()
                         && modelGraphProjectionPositions
@@ -1275,7 +1286,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                                                 signal)));
                     }
                     work.add(new ModelGraphProjectionWork(
-                            configuration, Set.copyOf(roots), rebuild));
+                            configuration, Set.copyOf(roots), rebuildGeneration));
                 }
             }
 
@@ -1291,7 +1302,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             materializer.materialize(
                                     projection.configuration(),
                                     projection.roots(), boundary,
-                                    projection.rebuild()));
+                                    projection.rebuildGeneration() != null));
                 } catch (Throwable failure) {
                     failures.put(
                             projection.configuration()
@@ -1313,8 +1324,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 collection, boundary);
                         modelGraphProjectionFailures.remove(
                                 collection);
-                        modelGraphProjectionRebuilds.remove(
-                                collection);
+                        modelGraphProjectionRebuilds.remove(collection, projection.rebuildGeneration());
                         Runnable publication =
                                 publications.get(collection);
                         if (publication != null) {
@@ -1334,7 +1344,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 completed = takeCompletedModelGraphProjectionWaiters();
                 repeat = failures.isEmpty()
                          && modelCommitMaterializations.isEmpty()
-                         && !modelGraphProjectionSignals.isEmpty();
+                         && (!modelGraphProjectionSignals.isEmpty() || !modelGraphProjectionRebuilds.isEmpty());
             }
             completeModelGraphProjectionWaiters(completed);
             if (publishNotifications) {
@@ -1387,7 +1397,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private record ModelGraphProjectionWork(
             ModelGraphProjectionConfiguration configuration,
-            Set<String> roots, boolean rebuild) {
+            Set<String> roots, Long rebuildGeneration) {
     }
 
     private Set<String> currentProjectionRoots(
@@ -1418,18 +1428,20 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         signal.modelIds());
         long before =
                 signal.firstStateIndex() - 1L;
-        candidates.addAll(
-                modelAncestorsAt(
-                        signal.modelIds(),
-                        before,
-                        configuration.getComposition()
-                                .getMaxDepth()));
-        candidates.addAll(
-                modelAncestorsAt(
-                        signal.modelIds(),
-                        signal.lastStateIndex(),
-                        configuration.getComposition()
-                                .getMaxDepth()));
+        if (configuration.getComposition().isIncludeDescendants()) {
+            candidates.addAll(
+                    modelAncestorsAt(
+                            signal.modelIds(),
+                            before,
+                            configuration.getComposition()
+                                    .getMaxDepth()));
+            candidates.addAll(
+                    modelAncestorsAt(
+                            signal.modelIds(),
+                            signal.lastStateIndex(),
+                            configuration.getComposition()
+                                    .getMaxDepth()));
+        }
         LinkedHashSet<String> roots =
                 new LinkedHashSet<>();
         candidates.forEach(modelId -> {
@@ -1825,6 +1837,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         Objects.requireNonNull(
                 composition,
                 "Model graph composition");
+        if (!composition.isIncludeDescendants()) {
+            return List.of();
+        }
         return ModelRelationshipQueries.currentGraph(
                 rootModelIds, composition.getMaxDepth(), composition.getMaxModels(),
                 frontier -> relationshipsByParents(

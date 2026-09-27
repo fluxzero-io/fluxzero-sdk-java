@@ -14,7 +14,6 @@ package io.fluxzero.common.api.search;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Command;
-import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
@@ -36,7 +35,6 @@ public class RewriteModelSourceDocument extends Command {
     /** Validates the source-only, non-deleting envelope before any persistence action. */
     public void validate() {
         if (expectedHead.isDeleted() || !document.getId().equals(expectedHead.getModelId())
-            || !document.getCollection().startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX)
             || expectedProof.isBlank()) {
             throw new IllegalArgumentException("A schema rewrite requires a live internal Model source with unchanged identity");
         }

@@ -67,9 +67,11 @@ public final class ModelSourceDocumentMigration {
         Function<Object, SerializedDocument> serialize = value -> {
             validateIdentity(metadata, current.getId(), value);
             SerializedDocument result = serializer.toDocument(value, current.getId(), collection,
-                    instant(current.getTimestamp()), instant(current.getEnd()), current.getMetadata());
-            return !metadata.rootConfiguration().orElseThrow().publicDocument() && !metadata.maintainsGraphComponentDocument()
-                    ? result.withoutSearchIndexes() : result;
+                    instant(current.getTimestamp()), instant(current.getEnd()),
+                    current.getMetadata().without(io.fluxzero.common.search.ModelSearchDocument.SUMMARY));
+            return metadata.isSearchable()
+                    ? io.fluxzero.common.search.ModelSearchDocument.preserveSummary(result)
+                    : result.withoutSearchIndexes();
         };
         SerializedDocument handled = serialize.apply(message.getPayload());
         RewriteModelSourceDocument rewrite = null;

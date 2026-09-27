@@ -558,9 +558,9 @@ class ModelLifecycleContractTest {
                 });
     }
 
-    @Model record Root(@EntityId RootId rootId) {}
-    @Model record Child(@EntityId ChildId childId, @Parent(pathInParent = "children") RootId rootId, int value) {}
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = false) record Root(@EntityId RootId rootId) {}
+    @Model(searchable = false) record Child(@EntityId ChildId childId, @Parent(pathInParent = "children") RootId rootId, int value) {}
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     record Document(@EntityId DocumentId documentId, @Parent(pathInParent = "documents") RootId rootId, int value) {}
 
     record CreateRoot(RootId rootId) {
@@ -602,12 +602,12 @@ class ModelLifecycleContractTest {
     record DeleteBothRoots(RootId rootId, RootId otherRootId) {
         @InterceptApply List<DeleteRoot> apply() { return List.of(new DeleteRoot(rootId), new DeleteRoot(otherRootId)); }
     }
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record DocumentOnly(@EntityId String documentOnlyId, int value) {}
     record PutDocumentOnly(String documentOnlyId, int value) {
         @Apply DocumentOnly apply(@Nullable DocumentOnly current) { return new DocumentOnly(documentOnlyId, value); }
     }
-    @Model record Shared(@EntityId SharedId sharedId, @Parent(pathInParent = "owned") RootId rootId,
+    @Model(searchable = false) record Shared(@EntityId SharedId sharedId, @Parent(pathInParent = "owned") RootId rootId,
                          @Parent(pathInParent = "shared", deleteOnParentDeletion = false) RootId otherRootId) {}
     record CreateShared(SharedId sharedId, RootId rootId, RootId otherRootId) {
         @Apply Shared apply() { return new Shared(sharedId, rootId, otherRootId); }

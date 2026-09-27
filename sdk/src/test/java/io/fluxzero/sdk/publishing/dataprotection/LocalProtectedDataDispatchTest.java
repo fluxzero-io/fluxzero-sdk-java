@@ -137,7 +137,7 @@ class LocalProtectedDataDispatchTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ProtectedModel(@EntityId String id, int length) {
     }
 
