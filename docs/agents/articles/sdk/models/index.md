@@ -1,7 +1,7 @@
 # Models and Graphs
 
-For the design as a whole and Java/Kotlin examples, see the developer chapter
-[Fluxzero 2.0](https://fluxzero.io/docs/fluxzero-2).
+Start with the developer [2.0 overview](https://fluxzero.io/docs/fluxzero-2), then use the
+[deep dive](https://fluxzero.io/docs/fluxzero-2-deep-dive) for Java/Kotlin examples and the storage matrix.
 Use the focused articles below for state, commands, relationships and history.
 
 Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
