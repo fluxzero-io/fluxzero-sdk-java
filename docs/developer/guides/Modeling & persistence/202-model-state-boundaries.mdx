@@ -180,6 +180,12 @@ detachments and moves made before deletion do not become deleted-parent lineage.
 it: upgrading does not retroactively restore lineage markers omitted by older implementations. Verify the full scope
 of an already deleted tree independently before physical erasure; an incomplete plan is not proof of complete cleanup.
 
+Physical erasure does not emit a domain transition or a root Graph tombstone. In the Runtime, an existing stored
+Graph of a surviving ancestor can retain the erased child until its projector catches up; completion of
+`deleteModel()` alone does not wait for that refresh. Wait for every affected registered ancestor projection to
+reach the deletion result’s state index before treating those stored Graphs as refreshed. Independently maintained
+read models and external copies require their own cleanup.
+
 Use a matching SDK and service implementation for the storage/wire capabilities you enable. Older separate public Model projections are not authoritative canonical nodes. Preserve DOCUMENT-only state,
 choose the existing canonical collection deliberately and rebuild search indexes before changing writers. Recompile
 Model contracts and coordinate writer rollout; do not let old writers restore obsolete projection definitions.

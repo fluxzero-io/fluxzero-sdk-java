@@ -106,13 +106,13 @@ is `loadCurrentState`. This is an explicit document read, not a fallback after r
 The returned `ModelState<T>` contains the value, exact persisted ID, durable Model head and the namespace-wide
 boundary at which that head was verified. It checks the current document against the durable head without loading
 events, updating the ordinary Model cache, or inheriting an event handler's historical boundary. The writer must
-maintain a Model document through `DOCUMENT` or graph composition, and the consumer must share its document
+maintain a canonical Model document through `DOCUMENT` or effective searchability, and the consumer must share its document
 configuration and value schema (including nested value types and upcasters).
 
 Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
 fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
 ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
-this fingerprint; maintaining an internal Model source does. Public DOCUMENT projections do not own that proof.
+this fingerprint; maintaining a canonical Model source does. Older separate public Model projections do not own that proof.
 Existing documents with no proof are not retroactively
 certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
 an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.

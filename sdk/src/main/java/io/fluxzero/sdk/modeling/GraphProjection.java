@@ -34,8 +34,8 @@ public @interface GraphProjection {
     GraphProjectionMode mode() default GraphProjectionMode.NONE;
 
     /**
-     * Distinct collection receiving materialized graph documents. Blank derives from the public direct-model collection
-     * when enabled, or from the resolved logical root-model name otherwise.
+     * Distinct collection receiving materialized Graph documents. Blank derives from the explicitly configured canonical
+     * node collection, or from the resolved logical root-model name when no node collection is configured.
      */
     String collection() default "";
 

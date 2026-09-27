@@ -25,7 +25,7 @@ The SDK requires Java 25 or newer and a compatible Runtime for standalone Models
 Choose the focused state, actions or Graph article for the application's language:
 
 - State: immutable Models, details versus settings/status, validated creation and targeted edits, and typed identity.
-- Configuration: optional storage, search projections and operational settings; start with plain `@Model`.
+- Configuration: optional storage, search projections and operational settings; start with an explicit `@Model(searchable = false)` and enable search where needed.
 - Actions: automatic `@Apply` command handling, recursive assertions, interception and atomic multi-Model commits.
 - Graphs: independent children via `@Parent`, lazy navigation, exact event-state injection and graph search/projections.
 - Conflicts: read dependencies, empty collections, `RETRY`/`FAIL`/`ACCEPT` and the cost of actual navigation.
@@ -48,8 +48,10 @@ command handler is needed. A real orchestration handler can call
 
 A successful multi-Model commit covers all its Model events, direct documents and relationship deltas. Separate
 commands, external searches and unrelated repositories are not automatically part of that transaction.
-Public direct `DOCUMENT` state is synchronous with command completion; a derived graph projection is asynchronous
-by default. Use `GraphProjectionCompletion.AWAIT` only when the operation requires projection completion.
+Canonical node documents selected by DOCUMENT persistence or effective searchability complete with the Model commit.
+NONE composes indexed nodes at query time. An optional ASYNC Graph projection can lag; its AWAIT mode or an
+operation-level `GraphProjectionCompletion.AWAIT` waits for affected stored projections. Waiting does not activate
+a projection in NONE.
 
 For an invariant over children, inject `Graph<Parent>` and inspect the required child scope. Empty collections count.
 An unambiguous typed parent ID needs no `@Association`; qualify only ambiguous targets or paths. Unused/value-only

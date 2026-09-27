@@ -188,7 +188,7 @@ JSON for search, return the complete Graph from a dedicated handler:
   </TabItem>
 </Tabs>
 
-Fluxzero writes only when at least one node's serialized type, revision or JSON changed. The returned Graph must retain
+Fluxzero writes only when at least one node's serialized type or revision evolved. A JSON-shape migration requires a revision change; changing JSON alone at the same type and revision does not trigger a rewrite. The returned Graph must retain
 the handled root, state boundary, nodes and placements. The operation changes only the derived projection: direct
 Models, their event histories, relationships and projection progress remain untouched. The Runtime compares the
 original manifest atomically, so a delayed handler cannot overwrite a newer projection; returning an already-current

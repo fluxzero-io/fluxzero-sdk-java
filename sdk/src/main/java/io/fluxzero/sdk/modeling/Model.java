@@ -224,7 +224,8 @@ public @interface Model {
     /**
      * Explicitly activates indexed current documents for this Model and, by default, its composed descendants.
      * A false value makes no independent request: an ancestor's searchable scope can still include this type.
-     * This required choice makes upgrades from the former persistence-driven search contract fail at compilation.
+     * Recompiled declarations must make this choice explicitly. Rebuild shared contract JARs as well: Java does not
+     * revalidate annotations in an already compiled dependency, which otherwise fails when its settings are read.
      */
     boolean searchable();
 

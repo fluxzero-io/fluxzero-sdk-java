@@ -106,6 +106,7 @@ io.fluxzero.sdk.modeling.Graph<T>
 io.fluxzero.sdk.modeling.GraphLookupPolicy
 io.fluxzero.sdk.modeling.GraphProjection
 io.fluxzero.sdk.modeling.GraphProjectionCompletion
+io.fluxzero.sdk.modeling.GraphProjectionMode
 io.fluxzero.sdk.modeling.GraphProperty
 io.fluxzero.sdk.modeling.HandlerRepository
 io.fluxzero.sdk.modeling.HasEntity
@@ -122,6 +123,7 @@ io.fluxzero.sdk.modeling.ModifiableEntity<T>
 io.fluxzero.sdk.modeling.NoOpEntity<T>
 io.fluxzero.sdk.modeling.Parent
 io.fluxzero.sdk.modeling.SearchParameters
+io.fluxzero.sdk.modeling.SearchSettings
 io.fluxzero.sdk.modeling.SideEffectFreeEntity<T>
 io.fluxzero.common.caching.AdaptiveObjectCache
 io.fluxzero.common.caching.Cache
@@ -263,6 +265,7 @@ io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator
 io.fluxzero.sdk.tracking.handling.HandleCommand
 io.fluxzero.sdk.tracking.handling.HandleCustom
 io.fluxzero.sdk.tracking.handling.HandleCustomFilter
+io.fluxzero.sdk.tracking.handling.DocumentSource
 io.fluxzero.sdk.tracking.handling.HandleDocument
 io.fluxzero.sdk.tracking.handling.HandleDocumentFilter
 io.fluxzero.sdk.tracking.handling.HandleError

@@ -223,9 +223,7 @@ void assertBillingOrder(
 
 ## Searching across relations
 
-For the direct Model searches below, add `ModelPersistence.DOCUMENT` alongside the default
-`ModelPersistence.EVENT_SOURCED` to the searched types and the related types whose contents are filtered.
-This setting is needed for direct document queries, not for navigating relationships. See the
+For the searches below, enable `searchable` on the result types and the related types whose contents are filtered, or include them in a searchable ancestor's composed scope. Ancestor-ID filtering needs only searchable result nodes and relationships; the ancestor itself need not be searchable. Persistence is a separate choice, and identity-based Graph navigation needs no search activation. See the
 [query guide](../model-query-guide) for the storage requirements.
 
 Current relation-backed search can match children using parent or grandparent documents:

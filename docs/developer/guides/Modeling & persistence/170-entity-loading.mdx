@@ -172,14 +172,13 @@ Background cache replay runs in that repository's configured application context
 Select document persistence to load the current model directly from its synchronously maintained document:
 
 ```java
-@Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
+@Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
 record Country(@EntityId CountryId countryId, CountryDetails details) {
 }
 ```
 
 This changes only the normal **load** strategy. Applied updates are still stored and published as events unless
-`eventPublication` or `publicationStrategy` says otherwise. The directly changed searchable document is visible when
-the model commit completes.
+`eventPublication` or `publicationStrategy` says otherwise. Its internal current-state document completes with the Model commit. Enable `searchable` separately when node or Graph queries are required.
 
 Document-based models participate in the same durable model-update tracking as event-sourced models, so caches in other
 SDK instances are invalidated or refreshed after remote commits.

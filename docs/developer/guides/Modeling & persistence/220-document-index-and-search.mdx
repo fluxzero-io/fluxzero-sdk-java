@@ -63,21 +63,19 @@ You can also specify the collection in which the object should be stored directl
 
 ## Model documents and searchable values
 
-Start ordinary domain state at `@Model(searchable = false)`. The examples below add a public direct document specifically for a list of
-user accounts across the application. Relationship-scoped search can instead use internal component documents from
-explicit composition paths; it does not always need `DOCUMENT`. See the central
+Start ordinary domain state at `@Model(searchable = false)`. The examples below enable `searchable` for a list of user accounts across the application. Node, relationship and Graph queries use the same canonical indexed documents. Neither `DOCUMENT` nor a composition path activates search. See the central
 [Model and Graph query matrix](../model-query-guide) for required configuration, available predicates and actual state.
 
 Other values use the document-store annotations that own automatic indexing:
 
-- `@Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`
+- `@Model(searchable = true)`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true)
     public record UserAccount(@EntityId UserId userId,
                               UserProfile profile,
                               boolean accountClosed) {
@@ -86,7 +84,7 @@ Other values use the document-store annotations that own automatic indexing:
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Model(searchable = true, persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
+    @Model(searchable = true)
     data class UserAccount(
         @EntityId val userId: UserId,
         val profile: UserProfile,
@@ -96,28 +94,23 @@ Other values use the document-store annotations that own automatic indexing:
   </TabItem>
 </Tabs>
 
-For Models, the default collection is the resolved logical Model name (simple class name unless `@Model.name` or
-`fluxzero.model.namePrefix` changes it). Other document types default to their simple class name. Configure
-a Model's direct document through its `document`; `@Stateful` and directly searchable values expose the `@Searchable`
-settings themselves:
+For Models, the default canonical collection is `$modelGraphComponents/<logical Model name>`; `@Model.name` and `fluxzero.model.namePrefix` determine that logical name. Other document types default to their simple class name. Configure a Model's collection and timestamp paths through `searchSettings`; `@Stateful` and directly searchable values expose the `@Searchable` settings themselves:
 
 <Tabs>
   <TabItem label="Java">
     ```java
     @Model(
-    searchable = true,
-    persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-    searchSettings = @SearchSettings(collection = "users", timestampPath = "profile/createdAt")
-)
+        searchable = true,
+        searchSettings = @SearchSettings(collection = "users", timestampPath = "profile/createdAt")
+    )
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
     @Model(
-    searchable = true,
-    persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT],
-    searchSettings = @SearchSettings(collection = "users", timestampPath = "profile/createdAt")
-)
+        searchable = true,
+        searchSettings = SearchSettings(collection = "users", timestampPath = "profile/createdAt")
+    )
     ```
   </TabItem>
 </Tabs>

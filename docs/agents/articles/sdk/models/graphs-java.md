@@ -37,6 +37,10 @@ to the line; deleting the product does not. Both relations support typed Graph n
 `pathInParent`, so it is not automatically included in a product's composed document. Leave off `@Parent` on
 `productId` instead when only the reference value is needed, without Graph navigation.
 
+Deleting the non-owning Product removes the active Graph edge but does not rewrite the surviving LineItem's
+`productId` field. A current Graph no longer exposes that parent. Record a replacement or cleared reference with an
+explicit domain action when required. Deleting Order removes LineItem, never Product through that child relation.
+
 `deleteOnParentDeletion = false` does **not** prevent the referenced Model from being deleted. Enforce a domain
 rule separately when deletion must be refused while references exist. `@Parent` is not an unrestricted foreign-key
 annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
@@ -306,8 +310,7 @@ a separate limit; there is no general automatic event-retention policy implied h
 
 ## Search and graph composition
 
-Read the central decision guide at `/docs/sdk/entities/graph-search` before selecting storage or query APIs. Its matrix covers plain event-sourced Models, explicit component paths, direct documents, reference-only
-documents and materialized Graphs, with executable Java/Kotlin query examples and state guarantees.
+Read the central decision guide at `/docs/sdk/entities/graph-search` before selecting storage or query APIs. Its matrix separates persistence, indexed node documents, live composition and optional stored Graphs, with Java/Kotlin query examples and coordinated upgrade requirements.
 
 Declare `@Model(searchable = true)` on the root to maintain canonical indexed nodes for it and its typed
 composition descendants. `pathInParent` only defines composition. Node and related-content queries use the same

@@ -48,9 +48,11 @@ sequenceDiagram
 
 ### Command Followed by Query
 
-For Models whose persistence set contains `DOCUMENT`, the direct document is part of Model-commit completion.
-A command followed by a direct Model query therefore reads committed state. Whole-Graph projections and documents
-written by event handlers remain asynchronous unless their own completion boundary is awaited.
+Canonical Model node documents selected by DOCUMENT persistence or effective searchability complete with the Model
+commit. Node searches therefore see directly committed searchable state; DOCUMENT alone does not activate search.
+NONE Graph queries compose indexed nodes on demand. Optional ASYNC projections and event-handler read models may
+lag; AWAIT mode or a completion override waits for affected enabled Graph projections. These reads are current-state
+queries, not historical or cross-query transaction snapshots.
 
 ---
 

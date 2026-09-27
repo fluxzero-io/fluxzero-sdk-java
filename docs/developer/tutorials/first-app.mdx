@@ -1085,7 +1085,7 @@ data class Project(@EntityId val id: ProjectId, val details: ProjectDetails, val
   </TabItem>
 </Tabs>
 
-With `searchable = true`, Fluxzero indexes each project and its composition descendants. GraphProjection AWAIT additionally maintains the composed search document. We can query it
+With `searchable = true`, Fluxzero indexes each project and its composition descendants. GraphProjection ASYNC additionally maintains the composed search document, which may lag behind current node state. We can query it
 with `searchGraph`. This view updates in the background; an identity-based load still gives you the accepted state immediately.
 
 

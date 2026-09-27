@@ -216,10 +216,10 @@ Use this tree to find the correct manual for your current task, ordered by the r
     `DepositMoney` command solely to see what changed. Use `Graph<T>` for history and relationship context.
 20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
     system that updates whenever source documents change.
-21. **The Consistency Window**: Direct Model documents selected by including `DOCUMENT` in the persistence set
-    complete with the Model commit. Materialized Graph
-    projections are asynchronous unless the operation selects `GraphProjectionCompletion.AWAIT`; unrelated handler
-    side effects remain eventually consistent.
+21. **The Consistency Window**: Canonical node documents selected by DOCUMENT persistence or effective searchability
+    complete with the Model commit. NONE Graph queries compose indexed nodes when read. Optional ASYNC projections
+    can lag; AWAIT mode or an operation-level `GraphProjectionCompletion.AWAIT` waits for affected stored projections.
+    Waiting does not activate a projection in NONE; unrelated handler side effects remain eventually consistent.
 22. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of
     messages asynchronously.
 23. **Model IDs**: Use `Fluxzero.generateId(...)` when creating new models or members. Do this in the **endpoint**

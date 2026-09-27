@@ -171,6 +171,8 @@ This is a coordinated 2.x contract change, not a rolling mixed-writer upgrade. S
 migration consumers and Graph subscribers. Upgrade all Runtime instances first, then rebuild every participating
 contract/application with an explicit `@Model(searchable = ...)`. Old `DocumentProjection`, `materializeGraph`,
 `HandleDocument.modelGraph` and `HandleDocument.modelState` declarations no longer compile.
+Rebuild shared contract JARs too: Java does not recheck an annotation inside a previously compiled dependency.
+An application may otherwise compile successfully and fail with an incomplete-annotation error when that Model is discovered.
 An old writer can re-register an aggregate definition after it was changed to NONE; do not run it alongside the new
 configuration. Reading old stored projection definitions remains supported (missing `storeGraph` means the old
 aggregate behavior); that is not permission to mix old and new writers.
