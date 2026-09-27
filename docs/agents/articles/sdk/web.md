@@ -1,5 +1,10 @@
 Use web handlers as transport adapters. Domain behavior should already exist as commands, queries, and tests. This page covers inbound application endpoints; use `/docs/sdk/web/outbound-requests` for third-party request/response calls, webhooks, credential masking, retry settings and the explicit native-transport alternative.
 
+The inbound HTTP proxy publishes requests and body chunks with `Guarantee.STORED`, using the SDK transport's
+acknowledgment and retry flow. Publication failures fail a still-pending HTTP response; a business response or request
+timeout does not wait for a storage acknowledgment. This adds no HTTP-level retry or exactly-once guarantee across
+Runtime replacement: keep externally visible effects replay-safe when an unconfirmed append is retried.
+
 ```java
 @Component
 @Path("/api/projects")
