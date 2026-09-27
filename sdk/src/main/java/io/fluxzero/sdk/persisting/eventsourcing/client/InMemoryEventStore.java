@@ -210,6 +210,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private ModelGraphProjectionMaterializer
             modelGraphProjectionMaterializer;
     private ModelCommitMaterializer modelCommitMaterializer;
+    private java.util.function.Consumer<Set<String>> modelErasureMaterializer = ignored -> { };
+    private final Map<String, PendingModelErasure> pendingModelErasures = new ConcurrentHashMap<>();
     private final Map<String, ModelDeletionResult>
             modelDeletions =
             new ConcurrentHashMap<>();
@@ -256,6 +258,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             materializer);
         }
         drainModelGraphProjections();
+    }
+
+    /** Links hard Model erasure to the owned search documents, snapshots and retained document messages. */
+    public void setModelErasureMaterializer(java.util.function.Consumer<Set<String>> materializer) {
+        synchronized (this) {
+            modelErasureMaterializer = Objects.requireNonNull(materializer);
+        }
     }
 
     /**
@@ -753,9 +762,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private long materializedModelStateIndex() {
-        return modelCommitMaterializations.values().stream()
-                .flatMap(pending -> pending.assignedUpdates().stream())
-                .mapToLong(ModelUpdate::getStateIndex)
+        return java.util.stream.LongStream.concat(
+                modelCommitMaterializations.values().stream()
+                        .flatMap(pending -> pending.assignedUpdates().stream()).mapToLong(ModelUpdate::getStateIndex),
+                pendingModelErasures.values().stream().mapToLong(PendingModelErasure::stateIndex))
                 .min()
                 .stream()
                 .map(stateIndex -> stateIndex - 1L)
@@ -952,7 +962,17 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public CompletableFuture<ModelDeletionResult> deleteModel(DeleteModel request) {
         var result = deleteModelSynchronized(request);
         notifyScheduleParentDeletions();
-        return result;
+        return result.thenApply(deleted -> {
+            PendingModelErasure pending = pendingModelErasures.get(request.getDeletionId());
+            if (pending != null) {
+                // Never call the search store while holding the event-store lock: Graph composition takes them
+                // in the opposite order. Retain pending work so a duplicate request can retry a failed cleanup.
+                modelErasureMaterializer.accept(pending.modelIds());
+                pendingModelErasures.remove(request.getDeletionId(), pending);
+            }
+            drainModelGraphProjections();
+            return deleted;
+        });
     }
 
     private synchronized CompletableFuture<ModelDeletionResult> deleteModelSynchronized(DeleteModel request) {
@@ -994,6 +1014,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                     modelStateIndex,
                                     request.getMaxDepth(),
                                     request.getMaxModels());
+            Map<String, Set<String>> affectedGraphRoots = new LinkedHashMap<>();
+            for (ModelGraphProjectionConfiguration configuration : modelGraphProjections.values()) {
+                if (!configuration.getComposition().isIncludeDescendants()) { continue; }
+                Set<String> roots = modelAncestorsAt(List.copyOf(selected), modelStateIndex,
+                        configuration.getComposition().getMaxDepth()).stream()
+                        .filter(id -> !selected.contains(id))
+                        .filter(id -> {
+                            ModelStreamHead head = modelHeads.get(id);
+                            return head != null && configuration.getRootModelType().equals(head.modelType());
+                        })
+                        .collect(Collectors.toUnmodifiableSet());
+                if (!roots.isEmpty()) { affectedGraphRoots.put(configuration.getCollection(), roots); }
+            }
             if (request.getCascade()
                 == ModelDeletionCascade.NONE) {
                 Set<String> children =
@@ -1097,6 +1130,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelStateIndex =
                             nextModelStateIndex();
             lastModelErasureIndex = deletionStateIndex;
+            pendingModelErasures.put(request.getDeletionId(), new PendingModelErasure(Set.copyOf(selected), deletionStateIndex));
+            modelGraphProjectionSignals.add(new ModelGraphProjectionSignal(
+                    deletionStateIndex, deletionStateIndex, List.of(), Map.copyOf(affectedGraphRoots)));
             selected.forEach(id -> invalidateScheduleParent(id, deletionStateIndex));
             relationshipReadPositions.keySet().removeIf(read -> selected.contains(read.modelId()));
             ModelDeletionResult result =
@@ -1246,6 +1282,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             synchronized (this) {
                 if (modelGraphProjectionDrainActive
                     || modelGraphProjectionMaterializer == null
+                    || !pendingModelErasures.isEmpty()
                     || !modelCommitMaterializations.isEmpty()) {
                     return;
                 }
@@ -1423,6 +1460,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             ModelGraphProjectionConfiguration
                     configuration,
             ModelGraphProjectionSignal signal) {
+        if (!signal.erasureRoots().isEmpty()) {
+            return configuration.getComposition().isIncludeDescendants()
+                    ? signal.erasureRoots().getOrDefault(configuration.getCollection(), Set.of()) : Set.of();
+        }
         LinkedHashSet<String> candidates =
                 new LinkedHashSet<>(
                         signal.modelIds());
@@ -2015,8 +2056,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private record ModelGraphProjectionSignal(
             long firstStateIndex,
             long lastStateIndex,
-            List<String> modelIds) {
+            List<String> modelIds, Map<String, Set<String>> erasureRoots) {
+        private ModelGraphProjectionSignal(long firstStateIndex, long lastStateIndex, List<String> modelIds) {
+            this(firstStateIndex, lastStateIndex, modelIds, Map.of());
+        }
     }
+
+    private record PendingModelErasure(Set<String> modelIds, long stateIndex) { }
 
     private record ModelGraphProjectionWaiter(
             AwaitModelGraphProjection request,

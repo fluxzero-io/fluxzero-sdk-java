@@ -123,6 +123,8 @@ public class InMemorySearchStore implements SearchClient {
     private final Map<String, SerializedDocument> documents = new ConcurrentHashMap<>();
     private final Map<String, DirectDocumentVersion> modelDocumentVersions =
             new ConcurrentHashMap<>();
+    private final Set<String> erasedModelTokens = ConcurrentHashMap.newKeySet();
+    private final Set<String> erasedModelDocumentTokens = ConcurrentHashMap.newKeySet();
     private final Map<String, SerializedDocument> adoptedModelSources =
             new ConcurrentHashMap<>();
     private final Set<String> adoptedModelIds =
@@ -940,7 +942,7 @@ public class InMemorySearchStore implements SearchClient {
                      targetIndex++) {
                     ModelCommitTarget target =
                             targets.get(targetIndex);
-                    if (excludedModelIds.contains(
+                    if (isErasedModel(target.getModelId()) || excludedModelIds.contains(
                             target.getModelId())) {
                         continue;
                     }
@@ -1036,6 +1038,55 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     /**
+     * Removes storage owned by hard-erased Models, retaining independently indexed read models with coincidental IDs.
+     * The fence also rejects delayed direct materialization and deferred document publications.
+     */
+    public synchronized void eraseModels(Set<String> modelIds) {
+        modelIds.stream().map(InMemorySearchStore::erasureToken).forEach(erasedModelTokens::add);
+        modelDocumentVersions.forEach((key, version) -> {
+            if (modelIds.contains(version.head().getModelId())) { erasedModelDocumentTokens.add(erasureToken(key)); }
+        });
+        documents.values().stream()
+                .filter(document -> ModelSnapshotMutation.COLLECTION.equals(document.getCollection()))
+                .filter(document -> document.getFacets().stream().anyMatch(facet ->
+                        ModelSnapshotMutation.MODEL_ID_FACET.equals(facet.getName()) && modelIds.contains(facet.getValue())))
+                .map(identifier).map(InMemorySearchStore::erasureToken).forEach(erasedModelDocumentTokens::add);
+        Set<String> removed = documents.entrySet().stream()
+                .filter(entry -> erasedModelDocumentTokens.contains(erasureToken(entry.getKey()))
+                        || ModelGraphDocumentManifest.from(entry.getValue()).map(this::containsErasedModel).orElse(false))
+                .map(Map.Entry::getKey).collect(java.util.stream.Collectors.toSet());
+        removed.forEach(key -> {
+            documents.remove(key);
+            documentIndices.remove(key);
+            modelGraphProjectionStateIndices.remove(key);
+        });
+        modelDocumentVersions.entrySet().removeIf(entry -> modelIds.contains(entry.getValue().head().getModelId()));
+        modelIds.forEach(id -> {
+            adoptedModelIds.remove(id);
+            adoptedModelSources.remove(id);
+        });
+        messageLogs.forEach((collection, log) -> log.removeIf(message -> erasedMessage(collection, message)));
+    }
+
+    private static String erasureToken(String value) {
+        return io.fluxzero.common.modeling.ModelRelationshipQueries.deletionFingerprint(
+                "model-search-erasure", io.fluxzero.common.api.modeling.ModelDeletionCascade.NONE, List.of(value));
+    }
+
+    private boolean isErasedModel(String modelId) {
+        return !erasedModelTokens.isEmpty() && erasedModelTokens.contains(erasureToken(modelId));
+    }
+
+    private boolean containsErasedModel(ModelGraphDocumentManifest manifest) {
+        return manifest.nodes().stream().anyMatch(node -> isErasedModel(node.id()));
+    }
+
+    private boolean erasedMessage(String collection, SerializedMessage message) {
+        return erasedModelDocumentTokens.contains(erasureToken(asIdentifier(collection, message.getMessageId())))
+                || ModelGraphDocumentManifest.from(message.getMetadata()).map(this::containsErasedModel).orElse(false);
+    }
+
+    /**
      * Synchronously materializes affected roots for the SDK-only graph-projection worker.
      */
     public void materializeModelGraphProjection(
@@ -1113,6 +1164,7 @@ public class InMemorySearchStore implements SearchClient {
                 new LinkedHashMap<>();
         List<SerializedMessage> tombstones = new ArrayList<>();
         for (String rootId : rootIds) {
+            if (isErasedModel(rootId)) { continue; }
             String projectionKey =
                     asIdentifier(
                             configuration
@@ -1454,7 +1506,9 @@ public class InMemorySearchStore implements SearchClient {
 
     protected void notifyMonitors(String collection, List<SerializedMessage> messages) {
         try {
-            monitors.forEach(m -> m.accept(collection, messages));
+            List<SerializedMessage> visible = erasedModelTokens.isEmpty() ? messages : messages.stream()
+                    .filter(message -> !erasedMessage(collection, message)).toList();
+            monitors.forEach(m -> m.accept(collection, visible));
         } finally {
             signalMonitors();
         }
@@ -1514,6 +1568,11 @@ public class InMemorySearchStore implements SearchClient {
             expired.forEach((index, message) ->
                     indexByMessageId.remove(message.getMessageId(), index));
             expired.clear();
+        }
+
+        synchronized void removeIf(Predicate<SerializedMessage> predicate) {
+            messagesByIndex.values().stream().filter(predicate).map(SerializedMessage::getIndex).toList()
+                    .forEach(this::remove);
         }
 
         synchronized boolean isEmpty() {

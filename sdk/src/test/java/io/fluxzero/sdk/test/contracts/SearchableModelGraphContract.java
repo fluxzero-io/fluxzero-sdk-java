@@ -371,6 +371,73 @@ public abstract class SearchableModelGraphContract {
     }
 
     @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void hardErasureRemovesNodeAndGraphSearchStateAndNotifiesSurvivingParents(GraphProjectionMode mode) {
+        try (var app = application(mode)) {
+            app.apply(fc -> {
+                GraphObserver observer = observer(mode);
+                var registration = fc.registerHandlers(observer);
+                try {
+                    Class<?> rootType = types(mode)[0], childType = types(mode)[1];
+                    var erased = fc.modelRepository().deleteModel("erase-child", "a",
+                            io.fluxzero.common.api.modeling.ModelDeletionCascade.NONE).join();
+                    var definition = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) fc.modelRepository())
+                            .graphSearchDefinition(rootType).orElseThrow();
+                    fc.client().getEventStoreClient().awaitModelGraphProjection(
+                            new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                                    definition.getCollection(), erased.getStateIndex())).join();
+                    assertFalse(Fluxzero.hasDocument("a", childType));
+                    assertEquals(2, Fluxzero.search(childType).fetchAll().size());
+                    Graph<?> parent = take(observer.roots, graph -> graph.id().equals("one")
+                            && graph.children(childType).size() == 1);
+                    assertEquals("b", parent.children(childType).getFirst().id());
+                    assertTrue(graphs(mode).match("open", "children/status").fetchAll().isEmpty());
+
+                    var plan = fc.modelRepository().planDeletion("one",
+                            io.fluxzero.common.api.modeling.ModelDeletionCascade.DESCENDANTS);
+                    var rootErased = fc.modelRepository().deleteModel("erase-root", plan).join();
+                    fc.client().getEventStoreClient().awaitModelGraphProjection(
+                            new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                                    definition.getCollection(), rootErased.getStateIndex())).join();
+                    assertFalse(Fluxzero.hasDocument("one", rootType));
+                    assertFalse(Fluxzero.hasDocument("b", childType));
+                    assertEquals(List.of("two"), graphs(mode).fetchAll().stream().map(Graph::id).toList());
+                    assertEquals(1, Fluxzero.search(childType).fetchAll().size());
+                } finally { registration.cancel(); }
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void selfOnlyGraphsDoNotChangeWhenAnExcludedChildIsHardErased(GraphProjectionMode mode) {
+        try (var app = application(mode, true)) {
+            app.apply(fc -> {
+                Class<?> rootType = types(mode, true)[0], childType = types(mode, true)[1];
+                fc.modelRepository().registerGraphProjection(rootType, false).join();
+                var definition = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) fc.modelRepository())
+                        .graphSearchDefinition(rootType).orElseThrow();
+                var client = fc.client().getEventStoreClient();
+                var registered = client.getModelGraphProjectionStatus(
+                        new io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus(definition.getCollection()));
+                client.awaitModelGraphProjection(new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                        definition.getCollection(), registered.getSourceStateIndex())).join();
+                var query = new io.fluxzero.common.api.search.GetDocument("one", definition.getCollection());
+                var before = fc.client().getSearchClient().fetch(query).orElseThrow();
+                var erased = fc.modelRepository().deleteModel("erase-child", "a",
+                        io.fluxzero.common.api.modeling.ModelDeletionCascade.NONE).join();
+                client.awaitModelGraphProjection(new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                        definition.getCollection(), erased.getStateIndex())).join();
+                assertFalse(Fluxzero.hasDocument("a", childType));
+                var after = fc.client().getSearchClient().fetch(query).orElseThrow();
+                assertEquals(io.fluxzero.common.search.ModelGraphDocumentManifest.from(before),
+                        io.fluxzero.common.search.ModelGraphDocumentManifest.from(after));
+                assertEquals(2, Fluxzero.searchGraph(rootType).fetchAll().size());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
     void graphConsumerRegistersAndHydratesInItsSelectedNamespace(GraphProjectionMode mode) throws Exception {
         try (var writer = application(mode);
              var consumer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()

@@ -91,6 +91,32 @@ class InMemoryEventStoreModelCommitTest {
                 new io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus("graphs")).isRebuilding());
     }
 
+    @Test
+    void hardErasureCleanupRunsOutsideTheModelLockAndRetriesBeforeAdvancingItsFence() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create"))
+                .targets(List.of(storedTarget("root"))).build())).join();
+        AtomicInteger calls = new AtomicInteger();
+        store.setModelErasureMaterializer(ids -> {
+            assertFalse(Thread.holdsLock(store), "Search cleanup must not invert the Graph composition lock order");
+            assertEquals(java.util.Set.of("root"), ids);
+            if (calls.incrementAndGet() == 1) { throw new IllegalStateException("cleanup unavailable"); }
+        });
+        var deletion = DeleteModel.builder().deletionId("erase").modelId("root")
+                .cascade(ModelDeletionCascade.NONE).maxDepth(1).maxModels(1).build();
+        assertThrows(CompletionException.class, () -> store.deleteModel(deletion).join());
+        var pending = store.trackModelUpdates(new TrackModelUpdates(-1L, 10, 0L, 0L)).join();
+        assertEquals(1L, pending.getCurrentStateIndex());
+        assertEquals(0L, pending.getMaterializedStateIndex());
+        assertTrue(store.deleteModel(deletion).join().isDuplicate());
+        assertEquals(2, calls.get());
+        assertEquals(1L, store.trackModelUpdates(new TrackModelUpdates(-1L, 10, 0L, 0L)).join()
+                .getMaterializedStateIndex());
+        assertThrows(CompletionException.class, () -> store.commitModels(commit("recreate", 1L,
+                ModelConflictPolicy.ACCEPT, ModelCommitStep.builder().event(event("recreate"))
+                        .targets(List.of(storedTarget("root"))).build())).join());
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void deletionLineageSurvivesSameStepTreeDeletion(boolean reverseOrder) {
