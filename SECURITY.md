@@ -1,9 +1,33 @@
-# Security
+# Security Policy
 
-Thank you for helping keep Fluxzero and its users safe.
+## Scope and supported versions
 
-Please do not open a public issue for a suspected vulnerability. Send it through [GitHub private vulnerability reporting](https://github.com/fluxzero-io/fluxzero-sdk-java/security/advisories/new) instead. The report does not need to be complete before you contact us.
+This is the default security policy for Fluxzero-owned repositories. A
+repository-specific security policy takes precedence.
 
-Share what you know. The affected version or component, possible impact, and a small reproduction are useful when available. Please remove secrets, personal data, and credentials from examples or logs.
+Security maintenance for actively maintained projects targets the current
+default branch and the latest published release, where releases exist. Older
+releases do not receive backports unless the repository explicitly says so.
 
-We will review the report and continue the conversation privately. For bugs that do not involve a security risk, use the public [bug report](https://github.com/fluxzero-io/fluxzero-sdk-java/issues/new?template=bug_report.yml).
+Archived repositories and retained historical examples are not supported for
+production use. Keeping a repository available is not a commitment to maintain
+historical versions. Reports about shared code that affects a maintained
+Fluxzero product are still welcome.
+
+For upstream projects mirrored or forked by Fluxzero, follow their published
+security policy for upstream vulnerabilities. Use the private channel below
+for Fluxzero-specific changes or when the affected Fluxzero repository is
+unclear.
+
+## Reporting a vulnerability
+
+Use the affected repository's **Security > Report a vulnerability** action when
+available. Otherwise report privately through the
+[Fluxzero security reporting channel](https://github.com/fluxzero-io/.github/security/advisories/new).
+Do not disclose an unpatched vulnerability in a public issue or pull request.
+
+Include the repository, affected version or commit, platform, expected impact,
+and a minimal reproduction. Do not include production secrets or customer data.
+Maintainers use the private advisory to coordinate triage, remediation, and
+responsible disclosure. This policy does not promise a response deadline or
+bug bounty.
