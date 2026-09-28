@@ -17,6 +17,7 @@ package io.fluxzero.sdk.common.websocket;
 import io.fluxzero.common.ConsistentHashing;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -46,7 +47,8 @@ import java.util.stream.IntStream;
  *
  * <p>
  * If a session is closed or unavailable, it is automatically replaced using the provided {@code sessionFactory}.
- * All sessions are closed when {@link #close()} is called.
+ * All registered sessions are closed when {@link #close()} is called. A connection attempt already in progress
+ * is closed when it completes after shutdown and is not published to the pool.
  *
  * <p><strong>Note:</strong> This class is used by Fluxzero WebSocket clients such as {@link AbstractWebsocketClient} to
  * manage their underlying connections to the Fluxzero Runtime.
@@ -97,6 +99,9 @@ public class SessionPool implements AutoCloseable {
     }
 
     protected WebsocketSession get(int index) {
+        if (shuttingDown.get()) {
+            throw new ClientClosedException();
+        }
         WebsocketSession session = sessionMap.get(index);
         if (!isClosed(session)) {
             return session;
@@ -109,25 +114,46 @@ public class SessionPool implements AutoCloseable {
                 }
                 s = sessionFactory.apply(s);
             }
-            sessionMap.put(index, s);
-            return s;
+            // Pair publication with close's snapshot, without holding this lock during connection establishment.
+            synchronized (shuttingDown) {
+                if (!shuttingDown.get()) {
+                    sessionMap.put(index, s);
+                    return s;
+                }
+            }
+            closeSession(s);
+            throw new ClientClosedException();
         }
     }
 
     @Override
     public void close() {
-        if (shuttingDown.compareAndSet(false, true)) {
-            synchronized (shuttingDown) {
-                sessionMap.values().forEach(session -> {
-                    if (!isClosed(session)) {
-                        try {
-                            session.close();
-                        } catch (Exception e) {
-                            log.warn("Failed to closed websocket session connected to endpoint {}. Reason: {}",
-                                     session.getRequestURI(), e.getMessage());
-                        }
-                    }
-                });
+        List<WebsocketSession> sessions;
+        synchronized (shuttingDown) {
+            if (!shuttingDown.compareAndSet(false, true)) {
+                return;
+            }
+            sessions = List.copyOf(sessionMap.values());
+            sessionMap.clear();
+        }
+        // Transport callbacks may re-enter the pool. Never invoke them while holding the lifecycle lock.
+        sessions.forEach(SessionPool::closeSession);
+    }
+
+    private static void closeSession(WebsocketSession session) {
+        if (!isClosed(session)) {
+            try {
+                session.close();
+            } catch (Exception e) {
+                log.warn("Failed to close websocket session connected to endpoint {}. Aborting transport.",
+                         session.getRequestURI(), e);
+                try {
+                    session.abort(new WebsocketCloseReason(
+                            WebsocketCloseReason.UNEXPECTED_CONDITION, "Failed to close client session"));
+                } catch (Exception abortFailure) {
+                    log.warn("Failed to abort websocket session connected to endpoint {}",
+                             session.getRequestURI(), abortFailure);
+                }
             }
         }
     }
