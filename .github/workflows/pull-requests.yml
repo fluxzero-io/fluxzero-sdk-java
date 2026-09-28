@@ -20,14 +20,17 @@ jobs:
       - name: Classify PR changes
         id: changes
         env:
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_MERGE: ${{ github.sha }}
-        run: python3 .github/scripts/classify-changes.py "$PR_BASE" "$PR_MERGE" >> "$GITHUB_OUTPUT"
+        run: |
+          # Event metadata may retain an older base after the target branch advances.
+          PR_BASE=$(git rev-parse "${PR_MERGE}^1")
+          python3 .github/scripts/classify-changes.py "$PR_BASE" "$PR_MERGE" >> "$GITHUB_OUTPUT"
+          echo "base=$PR_BASE" >> "$GITHUB_OUTPUT"
 
       - name: Validate documentation-only changes
         if: steps.changes.outputs.documentation_only == 'true'
         env:
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_BASE: ${{ steps.changes.outputs.base }}
           PR_MERGE: ${{ github.sha }}
         run: |
           git diff --check "$PR_BASE" "$PR_MERGE"
