@@ -124,10 +124,12 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - A request to fix or backport an issue on `1.x` normally ends with verified local commits or a PR, just like work on
   `main`. It does not by itself authorize merging the backport or publishing a maintenance patch.
 - The following release steps apply only after the user has authorized maintenance publication.
-- Keep `.github/release-major` at `1` on `1.x`. Choose an unused explicit patch version after inspecting the
-  latest published 1.x tag. Preserve protected-branch checks and release only the merged, qualified commit.
-- Trigger `Deploy` explicitly on `1.x` with that version; ordinary maintenance-branch pushes do not publish.
-  Run the release version and publication policy checks, including validation of any existing tag on reruns.
+- Keep `.github/release-major` at `1` on `1.x`. The release workflow chooses the next patch after the highest
+  reachable 1.x tag; explicit manual dispatch versions must also be 1.x patches. Preserve protected-branch checks
+  and release only the merged, qualified commit.
+- A non-documentation push to `1.x` starts `Deploy`. Obtain the release authorization required above before merging
+  or pushing to `1.x`; the automatic trigger does not grant that authorization. Run the release version and
+  publication policy checks, including validation of any existing tag on reruns.
 - Maintenance releases use package channel `1.x` and Javadoc destination `javadoc/1.x`. Never move the main
   `latest` image channel, mark a maintenance release as GitHub Latest, or dispatch the public SDK website update.
 - Verify the completed workflow, immutable tag, artifacts and release contents before reporting publication.
@@ -171,8 +173,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
   documentation text, documentation images and the agent graph manifest use lightweight PR validation, including
   graph and archive checks. Source resources, fixtures, scripts, configuration and mixed changes keep full SDK
   qualification. `.github/scripts/classify-changes.py` owns the exact boundary.
-- Ordinary pushes to `1.x` still do not publish or refresh the stable website. Versioned documentation and legacy
-  ZIPs incorporate edits at the next explicitly authorized maintenance release; existing artifacts stay immutable.
+- Documentation-only pushes to `1.x` validate without publishing or refreshing the stable website. Versioned
+  documentation and legacy ZIPs incorporate edits at the next explicitly authorized maintenance release; existing
+  artifacts stay immutable.
 - Use Conventional Commits with a clear domain scope for human-authored commits.
 - Format: `<type>(<domain>): <short imperative summary>`.
 - Good examples: `fix(tracking): avoid negative pause sleeps`, `refactor(handling): simplify payload resolver ordering`, `test(logging): cover async appender shutdown`.

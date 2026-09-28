@@ -45,6 +45,7 @@ assert_rejected next/2.0 "2.1.0-M1" 2
 assert_rejected next/2.0 "2.0.0-M1" 1
 assert_rejected 1.x "1.248.0" 1
 assert_rejected 1.x "2.0.1" 1
+assert_rejected 1.x "" 2
 assert_rejected main "2.0.0-M1" 2
 assert_rejected feature/example "2.0.0-M1" 2
 

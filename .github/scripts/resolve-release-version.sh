@@ -67,11 +67,15 @@ case "$branch" in
       echo "Branch 1.x must declare release major 1" >&2
       exit 1
     fi
-    if [[ ! "$requested_version" =~ ^1\.[0-9]+\.[1-9][0-9]*$ ]]; then
-      echo "Branch 1.x requires an explicit 1.x patch version" >&2
-      exit 1
+    if [[ -n "$requested_version" ]]; then
+      if [[ ! "$requested_version" =~ ^1\.[0-9]+\.[1-9][0-9]*$ ]]; then
+        echo "Branch 1.x requires a 1.x patch version" >&2
+        exit 1
+      fi
+      printf '%s\n' "$requested_version"
+    else
+      python3 "$(dirname -- "${BASH_SOURCE[0]}")/next-stable-version.py" "$release_major" --patch-only
     fi
-    printf '%s\n' "$requested_version"
     ;;
   *)
     echo "Releases are not allowed from branch '$branch'" >&2
