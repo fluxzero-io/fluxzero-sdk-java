@@ -2450,7 +2450,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Reloads an ACCEPT rebase while allowing an incomplete authoritative document to advance the exact boundary.\n Ordinary historical reads never enable this retry mode.\n"
+    "documentation" : " Reloads a conflict retry or ACCEPT rebase, waiting for pending document materialization and allowing an\n incomplete authoritative document to advance the exact boundary before mutation evaluation.\n Ordinary historical reads never enable this retry mode.\n"
   }, {
     "name" : "loadWithFallback",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadWithFallback",
