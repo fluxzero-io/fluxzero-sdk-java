@@ -25,7 +25,6 @@ assert_publication "$maintenance" 1.x 1.292.1 1 1.292.1
 assert_publication "$maintenance" 1.x '' 1 1.292.1
 assert_publication $'version=2.1.2\nprerelease=false\njavadoc_destination=javadoc\npackage_channel_tag=latest\nmake_latest=true\nnotify_site=true' main '' 2 2.1.2
 assert_publication $'version=2.0.0-RC1\nprerelease=true\njavadoc_destination=javadoc/2.0.0-RC1\npackage_channel_tag=2.0-prerelease\nmake_latest=false\nnotify_site=false' next/2.0 2.0.0-RC1 2
-assert_rejected 1.x '' 1
 assert_rejected 1.x 2.1.3 1
 assert_rejected 1.x 1.293.0 1
 assert_rejected 1.x 1.292.1 2

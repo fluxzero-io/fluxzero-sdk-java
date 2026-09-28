@@ -2,13 +2,13 @@ name: Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 1.x ]
     tags-ignore:
       - "[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
     inputs:
       version:
-        description: "Explicit version for next/2.0 or 1.x; leave empty only on main"
+        description: "Optional 1.x patch or required next/2.0 version; leave empty for automatic numbering"
         required: false
         default: ""
 
@@ -20,8 +20,51 @@ env:
   BUILD_ENVIRONMENT: github
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      documentation_only: ${{ steps.changes.outputs.documentation_only }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Classify pushed changes
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Explicit dispatch always retains the complete release path.
+          if [[ "$EVENT_NAME" != push || -z "$BASE" || "$BASE" =~ ^0+$ ]]; then
+            echo "documentation_only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # A push may contain several commits; never compare just HEAD's last commit.
+          if ! git cat-file -e "$BASE^{commit}"; then
+            git fetch --no-tags --depth=1 origin "$BASE"
+          fi
+          python3 .github/scripts/classify-changes.py "$BASE" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Validate documentation changes
+        if: steps.changes.outputs.documentation_only == 'true'
+        env:
+          BASE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          git diff --check "$BASE" "$HEAD_SHA"
+          python3 .github/scripts/classify-changes.test.py
+          python3 .github/scripts/validate-agent-docs.py
+          python3 .github/scripts/build-agent-docs.test.py
+          echo "Documentation validated; SDK compilation and release are unnecessary." >> "$GITHUB_STEP_SUMMARY"
+
   # Job 1: Build and test (must succeed before anything else)
   build-and-test:
+    needs: changes
+    if: needs.changes.outputs.documentation_only != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -59,6 +102,7 @@ jobs:
         run: |
           bash .github/scripts/resolve-release-version.test.sh
           bash .github/scripts/resolve-release-publication.test.sh
+          python3 .github/scripts/next-maintenance-version.test.py
 
       - name: Validate agent documentation graph
         run: |
