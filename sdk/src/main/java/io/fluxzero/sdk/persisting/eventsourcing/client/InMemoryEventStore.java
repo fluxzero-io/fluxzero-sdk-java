@@ -2177,6 +2177,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         }
 
         @Override
+        public boolean searchExcluded() {
+            return relationship.isSearchExcluded();
+        }
+
+        @Override
         public boolean deleteOnParentDeletion() {
             return relationship.isDeleteOnParentDeletion();
         }

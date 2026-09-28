@@ -515,6 +515,196 @@ public abstract class SearchableModelGraphContract {
         @io.fluxzero.sdk.persisting.eventsourcing.Apply public PolyChild apply(@jakarta.annotation.Nullable PolyChild previous) { return value; }
     }
 
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void parentSearchExclusionCutsSubtreeButRetainsIndependentSearchAndDomainGraph(GraphProjectionMode mode) {
+        try (var app = excludedApplication(mode)) {
+            app.apply(fc -> {
+                Class<?> rootType = excludedRoot(mode);
+                assertTrue(Fluxzero.searchGraph(rootType).match("branchneedle").fetchAll().isEmpty());
+                assertTrue(Fluxzero.searchGraph(rootType).match("leafneedle").fetchAll().isEmpty());
+                ObjectNode json = Fluxzero.searchGraph(rootType).fetch(1, ObjectNode.class).getFirst();
+                assertFalse(json.has("privateBranches"));
+                assertFalse(json.has("unindexed"));
+                var searchGraph = Fluxzero.searchGraph(rootType).fetchAll().getFirst();
+                assertTrue(searchGraph.children(ExcludedBranch.class).isEmpty());
+                String searchResponse = new String(assertInstanceOf(byte[].class,
+                        fc.serializer().serialize(searchGraph).getValue()), java.nio.charset.StandardCharsets.UTF_8);
+                assertFalse(searchResponse.contains("privateBranches"));
+                assertEquals(1, Fluxzero.search(ExcludedBranch.class).whereAncestor("root", rootType).count());
+                assertEquals(1, Fluxzero.search(ExcludedLeaf.class).whereAncestor("root", rootType).count());
+                assertEquals(1, Fluxzero.searchGraph(ExcludedBranch.class).match("leafneedle", "leaves/text").count());
+                assertEquals(1, Fluxzero.search(ExcludedBranch.class).whereParent(rootType, match("root", "id")).count());
+                assertEquals(0, Fluxzero.search(UnindexedBranch.class).count());
+                assertEquals(0, Fluxzero.search(UnindexedLeaf.class).count());
+                var domainGraph = Fluxzero.loadCurrentGraph("root", rootType);
+                assertEquals(1, domainGraph.children(ExcludedBranch.class).size());
+                assertEquals(1, domainGraph.children(ExcludedBranch.class).getFirst().children(ExcludedLeaf.class).size());
+                String response = new String(assertInstanceOf(byte[].class,
+                        fc.serializer().serialize(domainGraph).getValue()), java.nio.charset.StandardCharsets.UTF_8);
+                assertTrue(response.contains("leafneedle"));
+                assertTrue(response.contains("privateBranches"));
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void alternateIncludedParentStillComposesTheSameSubtree(GraphProjectionMode mode) {
+        try (var app = excludedApplication(mode)) {
+            app.apply(fc -> {
+                Class<?> rootType = excludedRoot(mode);
+                set(new ExcludedBranch("branch", "root", "root", "branchneedle"));
+                ObjectNode json = Fluxzero.searchGraph(rootType).fetch(1, ObjectNode.class).getFirst();
+                assertFalse(json.has("privateBranches"));
+                assertEquals("leafneedle", json.path("sharedBranches").get(0).path("leaves").get(0).path("text").asText());
+                assertEquals(1, Fluxzero.searchGraph(rootType).match("leafneedle").count());
+                set(new ExcludedBranch("branch", "root", null, "branchneedle"));
+                assertEquals(0, Fluxzero.searchGraph(rootType).match("leafneedle").count());
+                assertEquals(1, Fluxzero.loadCurrentGraph("root", rootType).children(ExcludedBranch.class).size());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void excludedWritesAndHardErasureDoNotInvalidateAncestorGraphDocuments(GraphProjectionMode mode) {
+        try (var app = excludedApplication(mode)) {
+            app.apply(fc -> {
+                Class<?> rootType = excludedRoot(mode);
+                ExcludedObserver observer = switch (mode) {
+                    case NONE -> new ExcludedLiveObserver();
+                    case ASYNC -> new ExcludedAsyncObserver();
+                    case AWAIT -> new ExcludedAwaitObserver();
+                };
+                var registration = fc.registerHandlers(observer);
+                try {
+                    fc.modelRepository().registerGraphProjection(rootType, false).join();
+                    var definition = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) fc.modelRepository())
+                            .graphSearchDefinition(rootType).orElseThrow();
+                    awaitProjection(fc, definition.getCollection());
+                    var query = new io.fluxzero.common.api.search.GetDocument("root", definition.getCollection());
+                    var before = fc.client().getSearchClient().fetch(query).orElseThrow();
+                    set(new ExcludedBranch("branch", "root", null, "changedbranch"));
+                    take(observer.branches, g -> g.get().toString().contains("changedbranch"));
+                    take(observer.events, g -> g.childModels(ExcludedBranch.class).stream()
+                            .anyMatch(v -> v.text().equals("changedbranch")));
+                    set(new ExcludedLeaf("leaf", "branch", "changedleaf"));
+                    take(observer.branches, g -> g.childModels(ExcludedLeaf.class).stream()
+                            .anyMatch(v -> v.text().equals("changedleaf")));
+                    take(observer.events, g -> g.children(ExcludedBranch.class).stream()
+                            .flatMap(branch -> branch.childModels(ExcludedLeaf.class).stream())
+                            .anyMatch(v -> v.text().equals("changedleaf")));
+                    awaitProjection(fc, definition.getCollection());
+                    assertEquals(io.fluxzero.common.search.ModelGraphDocumentManifest.from(before),
+                            io.fluxzero.common.search.ModelGraphDocumentManifest.from(
+                                    fc.client().getSearchClient().fetch(query).orElseThrow()));
+                    var plan = fc.modelRepository().planDeletion("branch",
+                            io.fluxzero.common.api.modeling.ModelDeletionCascade.DESCENDANTS);
+                    var erased = fc.modelRepository().deleteModel("erase-excluded", plan).join();
+                    fc.client().getEventStoreClient().awaitModelGraphProjection(
+                            new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                                    definition.getCollection(), erased.getStateIndex())).join();
+                    assertEquals(io.fluxzero.common.search.ModelGraphDocumentManifest.from(before),
+                            io.fluxzero.common.search.ModelGraphDocumentManifest.from(
+                                    fc.client().getSearchClient().fetch(query).orElseThrow()));
+                    assertEquals(0, Fluxzero.search(ExcludedLeaf.class).count());
+                } finally { registration.cancel(); }
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void excludedBranchesRetainCascadeDeletion(GraphProjectionMode mode) {
+        try (var app = excludedApplication(mode)) {
+            app.apply(fc -> {
+                set(excludedRoot(mode), "root", null);
+                assertTrue(Fluxzero.loadCurrentGraph("branch", ExcludedBranch.class).isEmpty());
+                assertTrue(Fluxzero.loadCurrentGraph("leaf", ExcludedLeaf.class).isEmpty());
+                assertTrue(Fluxzero.loadCurrentGraph("unindexed", UnindexedBranch.class).isEmpty());
+                assertTrue(Fluxzero.loadCurrentGraph("unindexed-leaf", UnindexedLeaf.class).isEmpty());
+                return null;
+            });
+        }
+    }
+
+    private static void awaitProjection(Fluxzero fc, String collection) {
+        var client = fc.client().getEventStoreClient();
+        var status = client.getModelGraphProjectionStatus(
+                new io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus(collection));
+        client.awaitModelGraphProjection(new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                collection, status.getSourceStateIndex())).join();
+    }
+
+    private Fluxzero excludedApplication(GraphProjectionMode mode) {
+        var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureGraphProjectionCompletion(GraphProjectionCompletion.AWAIT)
+                .build(client("excluded-parent-" + UUID.randomUUID()));
+        app.apply(fc -> {
+            // Test-only nested Models have no generated production catalog; include the abstract parent contract too.
+            ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) fc.modelRepository()).configureModelTypes(
+                    () -> List.of(PolyRoot.class, excludedRoot(mode), ExcludedBranch.class, ExcludedLeaf.class,
+                            UnindexedBranch.class, UnindexedLeaf.class));
+            set(excludedRoot(mode).getDeclaredConstructor(String.class).newInstance("root"));
+            set(new ExcludedBranch("branch", "root", null, "branchneedle"));
+            set(new ExcludedLeaf("leaf", "branch", "leafneedle"));
+            set(new UnindexedBranch("unindexed", "root"));
+            set(new UnindexedLeaf("unindexed-leaf", "unindexed"));
+            return null;
+        });
+        return app;
+    }
+
+    private static Class<?> excludedRoot(GraphProjectionMode mode) {
+        return switch (mode) {
+            case NONE -> PolyLiveRoot.class;
+            case ASYNC -> PolyAsyncRoot.class;
+            case AWAIT -> PolyAwaitRoot.class;
+        };
+    }
+
+    public static class ExcludedObserver {
+        final java.util.concurrent.BlockingQueue<Graph<?>> events = new java.util.concurrent.LinkedBlockingQueue<>();
+        final java.util.concurrent.BlockingQueue<Graph<?>> branches = new java.util.concurrent.LinkedBlockingQueue<>();
+        @io.fluxzero.sdk.tracking.handling.HandleDocument
+        void branch(Graph<ExcludedBranch> graph) { branches.add(graph); }
+    }
+    public static class ExcludedLiveObserver extends ExcludedObserver {
+        @io.fluxzero.sdk.tracking.handling.HandleEvent void root(Graph<PolyLiveRoot> graph) { events.add(graph); }
+    }
+    public static class ExcludedAsyncObserver extends ExcludedObserver {
+        @io.fluxzero.sdk.tracking.handling.HandleEvent void root(Graph<PolyAsyncRoot> graph) { events.add(graph); }
+    }
+    public static class ExcludedAwaitObserver extends ExcludedObserver {
+        @io.fluxzero.sdk.tracking.handling.HandleEvent void root(Graph<PolyAwaitRoot> graph) { events.add(graph); }
+    }
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
+    public record ExcludedBranch(@EntityId String id,
+            @Parent(value = PolyRoot.class, pathInParent = "privateBranches", searchable = false) String privateParent,
+            @Parent(value = PolyRoot.class, pathInParent = "sharedBranches") String sharedParent,
+            @Facet String text) { }
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+    public record ExcludedLeaf(@EntityId String id,
+            @Parent(value = ExcludedBranch.class, pathInParent = "leaves") String parent, @Facet String text) { }
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+    public record UnindexedBranch(@EntityId String id,
+            @Parent(value = PolyRoot.class, pathInParent = "unindexed", searchable = false) String parent) { }
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+    public record UnindexedLeaf(@EntityId String id,
+            @Parent(value = UnindexedBranch.class, pathInParent = "leaves") String parent) { }
+    public record SetExcludedBranch(String id, ExcludedBranch value) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply public ExcludedBranch apply(@jakarta.annotation.Nullable ExcludedBranch previous) { return value; }
+    }
+    public record SetExcludedLeaf(String id, ExcludedLeaf value) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply public ExcludedLeaf apply(@jakarta.annotation.Nullable ExcludedLeaf previous) { return value; }
+    }
+    public record SetUnindexedBranch(String id, UnindexedBranch value) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply public UnindexedBranch apply(@jakarta.annotation.Nullable UnindexedBranch previous) { return value; }
+    }
+    public record SetUnindexedLeaf(String id, UnindexedLeaf value) {
+        @io.fluxzero.sdk.persisting.eventsourcing.Apply public UnindexedLeaf apply(@jakarta.annotation.Nullable UnindexedLeaf previous) { return value; }
+    }
+
     private static Graph<?> take(java.util.concurrent.BlockingQueue<Graph<?>> values,
                                  java.util.function.Predicate<Graph<?>> predicate) throws InterruptedException {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(10);

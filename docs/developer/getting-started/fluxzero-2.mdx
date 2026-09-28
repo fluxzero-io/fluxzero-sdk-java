@@ -474,6 +474,13 @@ Relationship discovery, cascade ownership and output placement are separate sett
 | `@Parent(pathInParent = "tasks")` | Yes | Yes | `tasks` |
 | `@Parent(pathInParent = "tasks", deleteOnParentDeletion = false)` | Yes | No | `tasks` |
 
+To omit a branch only from ancestor **search** Graphs, declare
+`@Parent(pathInParent = "tasks", searchable = false)` (the same syntax works in Kotlin). This excludes the Task and
+its subtree in NONE, ASYNC and AWAIT and stops ancestor Graph-document notifications for that branch. Its own
+`@Model(searchable = true)` still enables independent Task search. Ordinary Graph navigation, event handling,
+response placement and cascade deletion are unchanged. Existing stored relations require an explicit policy
+migration before rebuilding projections; an annotation or value-only update alone does not migrate them.
+
 Recursive Model types are allowed; cycles between actual Model identities are rejected. Multiple candidate parents of the same type require an unambiguous selection; use the [association rules](#inject-models-from-message-properties).
 
 These are logical-deletion rules. [Physical erasure](#inspect-and-execute-a-physical-deletion-plan) has its own explicit scope, including retained relationship lineage. The remaining examples return to the original Project-only Task declaration.

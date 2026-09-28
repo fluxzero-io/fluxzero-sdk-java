@@ -54,6 +54,39 @@ class ModelSearchConfigurationTest {
                 roots.stream().map(EntityMetadata.GraphProjectionRoot::modelType).collect(java.util.stream.Collectors.toSet()));
     }
 
+    @Test
+    void excludedParentStopsSearchInheritanceButKeepsDomainComposition() {
+        var excluded = EntityMetadata.of(PrivateBranch.class);
+        org.junit.jupiter.api.Assertions.assertFalse(excluded.isSearchable());
+        org.junit.jupiter.api.Assertions.assertFalse(EntityMetadata.of(PrivateLeaf.class).isSearchable());
+        org.junit.jupiter.api.Assertions.assertTrue(excluded.participatesInGraphComposition());
+        org.junit.jupiter.api.Assertions.assertTrue(excluded.modelDocumentCollection().isEmpty());
+        org.junit.jupiter.api.Assertions.assertTrue(EntityMetadata.graphProjectionRoots(PrivateLeaf.class).isEmpty());
+        var catalog = EntityMetadata.of(CatalogParent.class).graphSearchConfiguration(
+                List.of(CatalogParent.class, PrivateBranch.class, PrivateLeaf.class), "").orElseThrow();
+        assertEquals(1, catalog.getModelRevisions().size());
+    }
+
+    @Test
+    void duplicatePathsKeepCascadeAndLetSearchExclusionWin() {
+        var relations = EntityMetadata.of(DuplicateBranch.class).parentRelationships(
+                "child", new DuplicateBranch("child", "parent", "parent"));
+        assertEquals(1, relations.size());
+        org.junit.jupiter.api.Assertions.assertTrue(relations.getFirst().searchExcluded());
+        org.junit.jupiter.api.Assertions.assertTrue(relations.getFirst().deleteOnParentDeletion());
+    }
+
+    @Model(searchable = false)
+    record PrivateBranch(@EntityId String id,
+            @Parent(value = CatalogParent.class, pathInParent = "private", searchable = false) String parent) { }
+    @Model(searchable = false)
+    record PrivateLeaf(@EntityId String id,
+            @Parent(value = PrivateBranch.class, pathInParent = "leaves") String parent) { }
+    @Model(searchable = true)
+    record DuplicateBranch(@EntityId String id,
+            @Parent(value = CatalogParent.class, pathInParent = "children", deleteOnParentDeletion = false) String first,
+            @Parent(value = CatalogParent.class, pathInParent = "children", searchable = false) String second) { }
+
     @Model(searchable = true, graphProjection = @GraphProjection(mode = GraphProjectionMode.AWAIT))
     interface CatalogParent { @EntityId String id(); }
     @Model(searchable = true, searchSettings = @SearchSettings(includeDescendants = false),

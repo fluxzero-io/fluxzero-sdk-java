@@ -22,6 +22,10 @@ default cascade ownership. Being displayed below or deleted with the parent does
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
 - For one polymorphic typed relation, use `@Parent(types = {Project.class, Folder.class}, ...) Id<?> parentId`; the
   concrete typed ID selects one statically declared parent type. Use separate properties for distinct relation roles.
+- `@Parent(searchable = false)` excludes that edge and its subtree from ancestor search Graphs and document
+  notifications. It preserves ordinary Graph navigation, event handling, response placement and deletion ownership;
+  the child's own `@Model(searchable = ...)` choice remains independent. Existing persisted edges need an explicit
+  policy migration; changing an annotation alone does not rewrite them.
 - `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set

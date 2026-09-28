@@ -117,6 +117,21 @@ public @interface Parent {
     String pathInParent() default "";
 
     /**
+     * Whether search Graphs may include this child and its descendants through this relationship.
+     * <p>
+     * Set to {@code false} to exclude this complete branch from ancestor search documents and Graph-document
+     * notifications, in every projection mode. Search activation is not inherited through an excluded edge.
+     * The child's own {@link Model#searchable()} choice, other parent edges, ordinary Graph navigation,
+     * response composition and deletion policy remain independent. This setting does not activate search by itself
+     * and has no effect on schedule ownership.
+     * <p>
+     * This policy is persisted with the relationship. Existing relationships retain their previous policy until
+     * explicitly rewritten; an annotation change or an ordinary value-only update does not rewrite them.
+     * Rebuild existing stored Graph projections after migrating the relationships.
+     */
+    boolean searchable() default true;
+
+    /**
      * Optional API documentation for the list-valued graph property at {@link #pathInParent()}.
      * <p>
      * The child item schema is inferred from the model that declares this parent reference. Nested path segments are

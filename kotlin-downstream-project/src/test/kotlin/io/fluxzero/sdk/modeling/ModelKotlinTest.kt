@@ -15,6 +15,18 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class ModelKotlinTest {
+    @Test
+    fun parentSearchExclusionIsIndependentOfModelSearch() {
+        val metadata = EntityMetadata.of(KotlinExcludedChild::class.java)
+        assertTrue(metadata.isSearchable)
+        assertTrue(metadata.participatesInGraphComposition())
+        assertEquals(false, metadata.parentReferences().single().searchable())
+    }
+
+    @Model(searchable = true)
+    data class KotlinExcludedChild(@EntityId val id: String,
+        @Parent(value = KotlinModel::class, pathInParent = "excluded", searchable = false) val parent: String)
+
     @ParameterizedTest
     @ValueSource(booleans = [false, true])
     fun embeddedMemberUpdatesUseKotlinCopyAndReplay(async: Boolean) {

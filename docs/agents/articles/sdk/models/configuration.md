@@ -3,6 +3,8 @@
 Choose `@Model(searchable = false)` for ordinary event-sourced state, or `searchable = true` for indexed node and
 Graph queries. Persistence, search activation and optional Graph precomputation are independent. Searchable roots
 include composed descendants by default; their local `searchable = false` does not veto inherited activation.
+Use `@Parent(searchable = false)` to block inherited activation and ancestor search composition through one edge,
+including its subtree. The child can still independently activate its own search Graph.
 
 Storage choices do not establish privacy. DOCUMENT plus effective `eventPublication = NEVER` supports
 eventless current state, not history or `previous()`. Non-searchable documents still support identity/relationship

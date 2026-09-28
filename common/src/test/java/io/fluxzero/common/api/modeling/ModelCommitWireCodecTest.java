@@ -42,6 +42,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void parentSearchExclusionPreservesLegacyWireDefaults() throws Exception {
+        var legacy = ModelRelationship.builder().parentId("parent").parentType("Project").path("children")
+                .deleteOnParentDeletion(true).build();
+        String wire = JsonUtils.writer.writeValueAsString(legacy);
+        assertFalse(wire.contains("searchExcluded"));
+        assertFalse(JsonUtils.reader.readValue(wire, ModelRelationship.class).isSearchExcluded());
+        var excluded = legacy.toBuilder().searchExcluded(true).build();
+        assertEquals(excluded, JsonUtils.reader.readValue(
+                JsonUtils.writer.writeValueAsString(excluded), ModelRelationship.class));
+    }
+
+    @Test
     void defaultMeansRetryWhileMissingLegacyWirePolicyKeepsItsMeaning() throws Exception {
         for (ModelConflictPolicy policy : new ModelConflictPolicy[]{null, ModelConflictPolicy.DEFAULT,
                 ModelConflictPolicy.RETRY, ModelConflictPolicy.FAIL, ModelConflictPolicy.ACCEPT}) {

@@ -75,6 +75,26 @@ Every writer must see the shared searchable parent contract, or explicitly activ
 parent behind a non-searchable polymorphic base is insufficient for independent child writers. Incomplete known
 scopes are rejected during catalog configuration. Missing writers or old data are not repaired by a query.
 
+## Excluding a branch from ancestor search Graphs
+
+Use `@Parent(pathInParent = "tasks", searchable = false)` to stop search composition at that edge.
+The Task and its complete subtree are absent from ancestor search documents in NONE, ASYNC and AWAIT, and their
+changes do not trigger those ancestor Graph-document subscriptions. The default is `true`.
+
+This is independent of `@Model(searchable = ...)`: a Task with its own `searchable = true` remains directly searchable
+and can expose its own Graph, including its children. A false Model setting does not veto inherited activation;
+a false **Parent** setting blocks inheritance and composition through that relationship. Another included parent
+edge can still expose the same Task. If two declarations resolve to the exact same parent/type/path, exclusion wins.
+
+Ordinary Graph navigation, domain/event Graphs, response serialization and deletion ownership retain the relationship
+and its path. Explicit relationship predicates, including ancestor-ID filters, still work for independently searchable
+nodes; the setting controls the composed search body, not which relationships exist. It is not an authorization rule.
+
+The edge policy is persisted. Old relationships without this flag retain inclusion. Changing the annotation,
+re-registering a projection or making a value-only update does not rewrite existing relationships: migrate their
+policy explicitly, then rebuild existing stored Graphs. Stop old writers during that migration. No automatic
+relationship-policy migration is provided.
+
 ## IDs and related content
 
 ```java
