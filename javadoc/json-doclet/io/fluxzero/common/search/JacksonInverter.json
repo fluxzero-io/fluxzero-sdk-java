@@ -29,6 +29,20 @@
     "documentation" : null,
     "constantValue" : "$metadata"
   }, {
+    "name" : "defaultSummary",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter.defaultSummary",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true",
+        "value" : "PRIVATE"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "objectMapper",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter.objectMapper",
     "type" : "com.fasterxml.jackson.databind.json.JsonMapper",
@@ -568,6 +582,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "summarizeEntries",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#summarizeEntries",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entries",
+      "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "summarizeMetadata",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#summarizeMetadata",
     "returnType" : "java.lang.String",
@@ -731,5 +761,17 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "DocumentBytes",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$DocumentBytes",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SearchSummarizer",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$SearchSummarizer",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

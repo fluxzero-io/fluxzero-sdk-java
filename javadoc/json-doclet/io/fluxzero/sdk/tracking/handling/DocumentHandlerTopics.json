@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Resolves the document topic selected by a {@link HandleDocument} handler.\n",
+  "documentation" : "Resolves the source, scope and document topic of a {@link HandleDocument} handler. ",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -22,14 +22,14 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "resolve",
-    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics#resolve",
-    "returnType" : "java.lang.String",
-    "modifiers" : [ "public", "static" ],
+    "name" : "documentType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics#documentType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
-      "name" : "handleDocument",
+      "name" : "annotation",
       "type" : "io.fluxzero.sdk.tracking.handling.HandleDocument",
       "varArgs" : false,
       "annotations" : [ ]
@@ -41,7 +41,86 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the explicit collection, materialized model-graph collection, document collection or inferred parameter\n collection selected by the handler, in that order.\n"
+    "documentation" : null
+  }, {
+    "name" : "graphType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics#graphType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandleDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Infers the one concrete Graph root, independently of context-parameter order. "
+  }, {
+    "name" : "modelSourceType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics#modelSourceType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandleDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Identifies canonical Model documents for single-state deserialization and guarded schema rewriting. "
+  }, {
+    "name" : "payloadType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics#payloadType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics#resolve",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandleDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves an explicit collection or the collection implied by the selected Model, Graph or document type. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

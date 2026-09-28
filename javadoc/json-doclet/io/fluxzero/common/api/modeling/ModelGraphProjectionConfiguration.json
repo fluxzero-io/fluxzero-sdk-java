@@ -8,7 +8,7 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   } ],
-  "documentation" : " Durable definition of one asynchronous materialized model-graph document.\n <p>\n The target collection is the projection identity within a namespace. It is intentionally distinct from the root's\n current-document source so asynchronous graph writes cannot weaken synchronous current-state consistency.\n",
+  "documentation" : " Durable definition of a logical Graph update stream, optionally storing its complete composition.\n <p>\n The target collection is the projection identity within a namespace. It is intentionally distinct from the root's\n current-document source so asynchronous graph writes cannot weaken synchronous current-state consistency.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -59,6 +59,14 @@
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : " Stable application-scoped logical Model name of projection roots.\n",
+    "constantValue" : null
+  }, {
+    "name" : "storeGraph",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.storeGraph",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Whether to store the composed Graph, or only a durable invalidation for live composition. ",
     "constantValue" : null
   } ],
   "constructors" : [ {
@@ -128,6 +136,16 @@
         "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
         "values" : {
           "value" : "pathOverrides"
+        }
+      } ]
+    }, {
+      "name" : "storeGraph",
+      "type" : "java.lang.Boolean",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "storeGraph"
         }
       } ]
     } ],

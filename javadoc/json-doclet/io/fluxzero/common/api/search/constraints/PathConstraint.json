@@ -136,6 +136,27 @@
     "varArgs" : false,
     "documentation" : " Evaluates whether the specified document entry satisfies the condition defined by this method's implementation.\n\n @param entry the document entry to evaluate\n @return {@code true} if the entry satisfies the condition; {@code false} otherwise\n"
   }, {
+    "name" : "matchesPath",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.PathConstraint#matchesPath",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "io.fluxzero.common.search.Document.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks document-specific path eligibility in addition to the requested path pattern. Subclasses that perform\n text matching also exclude paths marked by {@link io.fluxzero.common.search.SearchExclude}.\n"
+  }, {
     "name" : "withPaths",
     "qualifiedName" : "io.fluxzero.common.api.search.constraints.PathConstraint#withPaths",
     "returnType" : "io.fluxzero.common.api.search.Constraint",

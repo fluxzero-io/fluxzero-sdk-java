@@ -27,6 +27,17 @@
     "documentation" : " Sentinel indicating that a composition dimension has no configured maximum.\n",
     "constantValue" : -1
   }, {
+    "name" : "includeDescendants",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelGraphComposition.includeDescendants",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : "Whether to include descendants. False returns only the root while retaining a Graph result. ",
+    "constantValue" : null
+  }, {
     "name" : "maxBytes",
     "qualifiedName" : "io.fluxzero.common.api.search.ModelGraphComposition.maxBytes",
     "type" : "long",
@@ -111,6 +122,11 @@
     }, {
       "name" : "maxBytes",
       "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDescendants",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

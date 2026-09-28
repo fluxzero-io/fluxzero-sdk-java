@@ -18,7 +18,7 @@
       "value" : "RUNTIME"
     }
   } ],
-  "documentation" : " Configures an asynchronous materialized search document containing a complete model graph.\n <p>\n Configure this through {@link Model#graphProjection()} and enable it with {@link Model#materializeGraph()}. Without\n an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model collection when the\n root has a direct document, or to the resolved logical Model name otherwise. An explicit collection remains available when\n that durable public search contract needs a custom name.\n",
+  "documentation" : " Optional precomputation of a searchable Model's complete Graph. Searchability and descendant scope are owned by\n {@link Model#searchable()} and {@link Model#searchSettings()}; these settings alone do not activate search.\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],
@@ -34,18 +34,18 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Distinct collection receiving materialized graph documents. Blank derives from the public direct-model collection\n when enabled, or from the resolved logical root-model name otherwise.\n"
+    "documentation" : " Distinct collection receiving materialized Graph documents. Blank derives from the explicitly configured canonical\n node collection, or from the resolved logical root-model name when no node collection is configured.\n"
   }, {
-    "name" : "completion",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjection#completion",
-    "returnType" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+    "name" : "mode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjection#mode",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphProjectionMode",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Default result-completion behavior for commits affecting this root projection.\n"
+    "documentation" : " Whether to store the composed Graph and whether commits wait for it.\n"
   }, {
     "name" : "pathOverrides",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjection#pathOverrides",

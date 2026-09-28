@@ -5,7 +5,7 @@
   "kind" : "record",
   "modifiers" : [ "final", "public", "static" ],
   "annotations" : [ ],
-  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n",
+  "documentation" : " One outgoing parent relationship declared by a child model.\n\n @param pathInParent    optional parent-relative automatic composition path\n @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID\n @param apiDoc          optional documentation for the list-valued automatic composition path\n @param searchable     whether ancestor search composition may traverse this edge\n @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
@@ -49,6 +49,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "searchable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference.searchable",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ParentReference",
@@ -78,6 +86,11 @@
       "annotations" : [ ]
     }, {
       "name" : "deleteOnParentDeletion",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "searchable",
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
@@ -239,6 +252,28 @@
     "varArgs" : false,
     "documentation" : "Returns the parent's exact persisted identity for a functional parent ID value. "
   }, {
+    "name" : "searchable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#searchable",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchableComposition",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#searchableComposition",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this edge participates in search composition and inherited search activation. "
+  }, {
     "name" : "supports",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#supports",
     "returnType" : "boolean",
@@ -290,6 +325,11 @@
   }, {
     "name" : "property",
     "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "searchable",
+    "type" : "boolean",
     "annotations" : [ ],
     "documentation" : null
   } ],

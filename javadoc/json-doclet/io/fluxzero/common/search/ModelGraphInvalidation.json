@@ -1,0 +1,70 @@
+{
+  "name" : "ModelGraphInvalidation",
+  "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Small durable root notification. It contains no Model content or descendants. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "INVERTER",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation.INVERTER",
+    "type" : "io.fluxzero.common.search.JacksonInverter",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "METADATA_KEY",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation.METADATA_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Marks a notification that must be hydrated from the current canonical node documents. ",
+    "constantValue" : "$fluxzeroModelGraphLive"
+  } ],
+  "constructors" : [ {
+    "name" : "ModelGraphInvalidation",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation#ModelGraphInvalidation",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "create",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation#create",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "root",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Captures the root identity and invalidation boundary without copying any of its content. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

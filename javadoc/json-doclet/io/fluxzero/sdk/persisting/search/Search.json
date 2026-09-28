@@ -920,7 +920,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Skips the first N results.\n"
+    "documentation" : " Skips the first N results of this search, once. Internal transport continuation pages do not repeat the offset.\n"
   }, {
     "name" : "sortBy",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortBy",

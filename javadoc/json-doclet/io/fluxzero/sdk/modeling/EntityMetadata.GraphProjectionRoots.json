@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "polymorphic",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$GraphProjectionRoots.polymorphic",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "values",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$GraphProjectionRoots.values",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.GraphProjectionRoot>",
@@ -44,6 +52,11 @@
       "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.GraphProjectionRoot>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "polymorphic",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -59,6 +72,27 @@
     "parameters" : [ {
       "name" : "o",
       "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasPolymorphicParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$GraphProjectionRoots#hasPolymorphicParent",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visited",
+      "type" : "java.util.Set<java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -93,7 +127,28 @@
       "type" : "java.util.Set<java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "ancestor",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "knownModelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "polymorphic",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$GraphProjectionRoots#polymorphic",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -122,6 +177,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "polymorphic",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "values",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.GraphProjectionRoot>",
     "annotations" : [ ],

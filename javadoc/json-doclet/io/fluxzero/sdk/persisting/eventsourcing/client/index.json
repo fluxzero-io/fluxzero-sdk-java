@@ -65,6 +65,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$MutableModelRelationship",
     "kind" : "class"
   }, {
+    "file" : "InMemoryEventStore.PendingModelErasure.json",
+    "name" : "InMemoryEventStore.PendingModelErasure",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$PendingModelErasure",
+    "kind" : "record"
+  }, {
     "file" : "InMemoryEventStore.PendingModelMaterialization.json",
     "name" : "InMemoryEventStore.PendingModelMaterialization",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$PendingModelMaterialization",

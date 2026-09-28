@@ -10,6 +10,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "definitions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.definitions",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "graphDefinitions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.graphDefinitions",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "graphTopics",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.graphTopics",
     "type" : "java.util.Set<java.lang.String>",
@@ -21,6 +37,14 @@
     "name" : "registrations",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.registrations",
     "type" : "java.util.Map<java.lang.String,java.lang.Integer>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "searchClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.searchClient",
+    "type" : "java.util.function.Supplier<io.fluxzero.sdk.persisting.search.client.SearchClient>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -52,6 +76,21 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "DocumentMessageReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#DocumentMessageReader",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchClient",
+      "type" : "java.util.function.Supplier<io.fluxzero.sdk.persisting.search.client.SearchClient>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Binds live Graph hydration to the owning client and consumer namespace. "
   } ],
   "methods" : [ {
     "name" : "graphSource",
@@ -69,6 +108,48 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "hydrate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#hydrate",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isLiveGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#isLiveGraph",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Live compositions are observational and must never be persisted as a handler return side effect. "
   }, {
     "name" : "read",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#read",
@@ -96,6 +177,37 @@
     "varArgs" : false,
     "documentation" : "Reads a batch; topics without typed Graph handlers retain the original serializer stream. "
   }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#read",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads using the explicit consumer namespace while retaining this reader's registration-scoped definitions. "
+  }, {
     "name" : "readsGraphs",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#readsGraphs",
     "returnType" : "boolean",
@@ -111,6 +223,43 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Whether this collection needs the original composition alongside its logical document payload. "
+  }, {
+    "name" : "readsModelDocuments",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#readsModelDocuments",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this topic requires a single canonical Model state or the original Graph representation. "
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#register",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "filter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Records accepted typed Graph and Model-source methods until the returned registration is cancelled. "
   }, {
     "name" : "register",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#register",
@@ -128,10 +277,15 @@
       "type" : "io.fluxzero.common.handling.HandlerFilter",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Records accepted typed Graph and Model-source methods until the returned registration is cancelled. "
+    "documentation" : "Registers durable notifications in the same namespace as the document consumer. "
   }, {
     "name" : "usesSerializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#usesSerializer",
@@ -159,6 +313,12 @@
   "nestedTypes" : [ {
     "name" : "GraphSource",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$GraphSource",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "LiveGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$LiveGraph",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]

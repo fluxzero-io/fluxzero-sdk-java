@@ -1173,6 +1173,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withoutHistory",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#withoutHistory",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Marks a live indexed view as having no retained previous Graph snapshot, including its descendants. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

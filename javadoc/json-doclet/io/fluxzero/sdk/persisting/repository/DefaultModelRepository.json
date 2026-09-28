@@ -225,6 +225,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "sourceCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.sourceCollections",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,java.util.Optional<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DefaultModelRepository",
@@ -1058,6 +1066,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "graphSearchDefinition",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#graphSearchDefinition",
+    "returnType" : "java.util.Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves search composition with this repository's model catalog and application properties. "
   }, {
     "name" : "graphStagedValues",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#graphStagedValues",
@@ -2535,6 +2559,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "modelSourceCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#modelSourceCollection",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves the canonical Model source using this repository's application properties. "
+  }, {
     "name" : "modelType",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#modelType",
     "returnType" : "java.lang.Class<?>",
@@ -3104,6 +3144,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Whether two repository views address the same application-owned Model state and exact namespace. "
+  }, {
+    "name" : "sourceCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#sourceCollection",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "supplyCurrentModel",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#supplyCurrentModel",

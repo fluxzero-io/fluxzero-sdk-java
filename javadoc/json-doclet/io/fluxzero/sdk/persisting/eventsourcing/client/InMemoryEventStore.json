@@ -90,6 +90,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelErasureMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelErasureMaterializer",
+    "type" : "java.util.function.Consumer<java.util.Set<java.lang.String>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelGraphProjectionDrainActive",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionDrainActive",
     "type" : "boolean",
@@ -122,9 +130,17 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelGraphProjectionRebuildGeneration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionRebuildGeneration",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelGraphProjectionRebuilds",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionRebuilds",
-    "type" : "java.util.Set<java.lang.String>",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -253,6 +269,14 @@
     "name" : "modelUpdates",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelUpdates",
     "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelUpdate>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pendingModelErasures",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.pendingModelErasures",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.PendingModelErasure>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -881,6 +905,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "invalidateModelGraphSchema",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#invalidateModelGraphSchema",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retains affected projection rebuilds when a source schema changes without a Model commit. "
+  }, {
     "name" : "invalidateScheduleParent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#invalidateScheduleParent",
     "returnType" : "void",
@@ -1416,6 +1456,22 @@
     "varArgs" : false,
     "documentation" : " Links the SDK-only event store to the direct in-memory model materializer.\n"
   }, {
+    "name" : "setModelErasureMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelErasureMaterializer",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "materializer",
+      "type" : "java.util.function.Consumer<java.util.Set<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Links hard Model erasure to the owned search documents, snapshots and retained document messages. "
+  }, {
     "name" : "setModelGraphProjectionMaterializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelGraphProjectionMaterializer",
     "returnType" : "void",
@@ -1700,6 +1756,12 @@
     "name" : "MutableModelRelationship",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$MutableModelRelationship",
     "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PendingModelErasure",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$PendingModelErasure",
+    "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {

@@ -22,6 +22,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "afterRootSelection",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentSearch#afterRootSelection",
+    "returnType" : "io.fluxzero.common.api.search.SearchDocuments",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "search",
+      "type" : "io.fluxzero.common.api.search.SearchDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retains result field selection after the database has applied filtering, order and root pagination. "
+  }, {
     "name" : "apply",
     "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentSearch#apply",
     "returnType" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
@@ -42,6 +58,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Applies the complete search request to already composed graph documents.\n"
+  }, {
+    "name" : "canPageRoots",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentSearch#canPageRoots",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.SearchModelGraphDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether ordinary document search can select and page the roots before loading descendants. "
   }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentSearch#matches",

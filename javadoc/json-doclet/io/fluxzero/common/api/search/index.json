@@ -325,6 +325,11 @@
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument",
     "kind" : "class"
   }, {
+    "file" : "SerializedDocument.SuppliedData.json",
+    "name" : "SerializedDocument.SuppliedData",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData",
+    "kind" : "record"
+  }, {
     "file" : "SortableEntry.json",
     "name" : "SortableEntry",
     "qualifiedName" : "io.fluxzero.common.api.search.SortableEntry",

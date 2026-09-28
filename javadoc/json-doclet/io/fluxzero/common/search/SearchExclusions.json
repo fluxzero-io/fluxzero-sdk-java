@@ -1,0 +1,113 @@
+{
+  "name" : "SearchExclusions",
+  "qualifiedName" : "io.fluxzero.common.search.SearchExclusions",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Sparse field exclusions for text search, encoded as ordinary internal document metadata.\n The binary document format and retained property values remain unchanged. Documents written before this\n information was available retain summary-based matching until they are reindexed from their typed values.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "METADATA_KEY",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions.METADATA_KEY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Reserved metadata key mapping concrete, escaped document paths to {@code true}. ",
+    "constantValue" : "$searchExcluded"
+  }, {
+    "name" : "PATH",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions.PATH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "PREFIX",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions.PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "TRUE",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions.TRUE",
+    "type" : "io.fluxzero.common.search.Document.Entry",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchExclusions",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions#SearchExclusions",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addTo",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions#addTo",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entries",
+      "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "excludedPaths",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds excluded raw paths using the existing binary document metadata representation. "
+  }, {
+    "name" : "isMetadataPath",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions#isMetadataPath",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "io.fluxzero.common.search.Document.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether a path belongs to the internal exclusion metadata rather than user content. "
+  }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions#read",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entries",
+      "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads concrete excluded paths without reconstructing the document body or all of its metadata. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

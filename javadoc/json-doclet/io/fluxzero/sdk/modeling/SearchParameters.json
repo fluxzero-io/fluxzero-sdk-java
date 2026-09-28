@@ -93,7 +93,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Resolves the effective search configuration for a model or searchable document type.\n\n <p>Models own their direct-document projection through {@link Model#document()}; other document types continue\n to use {@link Searchable}. An unspecified collection resolves to the simple name for an ordinary document and\n the resolved logical name for a Model.</p>\n"
+    "documentation" : " Resolves the effective search configuration for a model or searchable document type.\n\n <p>Models own their direct-document projection through {@link Model#searchSettings()}; other document types continue\n to use {@link Searchable}. An unspecified collection resolves to the simple name for an ordinary document and\n the resolved logical name for a Model.</p>\n"
   }, {
     "name" : "substituteProperties",
     "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters#substituteProperties",

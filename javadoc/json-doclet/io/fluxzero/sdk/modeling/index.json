@@ -165,11 +165,6 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.DirectModelUpdate$Target",
     "kind" : "class"
   }, {
-    "file" : "DocumentProjection.json",
-    "name" : "DocumentProjection",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection",
-    "kind" : "annotation_type"
-  }, {
     "file" : "Entity.json",
     "name" : "Entity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Entity",
@@ -398,6 +393,11 @@
     "file" : "GraphProjectionCompletion.json",
     "name" : "GraphProjectionCompletion",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+    "kind" : "enum"
+  }, {
+    "file" : "GraphProjectionMode.json",
+    "name" : "GraphProjectionMode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode",
     "kind" : "enum"
   }, {
     "file" : "GraphProperty.json",
@@ -904,6 +904,11 @@
     "name" : "SearchParameters",
     "qualifiedName" : "io.fluxzero.sdk.modeling.SearchParameters",
     "kind" : "class"
+  }, {
+    "file" : "SearchSettings.json",
+    "name" : "SearchSettings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.SearchSettings",
+    "kind" : "annotation_type"
   }, {
     "file" : "SideEffectFreeEntity.json",
     "name" : "SideEffectFreeEntity",

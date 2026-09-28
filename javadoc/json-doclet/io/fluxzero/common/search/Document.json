@@ -102,6 +102,26 @@
     "documentation" : " Revision number for version control or optimistic concurrency.\n",
     "constantValue" : null
   }, {
+    "name" : "searchExcludedPaths",
+    "qualifiedName" : "io.fluxzero.common.search.Document.searchExcludedPaths",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true",
+        "value" : "PRIVATE"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "sortables",
     "qualifiedName" : "io.fluxzero.common.search.Document.sortables",
     "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
@@ -245,7 +265,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Filters document entries by a {@link Path} predicate.\n"
+    "documentation" : " Filters document entries by a {@link Path} predicate, retaining internal search exclusions so that\n subsequent matching cannot make an excluded property searchable.\n"
   }, {
     "name" : "getEnd",
     "qualifiedName" : "io.fluxzero.common.search.Document#getEnd",
@@ -319,6 +339,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retrieves the summary of the document or {@code null} if no summary is available.\n <p>\n A summary describes the document contents as a single string concatenating all property values.\n"
+  }, {
+    "name" : "isSearchablePath",
+    "qualifiedName" : "io.fluxzero.common.search.Document#isSearchablePath",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "io.fluxzero.common.search.Document.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this concrete property path participates in text matching. Excluded values remain available\n for deserialization, existence and range constraints, facets, and sorting.\n"
   }, {
     "name" : "parseSortInstruction",
     "qualifiedName" : "io.fluxzero.common.search.Document#parseSortInstruction",

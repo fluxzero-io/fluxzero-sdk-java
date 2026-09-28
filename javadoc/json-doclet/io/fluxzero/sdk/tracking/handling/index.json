@@ -55,6 +55,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics",
     "kind" : "class"
   }, {
+    "file" : "DocumentSource.json",
+    "name" : "DocumentSource",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource",
+    "kind" : "enum"
+  }, {
     "file" : "HandleCommand.json",
     "name" : "HandleCommand",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCommand",

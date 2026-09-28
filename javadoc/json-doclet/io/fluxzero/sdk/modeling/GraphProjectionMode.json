@@ -1,0 +1,81 @@
+{
+  "name" : "GraphProjectionMode",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Storage and completion policy for the optional composed Graph document. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.GraphProjectionMode>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "GraphProjectionMode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode#GraphProjectionMode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "completion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode#completion",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Completion policy for Graph update processing. A NONE Graph subscription stores only invalidation markers;\n ordinary NONE queries do not register a notification stream. "
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphProjectionMode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode#values",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphProjectionMode[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ASYNC",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC",
+    "annotations" : [ ],
+    "documentation" : "Also maintain the composed Graph asynchronously. "
+  }, {
+    "name" : "AWAIT",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode.AWAIT",
+    "annotations" : [ ],
+    "documentation" : "Also maintain the composed Graph and wait for affected projections at commit completion. "
+  }, {
+    "name" : "NONE",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode.NONE",
+    "annotations" : [ ],
+    "documentation" : "Keep only the indexed node documents; assemble Graph results when read. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,65 @@
+{
+  "name" : "DocumentSource",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "The maintained representation observed by a {@link HandleDocument} handler. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.tracking.handling.DocumentSource>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "DocumentSource",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource#DocumentSource",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource#valueOf",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.DocumentSource",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource#values",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.DocumentSource[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "MODEL_STATE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE",
+    "annotations" : [ ],
+    "documentation" : "Internal current Model state, including DOCUMENT Models that are not searchable. "
+  }, {
+    "name" : "SEARCH",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource.SEARCH",
+    "annotations" : [ ],
+    "documentation" : "Searchable Model nodes, logical Model Graphs, and ordinary read-model documents. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -114,6 +114,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "searchable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata.searchable",
+    "type" : "java.lang.Boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "selfReferentialMember",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata.selfReferentialMember",
     "type" : "java.lang.Boolean",
@@ -309,7 +317,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Returns the independent document projection's configured collection. "
+    "documentation" : "Returns the canonical Model source collection, shared with node search when enabled. "
   }, {
     "name" : "entityId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#entityId",
@@ -348,6 +356,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns the functional value held by this type's {@link EntityId} property. "
+  }, {
+    "name" : "graphComposition",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#graphComposition",
+    "returnType" : "io.fluxzero.common.api.search.ModelGraphComposition",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Scope of a Graph query rooted here, independent of the root's inherited activation. "
   }, {
     "name" : "graphModelRevisions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#graphModelRevisions",
@@ -433,6 +452,69 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns every materialized projection root reachable through this model's typed parent relationships. "
+  }, {
+    "name" : "graphProjectionRoots",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#graphProjectionRoots",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.GraphProjectionRoot>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "knownModelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Includes registered concrete alternatives of polymorphic parent contracts, recursively through their ancestors.\n The result is a conservative type set; the Runtime selects actual affected roots from the changed Model IDs.\n"
+  }, {
+    "name" : "graphProjectionRoots",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#graphProjectionRoots",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.GraphProjectionRoot>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "knownModelTypes",
+      "type" : "java.util.function.Supplier<? extends java.util.Collection<java.lang.Class<?>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Avoids fetching or copying the application catalog for the usual final, statically declared parent types. "
+  }, {
+    "name" : "graphSearchConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#graphSearchConfiguration",
+    "returnType" : "java.util.Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "knownModelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelNamePrefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Shared composition definition for both live and stored Graph search. "
   }, {
     "name" : "handlerMethods",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#handlerMethods",
@@ -658,6 +740,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "isSearchable",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#isSearchable",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether an explicit request on this type or a composed ancestor includes this node type in search. "
+  }, {
     "name" : "isVoid",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#isVoid",
     "returnType" : "boolean",
@@ -705,7 +798,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Returns the application-resolved collection that owns this Model's current document, if it has one. "
+    "documentation" : "Returns this Model's canonical current-document collection, if maintained. "
   }, {
     "name" : "modelDocumentCollection",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#modelDocumentCollection",
@@ -721,7 +814,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Returns the Model current-document collection using an already application-scoped name prefix. "
+    "documentation" : "Returns this Model's canonical collection using an application-scoped name prefix. "
   }, {
     "name" : "modelDocumentReadCollection",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#modelDocumentReadCollection",
@@ -796,7 +889,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns the internal source used for current Model state and Graph composition. A separate public\n {@link ModelPersistence#DOCUMENT} projection never owns this source, including for document-only Models.\n"
+    "documentation" : "Internal state and indexed node search share one canonical document; search never changes load authority. "
   }, {
     "name" : "nestedRepositoryId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#nestedRepositoryId",
@@ -1133,6 +1226,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "searchableAncestor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#searchableAncestor",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "visited",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "type",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#type",
     "returnType" : "java.lang.Class<?>",
@@ -1359,6 +1468,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "validateSearchScope",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#validateSearchScope",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "knownModelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Rejects a Graph scope whose declared child contract cannot maintain the required search source on every writer. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

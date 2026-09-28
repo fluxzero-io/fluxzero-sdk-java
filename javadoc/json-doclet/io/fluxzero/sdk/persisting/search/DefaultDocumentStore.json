@@ -669,6 +669,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "modelSourceCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#modelSourceCollection",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "moveDocument",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#moveDocument",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

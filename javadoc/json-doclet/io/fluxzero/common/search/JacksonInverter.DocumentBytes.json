@@ -1,0 +1,29 @@
+{
+  "name" : "DocumentBytes",
+  "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$DocumentBytes",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Optional read-only input capability for entries decoded from the exact backing document bytes. Callers must\n own an immutable snapshot of both bytes and entries. Type/revision changes may retain this capability;\n replacing or mapping the payload must drop it. Converters still process the ordinary Data envelope.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.api.Data.ByteArrayView" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "entries",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$DocumentBytes#entries",
+    "returnType" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

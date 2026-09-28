@@ -18,9 +18,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "rebuild",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork.rebuild",
-    "type" : "boolean",
+    "name" : "rebuildGeneration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork.rebuildGeneration",
+    "type" : "java.lang.Long",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -51,8 +51,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "rebuild",
-      "type" : "boolean",
+      "name" : "rebuildGeneration",
+      "type" : "java.lang.Long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -99,9 +99,9 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "rebuild",
-    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork#rebuild",
-    "returnType" : "boolean",
+    "name" : "rebuildGeneration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork#rebuildGeneration",
+    "returnType" : "java.lang.Long",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -139,8 +139,8 @@
     "annotations" : [ ],
     "documentation" : null
   }, {
-    "name" : "rebuild",
-    "type" : "boolean",
+    "name" : "rebuildGeneration",
+    "type" : "java.lang.Long",
     "annotations" : [ ],
     "documentation" : null
   }, {

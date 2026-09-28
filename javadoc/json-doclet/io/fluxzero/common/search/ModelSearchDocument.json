@@ -1,0 +1,116 @@
+{
+  "name" : "ModelSearchDocument",
+  "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Preserves a Model's exact text-search summary across stores that expose only a tokenized search index. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "NESTED_SUMMARY_PATH",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument.NESTED_SUMMARY_PATH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "SUMMARY",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument.SUMMARY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Internal metadata, excluded from business state and ordinary text entries. ",
+    "constantValue" : "$modelSearchSummary"
+  }, {
+    "name" : "SUMMARY_PATH",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument.SUMMARY_PATH",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelSearchDocument",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument#ModelSearchDocument",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "isSearchablePath",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument#isSearchablePath",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "io.fluxzero.common.search.Document.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Internal summary storage is not a business field, including when nested inside a composed Graph. "
+  }, {
+    "name" : "preserveSummary",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument#preserveSummary",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Keeps the original summary in the serialized document, including an explicitly empty search surface. "
+  }, {
+    "name" : "preserveSummary",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument#preserveSummary",
+    "returnType" : "io.fluxzero.common.search.Document",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Keeps the summary with the entries so composition does not need to guess which values were excluded. "
+  }, {
+    "name" : "restoreSummary",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument#restoreSummary",
+    "returnType" : "io.fluxzero.common.search.Document",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Restores the original summary while retaining all indexed facets, sortables and deserializable content. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

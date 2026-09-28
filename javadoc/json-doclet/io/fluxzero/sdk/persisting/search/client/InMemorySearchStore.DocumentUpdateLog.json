@@ -135,6 +135,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "removeIf",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DocumentUpdateLog#removeIf",
+    "returnType" : "void",
+    "modifiers" : [ "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "store",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DocumentUpdateLog#store",
     "returnType" : "void",

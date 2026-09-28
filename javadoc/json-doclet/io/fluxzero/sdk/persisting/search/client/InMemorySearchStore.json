@@ -58,6 +58,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "erasedModelDocumentTokens",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.erasedModelDocumentTokens",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "erasedModelTokens",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.erasedModelTokens",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "identifier",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.identifier",
     "type" : "java.util.function.Function<io.fluxzero.common.api.search.SerializedDocument,java.lang.String>",
@@ -110,6 +126,14 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelRelationResolver",
     "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelRelationResolver",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelSchemaInvalidation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelSchemaInvalidation",
+    "type" : "java.util.function.Consumer<java.lang.String>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -377,6 +401,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "containsErasedModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#containsErasedModel",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "manifest",
+      "type" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createAuditTrail",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#createAuditTrail",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -506,6 +546,59 @@
     "parameters" : [ {
       "name" : "document",
       "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eraseModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#eraseModels",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes storage owned by hard-erased Models, retaining independently indexed read models with coincidental IDs.\n The fence also rejects delayed direct materialization and deferred document publications.\n"
+  }, {
+    "name" : "erasedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#erasedMessage",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "erasureToken",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#erasureToken",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -764,6 +857,22 @@
     }, {
       "name" : "ifNotExists",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isErasedModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#isErasedModel",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1335,6 +1444,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "setModelSchemaInvalidation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#setModelSchemaInvalidation",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Binds schema-only source rewrites to the local worker's retained rebuild requests. "
   }, {
     "name" : "signalMonitors",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#signalMonitors",

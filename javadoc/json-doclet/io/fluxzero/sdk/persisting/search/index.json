@@ -45,6 +45,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$GraphSource",
     "kind" : "record"
   }, {
+    "file" : "DocumentMessageReader.LiveGraph.json",
+    "name" : "DocumentMessageReader.LiveGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$LiveGraph",
+    "kind" : "record"
+  }, {
     "file" : "DocumentSerializer.json",
     "name" : "DocumentSerializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",

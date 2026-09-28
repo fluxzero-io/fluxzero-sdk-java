@@ -55,6 +55,16 @@
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter",
     "kind" : "class"
   }, {
+    "file" : "JacksonInverter.DocumentBytes.json",
+    "name" : "JacksonInverter.DocumentBytes",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$DocumentBytes",
+    "kind" : "interface"
+  }, {
+    "file" : "JacksonInverter.SearchSummarizer.json",
+    "name" : "JacksonInverter.SearchSummarizer",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter$SearchSummarizer",
+    "kind" : "record"
+  }, {
     "file" : "ModelGraphDocumentManifest.json",
     "name" : "ModelGraphDocumentManifest",
     "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
@@ -85,10 +95,25 @@
     "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$ManifestBuilder",
     "kind" : "class"
   }, {
+    "file" : "ModelGraphInvalidation.json",
+    "name" : "ModelGraphInvalidation",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphInvalidation",
+    "kind" : "class"
+  }, {
+    "file" : "ModelSearchDocument.json",
+    "name" : "ModelSearchDocument",
+    "qualifiedName" : "io.fluxzero.common.search.ModelSearchDocument",
+    "kind" : "class"
+  }, {
     "file" : "SearchExclude.json",
     "name" : "SearchExclude",
     "qualifiedName" : "io.fluxzero.common.search.SearchExclude",
     "kind" : "annotation_type"
+  }, {
+    "file" : "SearchExclusions.json",
+    "name" : "SearchExclusions",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclusions",
+    "kind" : "class"
   }, {
     "file" : "SearchInclude.json",
     "name" : "SearchInclude",

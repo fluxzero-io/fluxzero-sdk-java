@@ -78,6 +78,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "searchExcluded",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#searchExcluded",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether ancestor search composition must stop at this relationship. "
+  }, {
     "name" : "validFrom",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#validFrom",
     "returnType" : "long",

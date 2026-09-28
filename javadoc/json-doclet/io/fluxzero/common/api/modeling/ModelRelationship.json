@@ -54,6 +54,19 @@
     "annotations" : [ ],
     "documentation" : " Explicit graph composition path, or {@code null} when composition is not configured.\n",
     "constantValue" : null
+  }, {
+    "name" : "searchExcluded",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationship.searchExcluded",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : " Excludes this edge and its descendants from ancestor search composition and Graph-document notifications.\n Identity navigation, relationship predicates and lifecycle ownership remain unchanged. Absent values from\n older writers default to {@code false}, preserving their searchable composition paths.\n",
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ModelRelationship",

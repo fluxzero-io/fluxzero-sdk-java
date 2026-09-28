@@ -313,6 +313,17 @@
     "varArgs" : false,
     "documentation" : " Returns the adjusted end timestamp. If the end is null or invalid (i.e., before the start), the timestamp\n is returned instead.\n"
   }, {
+    "name" : "serializedDataIfPresent",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#serializedDataIfPresent",
+    "returnType" : "java.util.Optional<io.fluxzero.common.api.Data<byte[]>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns directly supplied serialized data without evaluating a lazy source. Empty for documents created from\n a Document or an arbitrary data supplier, including replacements made through {@code withData(...)}.\n This identifies the source representation only; callers needing stable bytes must take their own snapshot.\n"
+  }, {
     "name" : "withCollection",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#withCollection",
     "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
@@ -342,5 +353,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "SuppliedData",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument$SuppliedData",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

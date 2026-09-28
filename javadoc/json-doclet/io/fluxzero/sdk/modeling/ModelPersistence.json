@@ -53,7 +53,7 @@
     "name" : "DOCUMENT",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelPersistence.DOCUMENT",
     "annotations" : [ ],
-    "documentation" : " Persist an internal current-state source plus an independent public document projection.\n Document-only Model loads use the internal source, never an independently rewritten projection.\n Neither representation retains previous document versions.\n Include {@link #EVENT_SOURCED} when {@link Graph#previous()} or historical value comparison is required.\n"
+    "documentation" : " Persist internal current Model state. This choice does not activate search.\n Document-only Model loads use this source, which does not retain previous document versions.\n Include {@link #EVENT_SOURCED} when {@link Graph#previous()} or historical value comparison is required.\n"
   }, {
     "name" : "EVENT_SOURCED",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelPersistence.EVENT_SOURCED",
