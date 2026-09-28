@@ -83,6 +83,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -366,6 +367,11 @@ class ModelCommitHandlerRegistryTest {
                                     "retry-boundary",
                                     entity));
                 });
+        when(repository.loadRebaseContext(
+                any(MutationPlan.Resolution.class), nullable(Long.class), anyMap(), anyBoolean(), eq(false)))
+                .thenAnswer(invocation -> repository.loadContext(
+                        invocation.getArgument(0), invocation.getArgument(1),
+                        invocation.getArgument(2), invocation.getArgument(3)));
         EventStoreClient eventStoreClient =
                 mock(EventStoreClient.class);
         AtomicInteger attempts =

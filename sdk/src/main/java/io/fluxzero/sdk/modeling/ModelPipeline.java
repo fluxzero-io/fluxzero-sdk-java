@@ -738,8 +738,9 @@ final class ModelPipeline {
     private static boolean readsDocumentModel(
             CommitAttempt evaluation) {
         return evaluation.readModelTypes().values().stream()
-                .anyMatch(modelType -> !EntityMetadata.validate(modelType)
-                        .rootConfiguration().orElseThrow().eventSourced());
+                .anyMatch(modelType -> EntityMetadata.validate(modelType).rootConfiguration()
+                        // An absent untyped alias contributes a read without a known Model type.
+                        .map(configuration -> !configuration.eventSourced()).orElse(false));
     }
 
     private static <T> CompletableFuture<T> invoke(
@@ -823,7 +824,8 @@ final class ModelPipeline {
                         staleEvaluation,
                         conflict);
         return reevaluate(entry, message, () -> expandCascadeDeletes(
-                ModelReducer.retry(message, new CommitLoader(retryStateIndex), conflict), message));
+                ModelReducer.retry(message, new CommitLoader(
+                        retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message));
     }
 
     private static long retryStateIndex(
