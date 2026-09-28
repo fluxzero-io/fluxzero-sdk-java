@@ -383,6 +383,11 @@ and interceptors during rebase. RETRY and FAIL retain the full evaluation readse
 the same cached-head planning and atomic namespace-boundary check regardless of policy; a failed boundary check falls
 back to current-head validation under the state lock.
 
+Before reevaluating a rejected commit with DOCUMENT-only dependencies, RETRY waits for pending authoritative
+document materialization. If a newer document has already replaced the requested version, preparation may advance
+to a consistent boundary before rerunning the action. This does not move an already evaluated or historical snapshot,
+and it does not retry a business assertion that rejects the newly loaded state.
+
 Apply-ancestor dependencies include the relationship collections that determined their selection, including intermediate
 ancestors and the absence of a nullable ancestor. A concurrent reparenting therefore still triggers rebase even if the old ancestor's own value is
 unchanged; assertions are not rerun to reload these roots.

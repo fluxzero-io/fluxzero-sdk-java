@@ -1424,7 +1424,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     /**
-     * Reloads an ACCEPT rebase while allowing an incomplete authoritative document to advance the exact boundary.
+     * Reloads a conflict retry or ACCEPT rebase, waiting for pending document materialization and allowing an
+     * incomplete authoritative document to advance the exact boundary before mutation evaluation.
      * Ordinary historical reads never enable this retry mode.
      */
     public CommitAttempt loadRebaseContext(

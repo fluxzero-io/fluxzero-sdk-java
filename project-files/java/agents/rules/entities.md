@@ -789,6 +789,11 @@ ACCEPT validates apply dependencies and writes, excluding
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
+Before reevaluating a rejected commit with DOCUMENT-only dependencies, RETRY waits for pending authoritative
+document materialization. If a newer document has already replaced the requested version, preparation may advance
+to a consistent boundary before rerunning the action. This does not move an already evaluated or historical snapshot,
+and it does not retry a business assertion that rejects the newly loaded state.
+
 With ASYNC consumer handling, automatic Model commits that start after the handler also coordinate overlapping
 readsets within the tracking batch. Evaluation stays parallel; a ready commit first waits for earlier evaluations to
 discover their readsets, then waits only for overlapping predecessors in the same namespace and reevaluates before
