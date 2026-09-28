@@ -821,12 +821,11 @@ public abstract class DocumentGraphContract {
         return current ? Fluxzero.loadCurrentGraph(id, Document.class) : Fluxzero.loadGraph(id, Document.class);
     }
 
-    @Model(name = "DocumentGraphContractRoot") public record Root(@EntityId String rootId, int version) {}
+    @Model(searchable = false, name = "DocumentGraphContractRoot") public record Root(@EntityId String rootId, int version) {}
     public record SetRoot(String rootId, int version) {
         @Apply Root apply(@Nullable Root previous) { return new Root(rootId, version); }
     }
-    @Model(name = "DocumentGraphContractDocument", persistence = ModelPersistence.DOCUMENT,
-           eventPublication = EventPublication.NEVER)
+    @Model(searchable = true, name = "DocumentGraphContractDocument", persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
     public record Document(@EntityId(prefix = "doc-") String id,
                            @Parent(value = Root.class, pathInParent = "children") String rootId,
                            @Alias String alias, int version) {}
@@ -835,7 +834,7 @@ public abstract class DocumentGraphContract {
             return version == null ? null : new Document(id, rootId, alias, version);
         }
     }
-    @Model(name = "DocumentGraphContractReceipt") public record Receipt(@EntityId String receiptId, int observed) {}
+    @Model(searchable = false, name = "DocumentGraphContractReceipt") public record Receipt(@EntityId String receiptId, int observed) {}
 
     @ParameterizedTest
     @CsvSource({"false,false", "true,false", "true,true"})
@@ -849,8 +848,7 @@ public abstract class DocumentGraphContract {
                     h.writer.apply(fc -> Fluxzero.loadModel("receipt", DocumentReceipt.class).get()));
         }
     }
-    @Model(name = "DocumentGraphContractDocumentReceipt", persistence = ModelPersistence.DOCUMENT,
-           eventPublication = EventPublication.NEVER)
+    @Model(searchable = true, name = "DocumentGraphContractDocumentReceipt", persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
     public record DocumentReceipt(@EntityId String receiptId, int observed) {
         @Apply DocumentReceipt update(DirectReceiptWrite command) {
             command.invocations.incrementAndGet();
@@ -965,7 +963,7 @@ public abstract class DocumentGraphContract {
             return new DocumentReceipt(receiptId, previous.observed() + 10);
         }
     }
-    @Model(name = "DocumentGraphContractPublishedDocument", persistence = ModelPersistence.DOCUMENT, cached = false)
+    @Model(searchable = true, name = "DocumentGraphContractPublishedDocument", persistence = ModelPersistence.DOCUMENT, cached = false)
     public record PublishedDocument(@EntityId String id, int value) {}
     public record UpdatePublishedDocument(String id) {
         @Apply PublishedDocument apply(@Nullable PublishedDocument previous) {

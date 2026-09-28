@@ -295,8 +295,8 @@ class ModelAssertionScopeTest {
         if (product == null || !product.active()) { throw new IllegalCommandException("Product is not active"); }
     }
 
-    @Model record Product(@EntityId String productId, boolean active, int revision) {}
-    @Model record Reservation(@EntityId String reservationId,
+    @Model(searchable = false) record Product(@EntityId String productId, boolean active, int revision) {}
+    @Model(searchable = false) record Reservation(@EntityId String reservationId,
                               @Parent(value = Product.class, pathInParent = "reservations") String productId,
                               int value) {}
 

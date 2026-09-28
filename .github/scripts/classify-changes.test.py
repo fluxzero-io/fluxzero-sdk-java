@@ -150,6 +150,33 @@ class PullRequestChangesTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual('documentation_only=true\nwebsite_changed=false\n', result.stdout)
 
+    def test_shallow_merge_uses_actual_parent_when_event_base_is_stale(self):
+        self.git('checkout', '-q', '-b', 'topic')
+        self.write('README.md', 'updated\n')
+        self.commit()
+        self.write('AGENTS.md', 'updated\n')
+        self.commit()
+        self.git('checkout', '-q', 'main')
+        self.write('sdk/Example.java', 'base changed\n')
+        self.commit()
+        self.write('sdk/Example.java', 'base changed again\n')
+        updated_base = self.commit()
+        self.git('merge', '-q', '--no-ff', 'topic', '-m', 'Merge PR')
+        merged = self.git('rev-parse', 'HEAD')
+        with tempfile.TemporaryDirectory() as checkout:
+            subprocess.check_call(['git', 'clone', '-q', '--depth=2', self.repo.as_uri(), checkout])
+            stale = subprocess.run(['python3', str(CLASSIFIER), self.base, merged],
+                                   cwd=checkout, capture_output=True, text=True)
+            self.assertNotEqual(0, stale.returncode)
+            self.assertEqual('', stale.stdout)
+            parent = subprocess.check_output(['git', 'rev-parse', f'{merged}^1'],
+                                             cwd=checkout, text=True).strip()
+            self.assertEqual(updated_base, parent)
+            result = subprocess.run(['python3', str(CLASSIFIER), parent, merged],
+                                    cwd=checkout, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual('documentation_only=true\nwebsite_changed=false\n', result.stdout)
+
     def test_empty_diff_is_conservatively_full_build(self):
         self.classify(False)
 

@@ -142,9 +142,9 @@ class ModelRecipesDocumentationTest {
 
     private static JsonNode json(Object value) { return SERIALIZER.getObjectMapper().valueToTree(value); }
 
-    @Model record Project(@EntityId ProjectId projectId, boolean enabled) {}
+    @Model(searchable = false) record Project(@EntityId ProjectId projectId, boolean enabled) {}
     static class ProjectId extends Id<Project> { ProjectId(String value) { super(value, "project-"); } }
-    @Model record ProjectStatus(@EntityId(prefix = "status-") @Parent(pathInParent = "status") ProjectId projectId,
+    @Model(searchable = false) record ProjectStatus(@EntityId(prefix = "status-") @Parent(pathInParent = "status") ProjectId projectId,
                                 boolean online) {}
     record CreateProject(ProjectId projectId) {
         @Apply Project apply() { return new Project(projectId, false); }
@@ -161,10 +161,10 @@ class ModelRecipesDocumentationTest {
         @Apply Project apply(Project current) { return null; }
     }
 
-    @Model record Space(@EntityId SpaceId spaceId, DeviceId primaryLightId) {}
+    @Model(searchable = false) record Space(@EntityId SpaceId spaceId, DeviceId primaryLightId) {}
     static class SpaceId extends Id<Space> { SpaceId(String value) { super(value); } }
     static class DeviceId extends Id<Device> { DeviceId(String value) { super(value); } }
-    @Model record Device(@EntityId DeviceId deviceId, @Parent(pathInParent = "devices") SpaceId spaceId) {
+    @Model(searchable = false) record Device(@EntityId DeviceId deviceId, @Parent(pathInParent = "devices") SpaceId spaceId) {
         @GraphProperty boolean primary(Graph<Space> space) {
             return space.get() != null && deviceId.equals(space.get().primaryLightId());
         }
@@ -210,7 +210,7 @@ class ModelRecipesDocumentationTest {
     }
     static class Rejected extends FunctionalException { public Rejected(String message) { super(message); } }
     enum Outcome { STARTED, REJECTED }
-    @Model record LaunchReport(@EntityId(prefix = "launch-") @Parent ProjectId projectId, Outcome outcome) {}
+    @Model(searchable = false) record LaunchReport(@EntityId(prefix = "launch-") @Parent ProjectId projectId, Outcome outcome) {}
     record RecordLaunchOutcome(ProjectId projectId, Outcome outcome) {
         @Apply LaunchReport apply(@Nullable LaunchReport current) { return new LaunchReport(projectId, outcome); }
     }

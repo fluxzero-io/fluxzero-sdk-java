@@ -494,10 +494,9 @@ class DefaultModelRepositoryCommitTest {
                 target.getDocument().getDocument();
         assertEquals(after, serializer.fromDocument(document, Order.class));
         assertEquals(
-                "$modelGraphComponents/Order",
+                "orders",
                 target.getDocument().getCollection());
-        assertEquals("orders", target.getDocumentProjection().getCollection());
-        assertEquals(after, serializer.fromDocument(target.getDocumentProjection().getDocument(), Order.class));
+        assertNull(target.getDocumentProjection());
         assertEquals(after.changedAt().toEpochMilli(), document.getTimestamp());
         assertEquals(after.changedAt().toEpochMilli(), document.getEnd());
         assertEquals(7, document.getDocument().getRevision());
@@ -505,7 +504,7 @@ class DefaultModelRepositoryCommitTest {
     }
 
     @Test
-    void nonSearchableChildWithExplicitPathSuppliesPrivateGraphDocument()
+    void explicitParentPathDoesNotCreateADocument()
             throws Exception {
         GraphOnlyChildId id =
                 new GraphOnlyChildId("1");
@@ -551,16 +550,7 @@ class DefaultModelRepositoryCommitTest {
                         .getSubsteps().getFirst()
                         .getTargets().getFirst()
                         .getDocument();
-        assertNotNull(document);
-        assertEquals(
-                ModelDocumentMutation.privateModelDocumentCollection(
-                        GraphOnlyChild.class.getSimpleName()),
-                document.getCollection());
-        assertEquals(
-                after,
-                serializer.fromDocument(
-                        document.getDocument(),
-                        GraphOnlyChild.class));
+        assertNull(document);
     }
 
     @Test
@@ -1247,11 +1237,10 @@ class DefaultModelRepositoryCommitTest {
         assertNull(substep.getTargets().getFirst().getDocument().getDocument());
         assertTrue(substep.getTargets().getFirst().getRelationships().isEmpty());
         assertEquals(
-                "$modelGraphComponents/Order",
+                "orders",
                 substep.getTargets().getFirst()
                         .getDocument().getCollection());
-        assertEquals("orders", substep.getTargets().getFirst().getDocumentProjection().getCollection());
-        assertNull(substep.getTargets().getFirst().getDocumentProjection().getDocument());
+        assertNull(substep.getTargets().getFirst().getDocumentProjection());
         assertNull(
                 substep.getTargets().getFirst()
                         .getDocument().getDocument());
@@ -1373,7 +1362,7 @@ class DefaultModelRepositoryCommitTest {
         }
         assertEquals(2, attempts.get());
         for (String phase : List.of("event", "document", "snapshot")) {
-            assertEquals(phase.equals("document") ? 4L : 2L,
+            assertEquals(2L,
                          contextChecks.stream().filter(phase::equals).count(), phase);
         }
     }
@@ -1413,8 +1402,8 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(after, serializer.fromDocument(
                 update.getDocument(),
                 PrivateDocument.class));
-        assertEquals("$modelGraphComponents/PrivateDocument", update.getCollection());
-        assertEquals("privateDocuments", substep.getTargets().getFirst().getDocumentProjection().getCollection());
+        assertEquals("privateDocuments", update.getCollection());
+        assertNull(substep.getTargets().getFirst().getDocumentProjection());
         assertNull(update.getDocument().getSummary());
         assertTrue(update.getDocument().getFacets().isEmpty());
         assertTrue(update.getDocument().getIndexes().isEmpty());
@@ -1611,9 +1600,7 @@ class DefaultModelRepositoryCommitTest {
     }
 
     @Revision(7)
-    @Model(
-            persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(collection = "orders", timestampPath = "changedAt"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "orders", timestampPath = "changedAt"))
     private record Order(
             @EntityId OrderId orderId,
             @Parent(value = Customer.class, pathInParent = "orders") CustomerId customerId,
@@ -1627,7 +1614,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Customer(@EntityId CustomerId customerId) {
     }
 
@@ -1637,7 +1624,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AlternateCustomer(@EntityId AlternateCustomerId customerId) {
     }
 
@@ -1647,7 +1634,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record PolymorphicContact(
             @EntityId String id,
             @Parent(types = {Customer.class, AlternateCustomer.class}, pathInParent = "contacts") Id<?> parentId) {
@@ -1664,7 +1651,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record GraphOnlyChild(
             @EntityId GraphOnlyChildId childId,
             @Parent(pathInParent = "children")
@@ -1702,11 +1689,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(
-                    searchable = false,
-                    collection = "privateDocuments"),
-            eventPublication = EventPublication.NEVER)
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "privateDocuments"), eventPublication = EventPublication.NEVER)
     private record PrivateDocument(
             @EntityId PrivateDocumentId documentId,
             String description,
@@ -1727,7 +1710,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     private record ConditionalModel(@EntityId ConditionalId conditionalId, String value) {
     }
 
@@ -1744,7 +1727,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private static final class EqualsProbeModel {
         private static final AtomicInteger equalsCalls =
                 new AtomicInteger();
@@ -1794,12 +1777,12 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(snapshotPeriod = 2, maxSnapshotCount = 3)
+    @Model(searchable = false, snapshotPeriod = 2, maxSnapshotCount = 3)
     private record SnapshotModel(
             @EntityId SnapshotId id, String value) {
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, snapshotPeriod = 1)
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, snapshotPeriod = 1)
     private record ContextModel(@EntityId String id, String value) {
     }
 
@@ -1825,7 +1808,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record AliasedModel(
             @EntityId AliasedId id,
             @Alias(prefix = "code-") String code,
@@ -1845,7 +1828,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(publicationStrategy = EventPublicationStrategy.STORE_ONLY)
+    @Model(searchable = false, publicationStrategy = EventPublicationStrategy.STORE_ONLY)
     private record StoredOnly(@EntityId StoredOnlyId id) {
     }
 
@@ -1855,11 +1838,11 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
+    @Model(searchable = false, publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
     private record PublishedOnly(@EntityId PublishedOnlyId id) {
     }
 
-    @Model(publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
+    @Model(searchable = false, publicationStrategy = EventPublicationStrategy.PUBLISH_ONLY)
     private record UnsafePublished(
             @EntityId UnsafePublishedId id,
             String value) {

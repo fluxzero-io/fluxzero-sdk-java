@@ -204,12 +204,12 @@ class CompanionAliasTest {
     static final class ProjectId extends Id<Project> {
         ProjectId(String value) { super(value, "project-"); }
     }
-    @Model record Project(@EntityId ProjectId projectId) {}
-    @Model record Details(@EntityId(prefix = "details-") @Parent(pathInParent = "details") ProjectId projectId,
+    @Model(searchable = false) record Project(@EntityId ProjectId projectId) {}
+    @Model(searchable = false) record Details(@EntityId(prefix = "details-") @Parent(pathInParent = "details") ProjectId projectId,
                           @Alias String alias) {}
-    @Model record Other(@EntityId String otherId, @Alias String alias) {}
-    @Model record PlainDetails(@EntityId(prefix = "plain-") @Parent ProjectId projectId) {}
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = false) record Other(@EntityId String otherId, @Alias String alias) {}
+    @Model(searchable = false) record PlainDetails(@EntityId(prefix = "plain-") @Parent ProjectId projectId) {}
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record DocumentDetails(@EntityId(prefix = "document-") ProjectId projectId, @Alias String alias) {}
     record CreateOther(String otherId, String alias) {
         @Apply Other create() { return new Other(otherId, alias); }

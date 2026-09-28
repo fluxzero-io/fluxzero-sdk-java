@@ -1406,7 +1406,7 @@ class ModelBatchScopeTest {
         };
     }
 
-    @Model
+    @Model(searchable = false)
     private record AliasModel(
             @EntityId String id,
             @Alias String alias,
@@ -1416,7 +1416,7 @@ class ModelBatchScopeTest {
     private interface ModelContract {
     }
 
-    @Model
+    @Model(searchable = false)
     private record PolymorphicAliasModel(
             @EntityId String id,
             @Alias String alias) implements ModelContract {

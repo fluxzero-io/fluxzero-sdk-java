@@ -234,7 +234,7 @@ For every changed Model type:
 4. test the old node JSON with `TestFixture.whenUpcasting(...)`.
 
 No Graph-specific upcaster is needed. Lazy upcasting makes reads correct immediately. If search should also retain the
-evolved JSON, use a projection-only `@HandleDocument(modelGraph = RootModel.class)` handler as described in
+evolved JSON, use a projection-only `@HandleDocument` handler as described in
 [Tracking, updating documents](/docs/guides/modeling-and-persistence/tracking-and-updating-documents#evolving-a-materialized-model-graph).
 Returning its complete Graph conditionally replaces only the derived materialized document; it never rewrites Model
 events, snapshots, direct documents or relationships.

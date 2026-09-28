@@ -135,8 +135,7 @@ class RecursiveModelRelationshipTest {
         return folders.stream().map(RecursiveFolder::folderId).toList();
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
-            graphProjection = @GraphProjection(collection = "recursiveFolderGraphs"))
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC, collection = "recursiveFolderGraphs"))
     private record RecursiveFolder(
             @EntityId RecursiveFolderId folderId,
             @Parent(pathInParent = "children") RecursiveFolderId parentId,

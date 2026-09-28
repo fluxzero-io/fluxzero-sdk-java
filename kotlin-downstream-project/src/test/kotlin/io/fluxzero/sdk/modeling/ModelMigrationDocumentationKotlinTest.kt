@@ -56,7 +56,7 @@ class ModelMigrationDocumentationKotlinTest {
             }).expectNoErrors()
     }
 
-    @Model @Revision(2)
+    @Model(searchable = false) @Revision(2)
     data class Project(@EntityId val projectId: String, val details: ProjectDetails)
     data class ProjectDetails(val name: String)
     @Revision(2)

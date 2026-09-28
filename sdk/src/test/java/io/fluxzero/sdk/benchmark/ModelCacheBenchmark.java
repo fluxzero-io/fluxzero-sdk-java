@@ -367,7 +367,7 @@ public class ModelCacheBenchmark {
                 .build();
     }
 
-    @Model(snapshotPeriod = 0)
+    @Model(searchable = false, snapshotPeriod = 0)
     private record Counter(
             @EntityId CounterId counterId,
             int value) {

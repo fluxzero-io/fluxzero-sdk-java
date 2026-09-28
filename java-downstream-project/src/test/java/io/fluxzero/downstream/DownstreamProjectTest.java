@@ -82,7 +82,7 @@ class DownstreamProjectTest {
 
         assertNotNull(model);
         assertArrayEquals(new ModelPersistence[]{ModelPersistence.DOCUMENT}, model.persistence());
-        assertEquals("downstream-models", model.document().collection());
+        assertEquals("downstream-models", model.searchSettings().collection());
         assertNotNull(typedParent);
         assertNotNull(untypedParent);
         assertEquals("children", typedParent.pathInParent());

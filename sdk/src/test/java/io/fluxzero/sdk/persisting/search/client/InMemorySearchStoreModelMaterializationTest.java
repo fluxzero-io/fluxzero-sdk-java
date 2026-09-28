@@ -72,6 +72,68 @@ class InMemorySearchStoreModelMaterializationTest {
     private final InMemorySearchStore subject =
             new InMemorySearchStore(Duration.ofDays(1));
 
+    @Test
+    void hardErasureOwnsModelStorageButNotIndependentDocumentsAndRejectsLateWork() {
+        String id = "model-1", collection = "model-sources";
+        SerializedDocument source = structuredDocument(id, collection, "private");
+        var snapshot = new io.fluxzero.common.api.modeling.ModelSnapshotMutation(
+                new io.fluxzero.common.api.Data<>(new byte[]{1}, "snapshot", 0), 0, 1, 1);
+        var target = ModelCommitTarget.builder().modelId(id).modelType("TestModel").updateState(true)
+                .document(new ModelDocumentMutation(collection, source)).snapshot(snapshot).build();
+        var commit = new CommitModels("initial", -1L, List.of(id),
+                List.of(ModelCommitStep.builder().targets(List.of(target)).build()), ModelConflictPolicy.ACCEPT, STORED, true);
+        var update = new ModelUpdate(ModelUpdateKind.COMMIT, "initial", 0, 1L, null,
+                List.of(new ModelCommitTargetResult(id, 0, true)));
+        AtomicInteger notifications = new AtomicInteger();
+        subject.registerMonitor(collection, messages -> notifications.addAndGet(messages.size()));
+        Runnable publication = subject.prepareModelCommit(commit, List.of(update), Set.of());
+        subject.index(List.of(structuredDocument(id, "independent", "public")), STORED, false).join();
+        assertEquals(1, subject.openStream(collection, null, 10).count());
+        assertTrue(subject.fetch(new GetDocument(snapshot.toDocument(id, 0, 1).getId(),
+                io.fluxzero.common.api.modeling.ModelSnapshotMutation.COLLECTION)).isPresent());
+
+        subject.eraseModels(Set.of(id));
+        publication.run();
+        subject.prepareModelCommit(commit, List.of(update), Set.of()).run();
+
+        assertEquals(0, notifications.get());
+        assertTrue(subject.openStream(collection, null, 10).findAny().isEmpty());
+        assertTrue(subject.fetch(new GetDocument(id, collection)).isEmpty());
+        assertTrue(subject.fetch(new GetDocument(snapshot.toDocument(id, 0, 1).getId(),
+                io.fluxzero.common.api.modeling.ModelSnapshotMutation.COLLECTION)).isEmpty());
+        assertTrue(subject.fetch(new GetDocument(id, "independent")).isPresent());
+    }
+
+    @Test
+    void deferredGraphPublicationCannotReintroduceErasedChildState() {
+        var graphStore = new InMemorySearchStore(Duration.ofDays(1), null,
+                (roots, composition) -> List.of(new ModelGraphEdge("child", "root", "Root", "children", 1L, null, false)),
+                ids -> ids.stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> "nodes")));
+        materialize(graphStore, "root", 1L,
+                new ModelDocumentMutation("nodes", structuredDocument("root", "nodes", "root")));
+        materialize(graphStore, "child", 2L,
+                new ModelDocumentMutation("nodes", structuredDocument("child", "nodes", "private")));
+        var configuration = new ModelGraphProjectionConfiguration("Root", "nodes", "graphs",
+                ModelGraphComposition.builder().build(),
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of(), true);
+        AtomicInteger notifications = new AtomicInteger();
+        graphStore.registerMonitor("graphs", messages -> notifications.addAndGet(messages.size()));
+        Runnable publication = graphStore.prepareModelGraphProjection(configuration, Set.of("root"), 3L, false);
+        assertEquals(1, graphStore.openStream("graphs", null, 10).count());
+
+        graphStore.eraseModels(Set.of("child"));
+        publication.run();
+
+        assertEquals(0, notifications.get());
+        assertTrue(graphStore.fetch(new GetDocument("root", "graphs")).isEmpty());
+        assertTrue(graphStore.openStream("graphs", null, 10).findAny().isEmpty());
+        // A surviving root may still publish a fresh composition after cleanup.
+        graphStore.prepareModelGraphProjection(configuration, Set.of("root"), 4L, false).run();
+        assertEquals(1, notifications.get());
+        assertEquals(1, ModelGraphDocumentManifest.from(graphStore.fetch(new GetDocument("root", "graphs"))
+                .orElseThrow()).orElseThrow().nodes().size());
+    }
+
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 2, 3, 4})
     void staleSourceRewriteCannotReplaceMigrationUpdateDeletionRecreationOrUntrustedWrite(int intervening) {
@@ -244,7 +306,7 @@ class InMemorySearchStoreModelMaterializationTest {
         String rootId = "root-1";
         var configuration = new ModelGraphProjectionConfiguration(
                 "Root", "roots", "rootGraphs", ModelGraphComposition.builder().build(),
-                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of());
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 0)), List.of(), true);
         materialize(subject, rootId, 1L,
                     new ModelDocumentMutation("roots", structuredDocument(rootId, "roots", "root")));
         subject.materializeModelGraphProjection(configuration, Set.of(rootId), 1L, false);
@@ -313,7 +375,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         List.of(
                                 new ModelGraphPathOverride(
                                         "children",
-                                        "components")));
+                                        "components")), true);
 
         graphStore.materializeModelGraphProjection(
                 configuration,
@@ -423,7 +485,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         "Root", "roots", "rootGraphs",
                         ModelGraphComposition.builder().build(),
                         List.of(new ModelGraphProjectionConfiguration.ModelRevision(
-                                "Root", 0)), List.of());
+                                "Root", 0)), List.of(), true);
         graphStore.materializeModelGraphProjection(
                 configuration, Set.of(rootId), 11L, true);
 
@@ -483,7 +545,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         "Root", "roots", "rollbackGraphs",
                         ModelGraphComposition.builder().build(),
                         List.of(new ModelGraphProjectionConfiguration.ModelRevision(
-                                "Root", 0)), List.of());
+                                "Root", 0)), List.of(), true);
         graphStore.materializeModelGraphProjection(
                 configuration, Set.of(rootId), 11L, true);
         assertEquals("normalized one", graphStore.fetch(
@@ -548,7 +610,7 @@ class InMemorySearchStoreModelMaterializationTest {
                 current.getDocument(), current.getModelHead()), STORED)).join();
         var configuration = new ModelGraphProjectionConfiguration("Root", sourceCollection, "rootGraphs",
                 ModelGraphComposition.builder().build(),
-                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 1)), List.of());
+                List.of(new ModelGraphProjectionConfiguration.ModelRevision("Root", 1)), List.of(), true);
         store.materializeModelGraphProjection(configuration, Set.of(id), 10L, true);
         assertEquals("current", store.fetch(new GetDocument(id, "rootGraphs")).orElseThrow()
                 .deserializeDocument().getEntryAtPath("details/name").orElseThrow().getValue());
@@ -572,7 +634,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         "TestModel", "roots", "rootGraphs",
                         ModelGraphComposition.builder().build(),
                         List.of(new ModelGraphProjectionConfiguration.ModelRevision(
-                                "TestModel", 0)), List.of());
+                                "TestModel", 0)), List.of(), true);
         graphStore.materializeModelGraphProjection(
                 configuration, Set.of(rootId), 10L, false);
         SerializedDocument original = graphStore.fetch(

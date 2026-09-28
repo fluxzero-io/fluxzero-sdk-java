@@ -227,7 +227,7 @@ public final class ModelRelationshipQueries {
                         "Model graph exceeds maxDepth " + maxDepth
                         + "; narrow the result or remove the explicit composition limit"),
                 frontier -> relationships.apply(frontier).stream()
-                        .filter(relation -> relation.path() != null)
+                        .filter(relation -> relation.path() != null && !relation.searchExcluded())
                         .sorted(Comparator.comparing(Relationship::parentId)
                                         .thenComparing(Relationship::path)
                                         .thenComparing(Relationship::childId))
@@ -303,7 +303,7 @@ public final class ModelRelationshipQueries {
                         maxDepth, ModelGraphComposition.UNBOUNDED, true, false,
                         null, "Model graph projection exceeds maxDepth " + maxDepth),
                 frontier -> () -> relationships.apply(frontier).stream()
-                        .filter(relation -> relation.path() != null)
+                        .filter(relation -> relation.path() != null && !relation.searchExcluded())
                         .iterator(),
                 Relationship::parentId,
                 null).without(modelIds);
@@ -451,6 +451,11 @@ public final class ModelRelationshipQueries {
         Long validUntil();
 
         boolean deleteOnParentDeletion();
+
+        /** Whether ancestor search composition must stop at this relationship. */
+        default boolean searchExcluded() {
+            return false;
+        }
 
         default ModelGraphEdge edge() {
             return new ModelGraphEdge(

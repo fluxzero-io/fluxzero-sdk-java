@@ -58,7 +58,7 @@ class ModelTypedIdKotlinTest {
             .expectNoEvents()
     }
 
-    @Model data class Widget(@EntityId val widgetId: WidgetId, val version: Int)
+    @Model(searchable = false) data class Widget(@EntityId val widgetId: WidgetId, val version: Int)
     class WidgetId(value: String) : Id<Widget>(value)
     data class CreateWidget(val widgetId: WidgetId) { @Apply fun apply() = Widget(widgetId, 0) }
     data class RenameViaId(val requested: WidgetId) {

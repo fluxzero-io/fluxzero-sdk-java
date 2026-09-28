@@ -140,7 +140,7 @@ class GraphChangeHandlerDecoratorTest {
     private record PayloadWithoutModelIdentity() {
     }
 
-    @Model
+    @Model(searchable = false)
     private record Root(@EntityId String id) {
     }
 

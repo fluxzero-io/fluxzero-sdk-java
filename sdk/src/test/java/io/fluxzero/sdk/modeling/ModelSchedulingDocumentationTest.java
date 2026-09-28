@@ -108,8 +108,8 @@ class ModelSchedulingDocumentationTest {
                 .expectThat(fc -> assertFalse(Fluxzero.loadModel(reminderId).get().completed()));
     }
 
-    @Model record Project(@EntityId ProjectId projectId) {}
-    @Model record Reminder(@EntityId ReminderId reminderId, @Parent ProjectId projectId,
+    @Model(searchable = false) record Project(@EntityId ProjectId projectId) {}
+    @Model(searchable = false) record Reminder(@EntityId ReminderId reminderId, @Parent ProjectId projectId,
                            Instant deadline, boolean completed) {}
     record CreateProject(ProjectId projectId) { @Apply Project apply() { return new Project(projectId); } }
     record DeleteProject(ProjectId projectId) { @Apply Project apply(Project current) { return null; } }

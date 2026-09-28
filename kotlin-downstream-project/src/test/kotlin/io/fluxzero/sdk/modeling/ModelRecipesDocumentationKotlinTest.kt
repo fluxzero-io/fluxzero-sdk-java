@@ -116,9 +116,9 @@ class ModelRecipesDocumentationKotlinTest {
             .expectThat { assertTrue(Fluxzero.loadGraph(projectId, LaunchReport::class.java).isEmpty) }
     }
 
-    @Model data class Project(@EntityId val projectId: ProjectId, val enabled: Boolean)
+    @Model(searchable = false) data class Project(@EntityId val projectId: ProjectId, val enabled: Boolean)
     class ProjectId(value: String) : Id<Project>(value, "project-")
-    @Model data class ProjectStatus(
+    @Model(searchable = false) data class ProjectStatus(
         @EntityId(prefix = "status-") @Parent(pathInParent = "status") val projectId: ProjectId,
         val online: Boolean
     )
@@ -135,10 +135,10 @@ class ModelRecipesDocumentationKotlinTest {
         @Apply fun apply(current: Project): Project? = null
     }
 
-    @Model data class Space(@EntityId val spaceId: SpaceId, val primaryLightId: DeviceId?)
+    @Model(searchable = false) data class Space(@EntityId val spaceId: SpaceId, val primaryLightId: DeviceId?)
     class SpaceId(value: String) : Id<Space>(value)
     class DeviceId(value: String) : Id<Device>(value)
-    @Model data class Device(@EntityId val deviceId: DeviceId,
+    @Model(searchable = false) data class Device(@EntityId val deviceId: DeviceId,
                             @Parent(pathInParent = "devices") val spaceId: SpaceId) {
         @GraphProperty fun primary(space: Graph<Space>) = deviceId == space.get()?.primaryLightId
     }
@@ -185,7 +185,7 @@ class ModelRecipesDocumentationKotlinTest {
     }
     class Rejected(message: String) : FunctionalException(message)
     enum class Outcome { STARTED, REJECTED }
-    @Model data class LaunchReport(@EntityId(prefix = "launch-") @Parent val projectId: ProjectId,
+    @Model(searchable = false) data class LaunchReport(@EntityId(prefix = "launch-") @Parent val projectId: ProjectId,
                                    val outcome: Outcome)
     data class RecordLaunchOutcome(val projectId: ProjectId, val outcome: Outcome) {
         @Apply fun apply(current: LaunchReport?) = LaunchReport(projectId, outcome)

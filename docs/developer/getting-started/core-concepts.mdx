@@ -61,7 +61,7 @@ can change over time. `@Model` tells Fluxzero to store it:
   <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 public record Task(@EntityId TaskId taskId, String name, @With boolean completed) {
 }
 
@@ -76,7 +76,7 @@ public final class TaskId extends Id<Task> {
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     val name: String,
@@ -100,12 +100,12 @@ For example, adding a parent ID connects each task to a project:
   <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 public record Task(@EntityId TaskId taskId, @Parent ProjectId projectId,
                    String name, @With boolean completed) {
 }
 
-@Model
+@Model(searchable = false)
 public record Project(@EntityId ProjectId projectId, String name) {
 }
 
@@ -118,7 +118,7 @@ public final class ProjectId extends Id<Project> {
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent val projectId: ProjectId,
@@ -126,7 +126,7 @@ data class Task(
     val completed: Boolean
 )
 
-@Model
+@Model(searchable = false)
 data class Project(@EntityId val projectId: ProjectId, val name: String)
 
 class ProjectId(id: String) : Id<Project>(id)

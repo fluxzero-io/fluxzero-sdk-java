@@ -439,10 +439,10 @@ class ModelParentWriteTest {
         assertNull(Fluxzero.loadModel(reservationId).get());
     }
 
-    @Model
+    @Model(searchable = false)
     record Ticket(@EntityId TicketId ticketId, boolean reserved) {}
 
-    @Model
+    @Model(searchable = false)
     record Reservation(@EntityId ReservationId reservationId,
                        @Parent(pathInParent = "reservations") TicketId ticketId) {}
 
@@ -495,14 +495,14 @@ class ModelParentWriteTest {
         Ticket release(Ticket ticket) { return new Ticket(ticket.ticketId(), false); }
     }
 
-    @Model
+    @Model(searchable = false)
     record Link(@EntityId LinkId linkId, @Parent TicketId ticketId) {}
 
     static class LinkId extends Id<Link> {
         LinkId(String id) { super(id); }
     }
 
-    @Model
+    @Model(searchable = false)
     record Leaf(@EntityId LeafId leafId, @Parent LinkId linkId) {}
 
     static class LeafId extends Id<Leaf> {
@@ -529,7 +529,7 @@ class ModelParentWriteTest {
         Ticket delete(Ticket ticket) { return null; }
     }
 
-    @Model
+    @Model(searchable = false)
     record MixedParents(@EntityId String mixedId, @Parent TicketId ticketId, @Parent LinkId linkId) {}
 
     record CreateMixedParents(String mixedId, TicketId ticketId, LinkId linkId) {
@@ -596,7 +596,7 @@ class ModelParentWriteTest {
         Ticket release(@Association("reservations") Ticket ticket) { return new Ticket(new TicketId(otherId), false); }
     }
 
-    @Model
+    @Model(searchable = false)
     record NestedTicket(@EntityId NestedTicketId ticketId,
                         @Parent(pathInParent = "tickets") NestedTicketId parentId, boolean reserved) {}
 
@@ -626,7 +626,7 @@ class ModelParentWriteTest {
         Ticket apply(@jakarta.annotation.Nullable Ticket existing) { return new Ticket(ticketId, reserved); }
     }
 
-    @Model
+    @Model(searchable = false)
     record Dual(@EntityId String dualId, @Parent(pathInParent = "primary") TicketId primary,
                 @Parent(pathInParent = "secondary") TicketId secondary) {}
 

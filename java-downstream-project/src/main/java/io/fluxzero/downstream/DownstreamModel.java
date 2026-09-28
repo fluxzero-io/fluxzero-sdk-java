@@ -17,7 +17,7 @@
 package io.fluxzero.downstream;
 
 import io.fluxzero.sdk.Fluxzero;
-import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.SearchSettings;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
@@ -30,9 +30,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import java.util.List;
 import java.util.stream.Stream;
 
-@Model(
-        persistence = ModelPersistence.DOCUMENT,
-        document = @DocumentProjection(collection = "downstream-models"))
+@Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "downstream-models"))
 public record DownstreamModel(@EntityId String id, String value, @Member List<Part> parts) {
 
     @Apply
@@ -46,7 +44,7 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
     public record ChangeValue(String value) {
     }
 
-    @Model
+    @Model(searchable = false)
     public record Parent(@EntityId DownstreamParentId id) {
     }
 
@@ -72,7 +70,7 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
         return Fluxzero.<DownstreamModel>search(DownstreamModel.class, "archived-downstream-models").fetchAll();
     }
 
-    @Model
+    @Model(searchable = false)
     public record Child(
             @EntityId String id,
             @io.fluxzero.sdk.modeling.Parent(pathInParent = "children") DownstreamParentId parentId,

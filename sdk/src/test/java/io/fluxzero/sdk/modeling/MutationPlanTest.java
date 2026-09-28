@@ -70,7 +70,7 @@ class MutationPlanTest {
         assertNull(plan.routingTarget(new Message(new RenameAffixed(null))));
     }
 
-    @Model
+    @Model(searchable = false)
     private record ScopedChild(@EntityId(parentScoped = true) String childId,
                                @io.fluxzero.sdk.modeling.Parent ParentIdValue parentId) {
     }
@@ -480,7 +480,7 @@ class MutationPlanTest {
                 .resolve(input);
     }
 
-    @Model
+    @Model(searchable = false)
     private record Product(@EntityId ProductId productId, String name) {
         @Apply
         Product rename(Object command) {
@@ -500,7 +500,7 @@ class MutationPlanTest {
     private record RenameProductByTarget(ProductId target) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record Affixed(@EntityId(prefix = "move-") AffixedId affixedId) {
         @Apply
         Affixed rename(RenameAffixed command) {
@@ -545,7 +545,7 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record GuardedProduct(@EntityId GuardedProductId guardedProductId) {
         @AssertLegal
         void check(CheckGuardedProduct command) {
@@ -561,7 +561,7 @@ class MutationPlanTest {
     private record CheckGuardedProduct(GuardedProductId guardedProductId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record Order(@EntityId OrderId orderId) {
     }
 
@@ -604,7 +604,7 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Inventory(@EntityId InventoryId inventoryId) {
     }
 
@@ -621,7 +621,7 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Account(@EntityId AccountId accountId) {
     }
 
@@ -662,11 +662,11 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record ConfiguredCounter(@EntityId(prefix = "counter-") String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record CounterSettings(@EntityId(prefix = "settings-") String id) {
     }
 
@@ -677,7 +677,7 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Other(@EntityId(prefix = "product-") String id) {
     }
 
@@ -687,7 +687,7 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Parent(@EntityId ParentIdValue parentId) {
     }
 
@@ -697,7 +697,7 @@ class MutationPlanTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record Child(
             @EntityId ChildId childId,
             @io.fluxzero.sdk.modeling.Parent ParentIdValue parentId) {

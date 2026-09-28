@@ -175,9 +175,9 @@ class TestServerWebsocketContractTest {
     static final class AliasParentId extends io.fluxzero.sdk.modeling.Id<AliasParent> {
         AliasParentId(String value) { super(value, "alias-parent-"); }
     }
-    @io.fluxzero.sdk.modeling.Model
+    @io.fluxzero.sdk.modeling.Model(searchable = false)
     record AliasParent(@io.fluxzero.sdk.modeling.EntityId AliasParentId parentId) {}
-    @io.fluxzero.sdk.modeling.Model
+    @io.fluxzero.sdk.modeling.Model(searchable = false)
     record AliasCompanion(@io.fluxzero.sdk.modeling.EntityId(prefix = "companion-")
                           @io.fluxzero.sdk.modeling.Parent(pathInParent = "companion") AliasParentId parentId,
                           @io.fluxzero.sdk.modeling.Alias String code) {}
@@ -280,10 +280,10 @@ class TestServerWebsocketContractTest {
         }
     }
 
-    @io.fluxzero.sdk.modeling.Model(name = "wire-parent", cached = false)
+    @io.fluxzero.sdk.modeling.Model(searchable = false, name = "wire-parent", cached = false)
     record WireParent(@io.fluxzero.sdk.modeling.EntityId WireParentId id) { }
 
-    @io.fluxzero.sdk.modeling.Model(name = "wire-child", cached = false)
+    @io.fluxzero.sdk.modeling.Model(searchable = false, name = "wire-child", cached = false)
     record WireChild(@io.fluxzero.sdk.modeling.EntityId String childId,
                      @io.fluxzero.sdk.modeling.Parent(types = WireParent.class, pathInParent = "children")
                      io.fluxzero.sdk.modeling.Id<?> parentId) { }
@@ -619,7 +619,7 @@ class TestServerWebsocketContractTest {
                                                           .build(),
                                                   List.of(new ModelGraphProjectionConfiguration.ModelRevision(
                                                           rootType, 0)),
-                                                  List.of()),
+                                                  List.of(), true),
                                           true)));
 
             ModelCommitTarget root =

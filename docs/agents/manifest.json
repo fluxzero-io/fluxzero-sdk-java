@@ -212,10 +212,10 @@
         "searchGraph",
         "loadCurrentModelState",
         "Model document proof",
-        "modelState",
-        "@HandleDocument(modelState)",
+        "DocumentSource.MODEL_STATE",
+        "@HandleDocument(source = MODEL_STATE)",
         "internal Model source",
-        "independent DOCUMENT projection",
+        "canonical Model document",
         "schema reindexing"
       ],
       "links": [
@@ -7186,7 +7186,11 @@
         "multiple parents",
         "Graph cycles",
         "Graph.current()",
-        "current()"
+        "current()",
+        "Model.searchable",
+        "SearchSettings",
+        "GraphProjectionMode",
+        "DocumentSource"
       ],
       "links": [
         {
@@ -7421,7 +7425,11 @@
         "multiple parents",
         "Graph cycles",
         "Graph.current()",
-        "current()"
+        "current()",
+        "Model.searchable",
+        "SearchSettings",
+        "GraphProjectionMode",
+        "DocumentSource"
       ],
       "links": [
         {
@@ -7530,7 +7538,8 @@
       "symbols": [
         "@Model",
         "ModelPersistence",
-        "DocumentProjection.searchable",
+        "Model.searchable",
+        "SearchSettings",
         "Parent.pathInParent",
         "whereParent",
         "whereAncestor",
@@ -7542,7 +7551,12 @@
         "capability matrix",
         "current versus event-bound Graph",
         "GraphProjection",
-        "Fluxzero.searchGraph"
+        "Fluxzero.searchGraph",
+        "GraphProjectionMode",
+        "SearchSettings.includeDescendants",
+        "DocumentSource",
+        "@HandleDocument",
+        "coordinated 2.x upgrade"
       ],
       "links": [
         {
@@ -7556,10 +7570,18 @@
         {
           "path": "/docs/sdk/models/graphs-kotlin",
           "description": "Kotlin relationships, lazy Graphs and temporal reads"
+        },
+        {
+          "path": "/docs/sdk/models/configuration",
+          "description": "Configure search activation and Graph document handlers"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Qualify existing data and value-preserving schema migrations"
         }
       ],
       "title": "Choosing Model and Graph queries",
-      "summary": "Central Java/Kotlin decision guide: default @Model, document/index requirements, direct and relationship queries, live/materialized Graphs, count limits and result freshness."
+      "summary": "Choose persistence, explicit searchability and optional Graph materialization independently; Java/Kotlin query semantics, costs and coordinated 2.x migration."
     },
     {
       "path": "/docs/sdk/entities/legacy-migration",
@@ -7689,8 +7711,10 @@
       "symbols": [
         "@Model",
         "ModelPersistence",
-        "materializeGraph",
-        "DocumentProjection",
+        "Model.searchable",
+        "SearchSettings",
+        "DocumentSource",
+        "GraphProjectionMode",
         "GraphProjection",
         "snapshotPeriod",
         "eventPublication",

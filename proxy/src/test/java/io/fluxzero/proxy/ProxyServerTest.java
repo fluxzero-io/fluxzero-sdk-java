@@ -2493,10 +2493,10 @@ class ProxyServerTest {
         return BodyPublishers.fromPublisher(BodyPublishers.ofByteArrays(parts), payload.length);
     }
 
-    @Model
+    @Model(searchable = false)
     record WebGraphRoot(@EntityId String id, String description) {}
 
-    @Model
+    @Model(searchable = false)
     record WebGraphChild(@EntityId String id,
                          @Parent(types = WebGraphRoot.class, pathInParent = "children") String rootId) {
         @FilterContent

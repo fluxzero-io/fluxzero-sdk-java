@@ -64,8 +64,8 @@ class ModelTypeProcessorTest {
                 package sample;
                 import io.fluxzero.sdk.modeling.*;
                 public class Contracts {
-                    @Model public record Order(@EntityId String id) {}
-                    @Model public interface InterfaceModel { String id(); }
+                    @Model(searchable = false) public record Order(@EntityId String id) {}
+                    @Model(searchable = false) public interface InterfaceModel { String id(); }
                     public record Implementation(@EntityId String id) implements InterfaceModel {}
                     public record NotAModel(String id) {}
                 }
@@ -76,7 +76,7 @@ class ModelTypeProcessorTest {
         compile(output, "sample.Additional", """
                 package sample;
                 import io.fluxzero.sdk.modeling.*;
-                @Model public record Additional(@EntityId String id) {}
+                @Model(searchable = false) public record Additional(@EntityId String id) {}
                 """);
         assertEquals(List.of("sample.Additional", "sample.Contracts$Implementation", "sample.Contracts$InterfaceModel",
                              "sample.Contracts$Order"),
@@ -91,7 +91,7 @@ class ModelTypeProcessorTest {
         Path base = temporary.resolve("base");
         compile(base, "sample.Base", """
                 package sample;
-                @io.fluxzero.sdk.modeling.Model
+                @io.fluxzero.sdk.modeling.Model(searchable = false)
                 public abstract class Base { @io.fluxzero.sdk.modeling.EntityId String id; }
                 """);
         Path child = temporary.resolve("child");
@@ -106,14 +106,14 @@ class ModelTypeProcessorTest {
         compile(first, "sample.Order", """
                 package sample;
                 import io.fluxzero.sdk.modeling.*;
-                @Model(name="purchase") public record Order(@EntityId String id) {
+                @Model(searchable = false, name="purchase") public record Order(@EntityId String id) {
                     static { System.setProperty("model.discovery.initialized", "yes"); }
                 }
                 """);
         compile(second, "sample.LineItem", """
                 package sample;
                 import io.fluxzero.sdk.modeling.*;
-                @Model public record LineItem(@EntityId String id) {}
+                @Model(searchable = false) public record LineItem(@EntityId String id) {}
                 """);
         compile(reader, "sample.Reader", """
                 package sample;
@@ -149,15 +149,15 @@ class ModelTypeProcessorTest {
                 import io.fluxzero.sdk.modeling.*;
                 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
                 public class Contracts {
-                    @Model public static abstract class Base {
+                    @Model(searchable = false) public static abstract class Base {
                         @EntityId public final String id;
                         protected Base(String id) { this.id = id; }
                     }
                     public static final class Concrete extends Base {
                         public Concrete(String id) { super(id); }
                     }
-                    @Model public interface Contract { @EntityId String id(); }
-                    @Model public interface Template {}
+                    @Model(searchable = false) public interface Contract { @EntityId String id(); }
+                    @Model(searchable = false) public interface Template {}
                     public record DeleteBase(String id) {
                         @Apply(eventPublication=EventPublication.ALWAYS) Base apply() { return null; }
                     }
@@ -213,7 +213,7 @@ class ModelTypeProcessorTest {
         Path contract = temporary.resolve("contract");
         compile(contract, "sample.Contract", """
                 package sample;
-                @io.fluxzero.sdk.modeling.Model
+                @io.fluxzero.sdk.modeling.Model(searchable = false)
                 public interface Contract { @io.fluxzero.sdk.modeling.EntityId String id(); }
                 """);
         Path common = Path.of(io.fluxzero.common.modeling.ModelTypeProcessor.class.getProtectionDomain()

@@ -54,4 +54,12 @@ public class ModelRelationship {
      */
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)
     boolean deleteOnParentDeletion;
+
+    /**
+     * Excludes this edge and its descendants from ancestor search composition and Graph-document notifications.
+     * Identity navigation, relationship predicates and lifecycle ownership remain unchanged. Absent values from
+     * older writers default to {@code false}, preserving their searchable composition paths.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean searchExcluded;
 }

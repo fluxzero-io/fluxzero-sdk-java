@@ -49,6 +49,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -260,7 +261,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
                 .orElse(null);
         Class<?> targetModelType = model == null ? null : collection;
-        String queryCollection = model != null && !model.publicDocument()
+        String queryCollection = model != null && !EntityMetadata.of(collection).isSearchable()
                 ? NON_SEARCHABLE_MODEL_QUERY_PREFIX
                   + io.fluxzero.sdk.modeling.ModelNames.name(collection, modelNamePrefix)
                 : determineCollection(collection);
@@ -286,16 +287,21 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                     rootModelType.getName()
                     + " is not an independent model");
         }
-        String rootCollection = metadata.modelSourceDocumentCollection(modelNamePrefix)
+        if (!metadata.isSearchable()) {
+            throw new IllegalArgumentException(rootModelType.getName() + " is not searchable");
+        }
+        String rootCollection = modelSourceCollection(metadata)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Graph search root %s has no current document"
                                 .formatted(rootModelType.getName())));
         Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>
                 projection =
-                metadata.graphProjectionConfiguration(modelTypesSupplier.get(), modelNamePrefix);
+                modelRepositorySupplier.get() instanceof DefaultModelRepository repository
+                        ? repository.graphSearchDefinition(rootModelType)
+                        : metadata.graphSearchConfiguration(modelTypesSupplier.get(), modelNamePrefix);
         boolean live =
                 forceAdHoc
-                || projection.isEmpty();
+                || !root.materializeGraph();
         String collection =
                 live
                         ? projection.map(
@@ -309,10 +315,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                         ? projection.map(
                                         io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration
                                                 ::getComposition)
-                                .orElseGet(() ->
-                                                   ModelGraphComposition
-                                                           .builder()
-                                                           .build())
+                                .orElseGet(metadata::graphComposition)
                         : null;
         List<ModelGraphPathOverride> pathOverrides =
                 live
@@ -525,8 +528,11 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             if (targetModelType == null) {
                 return;
             }
-            String collection = EntityMetadata.validate(targetModelType)
-                    .modelDocumentCollection(modelNamePrefix)
+            EntityMetadata metadata = EntityMetadata.validate(targetModelType);
+            if (!metadata.isSearchable()) {
+                throw new IllegalArgumentException(targetModelType.getName() + " is not searchable");
+            }
+            String collection = modelSourceCollection(metadata)
                     .orElseThrow(() -> new IllegalArgumentException(
                             ("Relationship search target %s has no current-state document; "
                              + "load it as a Model or Graph instead")
@@ -710,22 +716,63 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         @Override
         public GroupSearch groupBy(String... paths) {
-            requireOrdinarySearch("grouped statistics");
             return new DefaultGroupSearch(Arrays.asList(paths));
         }
 
         @Override
         public List<FacetStats> facetStats() {
-            requireOrdinarySearch("facet statistics");
+            if (requiresModelSelection()) {
+                try (var documents = statisticsDocuments()) {
+                    return computeFacetStats(documents);
+                }
+            }
             return getSearchClient().fetchFacetStats(queryBuilder.build())
                     .stream().filter(this::isPublicFacet).toList();
         }
 
         @Override
         public CompletableFuture<List<FacetStats>> facetStatsAsync() {
-            requireOrdinarySearch("facet statistics");
+            if (requiresModelSelection()) {
+                return statisticsDocumentsAsync().thenApply(documents -> computeFacetStats(documents.stream()));
+            }
             return getSearchClient().fetchFacetStatsAsync(queryBuilder.build())
                     .thenApply(stats -> stats.stream().filter(this::isPublicFacet).toList());
+        }
+
+        private boolean requiresModelSelection() {
+            return graphComposition != null || !relationConstraints.isEmpty();
+        }
+
+        // Statistics operate on the complete selection; presentation paging and field filters do not apply.
+        private SearchDocuments statisticsRequest() {
+            return SearchDocuments.builder().query(queryBuilder.build()).build();
+        }
+
+        private Stream<SerializedDocument> statisticsDocuments() {
+            SearchDocuments request = statisticsRequest();
+            return (graphComposition != null
+                    ? getSearchClient().searchModelGraph(new SearchModelGraphDocuments(
+                            request, relationConstraints, graphComposition, graphPathOverrides), defaultFetchSize)
+                    : getSearchClient().searchModels(new SearchModelDocuments(request, relationConstraints), defaultFetchSize))
+                    .map(SearchHit::getValue);
+        }
+
+        private CompletableFuture<List<SerializedDocument>> statisticsDocumentsAsync() {
+            SearchDocuments request = statisticsRequest();
+            return (graphComposition != null
+                    ? getSearchClient().searchModelGraphAsync(new SearchModelGraphDocuments(
+                            request, relationConstraints, graphComposition, graphPathOverrides), defaultFetchSize)
+                    : getSearchClient().searchModelsAsync(new SearchModelDocuments(request, relationConstraints), defaultFetchSize))
+                    .thenApply(hits -> hits.stream().map(SearchHit::getValue).toList());
+        }
+
+        private List<FacetStats> computeFacetStats(Stream<SerializedDocument> documents) {
+            return documents.flatMap(document -> document.getFacets().stream())
+                    .collect(Collectors.groupingBy(identity(), java.util.TreeMap::new, Collectors.counting()))
+                    .entrySet().stream().map(entry -> new FacetStats(entry.getKey().getName(),
+                            entry.getKey().getValue(), Math.toIntExact(entry.getValue())))
+                    .filter(this::isPublicFacet).sorted(java.util.Comparator.comparing(FacetStats::getCount).reversed())
+                    .toList();
         }
 
         private boolean isPublicFacet(FacetStats stats) {
@@ -779,6 +826,13 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
             @Override
             public Map<Group, Map<String, DocumentStats.FieldStats>> aggregate(String... fields) {
+                if (requiresModelSelection()) {
+                    try (var documents = statisticsDocuments()) {
+                        return DocumentStats.compute(documents.map(SerializedDocument::deserializeDocument),
+                                        Arrays.asList(fields), groupBy).stream()
+                                .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats));
+                    }
+                }
                 return getSearchClient().fetchStatistics(queryBuilder.build(), Arrays.asList(fields), groupBy).stream()
                         .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats));
             }
@@ -786,11 +840,22 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             @Override
             public CompletableFuture<Map<Group, Map<String, DocumentStats.FieldStats>>> aggregateAsync(
                     String... fields) {
+                if (requiresModelSelection()) {
+                    return statisticsDocumentsAsync().thenApply(documents -> DocumentStats.compute(
+                                    documents.stream().map(SerializedDocument::deserializeDocument), Arrays.asList(fields), groupBy)
+                            .stream().collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
+                }
                 return getSearchClient().fetchStatisticsAsync(queryBuilder.build(), Arrays.asList(fields), groupBy)
                         .thenApply(stats -> stats.stream()
                                 .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
             }
         }
+    }
+
+    private Optional<String> modelSourceCollection(EntityMetadata metadata) {
+        return modelRepositorySupplier.get() instanceof DefaultModelRepository repository
+                ? repository.modelSourceCollection(metadata.type())
+                : metadata.modelSourceDocumentCollection(modelNamePrefix);
     }
 
     @Override
@@ -799,7 +864,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         if (type != null) {
             EntityMetadata metadata = EntityMetadata.of(type);
             if (metadata.isModel()) {
-                return metadata.modelDocumentReadCollection(modelNamePrefix);
+                return modelSourceCollection(metadata).orElseGet(() -> metadata.modelDocumentReadCollection(modelNamePrefix));
             }
         }
         return DocumentStore.super.determineCollection(collection);

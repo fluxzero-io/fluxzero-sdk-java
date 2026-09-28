@@ -82,10 +82,10 @@ class ModelAncestorSubstepReplayTest {
         assertEquals(new Child("child", "root", 2), reader.modelRepository().load("child", Child.class).get());
     }
 
-    @Model(name = "AncestorSubstepRoot")
+    @Model(searchable = false, name = "AncestorSubstepRoot")
     record Root(@EntityId String rootId, int value) {}
 
-    @Model(name = "AncestorSubstepChild")
+    @Model(searchable = false, name = "AncestorSubstepChild")
     record Child(@EntityId String childId, @Parent(Root.class) String rootId, int observedRootValue) {}
 
     record CreateFamily(String rootId, String childId) {

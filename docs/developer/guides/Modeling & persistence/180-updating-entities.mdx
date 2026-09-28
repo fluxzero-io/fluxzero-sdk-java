@@ -69,7 +69,7 @@ expected refusals from technical failures.
 Automatic handling can also be declared on the model:
 
 ```java
-@Model
+@Model(searchable = false)
 record Product(@EntityId ProductId productId, ProductDetails details) {
     @Apply
     Product rename(RenameProduct command) {

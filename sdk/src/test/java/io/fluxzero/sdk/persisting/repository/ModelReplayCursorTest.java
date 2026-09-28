@@ -42,7 +42,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.CommitAttempt;
-import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.SearchSettings;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -351,7 +351,7 @@ class ModelReplayCursorTest {
         verifyNoInteractions(tracker);
     }
 
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true, persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record CachedMixedModel(@EntityId String id) {}
 
     @ParameterizedTest
@@ -624,7 +624,7 @@ class ModelReplayCursorTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record CachedReplayModel(@EntityId String id) {
         @Apply
         static CachedReplayModel create(CachedCreated event) {
@@ -635,7 +635,7 @@ class ModelReplayCursorTest {
     private record CachedCreated(String id) {
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     private record HistoricalModel(@EntityId String id, int revision, String replayThread) {
         @Apply
         static HistoricalModel replace(HistoricalReplace event) {
@@ -646,7 +646,7 @@ class ModelReplayCursorTest {
     private record HistoricalReplace(String id, int revision) {
     }
 
-    @Model(cached = false)
+    @Model(searchable = false, cached = false)
     private record ReplayContextModel(@EntityId String id, Instant timestamp, String context) {
         @Apply
         static ReplayContextModel create(ReplayContextCreated event) {
@@ -1154,7 +1154,7 @@ class ModelReplayCursorTest {
         };
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "currentDocuments"))
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, searchSettings = @SearchSettings(collection = "currentDocuments"))
     private record CurrentDocument(
             @EntityId String id,
             String value) {

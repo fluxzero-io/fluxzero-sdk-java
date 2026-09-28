@@ -60,7 +60,7 @@ class ModelReconstructionDocumentationTest {
         assertThrows(IllegalArgumentException.class, () -> new ProjectUpcaster().fromRevision1(payload));
     }
 
-    @Model @Revision(2)
+    @Model(searchable = false) @Revision(2)
     record Project(@EntityId String projectId, ProjectDetails details) {}
     record ProjectDetails(String name) {}
     @Revision(2)

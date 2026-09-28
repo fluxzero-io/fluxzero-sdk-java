@@ -72,6 +72,51 @@ class InMemoryEventStoreModelCommitTest {
         assertTrue(operations.awaitTermination(2, TimeUnit.SECONDS), "Test operations did not terminate");
     }
 
+    @Test
+    void schemaInvalidationDuringRebuildCannotBeAcknowledgedByTheEarlierRebuild() {
+        var store = denseStore();
+        var calls = new AtomicInteger();
+        store.setModelGraphProjectionMaterializer((definition, roots, boundary, rebuild) -> {
+            if (calls.incrementAndGet() == 1) { store.invalidateModelGraphSchema("Root"); }
+            return () -> { };
+        });
+        var configuration = new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration(
+                "Root", "roots", "graphs", io.fluxzero.common.api.search.ModelGraphComposition.builder().build(),
+                List.of(new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision("Root", 0)),
+                List.of(), false);
+        store.registerModelGraphProjection(new io.fluxzero.common.api.modeling.RegisterModelGraphProjection(
+                configuration, false)).join();
+        assertEquals(2, calls.get(), "A rewrite during materialization must retain a second rebuild request");
+        assertFalse(store.getModelGraphProjectionStatus(
+                new io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus("graphs")).isRebuilding());
+    }
+
+    @Test
+    void hardErasureCleanupRunsOutsideTheModelLockAndRetriesBeforeAdvancingItsFence() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create"))
+                .targets(List.of(storedTarget("root"))).build())).join();
+        AtomicInteger calls = new AtomicInteger();
+        store.setModelErasureMaterializer(ids -> {
+            assertFalse(Thread.holdsLock(store), "Search cleanup must not invert the Graph composition lock order");
+            assertEquals(java.util.Set.of("root"), ids);
+            if (calls.incrementAndGet() == 1) { throw new IllegalStateException("cleanup unavailable"); }
+        });
+        var deletion = DeleteModel.builder().deletionId("erase").modelId("root")
+                .cascade(ModelDeletionCascade.NONE).maxDepth(1).maxModels(1).build();
+        assertThrows(CompletionException.class, () -> store.deleteModel(deletion).join());
+        var pending = store.trackModelUpdates(new TrackModelUpdates(-1L, 10, 0L, 0L)).join();
+        assertEquals(1L, pending.getCurrentStateIndex());
+        assertEquals(0L, pending.getMaterializedStateIndex());
+        assertTrue(store.deleteModel(deletion).join().isDuplicate());
+        assertEquals(2, calls.get());
+        assertEquals(1L, store.trackModelUpdates(new TrackModelUpdates(-1L, 10, 0L, 0L)).join()
+                .getMaterializedStateIndex());
+        assertThrows(CompletionException.class, () -> store.commitModels(commit("recreate", 1L,
+                ModelConflictPolicy.ACCEPT, ModelCommitStep.builder().event(event("recreate"))
+                        .targets(List.of(storedTarget("root"))).build())).join());
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void deletionLineageSurvivesSameStepTreeDeletion(boolean reverseOrder) {

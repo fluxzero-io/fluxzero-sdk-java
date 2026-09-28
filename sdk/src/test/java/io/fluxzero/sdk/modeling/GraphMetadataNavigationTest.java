@@ -833,7 +833,7 @@ class GraphMetadataNavigationTest {
         }
     }
 
-    @Model record PrefixedAlias(@EntityId(prefix = "details-") String id, @Alias String alias) {}
+    @Model(searchable = false) record PrefixedAlias(@EntityId(prefix = "details-") String id, @Alias String alias) {}
     record CreatePrefixedAlias(String id, String alias) {
         @Apply PrefixedAlias apply() { return new PrefixedAlias(id, alias); }
     }
@@ -1319,21 +1319,21 @@ class GraphMetadataNavigationTest {
         }
     }
 
-    @Model(name = "root") record Root(@EntityId String rootId, int version) {}
-    @Model record Aliased(@EntityId String rootId, @Alias String alias, int version) {}
+    @Model(searchable = false, name = "root") record Root(@EntityId String rootId, int version) {}
+    @Model(searchable = false) record Aliased(@EntityId String rootId, @Alias String alias, int version) {}
     record DeleteAliased(String rootId) { @Apply Aliased apply() { return null; } }
     record RejectAlias() { @AssertLegal void check() { throw new IllegalCommandException("rejected"); } }
-    @Model record Affixed(@EntityId(prefix = "prefix-") String rootId, @Alias String alias) {}
+    @Model(searchable = false) record Affixed(@EntityId(prefix = "prefix-") String rootId, @Alias String alias) {}
     record CreateAffixed(String rootId, String alias) {
         @Apply Affixed apply() { return new Affixed(rootId, alias); }
     }
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record AliasedDocument(@EntityId String documentId, @Alias String alias) {}
     record CreateAliasedDocument(String documentId, String alias) {
         @Apply AliasedDocument apply(@jakarta.annotation.Nullable AliasedDocument existing) { return new AliasedDocument(documentId, alias); }
     }
-    @Model record AliasChild(@EntityId String childId, @Parent(Aliased.class) String rootId) {}
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = false) record AliasChild(@EntityId String childId, @Parent(Aliased.class) String rootId) {}
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record Document(@EntityId String documentId, @Parent(Document.class) String parentId) {}
     record CreateDocument(String documentId, String parentId) {
         @Apply Document apply(@jakarta.annotation.Nullable Document existing) { return new Document(documentId, parentId); }
@@ -1347,12 +1347,12 @@ class GraphMetadataNavigationTest {
     record CreateAliasChild(String childId, String rootId) {
         @Apply AliasChild apply() { return new AliasChild(childId, rootId); }
     }
-    @Model(name = "known") record KnownChild(@EntityId String childId,
+    @Model(searchable = false, name = "known") record KnownChild(@EntityId String childId,
             @Parent(value = Root.class, pathInParent = "children") String rootId) {}
-    @Model(name = "foreign") record Foreign(@EntityId String childId,
+    @Model(searchable = false, name = "foreign") record Foreign(@EntityId String childId,
             @Parent(value = Root.class, pathInParent = "children") String rootId) {}
-    @Model(name = "foreign") record ForeignView(@EntityId String childId, String incompatibleField) {}
-    @Model(name = "leaf") record Leaf(@EntityId String leafId,
+    @Model(searchable = false, name = "foreign") record ForeignView(@EntityId String childId, String incompatibleField) {}
+    @Model(searchable = false, name = "leaf") record Leaf(@EntityId String leafId,
             @Parent(value = Foreign.class, pathInParent = "leaves") String childId) {}
     record CreateRoot(String rootId, int version) { @Apply Root apply(@jakarta.annotation.Nullable Root existing) { return new Root(rootId, version); } }
     record UpdateRootAndChild(String rootId, int version, String childId) {
@@ -1363,8 +1363,8 @@ class GraphMetadataNavigationTest {
     record CreateForeign(String childId, String rootId) { @Apply Foreign apply(@jakarta.annotation.Nullable Foreign existing) { return new Foreign(childId, rootId); } }
     record CreateLeaf(String leafId, String childId) { @Apply Leaf apply() { return new Leaf(leafId, childId); } }
     record DeleteForeign(String childId) { @Apply Foreign apply() { return null; } }
-    @Model record Receipt(@EntityId String receiptId, int count) {}
-    @Model record RevisionChild(@EntityId String childId, @Parent(Root.class) String rootId, int version) {}
+    @Model(searchable = false) record Receipt(@EntityId String receiptId, int count) {}
+    @Model(searchable = false) record RevisionChild(@EntityId String childId, @Parent(Root.class) String rootId, int version) {}
     record PutRevisionChild(String childId, String rootId, int version) {
         @Apply RevisionChild apply(@jakarta.annotation.Nullable RevisionChild existing) { return new RevisionChild(childId, rootId, version); }
     }

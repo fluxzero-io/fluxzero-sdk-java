@@ -109,7 +109,7 @@ class ModelDetailsDocumentationKotlinTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     data class Project(
         @EntityId val projectId: ProjectId,
         val details: ProjectDetails,

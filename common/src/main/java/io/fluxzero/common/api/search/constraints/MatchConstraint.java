@@ -147,6 +147,11 @@ public class MatchConstraint extends PathConstraint {
     Predicate<Document.Entry> entryMatcher = computeEntryMatcher();
 
     @Override
+    protected boolean matchesPath(Document.Path path, Document document) {
+        return document.isSearchablePath(path);
+    }
+
+    @Override
     protected boolean matches(Document.Entry entry, Document document) {
         String summary = document.getSummary();
         if (summary != null && !summary.contains(entry.asPhrase())) {

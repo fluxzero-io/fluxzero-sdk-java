@@ -104,7 +104,7 @@ class ModelDetailsDocumentationTest {
                                               Fluxzero.loadModel(projectId).get()));
     }
 
-    @Model
+    @Model(searchable = false)
     @With
     public record Project(
             @EntityId ProjectId projectId,

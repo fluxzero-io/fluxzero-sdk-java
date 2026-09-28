@@ -63,21 +63,19 @@ You can also specify the collection in which the object should be stored directl
 
 ## Model documents and searchable values
 
-Start ordinary domain state at `@Model`. The examples below add a public direct document specifically for a list of
-user accounts across the application. Relationship-scoped search can instead use internal component documents from
-explicit composition paths; it does not always need `DOCUMENT`. See the central
+Start ordinary domain state at `@Model(searchable = false)`. The examples below enable `searchable` for a list of user accounts across the application. Node, relationship and Graph queries use the same canonical indexed documents. Neither `DOCUMENT` nor a composition path activates search. See the central
 [Model and Graph query matrix](../model-query-guide) for required configuration, available predicates and actual state.
 
 Other values use the document-store annotations that own automatic indexing:
 
-- `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`
+- `@Model(searchable = true)`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+    @Model(searchable = true)
     public record UserAccount(@EntityId UserId userId,
                               UserProfile profile,
                               boolean accountClosed) {
@@ -86,7 +84,7 @@ Other values use the document-store annotations that own automatic indexing:
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
+    @Model(searchable = true)
     data class UserAccount(
         @EntityId val userId: UserId,
         val profile: UserProfile,
@@ -96,29 +94,22 @@ Other values use the document-store annotations that own automatic indexing:
   </TabItem>
 </Tabs>
 
-For Models, the default collection is the resolved logical Model name (simple class name unless `@Model.name` or
-`fluxzero.model.namePrefix` changes it). Other document types default to their simple class name. Configure
-a Model's direct document through its `document`; `@Stateful` and directly searchable values expose the `@Searchable`
-settings themselves:
+For Models, the default canonical collection is `$modelGraphComponents/<logical Model name>`; `@Model.name` and `fluxzero.model.namePrefix` determine that logical name. Other document types default to their simple class name. Configure a Model's collection and timestamp paths through `searchSettings`; `@Stateful` and directly searchable values expose the `@Searchable` settings themselves:
 
 <Tabs>
   <TabItem label="Java">
     ```java
     @Model(
-        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-        document = @DocumentProjection(
-            collection = "users",
-            timestampPath = "profile/createdAt"))
+        searchable = true,
+        searchSettings = @SearchSettings(collection = "users", timestampPath = "profile/createdAt")
+    )
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
     @Model(
-        persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT],
-        document = DocumentProjection(
-            collection = "users",
-            timestampPath = "profile/createdAt"
-        )
+        searchable = true,
+        searchSettings = SearchSettings(collection = "users", timestampPath = "profile/createdAt")
     )
     ```
   </TabItem>
@@ -132,8 +123,9 @@ reference-only:
   <TabItem label="Java">
     ```java
     @Model(
-        persistence = ModelPersistence.DOCUMENT,
-        document = @DocumentProjection(searchable = false))
+    searchable = false,
+    persistence = ModelPersistence.DOCUMENT
+)
     public record UserPreferences(@EntityId UserId userId,
                                   Preferences preferences) {
     }
@@ -142,9 +134,9 @@ reference-only:
   <TabItem label="Kotlin">
     ```kotlin
     @Model(
-        persistence = [ModelPersistence.DOCUMENT],
-        document = DocumentProjection(searchable = false)
-    )
+    searchable = false,
+    persistence = [ModelPersistence.DOCUMENT]
+)
     data class UserPreferences(
         @EntityId val userId: UserId,
         val preferences: Preferences
@@ -153,12 +145,10 @@ reference-only:
   </TabItem>
 </Tabs>
 
-Fluxzero stores this document in its normal resolved collection, which defaults to `UserPreferences` and can be
-overridden with `DocumentProjection.collection`. This keeps existing collection names usable during migration.
-Exact parent/ancestor queries can still retrieve this public projection, while unrestricted
-`Fluxzero.search(UserPreferences.class)` does not expose it. The public projection has no summary/reversary, facets
-or sortables, even with a Graph role. Model loads and Graph composition use a separate internal source;
-that source retains indexes when composition needs them. Public projection rewrites cannot alter it.
+This Model keeps one canonical internal current-state document. It is not searchable unless a searchable typed
+composition ancestor activates it. `DOCUMENT` alone and `pathInParent` never activate search. Its default collection
+is `$modelGraphComponents/UserPreferences`; `SearchSettings.collection` changes that canonical source, so preserve
+existing state or migrate it explicitly. There is no second public Model copy.
 
 ---
 
@@ -291,15 +281,10 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
         .fetch(100);
 ```
 
-This form requires the related Model's internal current source. `DOCUMENT`, an explicit
-`@Parent(pathInParent = "...")` or `materializeGraph = true` maintains that source. It is separate from a public
-DOCUMENT projection and never reads an independently rewritten public document. The
-predicate applies to that Model's own fields, not to fields nested only in a materialized whole-Graph projection.
-
-The returned target also needs a current document. A public `DOCUMENT` projection works, and a private Graph-component
-document becomes available only because the query is explicitly relation-bounded; ordinary typed search still does not
-expose it. A standalone event-sourced target without a direct document, explicit composition path or materialized root
-has no document-search representation. Use `loadModel(...)` or `loadGraph(...)` when its identity is already known.
+Use the class-and-constraint overload to select related Models by their own indexed content. Both the returned
+Model and the related Model must be effectively searchable. They use their canonical node documents; a composed Graph
+is not used as a node source. Ancestor-ID filters only require the returned Model to be searchable: the ancestor need
+not have a document. `DOCUMENT` and `pathInParent` do not activate search. Load a non-searchable Model by ID instead.
 
 <Aside type="note">
 You can choose to split path segments with either <code>.</code> or <code>/</code>. Both styles are equivalent.
@@ -541,6 +526,12 @@ In this case, none of the properties of `EncryptedData` will be indexed, unless 
 
 ---
 
+Exclusion is recorded per concrete field path: an excluded field remains excluded even when its value also occurs
+in a searchable field. Its value is still stored for deserialization; existence, range, facet and sorting operations
+retain their usual behavior. Documents indexed before per-path exclusions were recorded must be reindexed from typed
+values after upgrading both the writing SDK and Runtime. Upgrading readers alone cannot recover that missing metadata.
+Custom inverters and custom summarizers continue to define their own indexing semantics.
+
 ### `@SearchInclude`
 
 Use `@SearchInclude` to **override** an exclusion. This is functionally equivalent to `@SearchExclude(false)` and is
@@ -584,6 +575,8 @@ If you want a field to be completely omitted from storage (not just indexing), m
 </Aside>
 
 ---
+
+`skip(n)` skips the first `n` results of the complete ordered search. It applies once, including when a synchronous or asynchronous fetch spans several transport batches. The transport fetch size does not change the selection.
 
 ## Rapid sorting and filtering
 

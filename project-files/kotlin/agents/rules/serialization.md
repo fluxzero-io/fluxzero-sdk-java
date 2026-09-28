@@ -121,7 +121,7 @@ register an ordinary `@Upcast` for every changed Model type. Use `Data<JsonNode>
 Graph-specific upcaster.
 
 Read-time upcasting is sufficient for correctness. A dedicated
-`@HandleDocument(modelGraph = RootModel::class)` handler may return the complete Graph to persist evolved JSON into the
+`@HandleDocument` handler may return the complete Graph to persist evolved JSON into the
 derived projection. It must not change the root, state boundary, nodes or placements and never rewrites Models,
 snapshots, events or relationships.
 
@@ -262,14 +262,15 @@ Moving `name` into `details.name` must preserve its value, not replace it with a
 
 Read-time upcasting does not change search indexes: an old stored `name` path remains the selector even when a returned
 object exposes `details.name`. Check both paths before and after deliberate migration. A complete-Graph
-`@HandleDocument(modelGraph = Project.class)` return migrates only the derived materialized Graph.
-For the internal source use `@HandleDocument(modelState = Project.class)` and return the upcast value unchanged
-(Kotlin: `Project::class`). This schema-only route rejects changed identity/state, null and split/drop upcasters;
+`@HandleDocument` return migrates only the derived materialized Graph.
+For the internal source use `@HandleDocument(source = DocumentSource.MODEL_STATE)` and return the upcast value unchanged
+This schema-only route rejects changed identity/state, null and split/drop upcasters;
 a higher schema revision is required. Full-head/body/proof compare-and-set skips stale rewrites after update,
 deletion or recreation. It advances neither Model history nor business state.
-The independent public DOCUMENT projection uses ordinary
-`@HandleDocument(documentClass = Project.class)` revision-aware handling; its writes cannot replace internal state.
-It remains parent/ancestor-queryable. Migrate sources before rebuilding Graphs and qualify each query path separately.
+For a searchable Model, a bare `@HandleDocument` with its value selects the same canonical source and applies the
+same schema-only guard. A Graph return never rewrites source nodes. NONE Graph handlers stitch current state and
+ignore Graph return values; update the source schemas instead. Source rewrites durably invalidate registered Graph
+projections without adding business history. Qualify node queries and all Graph modes after migration.
 See `/docs/sdk/models/migration-testing` for complete examples, custom serializer support and storage-upgrade limits.
 Keep `EVENT_SOURCED` and reconstructible history to prove `previous()` still retains historical business values.
 

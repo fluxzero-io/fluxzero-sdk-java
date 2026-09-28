@@ -128,7 +128,8 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
             if (annotation == null) {
                 return invoker;
             }
-            if (annotation.modelState() != Void.class) {
+            Class<?> modelSourceType = DocumentHandlerTopics.modelSourceType(annotation, method);
+            if (modelSourceType != Void.class) {
                 String collection = DocumentHandlerTopics.resolve(annotation, method);
                 if (method.getReturnType() == void.class) {
                     return invoker;
@@ -137,7 +138,7 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                     @Override
                     public Object invoke(BiFunction<Object, Object, Object> combiner) {
                         var migration = ModelSourceDocumentMigration.prepare(
-                                message, annotation.modelState(), collection,
+                                message, modelSourceType, collection,
                                 documentStoreSupplier.get().getSerializer(), searchClient == null ? null : searchClient.apply(message));
                         Object result = delegate.invoke(combiner);
                         migration.finish(result);
@@ -145,8 +146,9 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                     }
                 };
             }
-            if (annotation.modelGraph() != Void.class) {
-                if (!Graph.class.isAssignableFrom(method.getReturnType())) {
+            if (DocumentHandlerTopics.graphType(annotation, method) != Void.class) {
+                if (io.fluxzero.sdk.persisting.search.DocumentMessageReader.isLiveGraph(message)
+                        || !Graph.class.isAssignableFrom(method.getReturnType())) {
                     return invoker;
                 }
                 return new ModelGraphDocumentHandlerInvoker(

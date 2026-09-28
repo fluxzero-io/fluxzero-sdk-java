@@ -229,9 +229,11 @@ public class LocalClient extends AbstractClient {
         eventStore.getMessageStore()
                 .setModelCommitMaterializer(
                         result::prepareModelCommit);
+        eventStore.getMessageStore().setModelErasureMaterializer(result::eraseModels);
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(
                         result::prepareModelGraphProjection);
+        result.setModelSchemaInvalidation(eventStore.getMessageStore()::invalidateModelGraphSchema);
         return result;
     }
 

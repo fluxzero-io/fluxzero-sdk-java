@@ -176,7 +176,7 @@ To migrate the materialized Graph, register the node casters and replay its docu
 ```java
 @Consumer(name = "project-graph-schema-2", minIndex = 0)
 class RematerializeProjects {
-    @HandleDocument(modelGraph = Project.class)
+    @HandleDocument
     Graph<Project> migrate(Graph<Project> graph) { return graph; }
 }
 ```
@@ -192,31 +192,26 @@ trigger this rewrite. It does not
 migrate the source component documents or advance Model history. Rebuilding solely from old components can retain
 old paths; keep the migration consumer for the rollout window and verify behavior after subsequent writes too.
 
-## Reindex the three representations independently
+## Reindex canonical nodes and optional stored Graphs
 
-A Model commit maintains an internal current source and, when `DOCUMENT` is enabled, a **separate public projection**.
-Graph materialization adds a third representation. None of their reindexers advances Model history.
+A searchable Model has one canonical indexed node document. DOCUMENT persistence can maintain that state without
+searchability. ASYNC/AWAIT additionally store the composed Graph. Schema rewrites do not advance Model history.
 
 | Handler selection | Reads/writes | Query paths it updates |
 | --- | --- | --- |
-| `@HandleDocument(documentClass = Project.class)` | Public DOCUMENT projection | `search(Project.class)`, including results selected by parent/ancestor ID |
-| `@HandleDocument(modelState = Project.class)` | Verified internal current source | Live Graph composition and related-content predicates such as `whereChild(Project.class, ...)` |
-| `@HandleDocument(modelGraph = Project.class)` | Complete materialized Graph | Stored `searchGraph(Project.class)` root/nested paths |
+| `@HandleDocument` with `Project` | Canonical searchable node | Node searches, live composition and related-content predicates |
+| `@HandleDocument(source = DocumentSource.MODEL_STATE)` with `Project` | Maintained internal state, including non-searchable DOCUMENT Models | The same canonical source; does not activate search |
+| `@HandleDocument` with `Graph<Project>` | Logical Graph updates in every mode | Return may migrate only a stored ASYNC/AWAIT composition; NONE returns are observational |
 
 After registering the value-preserving upcasters above and raising the Model schema revision, use explicit consumers:
 
 ```java
 @Consumer(name = "project-source-schema-2", minIndex = 0)
 class ReindexProjectSources {
-    @HandleDocument(modelState = Project.class)
+    @HandleDocument(source = DocumentSource.MODEL_STATE)
     Project migrate(Project project) { return project; }
 }
 
-@Consumer(name = "project-public-schema-2", minIndex = 0)
-class ReindexProjectDocuments {
-    @HandleDocument(documentClass = Project.class)
-    Project migrate(Project project) { return project; }
-}
 ```
 
 Kotlin has the same contract:
@@ -224,7 +219,7 @@ Kotlin has the same contract:
 ```kotlin
 @Consumer(name = "project-source-schema-2", minIndex = 0)
 class ReindexProjectSources {
-    @HandleDocument(modelState = Project::class)
+    @HandleDocument(source = DocumentSource.MODEL_STATE)
     fun migrate(project: Project): Project = project
 }
 ```
@@ -242,13 +237,12 @@ untrusted document overwrite or prior schema rewrite makes the old request a suc
 or domain event is produced. This guards the materialized source boundary; it is not a cross-database atomic snapshot
 of all Models. A void handler observes only and performs no rewrite.
 
-Ordinary public document handlers keep their normal revision-aware return/deletion semantics: they do **not** gain
-the Model-source compare-and-set contract. A stale ordinary projection writer may still need application-level
-coordination. Its writes cannot replace the internal source or certify Model state. Never index internal collections
-through ordinary `DocumentStore.index`.
+Ordinary read-model documents retain their revision-aware return/deletion semantics. A typed Model handler uses the
+schema-only guard, whether selected through SEARCH or MODEL_STATE. Use commands for business state changes; direct
+indexing cannot certify Model state. For an independently transformed view, define a separate read model.
 
 Migrate internal sources before rebuilding Graph projections, observe consumer catch-up, and test old/new paths
-separately for all three roles. Reindex each affected child's source too: rewriting only the root does not migrate
+separately for nodes and stored Graphs. Reindex each affected child's source too: rewriting only the root does not migrate
 child predicates. Verify a fresh reader can still load current state and historical `previous()` values afterward.
 
 Storage/configuration changes are separate migrations: a schema upcaster does not retire renamed collections,

@@ -15,6 +15,9 @@
 package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.search.SearchQuery;
+import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.search.FacetEntry;
@@ -29,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static io.fluxzero.common.search.Document.EntryType.EMPTY_ARRAY;
 import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,6 +41,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelGraphDocumentStitcherTest {
+
+    @Test
+    void preservesFieldExclusionsAcrossChildrenAndGrandchildrenWithOverlappingValues() {
+        var inverter = new JacksonInverter();
+        var root = inverter.toDocument(new SearchValue("shared", "shared"), "root", 0, "root", "roots",
+                null, null, Metadata.empty());
+        var child = inverter.toDocument(new SearchValue("shared", "shared"), "child", 0, "child", "children",
+                null, null, Metadata.empty());
+        var grandchild = inverter.toDocument(new SearchValue("shared", "shared"), "detail", 0, "detail", "details",
+                null, null, Metadata.empty());
+        var graph = ModelGraphDocumentStitcher.stitch(List.of(root),
+                List.of(edge("child", "root", "children"), edge("detail", "child", "details")),
+                Map.of("root", root, "child", child, "detail", grandchild), modelTypes("root", "child", "detail"),
+                ModelGraphComposition.builder().build()).getFirst();
+        for (String path : List.of("secret", "children/secret", "children/details/secret")) {
+            assertFalse(match("shared", path).matches(graph.deserializeDocument()), path);
+            var search = SearchDocuments.builder().query(SearchQuery.builder().collection("roots")
+                    .constraint(match("shared", path)).build()).build();
+            assertTrue(ModelGraphDocumentSearch.apply(List.of(graph), search).isEmpty(), path);
+        }
+        assertTrue(match("shared", "children/details/name").matches(graph.deserializeDocument()));
+        assertEquals("shared", graph.deserializeDocument().getEntryAtPath("children/details/secret")
+                .orElseThrow().getValue());
+    }
+
+    public record SearchValue(String name, @SearchExclude String secret) {}
 
     @Test
     void composesCompleteGraphWithoutImplicitLimits() {

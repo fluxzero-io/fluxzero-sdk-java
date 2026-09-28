@@ -87,6 +87,7 @@ public final class EntityMetadata {
     private final List<Property> assertionFields;
     private final int revision;
     private volatile Boolean selfReferentialMember;
+    private volatile Boolean searchable;
 
     /**
      * Returns the centrally cached entity metadata for a Java type.
@@ -507,18 +508,15 @@ public final class EntityMetadata {
             ParentRelationship relationship = new ParentRelationship(
                     repositoryId, parentType,
                     reference.pathInParent().isEmpty() ? null : reference.pathInParent(),
-                    reference.deleteOnParentDeletion());
+                    reference.deleteOnParentDeletion(), !reference.searchable());
             RelationshipKey key = new RelationshipKey(
                     repositoryId, parentType, relationship.pathInParent());
             result.merge(
                     key, relationship,
-                    (existing, duplicate) -> existing.deleteOnParentDeletion()
-                            ? existing
-                            : duplicate.deleteOnParentDeletion()
-                                    ? new ParentRelationship(
-                                            existing.parentId(), existing.parentType(),
-                                            existing.pathInParent(), true)
-                                    : existing);
+                    (existing, duplicate) -> new ParentRelationship(
+                            existing.parentId(), existing.parentType(), existing.pathInParent(),
+                            existing.deleteOnParentDeletion() || duplicate.deleteOnParentDeletion(),
+                            existing.searchExcluded() || duplicate.searchExcluded()));
         }
         return List.copyOf(result.values());
     }
@@ -536,37 +534,51 @@ public final class EntityMetadata {
 
     /** Whether this Model independently needs an indexed internal current document for Graph operations. */
     public boolean maintainsGraphComponentDocument() {
-        return model != null
-               && (participatesInGraphComposition()
-                   || rootConfiguration.materializeGraph());
+        return isSearchable();
     }
 
-    /** Returns the application-resolved collection that owns this Model's current document, if it has one. */
+    /** Whether an explicit request on this type or a composed ancestor includes this node type in search. */
+    public boolean isSearchable() {
+        Boolean result = searchable;
+        if (result == null) {
+            searchable = result = model != null && (model.searchable() || searchableAncestor(new LinkedHashSet<>()));
+        }
+        return result;
+    }
+
+    private boolean searchableAncestor(Set<Class<?>> visited) {
+        if (!visited.add(type)) {
+            return false;
+        }
+        return parentReferences.stream().filter(ParentReference::searchableComposition)
+                .flatMap(reference -> reference.parentModelTypes().stream())
+                .map(EntityMetadata::of)
+                .anyMatch(parent -> parent.model != null
+                        && (parent.model.searchable() && parent.model.searchSettings().includeDescendants()
+                            || parent.searchableAncestor(visited)));
+    }
+
+    /** Scope of a Graph query rooted here, independent of the root's inherited activation. */
+    public ModelGraphComposition graphComposition() {
+        return ModelGraphComposition.builder()
+                .includeDescendants(model.searchSettings().includeDescendants()).build();
+    }
+
+    /** Returns this Model's canonical current-document collection, if maintained. */
     public Optional<String> modelDocumentCollection() {
         return modelDocumentCollection(ApplicationProperties.getProperty(
                 ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
     }
 
-    /** Returns the Model current-document collection using an already application-scoped name prefix. */
+    /** Returns this Model's canonical collection using an application-scoped name prefix. */
     public Optional<String> modelDocumentCollection(String modelNamePrefix) {
-        if (model == null) {
-            return Optional.empty();
-        }
-        if (rootConfiguration.directDocument()) {
-            return Optional.of(configuredModelDocumentCollection(modelNamePrefix));
-        }
         return modelSourceDocumentCollection(modelNamePrefix);
     }
 
-    /**
-     * Returns the internal source used for current Model state and Graph composition. A separate public
-     * {@link ModelPersistence#DOCUMENT} projection never owns this source, including for document-only Models.
-     */
+    /** Internal state and indexed node search share one canonical document; search never changes load authority. */
     public Optional<String> modelSourceDocumentCollection(String modelNamePrefix) {
-        return model != null && (rootConfiguration.directDocument() || maintainsGraphComponentDocument())
-                ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
-                        ModelNames.name(type, modelNamePrefix)))
-                : Optional.empty();
+        return model != null && (rootConfiguration.directDocument() || isSearchable())
+                ? Optional.of(configuredModelDocumentCollection(modelNamePrefix)) : Optional.empty();
     }
 
     /**
@@ -584,9 +596,11 @@ public final class EntityMetadata {
                 .orElseGet(() -> configuredModelDocumentCollection(modelNamePrefix));
     }
 
-    /** Returns the independent document projection's configured collection. */
+    /** Returns the canonical Model source collection, shared with node search when enabled. */
     public String configuredModelDocumentCollection(String modelNamePrefix) {
-        return rootConfiguration.resolvedCollection(type, modelNamePrefix);
+        return rootConfiguration.collection().isEmpty()
+                ? ModelDocumentMutation.privateModelDocumentCollection(ModelNames.name(type, modelNamePrefix))
+                : rootConfiguration.resolvedCollection(type, modelNamePrefix);
     }
 
     /** Returns this root's application-resolved materialized graph definition, if enabled. */
@@ -609,7 +623,14 @@ public final class EntityMetadata {
     /** Returns the durable Graph definition using an already application-scoped Model-name prefix. */
     public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration(
             Collection<Class<?>> knownModelTypes, String modelNamePrefix) {
-        if (model == null || !model.materializeGraph()) {
+        return model == null || model.graphProjection().mode() == GraphProjectionMode.NONE
+                ? Optional.empty() : graphSearchConfiguration(knownModelTypes, modelNamePrefix);
+    }
+
+    /** Shared composition definition for both live and stored Graph search. */
+    public Optional<ModelGraphProjectionConfiguration> graphSearchConfiguration(
+            Collection<Class<?>> knownModelTypes, String modelNamePrefix) {
+        if (!isSearchable()) {
             return Optional.empty();
         }
         GraphProjection projection = model.graphProjection();
@@ -617,8 +638,7 @@ public final class EntityMetadata {
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
-        String graphCollectionBase = rootConfiguration.directDocument()
-                ? configuredModelDocumentCollection(modelNamePrefix) : ModelNames.name(type, modelNamePrefix);
+        String graphCollectionBase = rootConfiguration.resolvedCollection(type, modelNamePrefix);
         String collection = projection.collection().isEmpty()
                 ? graphCollectionBase + "-graphs"
                 : ApplicationProperties.substituteProperties(projection.collection());
@@ -630,12 +650,17 @@ public final class EntityMetadata {
         }
         return Optional.of(new ModelGraphProjectionConfiguration(
                 ModelNames.name(type, modelNamePrefix), rootCollection, collection,
-                ModelGraphComposition.builder().build(),
+                graphComposition(),
                 graphModelRevisions(knownModelTypes, modelNamePrefix),
                 Arrays.stream(projection.pathOverrides())
                         .map(override -> new ModelGraphPathOverride(
                                 override.path(), override.projectionPath()))
-                        .toList()));
+                        .toList(), projection.mode() != GraphProjectionMode.NONE));
+    }
+
+    /** Rejects a Graph scope whose declared child contract cannot maintain the required search source on every writer. */
+    public void validateSearchScope(Collection<Class<?>> knownModelTypes) {
+        graphModelRevisions(knownModelTypes, "");
     }
 
     private List<ModelGraphProjectionConfiguration.ModelRevision>
@@ -653,12 +678,12 @@ public final class EntityMetadata {
         boolean changed;
         do {
             changed = false;
-            for (Class<?> candidate : candidates) {
+            for (Class<?> candidate : model.searchSettings().includeDescendants() ? candidates : List.<Class<?>>of()) {
                 if (reachable.contains(candidate)) {
                     continue;
                 }
                 boolean participates = EntityMetadata.of(candidate).parentReferences().stream()
-                        .filter(ParentReference::automaticallyComposed)
+                        .filter(ParentReference::searchableComposition)
                         .flatMap(reference -> reference.parentModelTypes().stream())
                         .anyMatch(parent -> reachable.stream()
                                 .anyMatch(reachableType ->
@@ -673,6 +698,11 @@ public final class EntityMetadata {
                 .sorted(java.util.Comparator.comparing(Class::getName))
                 .map(modelType -> {
                     EntityMetadata metadata = EntityMetadata.of(modelType);
+                    if (!metadata.isSearchable()) {
+                        throw new IllegalStateException("Searchable Graph %s includes %s without a shared searchable contract; "
+                                .formatted(type.getName(), modelType.getName())
+                                + "enable searchable on the declared parent contract or on the child type");
+                    }
                     return new ModelGraphProjectionConfiguration.ModelRevision(
                             ModelNames.name(modelType, modelNamePrefix), metadata.revision());
                 })
@@ -685,6 +715,24 @@ public final class EntityMetadata {
         return ReflectionUtils.getTypeMetadata(modelType)
                 .specializedMetadata(GraphProjectionRoots.class, GraphProjectionRoots::new)
                 .values();
+    }
+
+    /**
+     * Includes registered concrete alternatives of polymorphic parent contracts, recursively through their ancestors.
+     * The result is a conservative type set; the Runtime selects actual affected roots from the changed Model IDs.
+     */
+    public static List<GraphProjectionRoot> graphProjectionRoots(Class<?> modelType, Collection<Class<?>> knownModelTypes) {
+        return graphProjectionRoots(modelType, () -> knownModelTypes);
+    }
+
+    /** Avoids fetching or copying the application catalog for the usual final, statically declared parent types. */
+    public static List<GraphProjectionRoot> graphProjectionRoots(
+            Class<?> modelType, java.util.function.Supplier<? extends Collection<Class<?>>> knownModelTypes) {
+        validate(modelType);
+        GraphProjectionRoots structural = ReflectionUtils.getTypeMetadata(modelType)
+                .specializedMetadata(GraphProjectionRoots.class, GraphProjectionRoots::new);
+        return structural.polymorphic() ? GraphProjectionRoots.inspect(
+                modelType, new LinkedHashSet<>(), false, knownModelTypes.get()) : structural.values();
     }
 
     public List<HandlerMethod> handlerMethods() {
@@ -835,7 +883,7 @@ public final class EntityMetadata {
             }
             result.add(new ParentReference(
                     parentProperty.property(), pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
-                    annotation.deleteOnParentDeletion()));
+                    annotation.deleteOnParentDeletion(), annotation.searchable()));
         }
         return List.copyOf(result);
     }
@@ -884,7 +932,7 @@ public final class EntityMetadata {
     private void validateGraphProjection(Model annotation) {
         GraphProjection projection =
                 annotation.graphProjection();
-        if (!annotation.materializeGraph()) {
+        if (annotation.graphProjection().mode() == GraphProjectionMode.NONE) {
             return;
         }
         if (!projection.collection().isEmpty()
@@ -948,15 +996,6 @@ public final class EntityMetadata {
                 throw invalid("@Model.checkpointPeriod on %s requires event-sourced persistence"
                                       .formatted(type.getName()));
             }
-        }
-        DocumentProjection document = annotation.document();
-        if (!storesDocument
-            && (!document.searchable()
-                || !document.collection().isEmpty()
-                || !document.timestampPath().isEmpty()
-                || !document.endPath().isEmpty())) {
-            throw invalid("@Model.document on %s requires persistence that stores a direct document"
-                                  .formatted(type.getName()));
         }
         return Set.copyOf(persistence);
     }
@@ -1344,6 +1383,7 @@ public final class EntityMetadata {
      * @param pathInParent    optional parent-relative automatic composition path
      * @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
+     * @param searchable     whether ancestor search composition may traverse this edge
      * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
      */
     public record ParentReference(
@@ -1351,7 +1391,8 @@ public final class EntityMetadata {
             String pathInParent,
             List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
-            boolean deleteOnParentDeletion) {
+            boolean deleteOnParentDeletion,
+            boolean searchable) {
         public ParentReference {
             parentModelTypes = List.copyOf(parentModelTypes);
         }
@@ -1411,6 +1452,11 @@ public final class EntityMetadata {
         public boolean automaticallyComposed() {
             return !pathInParent.isEmpty();
         }
+
+        /** Whether this edge participates in search composition and inherited search activation. */
+        public boolean searchableComposition() {
+            return searchable && automaticallyComposed();
+        }
     }
 
     /** One resolved outgoing relationship, shared by Graph, batch, replay and commit consumers. */
@@ -1418,7 +1464,8 @@ public final class EntityMetadata {
             String parentId,
             Class<?> parentType,
             String pathInParent,
-            boolean deleteOnParentDeletion) {
+            boolean deleteOnParentDeletion,
+            boolean searchExcluded) {
 
         /** Converts this structural relationship to its commit-wire value. */
         public ModelRelationship asCommitRelationship() {
@@ -1433,6 +1480,7 @@ public final class EntityMetadata {
                     .parentType(parentType == null ? null : ModelNames.name(parentType, modelNamePrefix))
                     .path(pathInParent)
                     .deleteOnParentDeletion(deleteOnParentDeletion)
+                    .searchExcluded(searchExcluded)
                     .build();
         }
 
@@ -1509,28 +1557,44 @@ public final class EntityMetadata {
             GraphProjection projection) {
     }
 
-    private record GraphProjectionRoots(
-            List<GraphProjectionRoot> values) {
+    private record GraphProjectionRoots(List<GraphProjectionRoot> values, boolean polymorphic) {
         private GraphProjectionRoots(Class<?> modelType) {
-            this(inspect(modelType, new LinkedHashSet<>()));
+            this(inspect(modelType, new LinkedHashSet<>(), false, List.of()),
+                    hasPolymorphicParent(modelType, new LinkedHashSet<>()));
+        }
+
+        private static boolean hasPolymorphicParent(Class<?> modelType, Set<Class<?>> visited) {
+            if (!visited.add(modelType)) { return false; }
+            return of(modelType).parentReferences.stream().filter(ParentReference::searchableComposition)
+                    .flatMap(reference -> reference.parentModelTypes().stream())
+                    .anyMatch(parent -> !java.lang.reflect.Modifier.isFinal(parent.getModifiers())
+                            || hasPolymorphicParent(parent, visited));
         }
 
         private static List<GraphProjectionRoot> inspect(
-                Class<?> modelType,
-                Set<Class<?>> visited) {
+                Class<?> modelType, Set<Class<?>> visited, boolean ancestor, Collection<Class<?>> knownModelTypes) {
             if (!visited.add(modelType)) {
                 return List.of();
             }
             EntityMetadata metadata = of(modelType);
             List<GraphProjectionRoot> result = new ArrayList<>();
-            if (metadata.model != null && metadata.model.materializeGraph()) {
+            if (metadata.model != null && metadata.isSearchable()
+                && metadata.model.graphProjection().mode() != GraphProjectionMode.NONE
+                && (!ancestor || metadata.model.searchSettings().includeDescendants())) {
                 result.add(new GraphProjectionRoot(
                         modelType, metadata.model.graphProjection()));
             }
             metadata.parentReferences.stream()
-                    .map(ParentReference::parentModelType)
-                    .filter(Objects::nonNull)
-                    .forEach(parent -> result.addAll(inspect(parent, visited)));
+                    .filter(ParentReference::searchableComposition)
+                    .flatMap(reference -> reference.parentModelTypes().stream())
+                    .forEach(parent -> {
+                        result.addAll(inspect(parent, visited, true, knownModelTypes));
+                        if (!java.lang.reflect.Modifier.isFinal(parent.getModifiers())) {
+                            knownModelTypes.stream().filter(candidate -> candidate != parent && parent.isAssignableFrom(candidate))
+                                    .filter(candidate -> of(candidate).isModel())
+                                    .forEach(candidate -> result.addAll(inspect(candidate, visited, true, knownModelTypes)));
+                        }
+                    });
             return List.copyOf(result);
         }
     }
@@ -1606,10 +1670,10 @@ public final class EntityMetadata {
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(),
-                    storesDocument, storesDocument && annotation.document().searchable(),
-                    annotation.materializeGraph(), annotation.graphProjection(),
-                    annotation.document().collection(), annotation.document().timestampPath(),
-                    annotation.document().endPath());
+                    storesDocument, annotation.searchable(),
+                    annotation.graphProjection().mode() != GraphProjectionMode.NONE, annotation.graphProjection(),
+                    annotation.searchSettings().collection(), annotation.searchSettings().timestampPath(),
+                    annotation.searchSettings().endPath());
         }
 
         static RootConfiguration aggregate(Aggregate annotation) {

@@ -204,7 +204,7 @@ class TestFixtureScheduleWaitTest {
                 .expectNoErrors();
     }
 
-    @Model
+    @Model(searchable = false)
     record Root(@EntityId RootId id) {}
 
     static class RootId extends Id<Root> {

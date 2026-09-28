@@ -429,7 +429,7 @@ class ModelGraphReadConflictTest {
         }
     }
 
-    @Model record Aliased(@EntityId String aliasId, @Alias String alias) {}
+    @Model(searchable = false) record Aliased(@EntityId String aliasId, @Alias String alias) {}
 
     record ChangeAlias(String aliasId, String alias, String previousAlias, String route) {
         @Apply Aliased apply(@jakarta.annotation.Nullable Aliased before) {
@@ -463,7 +463,7 @@ class ModelGraphReadConflictTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     record CurrentDocument(@EntityId String documentId, int number) {}
     record PutDocument(String documentId, int number) {
         @Apply CurrentDocument apply(@jakarta.annotation.Nullable CurrentDocument before) {
@@ -748,7 +748,7 @@ class ModelGraphReadConflictTest {
         }
     }
 
-    @Model record OpenOwner(@EntityId String ownerId, @Member List<OpenPart> members) {}
+    @Model(searchable = false) record OpenOwner(@EntityId String ownerId, @Member List<OpenPart> members) {}
     @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.CLASS)
     interface OpenPart { @EntityId String itemId(); int changes(); }
     record OpenConcrete(String itemId, int changes) implements OpenPart {
@@ -770,7 +770,7 @@ class ModelGraphReadConflictTest {
     record AcceptOpen(OpenOwnerId ownerId, String itemId, String productId) {}
     record GuardOpen(OpenOwnerId ownerId, String itemId, String productId) {}
 
-    @Model
+    @Model(searchable = false)
     record MemberOwner(@EntityId String ownerId, @Member List<GuardedMember> members) {}
     static class MemberOwnerId extends Id<MemberOwner> { MemberOwnerId(String id) { super(id); } }
     record CreateMemberOwner(String ownerId) {
@@ -792,10 +792,10 @@ class ModelGraphReadConflictTest {
         };
     }
 
-    @Model
+    @Model(searchable = false)
     record Product(@EntityId String productId, boolean active) {}
 
-    @Model
+    @Model(searchable = false)
     record Reservation(@EntityId String reservationId) {}
 
     record SetProduct(String productId, boolean active) {
@@ -1094,11 +1094,11 @@ class ModelGraphReadConflictTest {
         }
     }
 
-    @Model(conflictPolicy = ModelConflictPolicy.ACCEPT)
+    @Model(searchable = false, conflictPolicy = ModelConflictPolicy.ACCEPT)
     record ParentModel(@EntityId String parentId, int capacity) {
     }
 
-    @Model
+    @Model(searchable = false)
     record Child(@EntityId String childId,
                  @Parent(value = ParentModel.class, pathInParent = "children") String parentId) {
     }
@@ -1151,7 +1151,7 @@ class ModelGraphReadConflictTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record Receipt(@EntityId String receiptId, int observed) {
     }
 
@@ -1190,7 +1190,7 @@ class ModelGraphReadConflictTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record Leaf(@EntityId String leafId, @Parent(value = Child.class, pathInParent = "leaves") String childId,
                 int version) {
     }

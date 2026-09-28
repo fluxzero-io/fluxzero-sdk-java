@@ -99,7 +99,7 @@ public class ModelReconstructionBenchmark {
                         Guarantee.STORED, true)).join();
     }
 
-    @Model(cached = false, snapshotPeriod = 0)
+    @Model(searchable = false, cached = false, snapshotPeriod = 0)
     private record Counter(@EntityId CounterId counterId, int value) {
     }
 

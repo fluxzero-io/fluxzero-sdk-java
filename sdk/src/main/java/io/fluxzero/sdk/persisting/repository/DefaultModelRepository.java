@@ -149,6 +149,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     // Opaque family token: shared namespace views, but no cached key retains the application or compiler.
     private final Object cacheOwner;
     private final AtomicReference<Fluxzero> owningApplication;
+    private final ConcurrentHashMap<Class<?>, Optional<String>> sourceCollections = new ConcurrentHashMap<>();
     private final Cache modelCache;
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
@@ -275,6 +276,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (!owningApplication.compareAndSet(null, application) && owningApplication.get() != application) {
             throw new IllegalStateException("Model repository already belongs to another application");
         }
+    }
+
+    private Optional<String> sourceCollection(EntityMetadata metadata) {
+        Fluxzero application = owningApplication == null ? null : owningApplication.get();
+        return application == null ? metadata.modelSourceDocumentCollection(modelNamePrefix)
+                : sourceCollections.computeIfAbsent(metadata.type(), ignored -> application.apply(
+                        owner -> metadata.modelSourceDocumentCollection(modelNamePrefix)));
+    }
+
+    /** Resolves the canonical Model source using this repository's application properties. */
+    public Optional<String> modelSourceCollection(Class<?> type) {
+        return sourceCollection(EntityMetadata.validate(type));
+    }
+
+    /** Resolves search composition with this repository's model catalog and application properties. */
+    public Optional<ModelGraphProjectionConfiguration> graphSearchDefinition(Class<?> type) {
+        Fluxzero application = owningApplication.get();
+        Supplier<Optional<ModelGraphProjectionConfiguration>> resolve = () -> EntityMetadata.validate(type)
+                .graphSearchConfiguration(modelTypes.get(), modelNamePrefix);
+        return application == null ? resolve.get() : application.apply(owner -> resolve.get());
     }
 
     /** Configures application-owned event payload restoration before this repository is made available to callers. */
@@ -489,7 +510,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             String persistedId,
             Class<?> modelType,
             EntityMetadata metadata) {
-        String collection = metadata.modelDocumentCollection(modelNamePrefix)
+        String collection = sourceCollection(metadata)
                 .orElseThrow(() -> new IllegalArgumentException(
                         modelType.getName() + " has no current document to adopt"));
         GetModelMigrationResult migration = client.getSearchClient()
@@ -521,15 +542,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             + persistedId));
         }
         return client.getSearchClient().adoptModelMigration(
-                metadata.rootConfiguration().orElseThrow().directDocument()
-                ? new io.fluxzero.common.api.search.AdoptModelMigrationWithSource(
-                        persistedId, collection, migration.getProductionDocumentIndex(),
-                        migratedHead.getStateIndex(), STORED,
-                        metadata.modelSourceDocumentCollection(modelNamePrefix).orElseThrow())
-                : new AdoptModelMigration(
-                        persistedId, collection,
-                        migration.getProductionDocumentIndex(),
-                        migratedHead.getStateIndex(), STORED));
+                new AdoptModelMigration(persistedId, collection, migration.getProductionDocumentIndex(),
+                                        migratedHead.getStateIndex(), STORED));
     }
 
     @Override
@@ -567,7 +581,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private CompletableFuture<Void> rebuildApplicationGraphProjections() {
         return CompletableFuture.allOf(
                 modelTypes.get().stream()
-                        .flatMap(type -> EntityMetadata.graphProjectionRoots(type).stream())
+                        .flatMap(type -> EntityMetadata.graphProjectionRoots(type, modelTypes.get()).stream())
                         .map(EntityMetadata.GraphProjectionRoot::modelType)
                         .distinct()
                         .sorted(Comparator.comparing(Class::getName))
@@ -643,7 +657,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Supplier<List<Class<?>>> modelTypes) {
         this.modelTypes = Objects.requireNonNull(
                 modelTypes, "Model types");
-        modelTypes.get().forEach(this::modelName);
+        List<Class<?>> knownTypes = modelTypes.get();
+        knownTypes.forEach(this::modelName);
+        knownTypes.stream().map(EntityMetadata::validate).filter(EntityMetadata::isSearchable)
+                .forEach(metadata -> metadata.validateSearchScope(knownTypes));
     }
 
     /** Configures the single-Model event-routing fallback before this repository starts handling commits. */
@@ -684,9 +701,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Class<?> modelType) {
         modelName(modelType);
         modelTypes.get().forEach(this::modelName);
-        return EntityMetadata.validate(modelType)
-                .graphProjectionConfiguration(
-                        modelTypes.get(), modelNamePrefix)
+        return graphSearchDefinition(modelType)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 modelType.getName()
@@ -1742,7 +1757,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public <T> ModelState<T> loadCurrentState(@NonNull String modelId, @NonNull Class<T> modelType) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         modelName(modelType);
-        if (metadata.modelSourceDocumentCollection(modelNamePrefix).isEmpty()) {
+        if (sourceCollection(metadata).isEmpty()) {
             throw new EventSourcingException(
                     "Current-state read for Model '%s' (%s) requires a maintained Model document; enable DOCUMENT "
                     .formatted(modelId, modelType.getName()) + "on the writer or use ordinary model replay");
@@ -1798,7 +1813,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
             boolean migration, boolean verifyState) {
-        String collection = metadata.modelSourceDocumentCollection(modelNamePrefix)
+        String collection = sourceCollection(metadata)
                 .orElseGet(() -> metadata.modelDocumentReadCollection(modelNamePrefix));
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
                 new GetDocument(
@@ -1813,6 +1828,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     + "use a matching Runtime and a document written by a proof-capable Model materializer");
         }
         ModelHeadState head = result.getModelHead();
+        if (head == null && result.getDocument() == null && !migration
+                && !metadata.rootConfiguration().orElseThrow().collection().isBlank()
+                && client.getSearchClient().fetch(new GetDocument(modelId, collection)).isPresent()) {
+            throw new EventSourcingException("Collection '%s' contains an ordinary projection of Model '%s'; "
+                    .formatted(collection, modelId)
+                    + "retain the canonical source collection when migrating search settings");
+        }
         if (head != null) {
             if (!modelId.equals(head.getModelId())) {
                 throw new EventSourcingException(
@@ -2083,7 +2105,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             LinkedHashMap<Class<?>, LinkedHashSet<String>> awaited = new LinkedHashMap<>();
             for (Change change : attempt.transitions()) {
                 List<EntityMetadata.GraphProjectionRoot> roots =
-                        EntityMetadata.graphProjectionRoots(change.modelType());
+                        EntityMetadata.graphProjectionRoots(change.modelType(), modelTypes);
                 if (roots.isEmpty()) {
                     continue;
                 }
@@ -2097,7 +2119,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 for (EntityMetadata.GraphProjectionRoot root : roots) {
                     if (change.graphProjectionCompletion()
                             .orElse(consumer)
-                            .orElse(root.projection().completion())
+                            .orElse(root.projection().mode().completion())
                             .orElse(graphProjectionCompletion) == GraphProjectionCompletion.AWAIT) {
                         awaited.computeIfAbsent(
                                         root.modelType(), ignored -> new LinkedHashSet<>())
@@ -2409,8 +2431,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             transition,
                             message.getTimestamp(), message.getMetadata(), false)
                     : null;
-            ModelDocumentMutation projection = document != null && !migration && transition.configuration().directDocument()
-                    ? directDocument(transition, message.getTimestamp(), message.getMetadata(), true) : null;
+            ModelDocumentMutation projection = null;
             RelationshipUpdate relationships = transition.updateState()
                     ? relationshipUpdate(transition)
                     : RelationshipUpdate.UNCHANGED;
@@ -2638,9 +2659,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             SerializedDocument document = documentSerializer.toDocument(
                     value, transition.modelId(), collection,
                     begin, end, metadata);
-            if (!model.publicDocument() && (projection || !transition.metadata().maintainsGraphComponentDocument())) {
-                document = document.withoutSearchIndexes();
-            }
+            document = transition.metadata().isSearchable()
+                    ? io.fluxzero.common.search.ModelSearchDocument.preserveSummary(document)
+                    : document.withoutSearchIndexes();
             return new ModelDocumentMutation(collection, document);
         }
 
@@ -2651,7 +2672,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private String documentCollection(Change transition) {
             return documentCollections.computeIfAbsent(
                     transition.metadata().type(),
-                    ignored -> transition.metadata().modelSourceDocumentCollection(modelNamePrefix))
+                    ignored -> sourceCollection(transition.metadata()))
                     .orElse(null);
         }
 

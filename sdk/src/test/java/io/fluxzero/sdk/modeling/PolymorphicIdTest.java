@@ -172,11 +172,11 @@ class PolymorphicIdTest {
         assertEquals(new Filtered(new ExternalId("a"), null), filter.filterContent(value, null));
     }
 
-    @Model(name = "poly-project")
+    @Model(searchable = false, name = "poly-project")
     record Project(@EntityId ProjectId id) { }
-    @Model(name = "poly-folder")
+    @Model(searchable = false, name = "poly-folder")
     record Folder(@EntityId FolderId id) { }
-    @Model(name = "poly-policy")
+    @Model(searchable = false, name = "poly-policy")
     record Policy(@EntityId String policyId, @Parent(types = {Project.class, Folder.class}) Id<?> ownerId) { }
     record Reference(Id<?> id) { }
     record AbstractReference(AbstractId id) { }

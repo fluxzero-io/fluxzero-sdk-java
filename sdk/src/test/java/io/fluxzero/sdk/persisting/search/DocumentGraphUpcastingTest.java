@@ -125,7 +125,7 @@ class DocumentGraphUpcastingTest {
         var source = new SerializedMessage(document.getDocument(), Metadata.empty(), "root", 0L);
         String topic = "$modelGraphComponents/UpcastRoot";
         Object handler = new Object() {
-            @HandleDocument(modelState = Root.class)
+            @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
             Root rewrite(Root root) { return root; }
         };
         var first = reader.register(handler, HandlerFilter.ALWAYS_HANDLE);
@@ -144,7 +144,7 @@ class DocumentGraphUpcastingTest {
     @ValueSource(booleans = {false, true})
     void graphHandlerRetainsAdditionalLogicalPayloadAndMessageParameters(boolean async) {
         fixture(async).registerCasters(new MoveName()).registerHandlers(new Object() {
-            @HandleDocument(modelGraph = Root.class)
+            @HandleDocument
             void read(Graph<Root> graph, Root root, io.fluxzero.sdk.common.serialization.DeserializingMessage message) {
                 assertEquals(root, graph.get());
                 assertEquals(ROOT_TYPE, message.getType());
@@ -185,6 +185,27 @@ class DocumentGraphUpcastingTest {
         assertEquals(1, childCaster.calls.get());
     }
 
+    @Test
+    void failedRemoteRegistrationDoesNotLeakDefinitionsOrRefcounts() {
+        var repository = mock(ModelRepository.class);
+        org.mockito.Mockito.when(repository.registerGraphProjection(Root.class, false)).thenReturn(
+                java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("Unavailable")));
+        var reader = new DocumentMessageReader();
+        assertThrows(java.util.concurrent.CompletionException.class,
+                () -> reader.register(new GraphReader(), HandlerFilter.ALWAYS_HANDLE, repository));
+        assertFalse(reader.readsGraphs(COLLECTION));
+        Object replacement = new Object() {
+            @HandleDocument void handle(Graph<ReplacementRoot> root) { }
+        };
+        var registration = reader.register(replacement, HandlerFilter.ALWAYS_HANDLE);
+        assertTrue(reader.readsGraphs(COLLECTION));
+        registration.cancel();
+        assertFalse(reader.readsGraphs(COLLECTION));
+    }
+
+    @Model(searchable = true, graphProjection = @GraphProjection(collection = COLLECTION))
+    record ReplacementRoot(@EntityId String id) { }
+
     private static TestFixture fixture(boolean async) {
         return async ? TestFixture.createAsync() : TestFixture.create();
     }
@@ -203,13 +224,12 @@ class DocumentGraphUpcastingTest {
                 .getFirst().withCollection(COLLECTION);
     }
 
-    @Model(name = "UpcastRoot", materializeGraph = true,
-            graphProjection = @GraphProjection(collection = COLLECTION))
+    @Model(searchable = true, name = "UpcastRoot", graphProjection = @GraphProjection(mode = io.fluxzero.sdk.modeling.GraphProjectionMode.ASYNC, collection = COLLECTION))
     @Revision(1)
     record Root(@EntityId String id, Details details) {}
     record Details(String name) {}
 
-    @Model(name = "UpcastChild")
+    @Model(searchable = false, name = "UpcastChild")
     @Revision(1)
     record Child(@EntityId String id, String value) {}
 
@@ -247,7 +267,7 @@ class DocumentGraphUpcastingTest {
 
     @Consumer(name = "graph-reader")
     static class GraphReader {
-        @HandleDocument(modelGraph = Root.class)
+        @HandleDocument
         void read(Graph<Root> graph) { Fluxzero.publishEvent("graph:" + graph.get().details().name()); }
     }
 
@@ -259,7 +279,7 @@ class DocumentGraphUpcastingTest {
 
     @Consumer(name = "mixed-reader")
     static class MixedReader {
-        @HandleDocument(modelGraph = Root.class)
+        @HandleDocument
         void graph(Graph<Root> graph) { Fluxzero.publishEvent("graph:" + graph.get().details().name()); }
         @HandleDocument(COLLECTION)
         void ordinary(Root root) { Fluxzero.publishEvent("ordinary:" + root.details().name()); }

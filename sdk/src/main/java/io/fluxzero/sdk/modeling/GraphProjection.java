@@ -20,12 +20,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Configures an asynchronous materialized search document containing a complete model graph.
- * <p>
- * Configure this through {@link Model#graphProjection()} and enable it with {@link Model#materializeGraph()}. Without
- * an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model collection when the
- * root has a direct document, or to the resolved logical Model name otherwise. An explicit collection remains available when
- * that durable public search contract needs a custom name.
+ * Optional precomputation of a searchable Model's complete Graph. Searchability and descendant scope are owned by
+ * {@link Model#searchable()} and {@link Model#searchSettings()}; these settings alone do not activate search.
  */
 @Documented
 @Target({})
@@ -33,13 +29,13 @@ import java.lang.annotation.Target;
 public @interface GraphProjection {
 
     /**
-     * Default result-completion behavior for commits affecting this root projection.
+     * Whether to store the composed Graph and whether commits wait for it.
      */
-    GraphProjectionCompletion completion() default GraphProjectionCompletion.DEFAULT;
+    GraphProjectionMode mode() default GraphProjectionMode.NONE;
 
     /**
-     * Distinct collection receiving materialized graph documents. Blank derives from the public direct-model collection
-     * when enabled, or from the resolved logical root-model name otherwise.
+     * Distinct collection receiving materialized Graph documents. Blank derives from the explicitly configured canonical
+     * node collection, or from the resolved logical root-model name when no node collection is configured.
      */
     String collection() default "";
 

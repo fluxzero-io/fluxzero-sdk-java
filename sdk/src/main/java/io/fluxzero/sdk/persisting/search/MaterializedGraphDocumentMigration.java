@@ -193,7 +193,7 @@ public final class MaterializedGraphDocumentMigration {
 
     private static IllegalArgumentException incompatible(String reason) {
         return new IllegalArgumentException(
-                "A @HandleDocument(modelGraph = ...) Graph result may only migrate the complete handled projection; "
+                "A @HandleDocument Graph result may only migrate the complete handled projection; "
                 + reason);
     }
 

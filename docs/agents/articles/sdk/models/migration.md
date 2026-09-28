@@ -17,3 +17,9 @@ This contract applies to both Java and Kotlin applications.
   cascades. Earlier ordinary detachments or moves are not added back to the deleted tree.
 - Always inspect the deletion plan before confirming it. Upgrading does not repair missing lineage markers written
   by older implementations; an already logically deleted tree needs separately verified scope before erasure.
+
+Physical erasure does not emit a domain transition or a root Graph tombstone. In the Runtime, an existing stored
+Graph of a surviving ancestor can retain the erased child until its projector catches up; completion of
+`deleteModel()` alone does not wait for that refresh. Wait for every affected registered ancestor projection to
+reach the deletion result’s state index before treating those stored Graphs as refreshed. Independently maintained
+read models and external copies require their own cleanup.

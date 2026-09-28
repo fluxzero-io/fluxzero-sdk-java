@@ -41,7 +41,7 @@ class ModelSourceDocumentMigrationTest {
 
     @ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({"false,false", "true,false", "false,true", "true,true"})
-    void handlerReindexesOnlyTheInternalSourceWithoutAdvancingTheModel(boolean async, boolean randomEnvelope) {
+    void handlerReindexesTheCanonicalNodeWithoutAdvancingTheModel(boolean async, boolean randomEnvelope) {
         JacksonSerializer serializer = randomEnvelope ? new JacksonSerializer() {
             @Override
             public SerializedDocument toDocument(Object value, String id, String collection,
@@ -63,8 +63,8 @@ class ModelSourceDocumentMigrationTest {
                                  Fluxzero.loadCurrentModelState("project", Project.class).value());
                     assertEquals(1, Fluxzero.searchGraph(Project.class, true).match("Legacy name", "details/name").fetchAll().size());
                     assertTrue(Fluxzero.searchGraph(Project.class, true).match("Legacy name", "name").fetchAll().isEmpty());
-                    assertEquals(1, Fluxzero.search(Project.class).match("Legacy name", "name").fetchAll().size());
-                    assertTrue(Fluxzero.search(Project.class).match("Legacy name", "details/name").fetchAll().isEmpty());
+                    assertTrue(Fluxzero.search(Project.class).match("Legacy name", "name").fetchAll().isEmpty());
+                    assertEquals(1, Fluxzero.search(Project.class).match("Legacy name", "details/name").fetchAll().size());
                 });
     }
 
@@ -128,6 +128,47 @@ class ModelSourceDocumentMigrationTest {
                 });
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void schemaRewriteRemovesOldSearchSummaryAndSupportsCustomCanonicalCollections(boolean async) {
+        TestFixture fixture = TestFixture.create(new HiddenRewrite()).registerCasters(new HideLegacyField());
+        if (async) { fixture = fixture.async(); }
+        fixture.whenExecuting(fc -> {
+            var serializer = (JacksonSerializer) fc.documentStore().getSerializer();
+            ObjectNode json = serializer.getObjectMapper().createObjectNode().put("id", "hidden").put("secret", "oldsecret");
+            var source = io.fluxzero.common.search.ModelSearchDocument.preserveSummary(new SerializedDocument(
+                    serializer.toDocument(json, "hidden", "hidden-nodes", null, null, Metadata.empty())
+                            .deserializeDocument().toBuilder().type(HiddenProject.class.getName()).revision(0).build()));
+            var target = ModelCommitTarget.builder().modelId("hidden").modelType("HiddenProject")
+                    .expectedSequenceNumber(-1L).updateState(true)
+                    .document(new ModelDocumentMutation("hidden-nodes", source)).relationships(List.of()).aliases(List.of()).build();
+            fc.client().getEventStoreClient().commitModels(new CommitModels("seed-hidden", -1L, List.of("hidden"),
+                    List.of(new ModelCommitStep(null, false, List.of(target))), ModelConflictPolicy.RETRY,
+                    Guarantee.STORED, false)).join();
+        }).expectNoErrors().expectThat(fc -> {
+            var current = fc.client().getSearchClient().fetchModelDocument(new GetDocument("hidden", "hidden-nodes", true, true));
+            assertEquals(1, current.getDocument().getDocument().getRevision());
+            assertEquals("oldsecret", Fluxzero.loadCurrentModelState("hidden", HiddenProject.class).value().secret());
+            assertTrue(Fluxzero.search(HiddenProject.class).match("oldsecret").fetchAll().isEmpty());
+            assertTrue(Fluxzero.searchGraph(HiddenProject.class).match("oldsecret").fetchAll().isEmpty());
+        });
+    }
+
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT,
+            searchSettings = @io.fluxzero.sdk.modeling.SearchSettings(collection = "hidden-nodes"))
+    @Revision(1)
+    record HiddenProject(@EntityId String id, @io.fluxzero.common.search.SearchExclude String secret) {}
+
+    static class HideLegacyField {
+        @Upcast(type = "io.fluxzero.sdk.persisting.search.ModelSourceDocumentMigrationTest$HiddenProject", revision = 0)
+        ObjectNode upcast(ObjectNode value) { return value; }
+    }
+
+    static class HiddenRewrite {
+        @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
+        HiddenProject rewrite(HiddenProject project) { return project; }
+    }
+
     private static void seed(Fluxzero fc) {
         seed(fc, fc.client());
     }
@@ -146,7 +187,7 @@ class ModelSourceDocumentMigrationTest {
         client.getEventStoreClient().commitModels(new CommitModelsWithDocumentProjections(commit)).join();
     }
 
-    @Model(name = "SourceProject", persistence = ModelPersistence.DOCUMENT)
+    @Model(searchable = true, name = "SourceProject", persistence = ModelPersistence.DOCUMENT)
     @Revision(1)
     record Project(@EntityId String id, Details details) {}
     record Details(String name) {}
@@ -162,13 +203,13 @@ class ModelSourceDocumentMigrationTest {
     }
 
     static class Rewrite {
-        @HandleDocument(modelState = Project.class)
+        @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
         Project rewrite(Project project) { return project; }
     }
 
     @io.fluxzero.sdk.tracking.Consumer(name = "archive-source", namespace = "archive", minIndex = 0)
     static class ArchiveRewrite {
-        @HandleDocument(modelState = Project.class)
+        @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
         Project rewrite(Project project) { return project; }
     }
 }

@@ -31,6 +31,7 @@ import lombok.With;
 import java.beans.ConstructorProperties;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -125,7 +126,7 @@ public class SerializedDocument {
     @ConstructorProperties({"id", "timestamp", "end", "collection", "document", "summary", "facets", "indexes"})
     public SerializedDocument(String id, Long timestamp, Long end, String collection, Data<byte[]> document,
                               String summary, Set<FacetEntry> facets, Set<SortableEntry> indexes) {
-        this(id, timestamp, end, collection, () -> document, null, summary, facets, indexes);
+        this(id, timestamp, end, collection, new SuppliedData(document), null, summary, facets, indexes);
     }
 
     /**
@@ -180,6 +181,19 @@ public class SerializedDocument {
      */
     public Data<byte[]> getDocument() {
         return data.get();
+    }
+
+    /**
+     * Returns directly supplied serialized data without evaluating a lazy source. Empty for documents created from
+     * a Document or an arbitrary data supplier, including replacements made through {@code withData(...)}.
+     * This identifies the source representation only; callers needing stable bytes must take their own snapshot.
+     */
+    public Optional<Data<byte[]>> serializedDataIfPresent() {
+        return data instanceof SuppliedData supplied ? Optional.ofNullable(supplied.value()) : Optional.empty();
+    }
+
+    private record SuppliedData(Data<byte[]> value) implements Supplier<Data<byte[]>> {
+        @Override public Data<byte[]> get() { return value; }
     }
 
     /**

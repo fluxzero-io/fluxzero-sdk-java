@@ -118,8 +118,8 @@ public final class ModelGraphDocumentStitcher {
                     -1, null, 0,
                     children, documents, modelTypes, bounds, manifest, 0,
                     new LinkedHashSet<>());
-            composed = withManifest(
-                    composed, manifest.build());
+            composed = ModelSearchDocument.preserveSummary(withManifest(
+                    composed, manifest.build()));
             SerializedDocument serialized =
                     new SerializedDocument(composed);
             bounds.verifyOutputBytes(
@@ -243,7 +243,7 @@ public final class ModelGraphDocumentStitcher {
             bounds.reserveSourceBytes(
                     serialized.bytes());
             Document direct =
-                    serialized.deserializeDocument();
+                    ModelSearchDocument.restoreSummary(serialized.deserializeDocument());
             int nodeIndex = manifest.add(
                     modelId, Objects.requireNonNull(modelTypes.get(modelId),
                             () -> "No logical Model type is available for " + modelId),
@@ -252,8 +252,8 @@ public final class ModelGraphDocumentStitcher {
             Map<String, List<ModelGraphEdge>> byPath =
                     new LinkedHashMap<>();
             for (ModelGraphEdge edge :
-                    children.getOrDefault(
-                            modelId, List.of())) {
+                    (bounds.composition.isIncludeDescendants()
+                            ? children.getOrDefault(modelId, List.of()) : List.<ModelGraphEdge>of())) {
                 if (documents.containsKey(
                         edge.getChildId())) {
                     byPath.computeIfAbsent(
@@ -282,6 +282,8 @@ public final class ModelGraphDocumentStitcher {
                     entries = new LinkedHashMap<>();
             direct.getEntries().forEach((entry, paths) -> {
                 List<Document.Path> retained = new ArrayList<>(paths);
+                retained.removeIf(path -> !ModelSearchDocument.isSearchablePath(path));
+                retained.removeIf(SearchExclusions::isMetadataPath);
                 if (entry.getType() == Document.EntryType.EMPTY_ARRAY) {
                     retained.removeIf(path -> byPath.containsKey(path.getValue()));
                 }
@@ -301,6 +303,7 @@ public final class ModelGraphDocumentStitcher {
                 summaries.add(direct.getSummary());
             }
 
+            Set<String> searchExclusions = new LinkedHashSet<>(SearchExclusions.read(direct.getEntries()));
             byPath.forEach((path, pathEdges) -> {
                 pathEdges.sort(Comparator.comparing(
                         ModelGraphEdge::getChildId));
@@ -321,9 +324,10 @@ public final class ModelGraphDocumentStitcher {
                     append(
                             childDocument, prefix,
                             entries, facets, sortables,
-                            summaries, bounds);
+                            summaries, searchExclusions, bounds);
                 }
             });
+            SearchExclusions.addTo(entries, searchExclusions);
             String summary = summaries.isEmpty()
                     ? null
                     : String.join(" ", summaries);
@@ -349,6 +353,7 @@ public final class ModelGraphDocumentStitcher {
             Set<FacetEntry> facets,
             Set<SortableEntry> sortables,
             List<String> summaries,
+            Set<String> searchExclusions,
             Bounds bounds) {
         child.getEntries().forEach(
                 (entry, paths) -> {
@@ -375,6 +380,10 @@ public final class ModelGraphDocumentStitcher {
                                 .addAll(prefixed);
                     }
                 });
+        SearchExclusions.read(child.getEntries()).forEach(path -> {
+            bounds.reservePrefix(prefix, path);
+            searchExclusions.add(append(prefix, path));
+        });
         child.getFacets().stream()
                 .map(facet -> {
                     bounds.reservePrefix(

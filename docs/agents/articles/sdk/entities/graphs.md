@@ -60,7 +60,7 @@ is immutable, shared across the view and never persisted as Model state.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```java
-@Model
+@Model(searchable = false)
 record Project(
         @EntityId ProjectId projectId,
         @Alias(prefix = "external:") String externalId) {

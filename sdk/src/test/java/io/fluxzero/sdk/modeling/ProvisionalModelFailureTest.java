@@ -179,7 +179,7 @@ class ProvisionalModelFailureTest {
                 }).expectSuccessfulResult();
     }
 
-    @Model record Stock(@EntityId String stockId, int used) {}
+    @Model(searchable = false) record Stock(@EntityId String stockId, int used) {}
     record SetStock(String stockId, int used) {
         @Apply Stock apply() { return new Stock(stockId, used); }
     }

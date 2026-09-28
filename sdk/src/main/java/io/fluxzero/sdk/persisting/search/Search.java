@@ -619,7 +619,7 @@ public interface Search<R> {
      */
 
     /**
-     * Skips the first N results.
+     * Skips the first N results of this search, once. Internal transport continuation pages do not repeat the offset.
      */
     Search<R> skip(Integer n);
 

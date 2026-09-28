@@ -14,9 +14,11 @@
 
 package io.fluxzero.sdk.persisting.search;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -33,7 +35,10 @@ import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -41,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -49,8 +55,9 @@ import static org.mockito.Mockito.when;
 
 class MaterializedGraphFactoryTest {
 
-    @Test
-    void upcastsRootAndDescendantFromTheirOwnManifestRevisions() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void upcastsRootAndDescendantFromTheirOwnManifestRevisions(boolean wireInput) {
         JacksonSerializer serializer = new JacksonSerializer(
                 List.of(new GraphNodeUpcaster()));
         serializer.registerTypeCaster(
@@ -79,6 +86,10 @@ class MaterializedGraphFactoryTest {
                 json, "root", "revisioned-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
                             manifest.serialize()));
+
+        if (wireInput) {
+            document = wireCopy(document);
+        }
 
         Graph<RevisionedRoot> graph = MaterializedGraphFactory.create(
                 document, RevisionedRoot.class, serializer,
@@ -127,6 +138,102 @@ class MaterializedGraphFactoryTest {
                 MessageType.DOCUMENT, "revisioned-graphs", serializer);
         assertEquals(Optional.empty(), MaterializedGraphDocumentMigration.create(
                 rewritten, rewrittenMessage, serializer));
+    }
+
+    private static SerializedDocument wireCopy(SerializedDocument source) {
+        return new SerializedDocument(source.getId(), source.getTimestamp(), source.getEnd(), source.getCollection(),
+                source.getDocument(), source.getSummary(), source.getFacets(), source.getIndexes());
+    }
+
+    @Test
+    void searchGraphKeepsItsPrivateSnapshotWhenCallerBytesAndPublicEntriesChange() {
+        AtomicInteger rawReads = new AtomicInteger();
+        JacksonSerializer serializer = new JacksonSerializer() {
+            @Override public <T> T fromDocument(SerializedDocument document, Class<T> type) {
+                rawReads.incrementAndGet();
+                assertEquals("root-graphs", document.getCollection());
+                assertNotNull(document.getMetadata().get(ModelGraphDocumentManifest.METADATA_KEY));
+                document.deserializeDocument().getEntries().clear();
+                Arrays.fill(document.getDocument().getValue(), (byte) 0);
+                return super.fromDocument(document, type);
+            }
+        };
+        SerializedDocument original = countingGraphDocument(serializer);
+        AtomicReference<byte[]> bytes = new AtomicReference<>(original.getDocument().getValue());
+        Data<byte[]> changing = new Data<>(bytes::get, original.getDocument().getType(), 0, Data.DOCUMENT_FORMAT);
+        SerializedDocument supplied = new SerializedDocument(original.getId(), original.getTimestamp(), original.getEnd(),
+                original.getCollection(), changing, original.getSummary(), original.getFacets(), original.getIndexes());
+        Graph<CountingRoot> graph = MaterializedGraphFactory.create(
+                supplied, CountingRoot.class, serializer, () -> mock(ModelRepository.class),
+                List.of(CountingRoot.class, CountingChild.class), Map.of());
+        assertEquals(0, rawReads.get());
+
+        supplied.deserializeDocument();
+        // Neither mutation of the original array nor a replacement from the same supplier changes this Graph.
+        Arrays.fill(bytes.get(), (byte) 0);
+        bytes.set(new byte[]{0});
+        supplied.deserializeDocument().getEntries().clear();
+        assertEquals("root", graph.get().id());
+        assertEquals("child", graph.children(CountingChild.class).getFirst().get().id());
+        assertEquals(1, rawReads.get());
+    }
+
+    @Test
+    void searchGraphRetainsCustomDocumentTransformationsAndNonDocumentInputs() {
+        JacksonSerializer regular = new JacksonSerializer();
+        AtomicInteger rawReads = new AtomicInteger();
+        JacksonSerializer serializer = new JacksonSerializer() {
+            @Override public <T> T fromDocument(SerializedDocument document, Class<T> type) {
+                rawReads.incrementAndGet();
+                ObjectNode json = (ObjectNode) regular.fromDocument(document, JsonNode.class);
+                json.put("id", "custom-root");
+                return super.fromDocument(document.withData(() -> regular.serialize(json)), type);
+            }
+        };
+        for (boolean jsonFormat : List.of(false, true)) {
+            SerializedDocument document = countingGraphDocument(regular);
+            if (!jsonFormat) {
+                document = wireCopy(document);
+            }
+            if (jsonFormat) {
+                Data<byte[]> json = regular.serialize(regular.fromDocument(document, JsonNode.class));
+                document = document.withData(() -> json);
+            }
+            Graph<CountingRoot> graph = MaterializedGraphFactory.create(
+                    document, CountingRoot.class, serializer, () -> mock(ModelRepository.class),
+                    List.of(CountingRoot.class, CountingChild.class), Map.of());
+            assertEquals("custom-root", graph.get().id());
+            assertEquals("child", graph.children(CountingChild.class).getFirst().get().id());
+        }
+        assertEquals(2, rawReads.get());
+    }
+
+    @Test
+    void customLazyDataSuppliersAreNotInvokedUntilNodeValuesAreRequested() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        SerializedDocument original = countingGraphDocument(serializer);
+        Data<byte[]> first = serializer.serialize(serializer.fromDocument(original, JsonNode.class));
+        Data<byte[]> later = serializer.serialize(Map.of("id", "unexpected"));
+        AtomicInteger calls = new AtomicInteger();
+        SerializedDocument custom = original.withData(() -> calls.getAndIncrement() == 0 ? first : later);
+        Graph<CountingRoot> graph = MaterializedGraphFactory.create(custom, CountingRoot.class, serializer,
+                () -> mock(ModelRepository.class), List.of(CountingRoot.class, CountingChild.class), Map.of());
+        assertEquals(0, calls.get());
+        assertEquals("root", graph.get().id());
+        assertEquals("child", graph.children(CountingChild.class).getFirst().get().id());
+        assertEquals(1, calls.get());
+    }
+
+    private static SerializedDocument countingGraphDocument(JacksonSerializer serializer) {
+        ObjectNode json = serializer.getObjectMapper().createObjectNode().put("id", "root");
+        json.putArray("children").addObject().put("id", "child").put("rootId", "root");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L, List.of("CountingRoot", "CountingChild"),
+                List.of(CountingRoot.class.getName(), CountingChild.class.getName()), List.of("children"),
+                List.of(new ModelGraphDocumentManifest.Node("root", 0, 0, 0, -1, -1, 0),
+                        new ModelGraphDocumentManifest.Node("child", 1, 1, 0, 0, 0, 0)));
+        return serializer.toDocument(json, "root", "root-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY, manifest.serialize()));
     }
 
     @Test
@@ -392,7 +499,7 @@ class MaterializedGraphFactoryTest {
     }
 
     @Test
-    void rejectsMismatchedMaterializedGraphHandlerType() throws Exception {
+    void rejectsInternalStateGraphHandler() throws Exception {
         var method = InvalidHandler.class.getDeclaredMethod(
                 "handle", Graph.class);
         var resolver = new MaterializedGraphParameterResolver(
@@ -406,7 +513,7 @@ class MaterializedGraphFactoryTest {
                         method.getAnnotation(HandleDocument.class)));
     }
 
-    @Model
+    @Model(searchable = false)
     private record CountingRoot(@EntityId String id) {
         private static final AtomicInteger constructions =
                 new AtomicInteger();
@@ -416,14 +523,14 @@ class MaterializedGraphFactoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(1)
     private record RevisionedRoot(
             @EntityId String id,
             String name) {
     }
 
-    @Model
+    @Model(searchable = false)
     @Revision(1)
     private record RevisionedChild(
             @EntityId String id,
@@ -438,6 +545,7 @@ class MaterializedGraphFactoryTest {
                 revision = 0)
         ObjectNode upcastRoot(ObjectNode value) {
             value.set("name", value.remove("oldName"));
+            value.remove("children"); // Root casting must not remove the source for independently cast descendants.
             return value;
         }
 
@@ -462,7 +570,7 @@ class MaterializedGraphFactoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record CountingChild(
             @EntityId String id,
             @Parent(value = CountingRoot.class, pathInParent = "children")
@@ -475,25 +583,25 @@ class MaterializedGraphFactoryTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     private record MultiParentRoot(@EntityId String id) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record PrimaryParent(
             @EntityId String id,
             @Parent(value = MultiParentRoot.class, pathInParent = "primaryParents")
             String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record SecondaryParent(
             @EntityId String id,
             @Parent(value = MultiParentRoot.class, pathInParent = "secondaryParents")
             String rootId) {
     }
 
-    @Model
+    @Model(searchable = false)
     private record MultiParentChild(
             @EntityId String id,
             @Parent(value = PrimaryParent.class, pathInParent = "children")
@@ -505,7 +613,7 @@ class MaterializedGraphFactoryTest {
     }
 
     private static final class InvalidHandler {
-        @HandleDocument(modelGraph = CountingRoot.class)
+        @HandleDocument(source = io.fluxzero.sdk.tracking.handling.DocumentSource.MODEL_STATE)
         void handle(Graph<CountingChild> graph) {
         }
     }

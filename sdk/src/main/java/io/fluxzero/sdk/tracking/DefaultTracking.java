@@ -241,9 +241,11 @@ public class DefaultTracking implements Tracking {
         try {
             if (messageType == MessageType.DOCUMENT && handlerFactory instanceof DefaultHandlerFactory) {
                 for (var entry : assignedHandlers.entrySet()) {
-                    var reader = documentReaders.computeIfAbsent(entry.getKey(), ignored -> new DocumentMessageReader());
+                    var reader = documentReaders.computeIfAbsent(entry.getKey(), ignored -> new DocumentMessageReader(
+                            () -> fluxzero.client().forNamespace(entry.getKey().getNamespace()).getSearchClient()));
                     for (Object target : entry.getValue()) {
-                        documentReads = documentReads.merge(reader.register(target, handlerFilter));
+                        documentReads = documentReads.merge(reader.register(target, handlerFilter,
+                                fluxzero.modelRepository().forNamespace(entry.getKey().getNamespace())));
                     }
                 }
             }
@@ -301,9 +303,10 @@ public class DefaultTracking implements Tracking {
                             ? handler.getTargetClass() : ReflectionUtils.asClass(target))
                     .filter(Objects::nonNull)
                     .flatMap(type -> ReflectionUtils.getAnnotatedMethods(type, HandleDocument.class).stream())
-                    .flatMap(method -> ReflectionUtils
-                            .<HandleDocument>getMethodAnnotation(method, HandleDocument.class).stream())
-                    .anyMatch(annotation -> annotation.modelGraph() != Void.class);
+                    .anyMatch(method -> ReflectionUtils
+                            .<HandleDocument>getMethodAnnotation(method, HandleDocument.class)
+                            .map(annotation -> io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics
+                                    .graphType(annotation, method) != Void.class).orElse(false));
             ConsumerConfiguration effective = includeTombstones
                     ? configuration.toBuilder().includeDocumentTombstones(true).build()
                     : configuration;
@@ -726,7 +729,7 @@ public class DefaultTracking implements Tracking {
             List<SerializedMessage> messages, String topic, TrackingClient trackingClient,
             Map<String, ChunkedDeserializingMessage> activeChunks, ConsumerConfiguration config) {
         DocumentMessageReader reader = messageType == MessageType.DOCUMENT ? documentReaders.get(config) : null;
-        return reader != null && reader.readsGraphs(topic)
+        return reader != null && reader.readsModelDocuments(topic)
                 ? deserializeMessageList(messages, topic, trackingClient, activeChunks, config.getMaxFetchSize(), reader)
                 : deserializeMessageList(messages, topic, trackingClient, activeChunks, config.getMaxFetchSize());
     }

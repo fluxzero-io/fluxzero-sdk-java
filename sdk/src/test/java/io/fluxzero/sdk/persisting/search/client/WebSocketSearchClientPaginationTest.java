@@ -119,6 +119,7 @@ class WebSocketSearchClientPaginationTest {
         client.requests.forEach(request -> assertInstanceOf(requestType, request));
         List<SearchDocuments> pages = client.requests.stream().map(searchExtractor).toList();
         assertEquals(List.of(2, 2, 1), pages.stream().map(SearchDocuments::getMaxSize).toList());
+        assertEquals(List.of(3, 0, 0), pages.stream().map(SearchDocuments::getSkip).toList());
         assertNull(pages.getFirst().getLastHit());
         assertEquals("2", pages.get(1).getLastHit().getId());
         assertEquals("4", pages.get(2).getLastHit().getId());
@@ -134,7 +135,7 @@ class WebSocketSearchClientPaginationTest {
     private static SearchDocuments search() {
         return SearchDocuments.builder()
                 .query(SearchQuery.builder().collection("orders").build())
-                .maxSize(5)
+                .skip(3).maxSize(5)
                 .build();
     }
 

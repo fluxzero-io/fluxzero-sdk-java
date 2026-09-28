@@ -17,7 +17,7 @@ criteria and shows validated Java/Kotlin creation and targeted updates. A plain 
 separate Model nor `@Member`; its owner determines persistence.
 
 ```java
-@Model
+@Model(searchable = false)
 record Account(
         @EntityId AccountId accountId,
         Money balance) {
@@ -28,8 +28,8 @@ The persisted key is exactly `accountId.toString()`. A model name or Java type i
 
 Before adding storage, use [Choosing Model and Graph queries](../model-query-guide). Its capability matrix separates
 identity loads, direct search, relationship-scoped search, live composition and materialized Graphs, including result
-types and consistency. A child with an explicit composition path already has an internal indexed current document;
-using `search(...).whereParent(...)` does not by itself justify `DOCUMENT`.
+types and consistency. `searchable` activates indexed current documents independently of persistence. A composition
+path only specifies placement; it does not create a document or enable search by itself.
 
 ## Model discovery and contract packaging
 
@@ -69,7 +69,7 @@ substitutes for a durable event history. Every historical Graph node whose value
 Event sourcing is the default:
 
 ```java
-@Model
+@Model(searchable = false)
 record Account(@EntityId AccountId accountId, Money balance) {
 }
 ```
@@ -81,10 +81,12 @@ Each applied update is stored in this account's model stream. Loading reconstruc
 
 The set supports exactly the meaningful combinations:
 
-- `{EVENT_SOURCED}` reconstructs from events without a direct document; a separate Graph role may still maintain an
-  internal current component document;
-- `{DOCUMENT}` loads from its authoritative internal source and additionally maintains a public document projection;
-- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and maintains both the internal source and public projection.
+- `{EVENT_SOURCED}` reconstructs from events. Effective searchability additionally maintains one indexed node document.
+- `{DOCUMENT}` loads from one internal current document. That document has no search indexes unless searchability is enabled.
+- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also keeps the internal current document.
+
+Searchability never creates a separate editable public Model projection. Node queries, relationship-content predicates
+and Graph composition use the same canonical node representation. A stored complete Graph is an additional optional projection.
 
 An empty set or duplicate representation is rejected during Model discovery.
 
@@ -104,13 +106,13 @@ is `loadCurrentState`. This is an explicit document read, not a fallback after r
 The returned `ModelState<T>` contains the value, exact persisted ID, durable Model head and the namespace-wide
 boundary at which that head was verified. It checks the current document against the durable head without loading
 events, updating the ordinary Model cache, or inheriting an event handler's historical boundary. The writer must
-maintain a Model document through `DOCUMENT` or graph composition, and the consumer must share its document
+maintain a canonical Model document through `DOCUMENT` or effective searchability, and the consumer must share its document
 configuration and value schema (including nested value types and upcasters).
 
 Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
 fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
 ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
-this fingerprint; maintaining an internal Model source does. Public DOCUMENT projections do not own that proof.
+this fingerprint; maintaining a canonical Model source does. Older separate public Model projections do not own that proof.
 Existing documents with no proof are not retroactively
 certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
 an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.
@@ -193,47 +195,26 @@ Persistent instability fails with an explicit platform error.
 
 ## Document-based models
 
-Select `DOCUMENT` to make the current direct document the normal load source:
+Select `DOCUMENT` to load state from its internal current document. Search remains an independent choice:
 
 ```java
-@Model(
-    persistence = ModelPersistence.DOCUMENT,
-    document = @DocumentProjection(
-        collection = "countries"))
-record Country(
-        @EntityId CountryId countryId,
-        CountryDetails details) {
+@Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+record UserPreferences(@EntityId UserId userId, Preferences preferences) {
 }
 ```
 
-`persistence` controls the durable representation and **load path**, not whether updates become events. Applied updates
-are still stored and published by default. This preserves auditing and exact event-handler boundaries.
+The document is maintained synchronously with the Model commit. It supports authoritative identity reads without
+making the value searchable. `persistence` controls state storage and loading, not event publication: applied updates
+are still stored and published by default. DOCUMENT alone does not retain previous document versions.
 
-The current document is synchronously maintained with the Model commit. It is publicly searchable by default, so after
-a successful command result an immediate direct search can observe the changed Model.
+Set `searchable = true` when the node should be searchable. By default that also activates the composed descendants
+through their typed `@Parent` contracts. Configure `searchSettings = @SearchSettings(includeDescendants = false)`
+for only the node itself. A child's `searchable = false` means it makes no independent request; it can still participate
+in a searchable ancestor's composed scope. Per-node `SearchSettings` configure the canonical collection and time fields
+even when activation is inherited. Collection defaults remain internal, type-isolated names.
 
-`DOCUMENT` always maintains this current document. Its search visibility, collection and temporal paths are configured through
-`document = @DocumentProjection(...)`.
-
-When state should load from a document but ordinary Model search is unnecessary, keep it reference-only:
-
-```java
-@Model(
-    persistence = ModelPersistence.DOCUMENT,
-    document = @DocumentProjection(searchable = false))
-record UserPreferences(
-        @EntityId UserId userId,
-        Preferences preferences) {
-}
-```
-
-Fluxzero keeps this value in its normal resolved collection, which defaults to `UserPreferences`; an explicitly
-configured `DocumentProjection.collection` is also valid. Keeping that collection stable makes an existing document
-collection available as a public projection during migration. Exact parent/ancestor searches can still retrieve it,
-while unrestricted `Fluxzero.search(UserPreferences.class)` does not expose it. Identity and alias loads and Graph
-composition use the separate internal source. The non-searchable public projection omits the summary/reversary,
-facets and sortables; its internal source may independently require Graph indexes. This is query visibility, not
-authorization. See [Model state and protection boundaries](../model-state-boundaries).
+Searchability is not authorization. Enforce access in query and command handlers; see
+[Model state and protection boundaries](../model-state-boundaries).
 
 ## Event storage and publication
 
@@ -293,16 +274,12 @@ default starts after Model apply handlers and awaits all started commits at batc
 application has a measured ordering, latency or concurrency reason to choose another `ModelCommitPolicy`; the policy
 does not split one multi-Model action into separate commits.
 
-## Direct Model documents
+## Searchable Model documents
 
-For an application-wide list of line items—not just lines under a known order—combine `EVENT_SOURCED` and `DOCUMENT`.
-This keeps event replay authoritative while maintaining a directly searchable current document:
+Use `searchable` for a searchable current representation while retaining the chosen persistence policy:
 
 ```java
-@Model(
-    persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-    document = @DocumentProjection(
-        collection = "line-items"))
+@Model(searchable = true, searchSettings = @SearchSettings(collection = "line-items"))
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -310,34 +287,24 @@ record LineItem(
 }
 ```
 
-The public document serves direct search; the separate internal source serves verified current-state reads, related
-content predicates and Graph composition. With document-only persistence, that **internal source** is authoritative
-for loading, not the public projection. With event sourcing, replay remains authoritative. Neither is the asynchronously
-stitched whole-Graph projection. Model commits maintain both roles; ordinary document indexing or
-`@HandleDocument(documentClass = LineItem.class)` affects only the public projection.
-Set `document.searchable = false` to keep the public projection retrieval-only, even if the internal Graph component
-requires indexes. Both remain current representations, not historical document archives.
+This Model remains event-sourced. Searchability maintains a canonical indexed node document; it does not require
+adding DOCUMENT persistence. For DOCUMENT-only Models, the same canonical document is also authoritative state.
+Model commits own that representation. Use normal Model operations for business changes and guarded document-schema
+migration for upcasts. Build an independent read model when an independently editable representation is needed.
 
-`search(LineItem.class).whereAncestor(orderId)` still returns the public LineItem projection when DOCUMENT is enabled.
-By contrast, the content inside `whereChild(LineItem.class, ...)` is tested against LineItem's internal source.
-For source schema migrations use `@HandleDocument(modelState = LineItem.class)`; see
-[Model migration tests](../model-migration-tests). Never write internal collections through ordinary indexing.
+`search(LineItem.class)` returns node values and includes no child objects. It can restrict those values by typed
+parent or ancestor ID even when the ancestor has no search document. Filtering by ancestor *content* requires an
+indexed ancestor source. The same canonical node data is used by related-content predicates and Graph composition.
 
-Plain `EVENT_SOURCED` omits only this independent collection. A child with an explicit
-`@Parent(pathInParent = "...")` still supplies a private current document to virtual and materialized Graph composition.
-Without an explicit path, `DOCUMENT`, or `materializeGraph = true`, Fluxzero stores no current component document and
-performs no extra document write. A root does not gain a component merely because children point at it.
+`searchGraph(LineItem.class)` returns the node and its composed descendants, subject to `includeDescendants`.
+With the default `GraphProjectionMode.NONE`, the query stitches those indexed documents on demand. Select
+`graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC)` to maintain an additional complete Graph
+in advance, or AWAIT when commits must wait for that projection. An application-wide wait setting does not activate
+materialization on a NONE root. Searchability must already be enabled independently.
 
-You can additionally:
-
-- select current target documents directly through a known typed parent or ancestor ID, even when that related Model
-  has no current document;
-- select parents, ancestors, children or descendants by current document content through the class-and-constraint
-  `whereParent(...)`, `whereAncestor(...)`, `whereChild(...)` and `whereDescendant(...)` overloads;
-- search typed complete graphs with `searchGraph(Root.class)`, using a materialized projection when configured and
-  otherwise stitching live;
-- set `materializeGraph = true` for a durable whole-root document and optionally configure it with
-  `graphProjection = @GraphProjection(...)`.
+`pathInParent` alone never creates a document. An event-sourced, non-searchable Model needs no component document.
+A DOCUMENT Model with no effective searchability keeps only its internal, unindexed current state.
+See [Choosing Model and Graph queries](../model-query-guide) for query semantics and performance boundaries.
 
 ## Caching
 
@@ -369,9 +336,11 @@ the following is an illustrative tuning choice, not a standard Model configurati
 
 ```java
 @Model(
+    searchable = false,
     snapshotPeriod = 1000,
     maxSnapshotCount = 2,
-    checkpointPeriod = 100)
+    checkpointPeriod = 100
+)
 record Account(@EntityId AccountId accountId, Money balance) {
 }
 ```

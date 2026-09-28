@@ -155,12 +155,12 @@ class DocumentReceiptRetryTest {
 
     @Model(persistence = ModelPersistence.DOCUMENT, cached = false, eventPublication = EventPublication.NEVER,
             conflictPolicy = ModelConflictPolicy.FAIL, automaticHandling = DISABLED,
-            document = @DocumentProjection(searchable = false))
+            searchable = false)
     record Work(@EntityId WorkId workId, boolean completed) {}
 
     @Model(persistence = ModelPersistence.DOCUMENT, cached = false, eventPublication = EventPublication.NEVER,
             conflictPolicy = ModelConflictPolicy.FAIL, automaticHandling = DISABLED,
-            document = @DocumentProjection(searchable = false))
+            searchable = false)
     record Receipt(@EntityId ReceiptId receiptId, String evidence) {}
 
     static final class WorkId extends Id<Work> { public WorkId(String id) { super(id); } }

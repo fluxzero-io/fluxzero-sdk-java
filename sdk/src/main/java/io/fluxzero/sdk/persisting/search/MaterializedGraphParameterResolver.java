@@ -26,6 +26,7 @@ import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
+import io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
@@ -62,26 +63,15 @@ public final class MaterializedGraphParameterResolver
             Parameter parameter,
             Annotation methodAnnotation) {
         if (!(methodAnnotation instanceof HandleDocument annotation)
-            || annotation.modelGraph() == Void.class
             || !Graph.class.isAssignableFrom(parameter.getType())) {
             return null;
         }
-        Class<?> rootType = annotation.modelGraph();
-        List<java.lang.reflect.Type> typeArguments =
-                ReflectionUtils.getTypeArguments(
-                        parameter.getParameterizedType());
-        Class<?> parameterRootType = typeArguments.size() == 1
-                ? ReflectionUtils.rawClass(typeArguments.getFirst())
-                : null;
-        if (!rootType.equals(parameterRootType)) {
-            throw new IllegalArgumentException(
-                    "@HandleDocument(modelGraph = %s.class) parameter %s must be Graph<%s>"
-                            .formatted(rootType.getSimpleName(), parameter,
-                                       rootType.getSimpleName()));
-        }
+        Class<?> rootType = DocumentHandlerTopics.graphType(annotation, parameter.getDeclaringExecutable());
+        if (rootType == Void.class) { return null; }
         Map<String, String> pathOverrides =
                 EntityMetadata.validate(rootType)
-                        .graphProjectionConfiguration()
+                        .graphSearchConfiguration(List.of(rootType), io.fluxzero.sdk.configuration.ApplicationProperties.getProperty(
+                                io.fluxzero.sdk.configuration.ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""))
                         .map(configuration ->
                                      configuration.getPathOverrides().stream()
                                              .collect(Collectors.toMap(
@@ -89,8 +79,11 @@ public final class MaterializedGraphParameterResolver
                                                      override -> override.getProjectionPath(),
                                                      (first, second) -> second)))
                         .orElseGet(Map::of);
-        return input -> create(
-                requireDocumentMessage(input), rootType, pathOverrides);
+        return input -> {
+            DeserializingMessage message = requireDocumentMessage(input);
+            Graph<?> graph = create(message, rootType, pathOverrides);
+            return DocumentMessageReader.isLiveGraph(message) ? io.fluxzero.sdk.modeling.Graphs.withoutHistory(graph) : graph;
+        };
     }
 
     @Override
@@ -107,7 +100,7 @@ public final class MaterializedGraphParameterResolver
                         method, HandleDocument.class)
                 .orElse(null);
         return annotation != null
-               && annotation.modelGraph() != Void.class
+               && DocumentHandlerTopics.graphType(annotation, method) != Void.class
                && java.util.Arrays.stream(method.getParameterTypes())
                        .anyMatch(Graph.class::isAssignableFrom);
     }

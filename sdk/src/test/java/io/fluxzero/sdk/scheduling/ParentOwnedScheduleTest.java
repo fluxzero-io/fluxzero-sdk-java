@@ -290,8 +290,8 @@ class ParentOwnedScheduleTest {
                 .expectThat(fc -> assertTrue(fc.messageScheduler().getSchedule("owned").isEmpty()));
     }
 
-    @Model record Root(@EntityId RootId rootId) {}
-    @Model record Child(@EntityId ChildId childId, @Parent RootId rootId) {}
+    @Model(searchable = false) record Root(@EntityId RootId rootId) {}
+    @Model(searchable = false) record Child(@EntityId ChildId childId, @Parent RootId rootId) {}
     record CreateRoot(RootId rootId) { @Apply Root apply() { return new Root(rootId); } }
     record TouchRoot(RootId rootId) { @Apply Root apply(Root root) { return new Root(rootId); } }
     record DeleteRoot(RootId rootId) { @Apply Root apply(Root root) { return null; } }

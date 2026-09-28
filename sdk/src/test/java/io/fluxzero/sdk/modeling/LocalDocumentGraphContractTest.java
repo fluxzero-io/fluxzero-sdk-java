@@ -50,7 +50,7 @@ class LocalDocumentGraphContractTest extends DocumentGraphContract {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
+    @Model(searchable = true, persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
     record BeginDocument(@EntityId String id, int value) {}
     record RetainBegin(String id, @JsonIgnore AtomicReference<DeserializingMessage> retained) {
         @Apply BeginDocument apply(@Nullable BeginDocument previous) {

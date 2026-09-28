@@ -45,7 +45,7 @@ its owning Model, not a separate entity update. The Model/Member lifecycle rules
 ## Define a model
 
 ```java
-@Model
+@Model(searchable = false)
 @With
 public record Project(
         @EntityId ProjectId projectId,

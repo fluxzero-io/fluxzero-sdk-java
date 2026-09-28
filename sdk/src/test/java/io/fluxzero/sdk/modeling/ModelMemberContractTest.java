@@ -49,7 +49,7 @@ class ModelMemberContractTest {
                 }).expectSuccessfulResult().expectNoErrors();
     }
 
-    @Model record PolymorphicOwner(@EntityId String id, @Member List<Part> parts) {}
+    @Model(searchable = false) record PolymorphicOwner(@EntityId String id, @Member List<Part> parts) {}
     @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.CLASS)
     sealed interface Part permits FirstPart, SecondPart {
         @EntityId String partId();
@@ -75,7 +75,7 @@ class ModelMemberContractTest {
     }
     record RenamePart(String partId, String availabilityId, String name) {}
     record AppendPart(String partId) {}
-    @Model record Availability(@EntityId String availabilityId, boolean active) {}
+    @Model(searchable = false) record Availability(@EntityId String availabilityId, boolean active) {}
     record SetAvailability(String availabilityId, boolean active) {
         @Apply Availability apply(@jakarta.annotation.Nullable Availability previous) {
             return new Availability(availabilityId, active);
@@ -109,7 +109,7 @@ class ModelMemberContractTest {
                 }).expectSuccessfulResult().expectNoEvents().expectNoErrors();
     }
 
-    @Model
+    @Model(searchable = false)
     record OtherOwner(@EntityId String id, @Member Item item) {}
     static final class OtherOwnerId extends Id<OtherOwner> { OtherOwnerId(String id) { super(id); } }
     record CreateOtherOwner(String id) {
@@ -132,7 +132,7 @@ class ModelMemberContractTest {
                 });
     }
 
-    @Model
+    @Model(searchable = false)
     record GenericOwner(@EntityId String id, @Member Box<String> box) {}
     record Box<T>(@EntityId String boxId, String name, T content) {
         @Apply Box<T> rename(RenameBox event) { return new Box<>(boxId, event.name(), content); }
@@ -339,7 +339,7 @@ class ModelMemberContractTest {
                 });
     }
 
-    @Model
+    @Model(searchable = false)
     record Owner(@EntityId String id, @Member List<Item> items) {}
 
     record Item(@EntityId String itemId, String name) {
@@ -360,7 +360,7 @@ class ModelMemberContractTest {
         }
     }
 
-    @Model
+    @Model(searchable = false)
     record Combined(@EntityId String id, @Member List<Item> items, int updates, String seen) {
         @Apply Combined apply(RenameItem event) { return new Combined(id, items, updates + 1, items.getFirst().name()); }
         @Apply Combined apply(RenameCombined event) { return new Combined(id, items, updates + 1, items.getFirst().name()); }
@@ -380,7 +380,7 @@ class ModelMemberContractTest {
         @Apply Item apply(Item item) { return new Item(item.itemId(), "should-not-commit"); }
     }
 
-    @Model
+    @Model(searchable = false)
     record MapOwner(@EntityId String id, @Member(idProperty = "key", wither = "replaceEntries") Map<String, Mapped> entries,
                     int copies) {
         MapOwner replaceEntries(Map<String, Mapped> entries) { return new MapOwner(id, entries, copies + 1); }
@@ -393,7 +393,7 @@ class ModelMemberContractTest {
         @Apply MapOwner apply() { return new MapOwner(id, Map.of(), 0); }
     }
 
-    @Model(automaticHandling = AutomaticModelHandling.DISABLED)
+    @Model(searchable = false, automaticHandling = AutomaticModelHandling.DISABLED)
     record ManualOwner(@EntityId String id, @Member List<Mapped> entries) {}
     record AddManual(String id, String key) {
         @Apply Mapped apply() { return new Mapped(key, "value"); }
@@ -407,7 +407,7 @@ class ModelMemberContractTest {
     record RenameItem(OwnerId ownerId, String itemId, String name) {
         RenameItem(String itemId, String name) { this(null, itemId, name); }
     }
-    @Model
+    @Model(searchable = false)
     record SingleOwner(@EntityId String id, @Member Item item) {}
     record CreateSingleton(String id) {
         @Apply SingleOwner apply() { return new SingleOwner(id, new Item("item", "before")); }

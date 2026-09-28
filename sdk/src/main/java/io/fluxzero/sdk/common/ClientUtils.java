@@ -481,6 +481,9 @@ public class ClientUtils {
         if (!metadata.isModel()) {
             return determineSearchCollection(type);
         }
+        if (!metadata.isSearchable()) {
+            throw new IllegalArgumentException(type.getName() + " is not searchable");
+        }
         return metadata.modelSourceDocumentCollection(ApplicationProperties.getProperty(
                         ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""))
                 .orElseThrow(() -> new IllegalArgumentException(

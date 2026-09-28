@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Durable definition of one asynchronous materialized model-graph document.
+ * Durable definition of a logical Graph update stream, optionally storing its complete composition.
  * <p>
  * The target collection is the projection identity within a namespace. It is intentionally distinct from the root's
  * current-document source so asynchronous graph writes cannot weaken synchronous current-state consistency.
@@ -68,6 +68,9 @@ public class ModelGraphProjectionConfiguration {
      */
     List<ModelGraphPathOverride> pathOverrides;
 
+    /** Whether to store the composed Graph, or only a durable invalidation for live composition. */
+    boolean storeGraph;
+
     @JsonCreator
     public ModelGraphProjectionConfiguration(
             @JsonProperty("rootModelType")
@@ -81,7 +84,9 @@ public class ModelGraphProjectionConfiguration {
             @JsonProperty("modelRevisions")
             List<ModelRevision> modelRevisions,
             @JsonProperty("pathOverrides")
-            List<ModelGraphPathOverride> pathOverrides) {
+            List<ModelGraphPathOverride> pathOverrides,
+            @JsonProperty("storeGraph") Boolean storeGraph) {
+        this.storeGraph = storeGraph == null || storeGraph;
         this.rootModelType = requireText(
                 rootModelType, "Root model type");
         this.rootCollection = requireText(

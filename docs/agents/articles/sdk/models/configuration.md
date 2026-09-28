@@ -1,22 +1,25 @@
 # Model configuration
 
-Start with plain `@Model`. Introduce an option only for a concrete application requirement; do not copy
-explicit persistence, caching or publication settings into ordinary Model examples.
-For a searchable root Graph, prefer `materializeGraph = true` with `searchGraph` when that is the desired view.
+Choose `@Model(searchable = false)` for ordinary event-sourced state, or `searchable = true` for indexed node and
+Graph queries. Persistence, search activation and optional Graph precomputation are independent. Searchable roots
+include composed descendants by default; their local `searchable = false` does not veto inherited activation.
+Use `@Parent(searchable = false)` to block inherited activation and ancestor search composition through one edge,
+including its subtree. The child can still independently activate its own search Graph.
 
 Storage choices do not establish privacy. DOCUMENT plus effective `eventPublication = NEVER` supports
 eventless current state, not history or `previous()`. Non-searchable documents still support identity/relationship
 reads, and `@ProtectData` does not protect values copied into Model state. Read the linked **Model state:
 persistence and protection boundaries** article before using these controls for sensitive data.
 
-**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (event sourcing is the default persistence strategy). `DOCUMENT` alone
 stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
 replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
 substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
 
 The default is event sourcing without a direct document or periodic snapshots. Add storage only for a concrete
 read requirement. Use the central matrix at `/docs/sdk/entities/graph-search`.
-Relationship-scoped search can use an internal component without `DOCUMENT`; ordinary `search(T.class)` lists cannot.
+Node and relationship queries use the same canonical searchable source. A searchable node can be selected by ancestor
+ID even when that ancestor is not searchable; filtering on ancestor content requires its searchable source.
 
 Important settings:
 
@@ -25,16 +28,18 @@ Important settings:
   `fluxzero.model.namePrefix` is prepended literally for applications sharing a namespace (`billing` + `Invoice` =
   `billingInvoice`). Changing either value after data exists requires an application-managed data transition.
 - `persistence`: selects a non-empty set of durable representations:
-  - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
-  - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events; maintain an internal source and separate public DOCUMENT projection.
-  - `{DOCUMENT}`: load authoritative state from the internal source, not an independently rewritten public projection.
+  - `{EVENT_SOURCED}` (default): reconstruct from Model events; search activation may separately maintain a canonical indexed node.
+  - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and maintain internal current state; searchability controls its indexes.
+  - `{DOCUMENT}`: load authoritative state from the canonical document; it can be entirely internal and unsearchable.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `document`: optional `@DocumentProjection` configuration for the direct collection, timestamp paths, and public
-  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
-  remains parent/ancestor-queryable but has no public content indexes. The separate internal source supports Model
-  loads, verified state and Graph composition; a Graph role retains its own internal indexes. Public rewrites cannot
-  change that source. Use `@HandleDocument(modelState = T.class)` (Kotlin: `T::class`) for schema-only source reindexing;
-  `documentClass` selects the public projection and `modelGraph` the materialized Graph. See the migration guide.
+- `searchable`: required explicit search activation. False means no independent activation, while a searchable
+  ancestor's composed scope can still include this type. This never changes Model load authority.
+- `searchSettings`: per-node collection and timestamp paths plus `includeDescendants` (default true). Settings alone
+  do not activate search. Parent paths describe composition only. The default canonical collection preserves the
+  existing internal source; do not migrate an old public DocumentProjection collection into this setting blindly.
+- Source schema rewrites must retain identity, business state and head proof. Ordinary typed Model document handlers
+  observe the same canonical node and use the guarded schema rewrite route. Explicit `source = MODEL_STATE` handlers also permit
+  internal state maintenance for a non-searchable DOCUMENT Model. Use normal Model commands for business changes.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
@@ -43,15 +48,27 @@ Important settings:
 - `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
 - `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `materializeGraph`: enables the optional durable whole-tree read model.
-- `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
-  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
-  materializes the complete finite graph without implicit size limits.
+- `graphProjection.mode`: NONE (default) composes indexed nodes when read; ASYNC stores a composed Graph; AWAIT also
+  waits for affected projections. Completion/waiting configuration alone never activates materialization in NONE.
+- `graphProjection.collection` and `pathOverrides`: optional stored Graph collection and replacements for canonical
+  composition paths. Path overrides also apply to live queries. The default collection is the logical Model name plus
+  `-graphs`, or the explicitly configured node collection plus `-graphs`.
 
 Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
-`publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
-make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
-`ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT`-only Models.
+`publicationStrategy` and per-apply overrides. Event-sourcing-only options such as `ignoreUnknownEvents`, snapshots
+and replay checkpoints are rejected on DOCUMENT-only Models.
 
-In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]`
-and nested annotations omit `@`, for example `document = DocumentProjection(searchable = false)`.
+In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` and nested annotations
+omit `@`, for example `searchSettings = SearchSettings(includeDescendants = false)`.
+
+## Document handler scope
+
+`@HandleDocument` infers the searchable node from `Task` and logical root-plus-descendants scope from `Graph<Task>`.
+Use `source = DocumentSource.MODEL_STATE` with a Model value for internal schema maintenance, including non-searchable
+DOCUMENT state. There is no fallback and no implicit activation. Ancestor-only content changes do not trigger a Task
+Graph; `@GraphProperty` adds no subscriptions. Moves update old and new ancestor Graphs.
+
+NONE retains small durable root update markers and hydrates indexed nodes on read. Its Graph returns never rewrite
+nodes or store a composition, and `previous()` is unavailable. ASYNC/AWAIT returns can conditionally migrate only the
+stored aggregate. Node schema rewrites preserve state/head and durably schedule affected definitions for rebuilding;
+that maintenance can also notify other roots in those definitions.

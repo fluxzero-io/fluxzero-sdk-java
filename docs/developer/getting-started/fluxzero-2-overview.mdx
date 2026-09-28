@@ -147,10 +147,10 @@ data class Task(@EntityId val taskId: TaskId, val details: TaskDetails, val comp
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
-@Model
+@Model(searchable = false)
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -161,10 +161,10 @@ record Task(@EntityId TaskId taskId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -241,7 +241,7 @@ For that variant, add a second parent reference to Task:
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -253,7 +253,7 @@ record Task(@EntityId TaskId taskId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -315,7 +315,7 @@ For example, a notes feature can add independently managed notes to a Task. The 
 <TabItem label="Java">
 
 ```java
-@Model
+@Model(searchable = false)
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {}
@@ -325,7 +325,7 @@ record InternalNote(@EntityId String noteId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model
+@Model(searchable = false)
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -451,7 +451,7 @@ For example, this status Model uses document storage and disables the shared sta
 <TabItem label="Java">
 
 ```java
-@Model(persistence = ModelPersistence.DOCUMENT, cached = false)
+@Model(searchable = false, persistence = ModelPersistence.DOCUMENT, cached = false)
 record TaskStatus(@EntityId String statusId,
                   @Parent TaskId taskId,
                   boolean online) {}
@@ -461,7 +461,7 @@ record TaskStatus(@EntityId String statusId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(persistence = [ModelPersistence.DOCUMENT], cached = false)
+@Model(searchable = false, persistence = [ModelPersistence.DOCUMENT], cached = false)
 data class TaskStatus(
     @EntityId val statusId: String,
     @Parent val taskId: TaskId,
@@ -938,15 +938,19 @@ The schema follows the Models' declared composition paths. Filtering still deter
 
 [Deep dive: composed OpenAPI schemas](/docs/fluxzero-2-deep-dive#openapi-that-understands-the-composed-response)
 
-### Materialized Graph search
+<span id="materialized-graph-search"></span>
 
-For fast searches across a whole Graph, `materializeGraph = true` keeps the composed document in the search index. Fluxzero persists and updates it automatically; you do not need to write an event handler that rebuilds and stores the view. A query can then match Task fields and return the containing Project Graph:
+### Searchable Graphs and optional materialization
+
+`searchable = true` maintains indexed node documents for Project and its composed descendants, including Tasks. The default `GraphProjectionMode.NONE` composes them when queried. This also makes each Task directly searchable. `DOCUMENT` persistence and `pathInParent` do not activate search.
+
+For frequent broad Graph queries, optional `ASYNC` or `AWAIT` materialization additionally stores the complete composed view. Fluxzero updates it automatically; you do not need an event handler to rebuild it. Both live and stored queries can match Task fields and return the containing Project Graph:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
-@Model(materializeGraph = true)
+@Model(searchable = true, graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC))
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
 List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
@@ -958,7 +962,7 @@ List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(materializeGraph = true)
+@Model(searchable = true, graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC))
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
 val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
@@ -969,9 +973,13 @@ val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
 </TabItem>
 </Tabs>
 
-Task changes update the materialized view automatically; moving a Task updates both affected Projects. This replaces application projection handlers that rebuild the view after each relevant event. Individual nodes retain their own schema revisions and upcasters inside the stored Graph.
+In this ASYNC example, Task changes update the stored view automatically; moving a Task updates both affected Projects. The stored view can lag behind node documents; AWAIT also waits for affected projections before commit completion. This replaces application projection handlers that rebuild the view after each relevant event. Individual nodes retain their own schema revisions and upcasters inside the stored Graph.
 
 [Deep dive: materialization, projection completion and schema evolution](/docs/fluxzero-2-deep-dive#automatically-materialize-the-complete-graph)
+
+## Upgrading an existing 2.x application
+
+Every Model must now declare `searchable` explicitly. The former document/projector settings are not source-compatible. Existing canonical state can be retained, but changing annotations does not backfill missing indexes or replace old durable projection definitions. Coordinate all writers and Runtime instances using the [2.x search upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade); this is not a rolling upgrade with old Model writers.
 
 ## Upgrading from 1.x
 

@@ -52,15 +52,14 @@ import java.lang.annotation.Target;
  * <h2>Persistence</h2>
  * {@link #persistence()} makes the durable representations and authoritative load path explicit. Event-sourced models
  * are reconstructed from their model stream, optionally from a snapshot. Adding {@link ModelPersistence#DOCUMENT}
- * maintains an independent public projection as well; when event sourcing is absent, the internal current source
- * is authoritative. Event storage
+ * maintains internal current state; when event sourcing is absent, that current state is authoritative. Event storage
  * and publication remain independent and are controlled by {@link #eventPublication()},
  * {@link #publicationStrategy()}, and per-apply overrides. Internal component documents used for Graph composition are
  * likewise orthogonal and never change the selected load path.
  *
  * <h2>Example</h2>
  * <pre>{@code
- * @Model
+ * @Model(searchable = false)
  * public record Product(@EntityId ProductId productId, ProductDetails details) {
  *     @Apply
  *     Product rename(RenameProduct command) {
@@ -76,13 +75,11 @@ import java.lang.annotation.Target;
  * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
  * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.
  * <p>
- * Start with this default: event sourcing without a direct document or periodic snapshots. Add {@code DOCUMENT} for
- * an application-wide {@code Fluxzero.search(Product.class)} list, or to make the current document authoritative when
- * event sourcing is omitted. Relationship-scoped search may already use an internal component document supplied by
- * an explicit {@link Parent#pathInParent()} or {@link #materializeGraph()}; it does not by itself require DOCUMENT.
- * A pathless parent reference supplies navigation but no component document. See the
- * <a href="https://fluxzero.io/docs/guides/modeling-and-persistence/model-query-guide">Model and Graph query guide</a>
- * for the capability matrix and current versus event-bound result semantics.
+ * Persistence and searchability are separate choices. Enable {@link #searchable()} to query this Model and its
+ * composed descendants; {@link SearchSettings#includeDescendants()} limits a root's Graph scope. An explicit
+ * {@link Parent#pathInParent()} only describes composition, never storage. The default Graph mode retains separate
+ * indexed node documents and composes them when read. Choose {@link GraphProjectionMode#ASYNC} or
+ * {@link GraphProjectionMode#AWAIT} to additionally store the composed Graph.
  *
  * Model declarations are indexed at compilation by {@link ModelTypeProcessor}. Enable SDK annotation processing
  * (Kotlin: kapt) in each contract module and preserve {@link ModelTypes#INDEX} when packaging. This index discovers
@@ -100,7 +97,7 @@ import java.lang.annotation.Target;
  * @see Apply
  * @see EntityId
  * @see ModelPersistence
- * @see DocumentProjection
+ * @see SearchSettings
  */
 @Documented
 @Target(ElementType.TYPE)
@@ -225,33 +222,16 @@ public @interface Model {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
-     * Advanced configuration for the Model's direct current document.
-     * <p>
-     * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Every direct
-     * document uses the configured collection, which defaults to the resolved logical Model name. A reference-only
-     * document is excluded from unrestricted typed Model search while remaining retrievable via relationships.
-     * Model loads, verified state and Graph composition use the separate internal source, unaffected by ordinary
-     * public document rewrites. Timestamps default to the applied event timestamp when no paths are
-     * configured.
-     * <p>Non-searchability is not authorization or encryption. Model state and documents do not inherit
-     * {@code @ProtectData} protection from input messages; enforce sensitive-state access and storage separately.</p>
+     * Explicitly activates indexed current documents for this Model and, by default, its composed descendants.
+     * A false value makes no independent request: an ancestor's searchable scope can still include this type.
+     * Recompiled declarations must make this choice explicitly. Rebuild shared contract JARs as well: Java does not
+     * revalidate annotations in an already compiled dependency, which otherwise fails when its settings are read.
      */
-    DocumentProjection document() default @DocumentProjection;
+    boolean searchable();
 
-    /**
-     * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
-     * <p>
-     * Fluxzero retains the root's current source in type-isolated internal storage, independently of any public
-     * document projection. Only the separately named whole-graph collection is allowed
-     * to lag; its high-watermark is exposed through the model repository. The collection defaults to the resolved
-     * direct-model collection plus {@code -graphs} when present, or to {@code <logical Model name>-graphs} otherwise.
-     */
-    boolean materializeGraph() default false;
+    /** Per-node index settings and the scope of Graph queries rooted at this Model. Does not activate search. */
+    SearchSettings searchSettings() default @SearchSettings;
 
-    /**
-     * Advanced configuration for the materialized whole-graph search document.
-     * <p>
-     * This configuration does not enable materialization by itself; set {@link #materializeGraph()} to {@code true}.
-     */
+    /** Optional storage of a complete Graph in addition to the separate indexed node documents. */
     GraphProjection graphProjection() default @GraphProjection;
 }

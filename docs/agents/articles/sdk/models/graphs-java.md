@@ -22,7 +22,7 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, one Model can have two parents with different meanings:
 
 ```java
-@Model
+@Model(searchable = false)
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -48,7 +48,7 @@ annotation: concrete cycles between Model IDs are rejected, including cycles con
 Use `@Parent` on the child:
 
 ```java
-@Model
+@Model(searchable = false)
 public record Task(
         @EntityId TaskId taskId,
         @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -94,7 +94,7 @@ Use `@Association` when the relation/path or same-type target would otherwise be
 
 Every root and descendant in a materialized Graph retains its own serialized type and `@Revision`. The ordinary
 serializer upcasts nodes independently and lazily; do not create a Graph-wide upcaster. Use
-`@HandleDocument(modelGraph = Root.class)` and return the complete Graph only when evolved node JSON must be persisted
+`@HandleDocument` and return the complete Graph only when evolved node JSON must be persisted
 back into the derived projection. That operation must preserve the root, state boundary, nodes and placements and does
 not modify direct Models, histories or relationships.
 
@@ -179,7 +179,7 @@ is immutable, shared across the view and never persisted as Model state.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```java
-@Model
+@Model(searchable = false)
 record Project(
         @EntityId ProjectId projectId,
         @Alias(prefix = "external:") String externalId) {
@@ -310,16 +310,20 @@ a separate limit; there is no general automatic event-retention policy implied h
 
 ## Search and graph composition
 
-Read the central decision guide at `/docs/sdk/entities/graph-search` before selecting storage or query APIs. Its matrix covers plain event-sourced Models, explicit component paths, direct documents, reference-only
-documents and materialized Graphs, with executable Java/Kotlin query examples and state guarantees.
+Read the central decision guide at `/docs/sdk/entities/graph-search` before selecting storage or query APIs. Its matrix separates persistence, indexed node documents, live composition and optional stored Graphs, with Java/Kotlin query examples and coordinated upgrade requirements.
 
-Start with `@Model`. An explicit `@Parent(pathInParent = "...")` maintains an indexed internal component and supports
-relationship-scoped search without `DOCUMENT`. Use a direct public document for unrestricted typed Model lists.
-With DOCUMENT, that public projection is separate: parent/ancestor queries return it, while related-content
-predicates and live Graph composition use the internal Model source. Public reindexing never rewrites that source.
-Reindex internal schemas with `@HandleDocument(modelState = T.class)` (Kotlin: `T::class`), public projections with
-`documentClass`, and whole-Graph projections with `modelGraph`; see `/docs/sdk/models/migration-testing`.
-Identity-based Graph navigation needs neither document nor composition path. Search Graphs include explicit paths
-only and are document-backed; they do not inherit an event handler's historical boundary or transaction readset.
-Materialized Graphs may lag, whereas live composition can require broad candidate work before filtering/pagination.
-Relation queries and live Graph composition do not support the statistics-based `count()` terminal.
+Declare `@Model(searchable = true)` on the root to maintain canonical indexed nodes for it and its typed
+composition descendants. `pathInParent` only defines composition. Node and related-content queries use the same
+canonical sources. `searchable = false` means no independent request; participation through an ancestor still applies.
+`SearchSettings(includeDescendants = false)` limits the root's request and Graph scope to itself.
+
+Use `@HandleDocument` with a node value for node updates, or `Graph<T>` for root and included-descendant updates.
+`source = DocumentSource.MODEL_STATE` explicitly selects internal state, including non-searchable DOCUMENT Models.
+NONE handlers stitch current nodes after a durable notification; their `previous()` is unavailable and Graph returns
+are observational. ASYNC/AWAIT maintain a separate composed document whose schema can be conditionally evolved.
+Ancestor-only content changes do not trigger a child Graph handler.
+
+Identity-based Graph navigation needs neither searchability nor composition paths. Search Graphs follow composition
+paths and read current documents, without inheriting an event handler's historical boundary or transaction readset.
+Counts, grouped statistics and facets work in all modes; live statistics may read many documents. Broad child filters
+or sorts can require many compositions before paging. Use stored materialization for those workloads.

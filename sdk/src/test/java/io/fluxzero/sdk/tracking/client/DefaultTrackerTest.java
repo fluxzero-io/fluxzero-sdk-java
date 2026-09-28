@@ -479,6 +479,7 @@ class DefaultTrackerTest {
                 .threads(2)
                 .build();
         AtomicInteger reads = new AtomicInteger();
+        AtomicReference<String> processingTrackerId = new AtomicReference<>();
         CountDownLatch processingFirstBatch = new CountDownLatch(1);
         CountDownLatch releaseFirstBatch = new CountDownLatch(1);
         CountDownLatch secondTrackerFetching = new CountDownLatch(1);
@@ -489,6 +490,7 @@ class DefaultTrackerTest {
         when(trackingClient.getMessageType()).thenReturn(MessageType.EVENT);
         when(trackingClient.readAndWait(anyString(), any(), same(config))).thenAnswer(invocation -> {
             if (reads.getAndIncrement() == 0) {
+                processingTrackerId.set(invocation.getArgument(0));
                 return new MessageBatch(new int[]{0, 64}, List.of(message), 1L, Position.newPosition(), true);
             }
             secondTrackerFetching.countDown();
@@ -527,7 +529,10 @@ class DefaultTrackerTest {
                 cancellation.awaitCompletion(Duration.ofSeconds(1));
                 var order = org.mockito.Mockito.inOrder(trackingClient);
                 order.verify(trackingClient).storePosition(eq("consumer"), any(), eq(1L));
-                order.verify(trackingClient).disconnectTracker(eq("consumer"), anyString(), eq(false), eq(Guarantee.STORED));
+                order.verify(trackingClient).disconnectTracker(
+                        eq("consumer"), eq(processingTrackerId.get()), eq(false), eq(Guarantee.STORED));
+                verify(trackingClient, times(2)).disconnectTracker(
+                        eq("consumer"), anyString(), eq(false), eq(Guarantee.STORED));
             }
         } finally {
             releaseFirstBatch.countDown();

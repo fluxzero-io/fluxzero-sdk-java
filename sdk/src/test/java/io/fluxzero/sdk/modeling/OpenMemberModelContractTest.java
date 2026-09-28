@@ -44,7 +44,7 @@ class OpenMemberModelContractTest {
                     assertEquals("blocked", Fluxzero.loadModel("owner", DependentOwner.class).get().items().getFirst().name());
                 }).expectSuccessfulResult().expectNoErrors();
     }
-    @Model record DependentOwner(@EntityId String id, @Member List<DependentItem> items) {}
+    @Model(searchable = false) record DependentOwner(@EntityId String id, @Member List<DependentItem> items) {}
     record DependentItem(@EntityId String itemId, String labelId, String name) {
         @AssertLegal void check(GuardedRename event, Label label) {
             if (label.name().equals("blocked")) { throw new IllegalArgumentException("blocked"); }
@@ -63,7 +63,7 @@ class OpenMemberModelContractTest {
         org.junit.jupiter.api.Assertions.assertFalse(plan.reducer().requiresStorageBoundary());
         org.junit.jupiter.api.Assertions.assertFalse(plan.requiresReplayDependencies());
     }
-    @Model record ClosedOwner(@EntityId String id, @Member List<ClosedItem> items) {}
+    @Model(searchable = false) record ClosedOwner(@EntityId String id, @Member List<ClosedItem> items) {}
     record ClosedItem(@EntityId String itemId, String name) {
         @Apply ClosedItem apply(Rename event) { return new ClosedItem(itemId, event.name()); }
     }
@@ -74,7 +74,7 @@ class OpenMemberModelContractTest {
                 List.of(new io.fluxzero.sdk.tracking.handling.PayloadParameterResolver())), AutomaticModelHandling.ENABLED);
         org.junit.jupiter.api.Assertions.assertFalse(catalog.get(GuardOnly.class).automatic());
     }
-    @Model record GuardOwner(@EntityId GuardOwnerId id, @Member List<GuardPart> items) {}
+    @Model(searchable = false) record GuardOwner(@EntityId GuardOwnerId id, @Member List<GuardPart> items) {}
     static class GuardOwnerId extends Id<GuardOwner> { GuardOwnerId(String id) { super(id); } }
     interface GuardPart { @AssertLegal default void check(GuardOnly update) {} }
     record GuardOnly(GuardOwnerId id) {}
@@ -159,7 +159,7 @@ class OpenMemberModelContractTest {
                     assertEquals(1, Fluxzero.loadModel("lenient", LenientOwner.class).get().items().size());
                 }).expectSuccessfulResult().expectNoErrors();
     }
-    @Model(ignoreUnknownEvents = true) record LenientOwner(@EntityId String id, @Member List<Item> items) {}
+    @Model(searchable = false, ignoreUnknownEvents = true) record LenientOwner(@EntityId String id, @Member List<Item> items) {}
     record CreateLenient(String id) {
         @Apply LenientOwner create() { return new LenientOwner(id, List.of(new ConcreteItem("item", "before"))); }
     }
@@ -263,7 +263,7 @@ class OpenMemberModelContractTest {
                 });
     }
 
-    @Model record Owner(@EntityId String id, @Member List<Item> items) {}
+    @Model(searchable = false) record Owner(@EntityId String id, @Member List<Item> items) {}
     @com.fasterxml.jackson.annotation.JsonTypeInfo(use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.CLASS)
     interface Item { @EntityId String itemId(); }
     record ConcreteItem(String itemId, String name) implements Item {
@@ -290,7 +290,7 @@ class OpenMemberModelContractTest {
     record Rename(String itemId, String name) {}
     record CopyLabel(String itemId, String labelId) {}
     record GuardedRename(String itemId, String labelId, String name) {}
-    @Model record Label(@EntityId String labelId, String name) {}
+    @Model(searchable = false) record Label(@EntityId String labelId, String name) {}
     record SetLabel(String labelId, String name) {
         @Apply Label apply(@jakarta.annotation.Nullable Label previous) { return new Label(labelId, name); }
     }

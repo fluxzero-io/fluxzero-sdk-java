@@ -31,6 +31,7 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | legality/apply | `io.fluxzero.sdk.modeling.AssertLegal`, `io.fluxzero.sdk.persisting.eventsourcing.Apply` |
 | update interception | `io.fluxzero.sdk.persisting.eventsourcing.InterceptApply` |
 | event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy` |
+| Model storage and search | `io.fluxzero.sdk.modeling.ModelPersistence`, `SearchSettings`, `GraphProjection`, `GraphProjectionMode`, `GraphProjectionCompletion` |
 | Model repository | `io.fluxzero.sdk.persisting.repository.ModelRepository` |
 | event store | `io.fluxzero.sdk.persisting.eventsourcing.EventStore` |
 | search document store | `io.fluxzero.sdk.persisting.search.DocumentStore` |
@@ -45,6 +46,7 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | self tracking/local handler | `io.fluxzero.sdk.tracking.TrackSelf`, `io.fluxzero.sdk.tracking.handling.LocalHandler` |
 | common handlers | `io.fluxzero.sdk.tracking.handling.HandleCommand`, `HandleQuery`, `HandleEvent`, `HandleNotification` |
 | specialized handlers | `io.fluxzero.sdk.tracking.handling.HandleCustom`, `HandleDocument`, `HandleResult`, `HandleError`, `HandleMetrics` |
+| document source selection | `io.fluxzero.sdk.tracking.handling.DocumentSource` |
 | stateful workflow | `io.fluxzero.sdk.tracking.handling.Stateful` |
 | trigger correlation | `io.fluxzero.sdk.tracking.handling.Trigger` |
 | routing key | `io.fluxzero.sdk.publishing.routing.RoutingKey` |

@@ -1,8 +1,7 @@
 # Search & Documents
 
-For Model storage/query choices, read [Choosing Model and Graph queries](model-queries.md) first. Plain `@Model` is the
-default; relationship-scoped component search does not require a public `DOCUMENT` projection. That guide also defines
-Graph result state, count limitations and current versus event-bound reads.
+For Model storage/query choices, read [Choosing Model and Graph queries](model-queries.md) first. Persistence, search activation and optional composed Graph storage are independent.
+The guide covers current versus event-bound reads and live-query work.
 
 Fluxzero features a built-in search engine that eliminates the need for external databases or SQL. Applications manage
 data through a unified document store, leveraging automatic indexing and a rich set of search constraints.
@@ -35,13 +34,13 @@ data through a unified document store, leveraging automatic indexing and a rich 
 ## Core Rules
 
 1. **No SQL**: Data retrieval is performed exclusively via the `Fluxzero.search()` API or by loading entities.
-2. **Automatic Indexing**: Models whose persistence set contains `DOCUMENT` maintain a direct current-state document.
+2. **Automatic Indexing**: Effectively searchable Models maintain canonical indexed node documents.
 3. **Stateful Handlers**: `@Stateful` handlers are automatically searchable as they are backed by the document store.
 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
    historical, search is optimized for current data.
-6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Configure a Model's
-   direct collection through `document = @DocumentProjection(collection = "...")`.
+6. **Collection Naming**: Ordinary document collections default to the class name. Model canonical sources default
+   to `$modelGraphComponents/<logical Model name>`; customize through `SearchSettings.collection` with a data migration.
 7. **Server-side Search Logic**: Keep filtering and sorting in Fluxzero search calls (`match`, `any/all`, `sortBy`,
    etc.). Avoid re-implementing filtering/sorting in client app code.
 
@@ -55,19 +54,22 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 ### Model documents and @Searchable values
 
-Include `DOCUMENT` in a Model's persistence set to store a direct document. Use `@Searchable` for an ordinary document
+Set `searchable = true` to index a Model and its composition descendants, regardless of persistence. Use `@Searchable` for an ordinary document
 value; do not annotate a Model with it.
 
 [//]: # (@formatter:off)
 ```java
 @Model(
-        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-        document = @DocumentProjection(collection = "active_projects"))
+    searchable = true,
+    persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
+    searchSettings = @SearchSettings(collection = "active_projects")
+)
 public record Project(...) {}
 
 @Model(
-        persistence = ModelPersistence.DOCUMENT,
-        document = @DocumentProjection(searchable = false))
+    searchable = false,
+    persistence = ModelPersistence.DOCUMENT
+)
 public record UserPreferences(@EntityId UserId userId, ...) {}
 
 @Searchable(collection = "custom_docs")
@@ -75,12 +77,9 @@ public record ExternalDocument(...) {}
 ```
 [//]: # (@formatter:on)
 
-`DocumentProjection.searchable = false` keeps a Model's public projection out of unrestricted typed Model search.
-It stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
-configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
-adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
-same Model participates in Graph composition, its **separate internal** component retains the independently required
-indexes without becoming publicly searchable; shape those with `@SearchExclude`, `@Facet` and `@Sortable`.
+A DOCUMENT-only Model with no effective search activation keeps internal current state without public search
+indexes. `pathInParent` does not change that. A searchable ancestor can activate descendants; their own
+SearchSettings control collection and time fields. Node searches and live Graph composition share those sources.
 
 <a name="facets-sorting"></a>
 
@@ -107,6 +106,10 @@ public record Product(
 
 Use `@SearchExclude` to keep sensitive or internal data out of the search index. Conversely, use `@SearchInclude` to
 explicitly include fields that might otherwise be ignored (e.g., specific getters).
+Exclusions apply per field even when values overlap. The document body and existence/range/facet/sorting behavior
+are retained. For documents written before per-path exclusion metadata, upgrade the writing SDK and Runtime and
+reindex typed values; the original summary cannot reconstruct the excluded fields. Custom inverters or summarizers
+keep responsibility for their own indexing semantics.
 
 For response shaping, prefer search projections instead of post-processing in app code:
 
@@ -174,13 +177,10 @@ The ID overload starts from durable relationships and does not require a documen
 `Id<T>` supplies its Model type; otherwise pass the functional ID and Model class. Use a loaded `Graph` for a
 parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
 
-Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
-Model's internal source, never its independent public projection or whole Graph. `DOCUMENT`, an explicit composition
-path or `materializeGraph = true` maintains that source. A reference-only `DOCUMENT` without a Graph role
-supplies no content, facet or sortable indexes. The whole materialized Graph projection is not searched as the Model
-itself. The returned target
-also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target
-without either is loaded by ID rather than searched.
+Use the class-and-constraint overload to select related Models by their own indexed content. Both the returned
+Model and the related Model must be effectively searchable. They use their canonical node documents; a composed Graph
+is not used as a node source. Ancestor-ID filters only require the returned Model to be searchable: the ancestor need
+not have a document. `DOCUMENT` and `pathInParent` do not activate search. Load a non-searchable Model by ID instead.
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for content-based traversal. Prefer
 `searchGraph(Root.class).whereDescendant(Child.class, constraint)` for selective live Graph search based on children.
@@ -236,7 +236,7 @@ List<User> complex = Fluxzero.search(User.class)
 Fluxzero supports efficient pagination and sorting.
 
 - **sortBy(path, descending)**: Sort results by a specific field. The field MUST be annotated with `@Sortable`.
-- **skip(int)**: Number of results to skip (offset).
+- **skip(int)**: Skip this many results once, before the first result. Internal transport batches do not repeat the offset; synchronous and asynchronous searches return the same selection.
 - **fetch(int)**: Maximum number of results to return.
 - **fetchAll()**: Returns all matching documents (use with caution for large collections).
 
@@ -280,12 +280,11 @@ CompletableFuture<List<FacetStats>> handle(ProjectFacetQuery query) {
 
 ## Consistency & The Window
 
-Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
-**synchronous with Model-commit completion**.
+Canonical searchable node documents are **synchronous with Model-commit completion**.
 
 - **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
   document.
-- **Graph projection window**: a materialized whole-root graph is asynchronous by default. Use
+- **Graph projection window**: NONE stores no composed Graph. ASYNC maintains it asynchronously; AWAIT waits for affected projections. Use
   `GraphProjectionCompletion.AWAIT` for an operation whose result must wait for affected roots to reach its state
   boundary.
 - **Guarantee Boundary**: Do not assume immediate search consistency when the document is indexed as a downstream side
