@@ -15,8 +15,12 @@
 package io.fluxzero.sdk.common.websocket;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -25,11 +29,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SessionPoolTest {
@@ -123,6 +132,80 @@ class SessionPoolTest {
     @Test
     void constructorRejectsNegativeSizedPool() {
         assertThrows(IllegalArgumentException.class, () -> new SessionPool(-1, () -> mock(WebsocketSession.class)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void shutdownClosesConnectionEstablishedAfterItsSnapshot(boolean replacing) throws Exception {
+        CountDownLatch creationStarted = new CountDownLatch(1);
+        CountDownLatch releaseCreation = new CountDownLatch(1);
+        WebsocketSession previous = openSession();
+        WebsocketSession created = openSession();
+        AtomicInteger attempts = new AtomicInteger();
+        SessionPool pool = new SessionPool(1, () -> {
+            if (replacing && attempts.getAndIncrement() == 0) {
+                return previous;
+            }
+            creationStarted.countDown();
+            try {
+                assertTrue(releaseCreation.await(5, TimeUnit.SECONDS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return created;
+        });
+        if (replacing) {
+            assertSame(previous, pool.get());
+            when(previous.isOpen()).thenReturn(false);
+        }
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            Future<WebsocketSession> pending = executor.submit(() -> pool.get());
+            try {
+                assertTrue(creationStarted.await(5, TimeUnit.SECONDS));
+                pool.close();
+            } finally {
+                releaseCreation.countDown();
+            }
+            ExecutionException failure = assertThrows(ExecutionException.class,
+                                                      () -> pending.get(5, TimeUnit.SECONDS));
+            assertInstanceOf(SessionPool.ClientClosedException.class, failure.getCause());
+            verify(created).close();
+            assertThrows(SessionPool.ClientClosedException.class, pool::get);
+        }
+    }
+
+    @Test
+    void shutdownRejectsPreviouslyCachedSessionsAndClosesOnlyOnce() throws Exception {
+        WebsocketSession session = openSession();
+        SessionPool pool = new SessionPool(1, () -> session);
+        assertSame(session, pool.get());
+
+        pool.close();
+        pool.close();
+
+        // A close implementation need not update isOpen synchronously.
+        assertThrows(SessionPool.ClientClosedException.class, pool::get);
+        assertThrows(SessionPool.ClientClosedException.class, () -> pool.get("routing-key"));
+        verify(session, times(1)).close();
+    }
+
+    @Test
+    void shutdownAbortsFailedCloseAndStillClosesOtherSessions() throws Exception {
+        WebsocketSession failing = openSession();
+        WebsocketSession other = openSession();
+        doThrow(new IOException("close failed")).when(failing).close();
+        doThrow(new IllegalStateException("abort failed")).when(failing).abort(any());
+        AtomicInteger created = new AtomicInteger();
+        SessionPool pool = new SessionPool(2, () -> created.getAndIncrement() == 0 ? failing : other);
+        assertSame(failing, pool.get());
+        assertSame(other, pool.get());
+
+        pool.close();
+
+        verify(failing).abort(any());
+        verify(other).close();
+        assertThrows(SessionPool.ClientClosedException.class, pool::get);
     }
 
     private static WebsocketSession openSession() {
