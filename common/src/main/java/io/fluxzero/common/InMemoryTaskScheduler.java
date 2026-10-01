@@ -118,7 +118,7 @@ public class InMemoryTaskScheduler implements TaskScheduler {
         this.clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
                 ? delegatingClock.onChange(this::executeExpiredTasks) : Registration.noOp();
         if (pollingEnabled) {
-            executorService.scheduleWithFixedDelay(this::executeExpiredTasksAsync, delay, delay, TimeUnit.MILLISECONDS);
+            executorService.scheduleWithFixedDelay(this::submitExpiredTasks, delay, delay, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -148,10 +148,10 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     }
 
     /**
-     * Removes tasks whose deadlines have passed and submits them to the worker pool without waiting for their
-     * completion.
+     * Removes tasks whose deadlines have passed and submits them to the configured worker pool.
+     * Execution and completion depend on that executor; the default direct executor runs tasks inline.
      */
-    public void executeExpiredTasksAsync() {
+    public void submitExpiredTasks() {
         tasks.forEach(task -> {
             if (isMissedDeadline(clock(), task.deadline) && tasks.remove(task)) {
                 workerPool.submit(() -> tryRunTask(task));
