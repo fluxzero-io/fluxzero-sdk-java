@@ -79,6 +79,10 @@ import static java.util.stream.Collectors.toMap;
  */
 public class DefaultCasterChain<T, S extends SerializedObject<T>> implements CasterChain<S, S> {
 
+    /**
+     * Builds an upcaster chain from the candidate handlers, using the converter to bridge their internal data
+     * representation without normalizing incoming type identifiers before upcaster selection.
+     */
     public static <BEFORE, INTERNAL> CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> createUpcaster(
             Collection<?> casterCandidates, Converter<BEFORE, INTERNAL> converter) {
         return createUpcaster(casterCandidates, converter, UnaryOperator.identity());
@@ -98,11 +102,17 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         return create(casterCandidates, converter, false, inputTypeResolver);
     }
 
+    /**
+     * Builds an upcaster chain from annotated candidates for the supplied serialized data type.
+     */
     public static <T, S extends SerializedObject<T>> CasterChain<S, S> createUpcaster(
             Collection<?> casterCandidates, Class<T> dataType) {
         return create(casterCandidates, dataType, false);
     }
 
+    /**
+     * Builds a downcaster chain from annotated candidates for the supplied serialized data type.
+     */
     public static <T, S extends SerializedObject<T>> CasterChain<S, S> createDowncaster(
             Collection<?> casterCandidates, Class<T> dataType) {
         return create(casterCandidates, dataType, true);

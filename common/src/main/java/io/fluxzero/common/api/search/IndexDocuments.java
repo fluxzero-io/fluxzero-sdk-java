@@ -50,6 +50,9 @@ public class IndexDocuments extends Command {
     boolean ifNotExists;
     Guarantee guarantee;
 
+    /**
+     * Returns the number of documents in this indexing request.
+     */
     @JsonIgnore
     public int getSize() {
         return documents.size();

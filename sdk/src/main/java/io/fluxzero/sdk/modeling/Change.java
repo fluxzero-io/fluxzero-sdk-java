@@ -102,6 +102,10 @@ public record Change(
                        combined, addition.cascadedDeletion);
     }
 
+    /**
+     * Returns a copy with the supplied event-storage, publication, and state-update effects, preserving the
+     * remaining transition information.
+     */
     public Change withEffects(
             boolean storeEvent, boolean publishEvent,
             boolean updateState) {
@@ -126,6 +130,10 @@ public record Change(
                           true, configuration().eventSourced(), false, true);
     }
 
+    /**
+     * Rejects an active event-sourced state change that does not store its reconstructing event, throwing {@link
+     * IllegalStateException}.
+     */
     public void validate() {
         if (active && configuration().eventSourced() && updateState && !storeEvent) {
             throw new IllegalStateException(
@@ -165,6 +173,10 @@ public record Change(
                 decision.publishEvent(), decision.updateState());
     }
 
+    /**
+     * Returns the root configuration from this change's entity metadata; fails if the metadata has no root
+     * configuration.
+     */
     public EntityMetadata.RootConfiguration configuration() {
         return metadata.rootConfiguration().orElseThrow();
     }

@@ -75,6 +75,9 @@ public final class MutationPlan {
         this.automatic = automatic;
     }
 
+    /**
+     * Returns the compiled target-resolution plan for this mutation.
+     */
     public TargetPlan targets() {
         return targets;
     }
@@ -95,10 +98,16 @@ public final class MutationPlan {
         return automatic;
     }
 
+    /**
+     * Returns whether the reducer has no applicable mutation handlers.
+     */
     public boolean empty() {
         return reducer.empty();
     }
 
+    /**
+     * Returns whether the reducer supports its direct mutation path.
+     */
     public boolean direct() {
         return reducer.direct();
     }
@@ -248,6 +257,9 @@ public final class MutationPlan {
             };
         }
 
+        /**
+         * Returns the cached replay plan for the supplied payload and Model types, compiling it on first use.
+         */
         public MutationPlan compileReplay(Class<?> payloadType, Class<?> modelType) {
             return replayPlans.computeIfAbsent(
                     new ReplayKey(payloadType, modelType), this::compileReplay);
@@ -1219,6 +1231,10 @@ public final class MutationPlan {
                     List.of(slot.property.name()));
         }
 
+        /**
+         * Resolves mutation targets from the input using the default resolution mode without an explicit message
+         * context.
+         */
         public Resolution resolve(Object input) {
             return resolve(input, null, false);
         }
@@ -1606,6 +1622,9 @@ public final class MutationPlan {
             references = Collections.unmodifiableMap(new LinkedHashMap<>(references));
         }
 
+        /**
+         * Returns whether this resolution still contains ancestor dependencies.
+         */
         public boolean hasAncestorDependencies() {
             return !ancestorDependencies.isEmpty();
         }
@@ -1615,6 +1634,10 @@ public final class MutationPlan {
                     .anyMatch(entry -> entry.getKey().collectionWrapped() && entry.getValue().present());
         }
 
+        /**
+         * Returns a resolution with the supplied Models, retaining deferred writes and references while clearing
+         * ancestor dependencies.
+         */
         public Resolution withResolvedModels(List<ResolvedModel> resolvedModels) {
             return new Resolution(resolvedModels, deferredWrites, List.of(), references);
         }
@@ -1634,10 +1657,16 @@ public final class MutationPlan {
     public enum Access {
         READ_ONLY, WRITE_ONLY, READ_WRITE;
 
+        /**
+         * Returns whether this access mode includes reads.
+         */
         public boolean reads() {
             return this != WRITE_ONLY;
         }
 
+        /**
+         * Returns whether this access mode includes writes.
+         */
         public boolean writes() {
             return this != READ_ONLY;
         }

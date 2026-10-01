@@ -36,6 +36,9 @@ public class KeyValueEndPoint extends WebsocketEndpoint {
         this.keyValueStore = keyValueStore;
     }
 
+    /**
+     * Stores each key-value pair using {@link Guarantee#NONE} in the underlying key-value store.
+     */
     @Handle
     public void handle(StoreValues storeValues) {
         for (KeyValuePair value : storeValues.getValues()) {

@@ -31,6 +31,10 @@ public final class TestServerVersion {
     private TestServerVersion() {
     }
 
+    /**
+     * Returns the packaged test-server version, resolving and caching build metadata on first access. Returns
+     * empty and logs a warning when metadata is unavailable.
+     */
     public static Optional<String> version() {
         if (!versionResolved) {
             synchronized (TestServerVersion.class) {

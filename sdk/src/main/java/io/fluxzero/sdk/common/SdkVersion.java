@@ -34,6 +34,10 @@ public final class SdkVersion {
     private SdkVersion() {
     }
 
+    /**
+     * Returns the packaged SDK version, resolving and caching build metadata on first access. Returns empty and
+     * logs a warning when the metadata is unavailable.
+     */
     public static Optional<String> version() {
         if (!versionResolved) {
             synchronized (SdkVersion.class) {

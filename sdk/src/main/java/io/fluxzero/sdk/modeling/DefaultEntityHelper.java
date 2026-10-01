@@ -438,6 +438,9 @@ public class DefaultEntityHelper implements EntityHelper {
             this.afterHandler = afterHandler;
         }
 
+        /**
+         * Returns a copy with the supplied associated entity, preserving the payload and after-handler flag.
+         */
         public MessageWithEntity withEntity(Entity<?> entity) {
             return new MessageWithEntity(payload, entity, afterHandler);
         }

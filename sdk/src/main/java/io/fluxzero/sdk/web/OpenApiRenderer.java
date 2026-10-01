@@ -99,10 +99,18 @@ public final class OpenApiRenderer {
     private OpenApiRenderer() {
     }
 
+    /**
+     * Renders the discovered API catalog as an OpenAPI JSON tree using catalog document information and renderer
+     * defaults.
+     */
     public static ObjectNode render(ApiDocCatalog catalog) {
         return render(catalog, null);
     }
 
+    /**
+     * Renders the catalog's supported HTTP endpoints and schemas as an OpenAPI JSON tree, applying the supplied
+     * document options when present.
+     */
     public static ObjectNode render(ApiDocCatalog catalog, OpenApiOptions options) {
         DocumentInfo documentInfo = documentInfo(catalog, options);
         SchemaContext schemaContext = new SchemaContext(documentInfo.openApiVersion(), catalog.modelTypes());
@@ -172,14 +180,23 @@ public final class OpenApiRenderer {
         }
     }
 
+    /**
+     * Renders the catalog as compact OpenAPI JSON using catalog document information and renderer defaults.
+     */
     public static String renderJson(ApiDocCatalog catalog) {
         return JsonUtils.asJson(render(catalog));
     }
 
+    /**
+     * Renders the catalog as compact OpenAPI JSON with the supplied document options.
+     */
     public static String renderJson(ApiDocCatalog catalog, OpenApiOptions options) {
         return JsonUtils.asJson(render(catalog, options));
     }
 
+    /**
+     * Renders the catalog as formatted OpenAPI JSON with the supplied document options.
+     */
     public static String renderPrettyJson(ApiDocCatalog catalog, OpenApiOptions options) {
         return JsonUtils.asPrettyJson(render(catalog, options));
     }

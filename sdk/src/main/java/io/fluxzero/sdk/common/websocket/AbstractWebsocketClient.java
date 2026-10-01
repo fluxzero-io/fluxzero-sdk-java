@@ -1307,6 +1307,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
+    /**
+     * Acknowledges the session's pong and dispatches the configured pong handling through the result-callback
+     * execution path.
+     */
     public void onPong(ByteBuffer message, WebsocketSession session) {
         acknowledgePong(session);
         executeResultCallback("pong", () -> handlePong(session));
@@ -1796,11 +1800,17 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             this.delegate = delegate;
         }
 
+        /**
+         * Returns the prepared request's result future.
+         */
         @SuppressWarnings("unchecked")
         public CompletableFuture<R> result() {
             return (CompletableFuture<R>) delegate.result;
         }
 
+        /**
+         * Marks the prepared request's send as failed with the supplied cause.
+         */
         public void fail(Throwable failure) {
             delegate.failSend(failure);
         }
@@ -1930,6 +1940,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         @Getter
         private volatile WebSocketTransportFormat selectedTransportFormat;
 
+        /**
+         * Adds session identity, replacement identity, SDK version, and supported transport and Model capabilities
+         * to the outgoing handshake headers.
+         */
         public void beforeRequest(Map<String, List<String>> headers) {
             headers.put(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, new ArrayList<>(List.of(clientSessionId)));
             if (replacedSessionId != null && !replacedSessionId.isBlank()) {
@@ -1950,6 +1964,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
         }
 
+        /**
+         * Records the Runtime session identity, version, and negotiated compression and transport format from the
+         * response headers; missing selections remain null.
+         */
         public void afterResponse(Map<String, List<String>> headers) {
             runtimeSessionId = WebSocketCapabilities.getRuntimeSessionId(headers).orElse(null);
             runtimeVersion = WebSocketCapabilities.getRuntimeVersion(headers).orElse(null);

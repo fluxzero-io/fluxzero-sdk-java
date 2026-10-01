@@ -34,6 +34,9 @@ public final class TestServerMetricsMonitor {
     private TestServerMetricsMonitor() {
     }
 
+    /**
+     * Registers a non-null listener for test-server metrics and returns a registration that removes it.
+     */
     public static Registration monitor(BiConsumer<Object, Metadata> listener) {
         Objects.requireNonNull(listener, "listener must not be null");
         UUID id = UUID.randomUUID();

@@ -175,16 +175,36 @@ public final class ModelCommitAssignment {
 
     /** Store head values needed to assign the next transition. */
     public interface Head {
+        /**
+         * Returns the stored Model type associated with this head.
+         */
         String modelType();
+        /**
+         * Returns the last assigned event sequence number for this Model.
+         */
         long sequenceNumber();
+        /**
+         * Returns whether the Model's state can be reconstructed from its complete event history.
+         */
         boolean historyComplete();
+        /**
+         * Returns the Model's current document collection, or null when it has no document.
+         */
         String documentCollection();
+        /**
+         * Returns the first state index with incomplete history, or null for complete history. The default uses
+         * {@link Long#MIN_VALUE} when the precise boundary is unknown.
+         */
         default Long firstIncompleteStateIndex() { return historyComplete() ? null : Long.MIN_VALUE; }
     }
 
     /** Constructs a compact store-specific head from the values assigned by this owner. */
     @FunctionalInterface
     public interface HeadFactory<H extends Head> {
+        /**
+         * Creates the storage-specific head for an assigned Model revision, using the previous head when present
+         * and the supplied sequence, state, history, deletion, and document information.
+         */
         H create(
                 String modelId, H previous, String modelType, long sequenceNumber,
                 long stateIndex, Long firstIncompleteStateIndex, boolean deleted, String documentCollection);
@@ -196,9 +216,16 @@ public final class ModelCommitAssignment {
             List<String> targetIds, List<String> unstoredTargetIds, boolean mayMaterialize,
             List<RelationshipStep> relationshipSteps, Set<String> finalDeletedModelIds,
             List<String> cascadeRootIds, Aliases aliases) {
+        /**
+         * Returns whether the description contains relationship planning steps.
+         */
         public boolean affectsRelationships() {
             return !relationshipSteps.isEmpty();
         }
+        /**
+         * Returns the relationship plan for a zero-based substep, or the empty plan when no relationship steps are
+         * present.
+         */
         public RelationshipStep relationshipStep(int substep) {
             return relationshipSteps.isEmpty() ? RelationshipStep.EMPTY : relationshipSteps.get(substep);
         }
@@ -213,6 +240,9 @@ public final class ModelCommitAssignment {
     /** The desired parent set for one child after a relationship-changing target. */
     public record RelationshipChange(
             String childId, Set<ModelRelationship> desired, boolean deleted) {
+        /**
+         * Returns the distinct parent identifiers required by the desired relationships.
+         */
         public Set<String> parentIds() {
             return desired.stream().map(ModelRelationship::getParentId)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
@@ -231,6 +261,9 @@ public final class ModelCommitAssignment {
     /** Batch-loads current children for deleted parent IDs. */
     @FunctionalInterface
     public interface ChildLoader {
+        /**
+         * Loads child identifiers for the supplied set of parent identifiers.
+         */
         Set<String> load(Set<String> parentIds);
     }
 
@@ -252,8 +285,17 @@ public final class ModelCommitAssignment {
             this.owners = Collections.unmodifiableMap(owners);
         }
 
+        /**
+         * Returns replacement alias lists indexed by canonical Model identifier.
+         */
         public Map<String, List<String>> replacements() { return replacements; }
+        /**
+         * Returns canonical Model owners indexed by alias.
+         */
         public Map<String, String> owners() { return owners; }
+        /**
+         * Returns whether there are no alias replacements.
+         */
         public boolean isEmpty() { return replacements.isEmpty(); }
 
         /** Validates replacements against a store's current alias-to-model view. */
@@ -311,6 +353,9 @@ public final class ModelCommitAssignment {
     /** Receives assigned heads so a store can build only its own persistence representation. */
     @FunctionalInterface
     public interface HeadConsumer<H extends Head> {
+        /**
+         * Consumes a newly assigned head together with its source step, target, and zero-based substep number.
+         */
         void accept(ModelCommitStep step, ModelCommitTarget target, int substep, H head);
     }
 
@@ -331,8 +376,17 @@ public final class ModelCommitAssignment {
             this.firstStateIndex = first;
             this.materialization = materialization;
         }
+        /**
+         * Returns the first state index assigned to this commit.
+         */
         public long firstStateIndex() { return firstStateIndex; }
+        /**
+         * Returns whether the commit contains document or eligible snapshot materialization work.
+         */
         public boolean hasMaterialization() { return materialization; }
+        /**
+         * Returns the authoritative commit result, constructing and retaining it on first access.
+         */
         public CommitModelsResult result() {
             CommitModelsResult current = result;
             if (current != null) {
@@ -379,6 +433,11 @@ public final class ModelCommitAssignment {
             this.headFactory = headFactory;
             this.nextStateIndex = firstStateIndex;
         }
+        /**
+         * Assigns state indices and Model heads in substep order, invoking the consumer for each target. Updates
+         * session-local heads and aliases for subsequent assignments; exhausted state-index space causes {@link
+         * IllegalStateException}.
+         */
         public Commit<H> assign(
                 Description description, HeadConsumer<H> consumer) {
             CommitModels source = description.source();
@@ -446,6 +505,9 @@ public final class ModelCommitAssignment {
                                 assignedTargets == null ? null : List.copyOf(assignedTargets),
                                 first, materialization);
         }
+        /**
+         * Returns the alias replacements accumulated across assignments in this session.
+         */
         public Aliases aliases() { return Aliases.from(aliasReplacements); }
         private H previous(String modelId) {
             if (modelId.equals(lastModelId)) {

@@ -19,5 +19,8 @@ package io.fluxzero.sdk.tracking.handling.authentication;
  */
 @FunctionalInterface
 public interface AuthorizationFailureMapper {
+    /**
+     * Maps an authorization failure to the exception exposed by the handler integration.
+     */
     Throwable mapAuthorizationFailure(Throwable failure);
 }

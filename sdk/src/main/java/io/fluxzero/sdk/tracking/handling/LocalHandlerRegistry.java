@@ -167,6 +167,9 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         });
     }
 
+    /**
+     * Replaces the filter for payloads that handle themselves and invalidates cached handler plans.
+     */
     public void setSelfHandlerFilter(@NonNull HandlerFilter selfHandlerFilter) {
         this.selfHandlerFilter = selfHandlerFilter;
         invalidatePlans();

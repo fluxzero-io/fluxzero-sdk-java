@@ -196,6 +196,10 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
         return lifecycleDecorator().andThen(handshakeDecorator()).wrap(handler);
     }
 
+    /**
+     * Returns a decorator that enables handshakes for discovered socket routes and leaves handlers without socket
+     * routes unchanged.
+     */
     public HandlerDecorator handshakeDecorator() {
         return handler -> {
             var socketPatterns = socketPatterns(handler);
@@ -203,6 +207,10 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
         };
     }
 
+    /**
+     * Returns a decorator that applies socket session users, request handling, error closure, and close cleanup,
+     * and registers decorated socket handlers for lifecycle management.
+     */
     public HandlerDecorator lifecycleDecorator() {
         return handler -> {
             if (socketPatterns(handler).isEmpty()) {

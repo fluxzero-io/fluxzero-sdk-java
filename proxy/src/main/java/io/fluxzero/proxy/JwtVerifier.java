@@ -133,6 +133,11 @@ public final class JwtVerifier {
         return payload;
     }
 
+    /**
+     * Resolves a public key by key identifier from the cached JWKS, refreshing stale keys and forcing another
+     * refresh on a miss. Throws {@link SecurityException} if the identifier remains unknown; retrieval failures
+     * propagate.
+     */
     public PublicKey resolveKey(String kid) throws Exception {
         refreshIfNeeded(false);
         PublicKey cached = keyCache.get(kid);

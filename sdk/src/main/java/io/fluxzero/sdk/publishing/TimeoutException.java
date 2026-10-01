@@ -34,16 +34,25 @@ public class TimeoutException extends RuntimeException {
         this.fluxzeroErrorReport = fluxzeroErrorReport;
     }
 
+    /**
+     * Returns the structured Fluxzero error report, or null when this exception has no report.
+     */
     @JsonIgnore
     public FluxzeroErrorReport getFluxzeroErrorReport() {
         return fluxzeroErrorReport;
     }
 
+    /**
+     * Returns the report's error code, or null when no report is available.
+     */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getErrorCode() {
         return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getErrorCode();
     }
 
+    /**
+     * Returns the report's documentation URL, or null when no report is available.
+     */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public String getDocumentationUrl() {
         return fluxzeroErrorReport == null ? null : fluxzeroErrorReport.getDocumentationUrl();

@@ -472,6 +472,10 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     /** Handles an asynchronous result-preparation failure and may retry the supplied publication. */
     @FunctionalInterface
     public interface ResultPreparationErrorHandler {
+        /**
+         * Handles a result-preparation failure with access to a retry operation; the returned stage represents
+         * completion of the selected recovery action.
+         */
         CompletionStage<Void> handle(Throwable failure, Supplier<CompletableFuture<Void>> retry);
     }
 

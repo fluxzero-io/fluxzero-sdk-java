@@ -218,6 +218,9 @@ public final class ModelRelationshipTraversal {
     /** Supplies the relationships for one breadth-first frontier without requiring materialization. */
     @FunctionalInterface
     public interface RelationshipLoader<R> {
+        /**
+         * Loads relationships touching the current traversal frontier in the caller-selected traversal direction.
+         */
         Iterable<R> load(Collection<String> frontier);
     }
 

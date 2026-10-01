@@ -40,5 +40,8 @@ import io.fluxzero.sdk.configuration.FluxzeroBuilder;
  */
 @FunctionalInterface
 public interface FluxzeroCustomizer {
+    /**
+     * Customizes the application's builder and returns the builder to use for subsequent configuration.
+     */
     FluxzeroBuilder customize(FluxzeroBuilder builder);
 }

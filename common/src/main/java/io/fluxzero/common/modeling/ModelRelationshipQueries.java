@@ -438,18 +438,39 @@ public final class ModelRelationshipQueries {
 
     /** Storage-independent view of one temporal child-to-parent relationship interval. */
     public interface Relationship {
+        /**
+         * Returns the child Model identifier.
+         */
         String childId();
 
+        /**
+         * Returns the parent Model identifier.
+         */
         String parentId();
 
+        /**
+         * Returns the declared parent Model type.
+         */
         String parentType();
 
+        /**
+         * Returns the child's composition path in the parent Graph.
+         */
         String path();
 
+        /**
+         * Returns the inclusive state index at which this relationship became valid.
+         */
         long validFrom();
 
+        /**
+         * Returns the exclusive end of the relationship's validity, or null while open-ended.
+         */
         Long validUntil();
 
+        /**
+         * Returns whether deleting the parent also deletes the child through this relationship.
+         */
         boolean deleteOnParentDeletion();
 
         /** Whether ancestor search composition must stop at this relationship. */
@@ -457,6 +478,9 @@ public final class ModelRelationshipQueries {
             return false;
         }
 
+        /**
+         * Converts this relationship to a Graph edge while preserving its validity interval and deletion policy.
+         */
         default ModelGraphEdge edge() {
             return new ModelGraphEdge(
                     childId(), parentId(), parentType(), path(), validFrom(), validUntil(),

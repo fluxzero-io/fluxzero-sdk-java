@@ -114,6 +114,9 @@ public interface Search<R> {
             this.suffix = suffix;
         }
 
+        /**
+         * Returns the sort-expression suffix representing this null-ordering choice.
+         */
         public String suffix() {
             return suffix;
         }

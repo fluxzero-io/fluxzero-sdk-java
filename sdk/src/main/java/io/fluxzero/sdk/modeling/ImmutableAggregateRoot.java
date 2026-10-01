@@ -75,32 +75,51 @@ public class ImmutableAggregateRoot<T> extends ImmutableRoot<T> implements Aggre
             T, C extends ImmutableAggregateRoot<T>,
             B extends ImmutableAggregateRootBuilder<T, C, B>>
             extends ImmutableRoot.ImmutableRootBuilder<T, C, B> {
+        /**
+         * Sets the last event identifier and returns this builder.
+         */
         @Override
         public B lastEventId(String value) {
             return super.lastEventId(value);
         }
 
+        /**
+         * Sets the last event index and returns this builder.
+         */
         @Override
         public B lastEventIndex(Long value) {
             return super.lastEventIndex(value);
         }
 
+        /**
+         * Sets the aggregate timestamp and returns this builder.
+         */
         @Override
         public B timestamp(java.time.Instant value) {
             return super.timestamp(value);
         }
 
+        /**
+         * Sets the last event sequence number and returns this builder.
+         */
         @Override
         public B sequenceNumber(long value) {
             return super.sequenceNumber(value);
         }
 
+        /**
+         * Sets the previous entity revision and returns this builder.
+         */
         @Override
         public B previous(Entity<T> value) {
             return super.previous(value);
         }
     }
 
+    /**
+     * Copies an entity and its previous-state chain into immutable aggregate roots using the supplied helpers and
+     * stores; null input returns null.
+     */
     public static <T> ImmutableAggregateRoot<T> from(Entity<T> a, EntityHelper entityHelper, Serializer serializer,
                                                      EventStore eventStore) {
         return a == null ? null : ImmutableAggregateRoot.<T>builder()
@@ -120,6 +139,10 @@ public class ImmutableAggregateRoot<T> extends ImmutableRoot<T> implements Aggre
                 .build();
     }
 
+    /**
+     * Applies the deserializing message and returns a new aggregate root with an incremented sequence number,
+     * previous-state link, and updated event identity and timestamp.
+     */
     public Entity<T> apply(DeserializingMessage message) {
         long newSequenceNumber = sequenceNumber() + 1L;
         ImmutableAggregateRoot<T> updated = (ImmutableAggregateRoot<T>) super.apply(message);

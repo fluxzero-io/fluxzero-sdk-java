@@ -65,24 +65,43 @@ public interface MemoryPressureController {
 
     MemoryPressureController NONE = (currentWeight, maxWeight) -> false;
 
+    /**
+     * Returns whether memory pressure warrants eviction given the current cache weight and configured maximum
+     * weight.
+     */
     boolean shouldEvict(long currentWeight, long maxWeight);
 
+    /**
+     * Returns the percentage of cache weight targeted by a pressure-driven trim.
+     */
     default int trimRatioPercent() {
         return JvmMemoryPressureController.DEFAULT_TRIM_RATIO_PERCENT;
     }
 
+    /**
+     * Returns the maximum cache weight to remove in one pressure-driven trim.
+     */
     default long maxTrimWeight() {
         return JvmMemoryPressureController.DEFAULT_MAX_TRIM_WEIGHT;
     }
 
+    /**
+     * Returns a controller that never requests memory-pressure eviction.
+     */
     static MemoryPressureController none() {
         return NONE;
     }
 
+    /**
+     * Creates a controller using JVM memory pressure and the default property source.
+     */
     static MemoryPressureController jvm() {
         return new JvmMemoryPressureController();
     }
 
+    /**
+     * Creates a JVM memory-pressure controller configured through the supplied property source.
+     */
     static MemoryPressureController jvm(PropertySource propertySource) {
         return new JvmMemoryPressureController(propertySource);
     }

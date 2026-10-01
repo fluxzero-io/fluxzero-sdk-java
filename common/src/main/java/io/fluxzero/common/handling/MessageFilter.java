@@ -57,6 +57,9 @@ public interface MessageFilter<M> {
         }
     };
 
+    /**
+     * Returns a shared filter that accepts every message.
+     */
     @SuppressWarnings("unchecked")
     static <M> MessageFilter<M> allowAll() {
         return (MessageFilter<M>) ALLOW_ALL;

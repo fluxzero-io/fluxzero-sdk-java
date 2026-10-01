@@ -51,6 +51,10 @@ public class GenericTypeResolver {
         return new ParameterizedTypeImpl(rawType, actualTypeArguments, rawType.getEnclosingClass());
     }
 
+    /**
+     * Resolves the target supertype in the supplied class hierarchy, substituting type variables from intervening
+     * generic declarations.
+     */
     public static Type getGenericType(Class<?> clazz, Class<?> target) {
         return resolveType(clazz, target, new HashMap<>());
     }

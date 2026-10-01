@@ -58,6 +58,9 @@ public abstract class PathConstraint implements Constraint {
     @JsonAlias("path")
     public abstract List<String> getPaths();
 
+    /**
+     * Returns a constraint with the same matching condition applied to the supplied property paths.
+     */
     public abstract Constraint withPaths(List<String> paths);
 
     /**

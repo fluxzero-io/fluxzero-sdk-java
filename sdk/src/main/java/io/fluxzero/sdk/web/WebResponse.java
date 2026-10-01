@@ -123,25 +123,42 @@ public class WebResponse extends Message {
         this(m.getPayload(), m.getMetadata(), m.getMessageId(), m.getTimestamp());
     }
 
+    /**
+     * Creates a 200 OK response with the supplied payload and single-valued headers.
+     */
     public static WebResponse ok(Object payload, Map<String, String> headers) {
         return builder().status(200).singleValuedHeaders(headers).payload(payload).build();
     }
 
+    /**
+     * Creates a 200 OK response whose body stream is opened lazily through the supplier, with the supplied
+     * headers.
+     */
     public static WebResponse ok(ThrowingSupplier<? extends InputStream> inputStreamSupplier,
                                  Map<String, String> headers) {
         return ok(new LazyInputStream(asSupplier(inputStreamSupplier::get)), headers);
     }
 
+    /**
+     * Creates a 206 Partial Content response with a lazily opened body stream. The caller supplies range headers
+     * and the stream for the requested range.
+     */
     public static WebResponse partial(ThrowingSupplier<? extends InputStream> inputStreamSupplier,
                                       Map<String, String> headers) {
         return builder().status(206).singleValuedHeaders(headers)
                 .payload(new LazyInputStream(asSupplier(inputStreamSupplier::get))).build();
     }
 
+    /**
+     * Creates a bodyless 304 Not Modified response with the supplied headers.
+     */
     public static WebResponse notModified(Map<String, String> headers) {
         return builder().status(304).singleValuedHeaders(headers).build();
     }
 
+    /**
+     * Creates a 404 Not Found response containing the supplied reason as its payload.
+     */
     public static WebResponse notFound(String reason) {
         return builder().status(404).payload(reason).build();
     }
@@ -405,6 +422,10 @@ public class WebResponse extends Message {
             headers(response.getHeaders());
         }
 
+        /**
+         * Sets the payload and returns this builder. If no content type is set, strings default to {@code
+         * text/plain}, and byte arrays or streams to {@code application/octet-stream}.
+         */
         public Builder payload(Object payload) {
             this.payload = payload;
             if (!headers().containsKey("Content-Type")) {
@@ -418,44 +439,73 @@ public class WebResponse extends Message {
             return this;
         }
 
+        /**
+         * Appends each non-null single-valued header and returns this builder.
+         */
         public Builder singleValuedHeaders(Map<String, String> headers) {
             headers.forEach(this::header);
             return this;
         }
 
+        /**
+         * Replaces header values for the supplied keys, retaining other headers, and returns this builder.
+         */
         public Builder headers(Map<String, List<String>> headers) {
             this.headers.putAll(headers);
             return this;
         }
 
+        /**
+         * Appends the supplied values to the header and returns this builder.
+         */
         public Builder header(String key, Collection<String> values) {
             headers.computeIfAbsent(key, k -> new ArrayList<>()).addAll(values);
             return this;
         }
 
+        /**
+         * Appends a header value and returns this builder; a null value is ignored.
+         */
         public Builder header(String key, String value) {
             return value == null ? this : header(key, List.of(value));
         }
 
+        /**
+         * Removes all values for the header and returns this builder.
+         */
         public Builder clearHeader(String key) {
             headers.computeIfPresent(key, (k, v) -> null);
             return this;
         }
 
+        /**
+         * Removes all currently stored headers and returns this builder. Cookies retained separately by the
+         * builder are still emitted when headers are assembled.
+         */
         public Builder clearHeaders() {
             headers.clear();
             return this;
         }
 
+        /**
+         * Adds a response cookie and returns this builder.
+         */
         public Builder cookie(HttpCookie cookie) {
             cookies.add(cookie);
             return this;
         }
 
+        /**
+         * Appends a {@code Content-Type} header and returns this builder.
+         */
         public Builder contentType(String contentType) {
             return header("Content-Type", contentType);
         }
 
+        /**
+         * Returns the builder's mutable header map, first replacing {@code Set-Cookie} values with any cookies
+         * registered on the builder.
+         */
         public Map<String, List<String>> headers() {
             if (!cookies.isEmpty()) {
                 clearHeader("Set-Cookie").header(
@@ -464,10 +514,16 @@ public class WebResponse extends Message {
             return headers;
         }
 
+        /**
+         * Returns the configured status, defaulting to 204 for a null payload and 200 otherwise.
+         */
         public Integer status() {
             return status == null ? (payload == null ? 204 : 200) : status;
         }
 
+        /**
+         * Builds a response using the builder's payload, resolved status, metadata, and headers.
+         */
         public WebResponse build() {
             return new WebResponse(this);
         }

@@ -411,6 +411,10 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
             this.endFunction = a -> parseTimeProperty(endPath, a.get(), true, () -> timestampFunction.apply(a));
         }
 
+        /**
+         * Wraps a value as a side-effect-free entity using its configured identifier property, without loading or
+         * storing aggregate state.
+         */
         @SuppressWarnings("unchecked")
         public Entity<T> fromValue(T value) {
             return new SideEffectFreeEntity<>(ImmutableAggregateRoot
@@ -428,6 +432,10 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                                                       .build());
         }
 
+        /**
+         * Evicts cached aggregate state and removes its relationships, events, snapshots, and configured document.
+         * The future completes when the requested storage operations finish; failures are propagated.
+         */
         public CompletableFuture<Void> delete(Object id) {
             List<CompletableFuture<Void>> futures = new ArrayList<>();
             String aggregateId = id.toString();
@@ -443,6 +451,10 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
             return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
         }
 
+        /**
+         * Loads or reuses the aggregate in this repository's active context, reconstructing it from its snapshot
+         * and events when required by the configured loading policy.
+         */
         public Entity<T> load(Object id) {
             return ModifiableAggregateRoot.load(
                     DefaultAggregateRepository.this, id,
@@ -552,6 +564,11 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
             }
         }
 
+        /**
+         * Commits state and unpublished events using this aggregate's policies, updating relationships, caches,
+         * eligible snapshots, and its configured document. The returned future represents completion or failure of
+         * the required storage operations.
+         */
         public CompletableFuture<Void> commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
             Class<?> aggregateType = after.get() == null && before != null ? before.type() : after.type();
             if (aggregateType != null && !Objects.equals(aggregateType, type)) {

@@ -49,6 +49,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class DirectExecutorService extends AbstractExecutorService {
+    /**
+     * Creates an executor service that executes submitted work directly on the calling thread.
+     */
     public static ExecutorService newInstance() {
         return new DirectExecutorService();
     }

@@ -75,6 +75,9 @@ public class Append extends Command {
         this.guarantee = guarantee;
     }
 
+    /**
+     * Returns the number of messages in this append request.
+     */
     @JsonIgnore
     public int getSize() {
         return messages.size();
@@ -88,6 +91,9 @@ public class Append extends Command {
         return messages.stream().mapToLong(SerializedMessage::getBytes).sum();
     }
 
+    /**
+     * Returns the requested delivery guarantee, defaulting to {@link Guarantee#NONE} when absent.
+     */
     public Guarantee getGuarantee() {
         return ofNullable(guarantee).orElse(Guarantee.NONE);
     }

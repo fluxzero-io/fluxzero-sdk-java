@@ -425,11 +425,17 @@ public class AdaptiveObjectCache implements Cache {
         deadlines.clear();
     }
 
+    /**
+     * Purges expired entries and returns the total estimated weight of the remaining entries.
+     */
     public long weight() {
         purgeExpired();
         return delegate.weight();
     }
 
+    /**
+     * Purges expired entries and requests pressure-driven trimming; returns whether the delegate evicted entries.
+     */
     public boolean trimForMemoryPressure() {
         purgeExpired();
         return delegate.trimForMemoryPressure();

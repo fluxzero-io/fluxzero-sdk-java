@@ -20,10 +20,16 @@ import java.util.concurrent.CompletableFuture;
 
 public interface MetricsLog {
 
+    /**
+     * Registers a metrics event with empty metadata and returns its asynchronous completion.
+     */
     default CompletableFuture<Void> registerMetrics(Object event) {
         return registerMetrics(event, Metadata.empty());
     }
 
+    /**
+     * Registers a metrics event with the supplied metadata and returns its asynchronous completion or failure.
+     */
     CompletableFuture<Void> registerMetrics(Object event, Metadata metadata);
 
 }

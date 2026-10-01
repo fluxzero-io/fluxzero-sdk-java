@@ -170,6 +170,9 @@ public class HandlerAssociations {
                              parameterAssociations).toList();
     }
 
+    /**
+     * Returns whether the executable's association metadata allows unconditional association.
+     */
     public boolean alwaysAssociate(Executable executable) {
         return metadata.alwaysAssociate(executable);
     }
@@ -210,6 +213,9 @@ public class HandlerAssociations {
         boolean excludeMetadata;
         boolean always;
 
+        /**
+         * Returns the association property path, using the empty string when no path is configured.
+         */
         public String getPath() {
             return path == null ? "" : path;
         }

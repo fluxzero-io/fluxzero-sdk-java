@@ -317,6 +317,9 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns the cached value, updating access bookkeeping, or null if the key is absent.
+     */
     public synchronized V get(K key) {
         Entry<V> entry = getEntryForAccess(key);
         return entry == null ? null : entry.value();
@@ -343,10 +346,16 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns whether an entry exists for the key without updating access bookkeeping.
+     */
     public synchronized boolean containsKey(K key) {
         return entries.containsKey(key);
     }
 
+    /**
+     * Removes the entry and reports a manual eviction; returns its former value or null when absent.
+     */
     public synchronized V remove(K key) {
         Entry<V> removed = removeEntry(key, manual, true);
         return removed == null ? null : removed.value();
@@ -361,6 +370,9 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         return removed == null ? null : removed.value();
     }
 
+    /**
+     * Removes all entries and delivers manual-eviction notifications after releasing the cache lock.
+     */
     public void clear() {
         List<MemoryAwareCacheSupportEviction<K, V>> evictions;
         synchronized (this) {
@@ -382,30 +394,53 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         }
     }
 
+    /**
+     * Returns the current number of cached entries.
+     */
     public synchronized int size() {
         return entries.size();
     }
 
+    /**
+     * Returns the total weight currently accounted for by the cache.
+     */
     public synchronized long weight() {
         return weight;
     }
 
+    /**
+     * Returns an independent snapshot of the cached keys.
+     */
     public synchronized List<K> keys() {
         return new ArrayList<>(entries.keySet());
     }
 
+    /**
+     * Returns the lowest key according to the configured key ordering, or null when empty or no ordering is
+     * configured.
+     */
     public synchronized K firstKey() {
         return orderedKeys == null || orderedKeys.isEmpty() ? null : orderedKeys.firstKey();
     }
 
+    /**
+     * Returns the highest key according to the configured key ordering, or null when empty or no ordering is
+     * configured.
+     */
     public synchronized K lastKey() {
         return orderedKeys == null || orderedKeys.isEmpty() ? null : orderedKeys.lastKey();
     }
 
+    /**
+     * Returns the configured maximum total cache weight.
+     */
     public long maxWeight() {
         return maxWeight;
     }
 
+    /**
+     * Returns the configured maximum weight for a single entry.
+     */
     public long maxEntryWeight() {
         return maxEntryWeight;
     }
@@ -444,6 +479,9 @@ public class MemoryAwareCacheSupport<K, V> implements AutoCloseable {
         keys.forEach(key -> removeEntry(key, size, true));
     }
 
+    /**
+     * Registers an eviction listener and returns a registration that removes it when cancelled.
+     */
     public Registration registerEvictionListener(Consumer<MemoryAwareCacheSupportEviction<K, V>> listener) {
         evictionListeners.add(listener);
         return () -> evictionListeners.remove(listener);

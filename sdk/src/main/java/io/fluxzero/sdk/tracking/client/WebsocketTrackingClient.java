@@ -102,6 +102,10 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                 .thenApply(ReadResult::getMessageBatch);
     }
 
+    /**
+     * Requests a tracker segment using this client's message type and the consumer's filtering, waiting, and
+     * index-control settings; returns the asynchronous claim result.
+     */
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,
                                                               ConsumerConfiguration config) {
         return send(new ClaimSegment(messageType,

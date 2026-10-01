@@ -186,6 +186,9 @@ public class DeserializingMessage implements HasMessage {
         Message level
      */
 
+    /**
+     * Runs the task with this message installed as the current message, restoring the enclosing context afterward.
+     */
     public void run(Consumer<DeserializingMessage> task) {
         apply(m -> {
             task.accept(m);
@@ -305,6 +308,10 @@ public class DeserializingMessage implements HasMessage {
                 ? null : message.getMetadata().get(key);
     }
 
+    /**
+     * Returns a message with replacement metadata while preserving the handling context, payload representation,
+     * message type, and topic.
+     */
     public DeserializingMessage withMetadata(Metadata metadata) {
         if (delegate != null) {
             return withSameContext(new DeserializingMessage(
@@ -318,6 +325,10 @@ public class DeserializingMessage implements HasMessage {
                 message.withMetadata(metadata), messageType, topic, serializer));
     }
 
+    /**
+     * Returns a message with a replacement payload while preserving the handling context and other message
+     * properties.
+     */
     public DeserializingMessage withPayload(Object payload) {
         return withSameContext(new DeserializingMessage(toMessage().withPayload(payload), messageType, topic,
                                                        serializer));
@@ -376,6 +387,10 @@ public class DeserializingMessage implements HasMessage {
         return message == null ? null : message.getMessageId();
     }
 
+    /**
+     * Returns the stored message index, or a schedule deadline converted to an index for a locally constructed
+     * schedule; other local messages return null.
+     */
     public Long getIndex() {
         if (delegate != null) {
             return delegate.getSerializedObject().getIndex();
@@ -392,6 +407,9 @@ public class DeserializingMessage implements HasMessage {
         return message == null ? null : message.getTimestamp();
     }
 
+    /**
+     * Returns whether the message already has a deserialized representation.
+     */
     public boolean isDeserialized() {
         return delegate == null || delegate.isDeserialized();
     }
@@ -424,6 +442,10 @@ public class DeserializingMessage implements HasMessage {
         return message == null ? Void.class : message.getPayloadClass();
     }
 
+    /**
+     * Returns the serialized type name, or the payload class name for a locally constructed message; returns null
+     * if no message is available.
+     */
     public String getType() {
         if (delegate != null) {
             return delegate.getType();
@@ -431,6 +453,9 @@ public class DeserializingMessage implements HasMessage {
         return message == null ? null : message.getPayloadClass().getName();
     }
 
+    /**
+     * Returns the serialized message using this instance's serializer, serializing a local message when necessary.
+     */
     public SerializedMessage getSerializedObject() {
         return getSerializedObject(serializer);
     }
@@ -452,6 +477,9 @@ public class DeserializingMessage implements HasMessage {
         return serializedMessage;
     }
 
+    /**
+     * Replaces the serialized payload data and recreates a deserializing message with the same handling context.
+     */
     public DeserializingMessage withData(Data<byte[]> data) {
         var serializedMessage = getSerializedObject().withData(data);
         return withSameContext(serializer.deserializeMessage(serializedMessage, messageType));
@@ -578,6 +606,12 @@ public class DeserializingMessage implements HasMessage {
         Batch level
      */
 
+    /**
+     * Wraps a batch stream for sequential handling with each message installed as the current message. Fully
+     * consuming the stream completes batch callbacks when there is no enclosing message scope; nested handling
+     * leaves completion to that scope. Short-circuiting or closing the returned stream does not complete the
+     * batch, and callers remain responsible for closing the input stream's resources.
+     */
     public static Stream<DeserializingMessage> handleBatch(Stream<DeserializingMessage> batch) {
         return StreamSupport.stream(new MessageSpliterator(batch.spliterator()), false);
     }
@@ -692,11 +726,19 @@ public class DeserializingMessage implements HasMessage {
         }
     }
 
+    /**
+     * Computes a resource in the current thread's handling-batch resource map using the key and prior value; a
+     * null result removes the mapping.
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <K, V> V computeForBatch(K key, BiFunction<? super K, ? super V, ? extends V> function) {
         return (V) getBatchResources().compute(key, (BiFunction) function);
     }
 
+    /**
+     * Returns the current thread's handling-batch resource or computes and stores it when absent. Unlike
+     * message-batch resources, this map is not shared with asynchronous workers through captured request context.
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static <K, V> V computeForBatchIfAbsent(K key, Function<? super K, ? extends V> function) {
         return (V) getBatchResources().computeIfAbsent(key, (Function) function);
@@ -766,11 +808,18 @@ public class DeserializingMessage implements HasMessage {
                 : batchMessage.activeMessageBatchResources.size();
     }
 
+    /**
+     * Returns a resource from the current thread's handling-batch resource map, or null if absent.
+     */
     @SuppressWarnings("unchecked")
     public static <V> V getBatchResource(Object key) {
         return (V) getBatchResources().get(key);
     }
 
+    /**
+     * Returns a resource from the current thread's handling-batch resource map, or the supplied default if the key
+     * is absent.
+     */
     @SuppressWarnings("unchecked")
     public static <V> V getBatchResourceOrDefault(Object key, V defaultValue) {
         return (V) getBatchResources().getOrDefault(key, defaultValue);

@@ -39,6 +39,10 @@ import java.lang.reflect.Parameter;
  */
 public class KotlinReflectionUtils {
 
+    /**
+     * Maps a Java parameter to the corresponding Kotlin value parameter. Returns null if no value parameter
+     * matches, and throws {@link IllegalStateException} if the executable has no Kotlin function.
+     */
     public static KParameter asKotlinParameter(Parameter parameter) {
         var executable = parameter.getDeclaringExecutable();
         var paramIndex = ReflectionUtils.getParameterIndex(parameter);
@@ -73,6 +77,9 @@ public class KotlinReflectionUtils {
         return primaryConstructor == null ? null : ReflectJvmMapping.getJavaConstructor(primaryConstructor);
     }
 
+    /**
+     * Maps a Java method or constructor to its Kotlin reflection function, or returns null if no mapping exists.
+     */
     public static KFunction<?> asKotlinFunction(Executable executable) {
         return executable instanceof Method
                 ? ReflectJvmMapping.getKotlinFunction((Method) executable)
@@ -99,6 +106,9 @@ public class KotlinReflectionUtils {
         return false;
     }
 
+    /**
+     * Returns the Java class represented by a Kotlin class literal, or null for other inputs.
+     */
     public static Class<?> convertIfKotlinClass(Object classObject) {
         return classObject instanceof KClass<?> k ? JvmClassMappingKt.getJavaClass(k) : null;
     }

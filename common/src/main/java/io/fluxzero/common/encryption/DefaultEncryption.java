@@ -64,6 +64,10 @@ public class DefaultEncryption implements Encryption {
         return new DefaultEncryption().getEncryptionKey();
     }
 
+    /**
+     * Creates encryption from an {@code algorithm|key} specification. Missing separators and unsupported algorithm
+     * names cause {@link IllegalArgumentException}.
+     */
     @SuppressWarnings("SwitchStatementWithTooFewBranches")
     public static Encryption fromEncryptionKey(@NonNull String encryptionKey) {
         var algorithmAndKey = encryptionKey.split("\\|", 2);

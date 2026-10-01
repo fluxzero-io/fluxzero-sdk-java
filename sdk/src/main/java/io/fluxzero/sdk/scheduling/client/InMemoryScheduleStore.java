@@ -294,6 +294,10 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         return MessageStoreBatch.scan(messages, maxSize, maxBytes, filter);
     }
 
+    /**
+     * Replaces the scheduling clock, refreshes clock-change monitoring, resets the minimum schedule index, and
+     * notifies monitors.
+     */
     public void setClock(@NonNull Clock clock) {
         synchronized (monitorNotificationLock()) {
             synchronized (this) {
@@ -331,10 +335,17 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         }
     }
 
+    /**
+     * Deserializes and returns schedules after the current clock-derived index boundary without removing them.
+     */
     public synchronized List<Schedule> getFutureSchedules(Serializer serializer) {
         return asList(scheduleIdsByIndex.tailMap(indexFromMillis(clock.millis()), false), serializer);
     }
 
+    /**
+     * Removes schedules due by the current clock time, clears their ownership records, and returns their
+     * deserialized values.
+     */
     public synchronized List<Schedule> removeExpiredSchedules(Serializer serializer) {
         Map<Long, String> expiredEntries = scheduleIdsByIndex.headMap(maxIndexFromMillis(clock.millis()), true);
         List<Schedule> result = asList(expiredEntries, serializer);

@@ -47,6 +47,9 @@ import java.lang.annotation.Target;
 @Conditional(ConditionalOnMissingProperty.Condition.class)
 public @interface ConditionalOnMissingProperty {
 
+    /**
+     * Returns the application property key that must be absent for this condition to match.
+     */
     String value();
 
     @Order(Ordered.HIGHEST_PRECEDENCE)

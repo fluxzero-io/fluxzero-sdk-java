@@ -134,6 +134,10 @@ public class DefaultSocketSession implements SocketSession {
         return response;
     }
 
+    /**
+     * Prepares an invoker for a valid socket request, wrapping synchronous or asynchronous results and failures in
+     * correlated socket responses. Returns empty for invalid requests or when no handler matches.
+     */
     public Optional<HandlerInvoker> tryHandleRequest(DeserializingMessage message,
                                                      Handler<DeserializingMessage> handler) {
         SocketRequest request;
@@ -175,6 +179,11 @@ public class DefaultSocketSession implements SocketSession {
                         }));
     }
 
+    /**
+     * Prepares an invoker that completes the pending request correlated with a valid socket response. Returns
+     * empty for invalid responses; response errors and deserialization failures complete the pending future
+     * exceptionally.
+     */
     public Optional<HandlerInvoker> tryCompleteRequest(DeserializingMessage message) {
         SocketResponse response;
         try {
@@ -224,6 +233,9 @@ public class DefaultSocketSession implements SocketSession {
         }
     }
 
+    /**
+     * Marks the session closed and fails pending requests. Returns true only for the first close transition.
+     */
     public boolean onClose() {
         if (closed.compareAndSet(false, true)) {
             pendingRequests.values()

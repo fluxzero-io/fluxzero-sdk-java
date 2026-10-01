@@ -1412,6 +1412,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 stagedValues, includeMessageBatch, false, false);
     }
 
+    /**
+     * Loads a commit attempt for the resolved Models at the supplied maximum state index, with staged values and
+     * the requested message-batch and migration visibility.
+     */
     public CommitAttempt loadContext(
             MutationPlan.Resolution resolution,
             Long maxStateIndex,
@@ -1897,6 +1901,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     /** Receives a cache value and the boundaries that prove it current. */
     @FunctionalInterface
     public interface CurrentModelSink {
+        /**
+         * Receives a current Model entity together with the state index through which it is valid and its own
+         * Model state index.
+         */
         void accept(
                 Entity<?> entity,
                 long validThrough,
@@ -1946,11 +1954,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                     "graphProjectionCompletion");
         }
 
+        /**
+         * Prepares and commits an attempt with {@link ModelConflictPolicy#ACCEPT}; returns an empty result when
+         * there is no commit to send.
+         */
         public CompletableFuture<Optional<CommitModelsResult>> commit(
                 String commitId, CommitAttempt evaluation) {
             return commit(commitId, evaluation, ModelConflictPolicy.ACCEPT);
         }
 
+        /**
+         * Prepares and commits an attempt with the supplied conflict policy. The future contains the authoritative
+         * result, or an empty optional when no commit is required.
+         */
         public CompletableFuture<Optional<CommitModelsResult>> commit(
                 String commitId,
                 CommitAttempt evaluation,
@@ -1960,6 +1976,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     null, -1);
         }
 
+        /**
+         * Submits a prepared commit directly or through a reserved batch slot and completes required result
+         * processing. A preparation without a commit returns an already-completed empty optional.
+         */
         public CompletableFuture<Optional<CommitModelsResult>>
                 commitPrepared(
                         Outcome prepared,
@@ -2015,11 +2035,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     : processCommits(committed);
         }
 
+        /**
+         * Begins a batch for the supplied number of producers, or returns null if the event-store client does not
+         * support batching.
+         */
         public ModelCommitBatchingClient.ModelCommitBatch beginBatch(int producers) {
             return eventStoreClient instanceof ModelCommitBatchingClient batching
                     ? batching.beginModelCommitBatch(producers) : null;
         }
 
+        /**
+         * Begins a batch for independently ready commits, or returns null when that batching mode is unsupported.
+         */
         public ModelCommitBatchingClient.ModelCommitBatch beginReadyBatch() {
             return eventStoreClient instanceof ModelCommitBatchingClient batching
                     ? batching.beginReadyModelCommitBatch() : null;
@@ -2150,10 +2177,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return CompletableFuture.completedFuture(null);
         }
 
+        /**
+         * Prepares the wire commit and change correlation for an attempt using {@link ModelConflictPolicy#ACCEPT},
+         * without submitting it.
+         */
         public Outcome prepare(String commitId, CommitAttempt evaluation) {
             return prepare(commitId, evaluation, ModelConflictPolicy.ACCEPT);
         }
 
+        /**
+         * Prepares an ordinary, non-migration commit with the supplied conflict policy, without submitting it.
+         */
         public Outcome prepare(
                 String commitId,
                 CommitAttempt evaluation,
@@ -2161,6 +2195,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return prepare(commitId, evaluation, conflictPolicy, false);
         }
 
+        /**
+         * Prepares a commit with the supplied conflict and migration policies, without treating its input as an
+         * already stored event or submitting it.
+         */
         public Outcome prepare(
                 String commitId,
                 CommitAttempt evaluation,
@@ -2169,6 +2207,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return prepare(commitId, evaluation, conflictPolicy, migration, false);
         }
 
+        /**
+         * Prepares the wire commit and change correlation using the supplied conflict, migration, and
+         * existing-event policies, without submitting the commit.
+         */
         public Outcome prepare(
                 String commitId,
                 CommitAttempt evaluation,
@@ -2338,6 +2380,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
+        /**
+         * Prepares an ACCEPT rebase with the original commit shape, delivery guarantee, duplicate flag, and
+         * migration policy. Empty originals and incompatible shapes are rejected.
+         */
         public Outcome prepareRebased(
                 String commitId,
                 Outcome original,
@@ -2704,18 +2750,30 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 this.existingEvent = existingEvent;
             }
 
+            /**
+             * Returns the prepared wire commit, or null when the attempt requires no commit.
+             */
             public CommitModels commit() {
                 return commit;
             }
 
+            /**
+             * Returns an unmodifiable view of the changes correlated with this outcome.
+             */
             public Collection<Change> changes() {
                 return Collections.unmodifiableCollection(changes.values());
             }
 
+            /**
+             * Returns whether any retained change represents a cascaded deletion.
+             */
             public boolean hasCascadedDeletion() {
                 return changes.values().stream().anyMatch(Change::cascadedDeletion);
             }
 
+            /**
+             * Returns the authoritative result attached to this outcome, or null before a result is attached.
+             */
             public CommitModelsResult result() {
                 return result;
             }

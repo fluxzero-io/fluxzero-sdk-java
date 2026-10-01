@@ -204,6 +204,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 ? new SegmentSerialScheduler<>(this.maxConcurrentRequests, this.maxOutstandingRequests) : scheduler;
     }
 
+    /**
+     * Starts managed forwarding with the supplied client and returns a registration for stopping its lifecycle.
+     */
     public static Registration start(Client client) {
         return startManaged(client);
     }

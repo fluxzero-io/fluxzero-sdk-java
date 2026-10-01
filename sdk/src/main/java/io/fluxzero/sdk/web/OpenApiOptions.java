@@ -42,10 +42,18 @@ public record OpenApiOptions(
         openApiVersion = isBlank(openApiVersion) ? DEFAULT_OPENAPI_VERSION : openApiVersion;
     }
 
+    /**
+     * Returns default document options with title {@code Fluxzero API}, version {@code 0.0.0}, and no description
+     * or servers.
+     */
     public static OpenApiOptions defaults() {
         return new OpenApiOptions("Fluxzero API", "0.0.0", "", List.of(), DEFAULT_OPENAPI_VERSION);
     }
 
+    /**
+     * Creates document options with the supplied title and API version, using the default OpenAPI version and no
+     * description or servers.
+     */
     public static OpenApiOptions of(String title, String version) {
         return new OpenApiOptions(title, version, "", List.of());
     }

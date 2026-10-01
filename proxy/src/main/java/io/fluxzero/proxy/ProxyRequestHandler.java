@@ -268,6 +268,10 @@ public class ProxyRequestHandler extends AbstractNamespaced<ProxyRequestHandler>
         return websocketContainer == null ? -1L : websocketContainer.getIdleTimeout().toMillis();
     }
 
+    /**
+     * Accepts the HTTP exchange for asynchronous proxy handling, enforcing shutdown, body-size, CORS, and
+     * in-flight request limits. Always returns true; completion is reported through the supplied callback.
+     */
     public boolean handle(Request request, Response response, Callback callback) {
         JettyExchange exchange = new JettyExchange(request, response, callback,
                                                   maxRequestBodySize, maxMultipartRequestBodySize,

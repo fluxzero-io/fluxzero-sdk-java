@@ -89,15 +89,25 @@ public class MutableHandler<M> implements Handler<M> {
                 });
     }
 
+    /**
+     * Creates a new target using its no-argument constructor, replaces the current target, and returns this
+     * handler.
+     */
     public MutableHandler<M> instantiateTarget() {
         target = ReflectionUtils.asInstance(targetClass);
         return this;
     }
 
+    /**
+     * Returns whether this handler currently has no target instance.
+     */
     public boolean isEmpty() {
         return target == null;
     }
 
+    /**
+     * Registers a callback for target deletion and returns a registration that removes the callback.
+     */
     public Registration onDelete(Runnable callback) {
         onDeleteCallbacks.add(callback);
         return () -> onDeleteCallbacks.remove(callback);

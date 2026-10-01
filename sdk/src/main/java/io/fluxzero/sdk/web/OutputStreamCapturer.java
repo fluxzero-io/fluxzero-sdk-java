@@ -50,6 +50,10 @@ public class OutputStreamCapturer extends OutputStream {
         }
     }
 
+    /**
+     * Emits and clears the buffered chunk. A final flush emits a chunk even when empty so the handler can observe
+     * completion.
+     */
     public void flush(boolean isFinal) {
         if (buffer.size() > 0 || isFinal) {
             byte[] chunk = buffer.toByteArray();

@@ -121,34 +121,58 @@ public class DefaultWebRequestContext implements WebRequestContext {
                 .orElse("");
     }
 
+    /**
+     * Returns the route parameter values currently bound to this request.
+     */
     public Map<String, String> pathMap() {
         return pathMap;
     }
 
+    /**
+     * Returns the request message metadata.
+     */
     public Metadata getMetadata() {
         return metadata;
     }
 
+    /**
+     * Returns the parsed request URI.
+     */
     public URI getUri() {
         return uri;
     }
 
+    /**
+     * Returns the route parameter map, equivalent to {@link #pathMap()}.
+     */
     public Map<String, String> getPathMap() {
         return pathMap();
     }
 
+    /**
+     * Returns parsed query parameter values grouped by name.
+     */
     public Map<String, List<String>> getQueryParameters() {
         return queryParameters;
     }
 
+    /**
+     * Returns request cookie values indexed by cookie name.
+     */
     public Map<String, String> getCookieMap() {
         return cookieMap;
     }
 
+    /**
+     * Returns parsed form parameter values grouped by name, parsing the body on demand.
+     */
     public Map<String, List<String>> getFormParameters() {
         return formParameters();
     }
 
+    /**
+     * Returns parsed multipart form parts grouped by name, parsing the body on demand.
+     */
     public Map<String, List<WebFormPart>> getFormParts() {
         return formParts();
     }
@@ -159,10 +183,16 @@ public class DefaultWebRequestContext implements WebRequestContext {
         return result;
     }
 
+    /**
+     * Returns the JSON representation of the request body, parsing it on demand.
+     */
     public JsonNode getJsonBody() {
         return jsonBody();
     }
 
+    /**
+     * Replaces route parameter bindings with a copy of the supplied map and returns this context.
+     */
     public DefaultWebRequestContext setPathMap(Map<String, String> pathMap) {
         this.pathMap = new LinkedHashMap<>(pathMap);
         return this;
@@ -187,10 +217,16 @@ public class DefaultWebRequestContext implements WebRequestContext {
         return new ParameterValue(null);
     }
 
+    /**
+     * Returns whether the request path matches the supplied route pattern.
+     */
     public boolean matches(String urlPattern) {
         return WebRouteMatcher.matchesPath(urlPattern, requestPath);
     }
 
+    /**
+     * Returns whether the request path matches any supplied route pattern.
+     */
     public boolean matchesAny(Collection<String> urlPatterns) {
         return urlPatterns.stream().anyMatch(this::matches);
     }
