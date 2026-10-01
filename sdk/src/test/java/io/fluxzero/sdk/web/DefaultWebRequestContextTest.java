@@ -35,6 +35,20 @@ import static org.mockito.Mockito.mock;
 class DefaultWebRequestContextTest {
 
     @Test
+    void missingAndNullBodyParametersFallBackToQueryParameters() {
+        Metadata metadata = WebRequest.post("/test?missing=fallback&nil=fallback&present=query")
+                .contentType("application/json").build().getMetadata();
+        DefaultWebRequestContext context = context(metadata,
+                "{\"nil\":null,\"present\":\"body\"}".getBytes(StandardCharsets.UTF_8));
+        for (String name : List.of("missing", "nil")) {
+            assertEquals("fallback", context.getParameter(name, WebParameterSource.BODY, WebParameterSource.QUERY)
+                    .as(String.class));
+        }
+        assertEquals("body", context.getParameter("present", WebParameterSource.BODY, WebParameterSource.QUERY)
+                .as(String.class));
+    }
+
+    @Test
     void readsCaseInsensitiveCookiesAndPrefersFirstForwardedAddress() {
         DefaultWebRequestContext context = context(Map.of(
                 "cOoKiE", List.of("session=first; theme=dark", "session=second"),

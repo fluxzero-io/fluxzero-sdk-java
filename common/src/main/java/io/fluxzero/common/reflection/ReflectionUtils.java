@@ -717,7 +717,7 @@ public class ReflectionUtils {
 
     /**
      * Reads a nested property path. Null targets, blank paths, missing properties, and null values yield an empty
-     * optional; other access failures propagate.
+     * optional, including missing JSON fields and explicit JSON nulls; other access failures propagate.
      */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> readProperty(String propertyPath, Object target) {
@@ -766,7 +766,8 @@ public class ReflectionUtils {
 
     /**
      * Reads the value at a property path, returning an empty optional for a null target, missing property, or null
-     * value. Despite its name, this method reads a value rather than annotation metadata.
+     * value, including missing JSON fields and explicit JSON nulls. Despite its name, this method reads a value
+     * rather than annotation metadata.
      */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> getPropertyAnnotation(String propertyPath, Object target) {
@@ -1636,8 +1637,15 @@ public class ReflectionUtils {
 
         private Function<Object, Object> computeGetter(String propertyName) {
             if (ObjectNode.class.isAssignableFrom(type)) {
+                PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
                 return target -> {
                     JsonNode path = ((ObjectNode) target).path(propertyName);
+                    if (path.isMissingNode()) {
+                        throw notFoundException;
+                    }
+                    if (path.isNull()) {
+                        return null;
+                    }
                     return switch (path) {
                         case TextNode n -> n.asText();
                         case NumericNode n -> n.numberValue();
