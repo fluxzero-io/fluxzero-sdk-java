@@ -276,7 +276,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the document end timestamp, clamped to the start timestamp when both are present and the end\n precedes it; an absent end remains null.\n"
   }, {
     "name" : "getEntryAtPath",
     "qualifiedName" : "io.fluxzero.common.search.Document#getEntryAtPath",

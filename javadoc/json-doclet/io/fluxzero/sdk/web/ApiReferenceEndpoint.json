@@ -283,7 +283,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Discovers enabled API reference endpoints from the handler and package-level API documentation\n configuration, composing their route prefixes.\n"
   }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiReferenceEndpoint#hashCode",

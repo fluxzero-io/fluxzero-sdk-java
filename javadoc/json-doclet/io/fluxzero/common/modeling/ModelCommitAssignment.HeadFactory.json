@@ -64,7 +64,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates the storage-specific head for an assigned Model revision, using the previous head when present\n and the supplied sequence, state, history, deletion, and document information.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

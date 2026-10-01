@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the inverted entries and the document paths where each entry occurs.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

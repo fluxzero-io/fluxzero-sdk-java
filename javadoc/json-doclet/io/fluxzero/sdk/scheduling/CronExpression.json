@@ -167,7 +167,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the next matching local date-time using the system default time zone and a four-year search limit.\n"
   }, {
     "name" : "nextTimeAfter",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextTimeAfter",
@@ -183,7 +183,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first matching time strictly after the supplied instant, searching at most four years ahead.\n Throws {@link IllegalArgumentException} if no match is found within that limit.\n"
   }, {
     "name" : "nextTimeAfter",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextTimeAfter",
@@ -204,7 +204,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first matching time strictly after {@code afterTime} and no later than {@code dateTimeBarrier}.\n Throws {@link IllegalArgumentException} when the search passes the barrier.\n"
   }, {
     "name" : "nextTimeAfter",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextTimeAfter",
@@ -225,7 +225,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the next matching time strictly after {@code afterTime}, bounded by the supplied duration in\n milliseconds; throws {@link IllegalArgumentException} if no match is found within the limit.\n"
   }, {
     "name" : "parseCronExpression",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#parseCronExpression",
@@ -241,7 +241,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Parses and caches a five-field cron expression without an explicit seconds field; invalid expressions cause\n {@link IllegalArgumentException}.\n"
   }, {
     "name" : "parseCronExpression",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#parseCronExpression",
@@ -262,7 +262,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Parses and caches a cron expression, including a leading seconds field when {@code withSeconds} is true;\n invalid expressions cause {@link IllegalArgumentException}.\n"
   }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#toString",

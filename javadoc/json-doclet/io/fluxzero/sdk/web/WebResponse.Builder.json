@@ -90,7 +90,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Builds a response using the builder's payload, resolved status, metadata, and headers.\n"
   }, {
     "name" : "clearHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#clearHeader",
@@ -106,7 +106,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes all values for the header and returns this builder.\n"
   }, {
     "name" : "clearHeaders",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#clearHeaders",
@@ -117,7 +117,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes all currently stored headers and returns this builder. Cookies retained separately by the\n builder are still emitted when headers are assembled.\n"
   }, {
     "name" : "contentType",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#contentType",
@@ -133,7 +133,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a {@code Content-Type} header and returns this builder.\n"
   }, {
     "name" : "cookie",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#cookie",
@@ -149,7 +149,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adds a response cookie and returns this builder.\n"
   }, {
     "name" : "header",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#header",
@@ -170,7 +170,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a header value and returns this builder; a null value is ignored.\n"
   }, {
     "name" : "header",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#header",
@@ -191,7 +191,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends the supplied values to the header and returns this builder.\n"
   }, {
     "name" : "headers",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#headers",
@@ -202,7 +202,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the builder's mutable header map, first replacing {@code Set-Cookie} values with any cookies\n registered on the builder.\n"
   }, {
     "name" : "headers",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#headers",
@@ -218,7 +218,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces header values for the supplied keys, retaining other headers, and returns this builder.\n"
   }, {
     "name" : "payload",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#payload",
@@ -234,7 +234,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the payload and returns this builder. If no content type is set, strings default to {@code\n text/plain}, and byte arrays or streams to {@code application/octet-stream}.\n"
   }, {
     "name" : "singleValuedHeaders",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#singleValuedHeaders",
@@ -250,7 +250,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends each non-null single-valued header and returns this builder.\n"
   }, {
     "name" : "status",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#status",
@@ -261,7 +261,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the configured status, defaulting to 204 for a null payload and 200 otherwise.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

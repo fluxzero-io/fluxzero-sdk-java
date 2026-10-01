@@ -135,7 +135,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the description contains relationship planning steps.\n"
   }, {
     "name" : "aliases",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Description#aliases",
@@ -222,7 +222,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the relationship plan for a zero-based substep, or the empty plan when no relationship steps are\n present.\n"
   }, {
     "name" : "relationshipSteps",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Description#relationshipSteps",

@@ -75,7 +75,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the backing array without copying it; the cursor's position and limit determine the readable\n region.\n"
   }, {
     "name" : "position",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#position",
@@ -86,7 +86,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the current absolute offset in the backing array.\n"
   }, {
     "name" : "readInt",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#readInt",
@@ -97,7 +97,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a big-endian 32-bit integer and advances the cursor, rejecting truncated input.\n"
   }, {
     "name" : "readSize",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#readSize",
@@ -118,7 +118,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a non-negative size bounded by {@code maximum}; invalid values throw {@link\n IllegalArgumentException} with the supplied label.\n"
   }, {
     "name" : "readString",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#readString",
@@ -134,7 +134,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a length-prefixed UTF-8 string bounded by {@code maximum} bytes. Negative lengths and truncated\n input are rejected.\n"
   }, {
     "name" : "readStringEquals",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#readStringEquals",
@@ -155,7 +155,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Consumes a bounded, length-prefixed string and compares its encoded bytes with the supplied value\n without decoding a new string.\n"
   }, {
     "name" : "readStringLength",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#readStringLength",
@@ -171,7 +171,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads and validates a non-negative string byte length and verifies that its bytes are available, without\n consuming the string bytes.\n"
   }, {
     "name" : "remaining",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#remaining",
@@ -182,7 +182,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the number of bytes remaining before the cursor's limit.\n"
   }, {
     "name" : "require",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#require",
@@ -209,7 +209,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Requires the cursor to be at its limit; trailing bytes cause {@link IllegalArgumentException}.\n"
   }, {
     "name" : "skip",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#skip",
@@ -225,7 +225,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Advances by the specified number of bytes, rejecting negative lengths or truncated input.\n"
   }, {
     "name" : "skipString",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Cursor#skipString",
@@ -241,7 +241,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Skips a length-prefixed string after validating its byte length against {@code maximum} and the\n available input.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -170,7 +170,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a decorator that enables handshakes for discovered socket routes and leaves handlers without socket\n routes unchanged.\n"
   }, {
     "name" : "isEstablishedWebsocketFrame",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#isEstablishedWebsocketFrame",
@@ -197,7 +197,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a decorator that applies socket session users, request handling, error closure, and close cleanup,\n and registers decorated socket handlers for lifecycle management.\n"
   }, {
     "name" : "mapHandshakeAuthorizationFailure",
     "qualifiedName" : "io.fluxzero.sdk.web.WebsocketHandlerDecorator#mapHandshakeAuthorizationFailure",

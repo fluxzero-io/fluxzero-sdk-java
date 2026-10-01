@@ -34,7 +34,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves Model identifiers related to the supplied identifiers according to the relation constraint.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

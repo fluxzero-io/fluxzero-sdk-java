@@ -198,7 +198,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Marks the session closed and fails pending requests. Returns true only for the first close transition.\n"
   }, {
     "name" : "sendMessage",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession#sendMessage",
@@ -307,7 +307,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares an invoker that completes the pending request correlated with a valid socket response. Returns\n empty for invalid responses; response errors and deserialization failures complete the pending future\n exceptionally.\n"
   }, {
     "name" : "tryHandleRequest",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultSocketSession#tryHandleRequest",
@@ -328,7 +328,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares an invoker for a valid socket request, wrapping synchronous or asynchronous results and failures in\n correlated socket responses. Returns empty for invalid requests or when no handler matches.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

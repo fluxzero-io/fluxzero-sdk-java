@@ -597,7 +597,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Clears the current thread's loading-route cache.\n"
   }, {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#commit",
@@ -1012,7 +1012,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the current thread's loading-route cache with a snapshot obtained from {@link\n #snapshotLoadingRouteCache()}.\n"
   }, {
     "name" : "routeCacheKey",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#routeCacheKey",
@@ -1071,7 +1071,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a copy of the current thread's loading-route cache for later restoration.\n"
   }, {
     "name" : "type",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#type",
@@ -1087,7 +1087,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the runtime type of the current value, or the declared entity type when the value is null.\n"
   }, {
     "name" : "update",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#update",

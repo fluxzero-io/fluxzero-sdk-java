@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the backing byte array without copying it.\n"
   }, {
     "name" : "length",
     "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView#length",
@@ -32,7 +32,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the number of bytes covered by this view.\n"
   }, {
     "name" : "offset",
     "qualifiedName" : "io.fluxzero.common.api.Data$ByteArrayView#offset",
@@ -43,7 +43,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the zero-based offset where this view starts in the backing array.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

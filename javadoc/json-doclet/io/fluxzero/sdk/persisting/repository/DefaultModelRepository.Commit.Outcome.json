@@ -137,7 +137,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns an unmodifiable view of the changes correlated with this outcome.\n"
   }, {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#commit",
@@ -148,7 +148,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the prepared wire commit, or null when the attempt requires no commit.\n"
   }, {
     "name" : "hasCascadedDeletion",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#hasCascadedDeletion",
@@ -159,7 +159,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether any retained change represents a cascaded deletion.\n"
   }, {
     "name" : "result",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#result",
@@ -170,7 +170,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the authoritative result attached to this outcome, or null before a result is attached.\n"
   }, {
     "name" : "revisions",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#revisions",

@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ "java.lang.Exception" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Consumes a batch and returns its asynchronous completion. A thrown exception or exceptionally completed\n future signals batch failure.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

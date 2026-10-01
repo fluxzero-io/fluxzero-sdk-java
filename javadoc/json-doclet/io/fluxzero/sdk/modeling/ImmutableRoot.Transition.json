@@ -34,7 +34,7 @@
     } ],
     "thrownTypes" : [ "java.lang.Throwable" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Applies an event to the replay state and returns the resulting state; failures are passed to the replay\n failure policy.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

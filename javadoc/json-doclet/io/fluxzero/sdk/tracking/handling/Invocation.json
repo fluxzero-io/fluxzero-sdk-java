@@ -233,7 +233,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns this invocation's technical identifier, generating and retaining it on first access.\n"
   }, {
     "name" : "hasThreadLocalContext",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Invocation#hasThreadLocalContext",

@@ -95,7 +95,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the byte count between the range's inclusive start and end offsets.\n"
   }, {
     "name" : "start",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$ByteRange#start",

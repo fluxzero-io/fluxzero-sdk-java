@@ -814,7 +814,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Converts a bulk update into its protocol action, resolving the collection and identifier and serializing\n index payloads unless already serialized.\n"
   }, {
     "name" : "withDefaultGuarantee",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#withDefaultGuarantee",

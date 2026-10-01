@@ -57,7 +57,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves the target supertype in the supplied class hierarchy, substituting type variables from intervening\n generic declarations.\n"
   }, {
     "name" : "matchAndResolve",
     "qualifiedName" : "io.fluxzero.common.reflection.GenericTypeResolver#matchAndResolve",

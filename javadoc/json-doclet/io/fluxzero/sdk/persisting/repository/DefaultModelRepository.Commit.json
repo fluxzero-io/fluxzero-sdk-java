@@ -164,7 +164,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Begins a batch for the supplied number of producers, or returns null if the event-store client does not\n support batching.\n"
   }, {
     "name" : "beginReadyBatch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#beginReadyBatch",
@@ -175,7 +175,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Begins a batch for independently ready commits, or returns null when that batching mode is unsupported.\n"
   }, {
     "name" : "blankToNull",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#blankToNull",
@@ -223,7 +223,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares and commits an attempt with {@link ModelConflictPolicy#ACCEPT}; returns an empty result when\n there is no commit to send.\n"
   }, {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#commit",
@@ -249,7 +249,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares and commits an attempt with the supplied conflict policy. The future contains the authoritative\n result, or an empty optional when no commit is required.\n"
   }, {
     "name" : "commitPrepared",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#commitPrepared",
@@ -275,7 +275,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Submits a prepared commit directly or through a reserved batch slot and completes required result\n processing. A preparation without a commit returns an already-completed empty optional.\n"
   }, {
     "name" : "directDocument",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#directDocument",
@@ -453,7 +453,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares the wire commit and change correlation for an attempt using {@link ModelConflictPolicy#ACCEPT},\n without submitting it.\n"
   }, {
     "name" : "prepare",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepare",
@@ -479,7 +479,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares an ordinary, non-migration commit with the supplied conflict policy, without submitting it.\n"
   }, {
     "name" : "prepare",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepare",
@@ -510,7 +510,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares a commit with the supplied conflict and migration policies, without treating its input as an\n already stored event or submitting it.\n"
   }, {
     "name" : "prepare",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepare",
@@ -546,7 +546,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares the wire commit and change correlation using the supplied conflict, migration, and\n existing-event policies, without submitting the commit.\n"
   }, {
     "name" : "prepareRebased",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepareRebased",
@@ -572,7 +572,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares an ACCEPT rebase with the original commit shape, delivery guarantee, duplicate flag, and\n migration policy. Empty originals and incompatible shapes are rejected.\n"
   }, {
     "name" : "processCommitResults",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#processCommitResults",

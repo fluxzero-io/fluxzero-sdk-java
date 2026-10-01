@@ -491,7 +491,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates static-file handlers from the class or package's {@link ServeStatic} configuration, resolving\n relative web paths against the handler path; returns an empty list if no configuration exists.\n"
   }, {
     "name" : "formatHttpDate",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#formatHttpDate",
@@ -662,7 +662,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the class or its package hierarchy carries {@link ServeStatic} configuration.\n"
   }, {
     "name" : "isUnsafeRequestedPath",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#isUnsafeRequestedPath",

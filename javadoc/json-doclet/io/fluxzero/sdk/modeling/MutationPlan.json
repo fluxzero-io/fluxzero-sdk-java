@@ -562,7 +562,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the reducer supports its direct mutation path.\n"
   }, {
     "name" : "directReferences",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#directReferences",
@@ -615,7 +615,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the reducer has no applicable mutation handlers.\n"
   }, {
     "name" : "ids",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#ids",
@@ -925,7 +925,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the compiled target-resolution plan for this mutation.\n"
   }, {
     "name" : "validateApplyResult",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#validateApplyResult",

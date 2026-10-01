@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the Model's current document collection, or null when it has no document.\n"
   }, {
     "name" : "firstIncompleteStateIndex",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Head#firstIncompleteStateIndex",
@@ -32,7 +32,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first state index with incomplete history, or null for complete history. The default uses\n {@link Long#MIN_VALUE} when the precise boundary is unknown.\n"
   }, {
     "name" : "historyComplete",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Head#historyComplete",
@@ -43,7 +43,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the Model's state can be reconstructed from its complete event history.\n"
   }, {
     "name" : "modelType",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Head#modelType",
@@ -54,7 +54,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the stored Model type associated with this head.\n"
   }, {
     "name" : "sequenceNumber",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Head#sequenceNumber",
@@ -65,7 +65,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the last assigned event sequence number for this Model.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

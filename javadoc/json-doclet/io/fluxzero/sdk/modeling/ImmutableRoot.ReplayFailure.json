@@ -39,7 +39,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Maps a replay failure to the runtime exception exposed to the caller, with access to the state and\n failing event.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

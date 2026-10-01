@@ -129,7 +129,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates an executor service that executes submitted work directly on the calling thread.\n"
   }, {
     "name" : "shutdown",
     "qualifiedName" : "io.fluxzero.common.DirectExecutorService#shutdown",

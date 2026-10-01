@@ -73,7 +73,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Queues content bytes for subsequent reads without copying the supplied array.\n"
   }, {
     "name" : "complete",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$StreamingInputStream#complete",
@@ -84,7 +84,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Queues an end-of-stream marker after the previously queued chunks.\n"
   }, {
     "name" : "fail",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$StreamingInputStream#fail",
@@ -100,7 +100,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Queues a terminal failure after the previously queued chunks, to be observed by the reader.\n"
   }, {
     "name" : "read",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage$StreamingInputStream#read",

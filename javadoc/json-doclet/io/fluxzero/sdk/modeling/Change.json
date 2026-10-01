@@ -433,7 +433,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the root configuration from this change's entity metadata; fails if the metadata has no root\n configuration.\n"
   }, {
     "name" : "conflictPolicy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#conflictPolicy",
@@ -717,7 +717,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Rejects an active event-sourced state change that does not store its reconstructing event, throwing {@link\n IllegalStateException}.\n"
   }, {
     "name" : "withEffects",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#withEffects",
@@ -743,7 +743,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a copy with the supplied event-storage, publication, and state-update effects, preserving the\n remaining transition information.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {

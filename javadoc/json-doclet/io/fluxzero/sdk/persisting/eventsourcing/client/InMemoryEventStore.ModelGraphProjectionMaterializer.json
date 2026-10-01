@@ -44,7 +44,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Materializes Graph documents for the supplied roots and state index, optionally rebuilding them. Returns\n the publication action to run after the Graph-projection fence advances.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

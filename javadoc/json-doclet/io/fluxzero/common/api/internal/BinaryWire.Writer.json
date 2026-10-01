@@ -160,7 +160,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns exactly the written bytes, reusing the backing array when it is completely filled and copying\n otherwise.\n"
   }, {
     "name" : "toExactByteArray",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#toExactByteArray",
@@ -171,7 +171,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the backing array only if it has been filled exactly; otherwise throws {@link\n IllegalStateException} for a size mismatch.\n"
   }, {
     "name" : "valueOrZero",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#valueOrZero",
@@ -219,7 +219,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a boolean as one byte: zero for false and one for true.\n"
   }, {
     "name" : "writeByte",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeByte",
@@ -235,7 +235,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends the low eight bits of the value to the output.\n"
   }, {
     "name" : "writeBytes",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeBytes",
@@ -251,7 +251,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a byte array prefixed by its length, using a length of -1 for null.\n"
   }, {
     "name" : "writeBytes",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeBytes",
@@ -277,7 +277,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends the selected byte region prefixed by its length.\n"
   }, {
     "name" : "writeCachedUtf8Raw",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeCachedUtf8Raw",
@@ -335,7 +335,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a binary message envelope prefixed by its encoded byte length.\n"
   }, {
     "name" : "writeInt",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeInt",
@@ -351,7 +351,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a big-endian 32-bit integer.\n"
   }, {
     "name" : "writeLong",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeLong",
@@ -367,7 +367,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a big-endian 64-bit integer.\n"
   }, {
     "name" : "writeLongs",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeLongs",
@@ -383,7 +383,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends an element count followed by big-endian 64-bit values, using a count of -1 for null.\n"
   }, {
     "name" : "writeNullableInt",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeNullableInt",
@@ -399,7 +399,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a presence flag followed by a 32-bit integer when the value is non-null.\n"
   }, {
     "name" : "writeNullableLong",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeNullableLong",
@@ -415,7 +415,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a presence flag followed by a 64-bit integer when the value is non-null.\n"
   }, {
     "name" : "writeRaw",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeRaw",
@@ -431,7 +431,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends the entire byte array without a length prefix.\n"
   }, {
     "name" : "writeRaw",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeRaw",
@@ -457,7 +457,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends the selected byte region without a length prefix.\n"
   }, {
     "name" : "writeRawEnvelope",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeRawEnvelope",
@@ -505,7 +505,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a UTF-8 string prefixed by its byte length, using a length of -1 for null.\n"
   }, {
     "name" : "writeUtf8Raw",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Writer#writeUtf8Raw",

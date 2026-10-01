@@ -79,7 +79,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the report's documentation URL, or null when no report is available.\n"
   }, {
     "name" : "getErrorCode",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GatewayException#getErrorCode",
@@ -95,7 +95,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the report's error code, or null when no report is available.\n"
   }, {
     "name" : "getFluxzeroErrorReport",
     "qualifiedName" : "io.fluxzero.sdk.publishing.GatewayException#getFluxzeroErrorReport",
@@ -109,7 +109,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the structured Fluxzero error report, or null when this exception has no report.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

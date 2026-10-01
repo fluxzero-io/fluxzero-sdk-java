@@ -49,7 +49,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Marks the prepared request's send as failed with the supplied cause.\n"
   }, {
     "name" : "result",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest#result",
@@ -65,7 +65,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the prepared request's result future.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

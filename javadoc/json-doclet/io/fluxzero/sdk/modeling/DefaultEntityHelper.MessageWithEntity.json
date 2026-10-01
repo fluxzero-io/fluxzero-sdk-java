@@ -145,7 +145,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a copy with the supplied associated entity, preserving the payload and after-handler flag.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

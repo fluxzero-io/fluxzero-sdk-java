@@ -204,7 +204,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Discovers OpenAPI document endpoints for the handler with no additional registered Model types.\n"
   }, {
     "name" : "forHandler",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#forHandler",
@@ -230,7 +230,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Discovers OpenAPI document endpoints from the handler and package configuration, using the supplier to\n obtain registered Model types when rendering schemas.\n"
   }, {
     "name" : "generatedDocument",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#generatedDocument",

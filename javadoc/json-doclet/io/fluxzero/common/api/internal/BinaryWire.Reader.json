@@ -103,7 +103,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the number of unread bytes within this reader's limit.\n"
   }, {
     "name" : "bytes",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#bytes",
@@ -114,7 +114,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the backing array without copying it; the reader's position and limit delimit the readable\n region.\n"
   }, {
     "name" : "position",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#position",
@@ -125,7 +125,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the current absolute offset in the backing array.\n"
   }, {
     "name" : "readBoolean",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readBoolean",
@@ -136,7 +136,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a boolean encoded as zero or one; other values and truncated input cause {@link IOException}.\n"
   }, {
     "name" : "readByte",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readByte",
@@ -147,7 +147,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.EOFException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads one signed byte and advances, throwing {@link EOFException} if no byte remains.\n"
   }, {
     "name" : "readByteView",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readByteView",
@@ -169,7 +169,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a length-prefixed byte array, accepting -1 as null and enforcing the configured maximum value\n size.\n"
   }, {
     "name" : "readEnvelope",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readEnvelope",
@@ -180,7 +180,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads and validates a length-prefixed message envelope and returns a message backed by the input array.\n Invalid envelope sizes, components, or truncated input cause {@link IOException}.\n"
   }, {
     "name" : "readInt",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readInt",
@@ -191,7 +191,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.EOFException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a big-endian 32-bit integer, throwing {@link EOFException} on truncated input.\n"
   }, {
     "name" : "readLong",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readLong",
@@ -202,7 +202,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.EOFException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a big-endian 64-bit integer, throwing {@link EOFException} on truncated input.\n"
   }, {
     "name" : "readLongs",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readLongs",
@@ -218,7 +218,7 @@
     } ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a nullable array of big-endian 64-bit values, enforcing {@code maximumElements} before allocation.\n"
   }, {
     "name" : "readNullableInt",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readNullableInt",
@@ -229,7 +229,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a presence flag and, when present, a big-endian 32-bit integer; returns null for an absent value.\n"
   }, {
     "name" : "readNullableLong",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readNullableLong",
@@ -240,7 +240,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a presence flag and, when present, a big-endian 64-bit integer; returns null for an absent value.\n"
   }, {
     "name" : "readSize",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readSize",
@@ -261,7 +261,7 @@
     } ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a non-negative size no greater than {@code maximum}; invalid values cause {@link IOException} with\n the supplied label.\n"
   }, {
     "name" : "readString",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readString",
@@ -272,7 +272,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.IOException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a length-prefixed UTF-8 string, accepting -1 as null and enforcing the configured maximum value\n size.\n"
   }, {
     "name" : "readUnsignedByte",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#readUnsignedByte",
@@ -283,7 +283,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ "java.io.EOFException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads one byte as an unsigned integer from 0 through 255.\n"
   }, {
     "name" : "require",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#require",
@@ -299,7 +299,7 @@
     } ],
     "thrownTypes" : [ "java.io.EOFException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Checks that the specified number of bytes is available without advancing; negative lengths and\n insufficient input cause {@link EOFException}.\n"
   }, {
     "name" : "skip",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#skip",
@@ -315,7 +315,7 @@
     } ],
     "thrownTypes" : [ "java.io.EOFException" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Advances by the specified number of bytes, throwing {@link EOFException} for a negative length or\n truncated input.\n"
   }, {
     "name" : "validateSize",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$Reader#validateSize",

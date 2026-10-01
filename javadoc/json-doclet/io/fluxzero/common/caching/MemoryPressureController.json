@@ -72,7 +72,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a controller using JVM memory pressure and the default property source.\n"
   }, {
     "name" : "jvm",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#jvm",
@@ -88,7 +88,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a JVM memory-pressure controller configured through the supplied property source.\n"
   }, {
     "name" : "maxTrimWeight",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#maxTrimWeight",
@@ -99,7 +99,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the maximum cache weight to remove in one pressure-driven trim.\n"
   }, {
     "name" : "none",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#none",
@@ -110,7 +110,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a controller that never requests memory-pressure eviction.\n"
   }, {
     "name" : "shouldEvict",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#shouldEvict",
@@ -131,7 +131,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether memory pressure warrants eviction given the current cache weight and configured maximum\n weight.\n"
   }, {
     "name" : "trimRatioPercent",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryPressureController#trimRatioPercent",
@@ -142,7 +142,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the percentage of cache weight targeted by a pressure-driven trim.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -165,7 +165,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a handler bound to the supplied target and matcher, preparing its method binding and invocation\n planner.\n"
   }, {
     "name" : "getHandlerMethodOrNull",
     "qualifiedName" : "io.fluxzero.common.handling.DefaultHandler#getHandlerMethodOrNull",

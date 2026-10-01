@@ -193,6 +193,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "transportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.transportContext",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.TransportContext",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DeserializingMessage",
@@ -489,7 +505,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Computes a resource in the current thread's handling-batch resource map using the key and prior value; a\n null result removes the mapping.\n"
   }, {
     "name" : "computeForBatchIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#computeForBatchIfAbsent",
@@ -515,7 +531,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the current thread's handling-batch resource or computes and stores it when absent. Unlike\n message-batch resources, this map is not shared with asynchronous workers through captured request context.\n"
   }, {
     "name" : "computeForMessageBatchIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#computeForMessageBatchIfAbsent",
@@ -642,7 +658,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a resource from the current thread's handling-batch resource map, or null if absent.\n"
   }, {
     "name" : "getBatchResourceOrDefault",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getBatchResourceOrDefault",
@@ -668,7 +684,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a resource from the current thread's handling-batch resource map, or the supplied default if the key\n is absent.\n"
   }, {
     "name" : "getBatchResources",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getBatchResources",
@@ -725,7 +741,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the stored message index, or a schedule deadline converted to an index for a locally constructed\n schedule; other local messages return null.\n"
   }, {
     "name" : "getMessageBatchIndex",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getMessageBatchIndex",
@@ -897,7 +913,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the serialized message using this instance's serializer, serializing a local message when necessary.\n"
   }, {
     "name" : "getSerializedObject",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#getSerializedObject",
@@ -938,7 +954,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the serialized type name, or the payload class name for a locally constructed message; returns null\n if no message is available.\n"
   }, {
     "name" : "handleBatch",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#handleBatch",
@@ -954,7 +970,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Wraps a batch stream for sequential handling with each message installed as the current message. Fully\n consuming the stream completes batch callbacks when there is no enclosing message scope; nested handling\n leaves completion to that scope. Short-circuiting or closing the returned stream does not complete the\n batch, and callers remain responsible for closing the input stream's resources.\n"
   }, {
     "name" : "hasThreadLocalContext",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#hasThreadLocalContext",
@@ -976,7 +992,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the message already has a deserialized representation.\n"
   }, {
     "name" : "putContext",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#putContext",
@@ -1037,7 +1053,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Runs the task with this message installed as the current message, restoring the enclosing context afterward.\n"
   }, {
     "name" : "segmentOf",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#segmentOf",
@@ -1116,7 +1132,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the serialized payload data and recreates a deserializing message with the same handling context.\n"
   }, {
     "name" : "withMessage",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withMessage",
@@ -1132,7 +1148,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Replaces the complete logical message while retaining this wrapper's type, topic, serializer, and context.\n\n <p>Unlike {@link #withPayload(Object)}, this method deliberately retains the supplied message identity. It is\n used when one handled message expands into several independently publishable model updates.</p>\n"
+    "documentation" : " Replaces the complete logical message while retaining this wrapper's type, topic, serializer, and context.\n Transport fields from the original message are not inherited.\n\n <p>Unlike {@link #withPayload(Object)}, this method deliberately retains the supplied message identity. It is\n used when one handled message expands into several independently publishable model updates.</p>\n"
   }, {
     "name" : "withMetadata",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withMetadata",
@@ -1148,7 +1164,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a message with replacement metadata while preserving the handling context, payload representation,\n message type, and topic.\n"
   }, {
     "name" : "withPayload",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withPayload",
@@ -1164,7 +1180,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a message with a replacement payload, preserving metadata, message ID, timestamp, message type,\n topic, handling context, and received transport fields (segment, index, source, target, and request ID).\n The replacement is serialized lazily using its own payload type and revision.\n Use {@link #withMessage(Message)} for a new logical envelope without inherited transport fields.\n"
   }, {
     "name" : "withRestoredPayload",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withRestoredPayload",
@@ -1235,6 +1251,12 @@
     "name" : "RestoredPayloadMessage",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage",
     "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "TransportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext",
+    "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]

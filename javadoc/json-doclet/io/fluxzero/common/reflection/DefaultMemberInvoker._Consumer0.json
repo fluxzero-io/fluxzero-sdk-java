@@ -24,7 +24,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Invokes the adapted member with 0 positional arguments, discarding any result.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

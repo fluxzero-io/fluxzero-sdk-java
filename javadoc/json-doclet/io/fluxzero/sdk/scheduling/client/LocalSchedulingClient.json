@@ -137,7 +137,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the clock used by the underlying in-memory schedule store.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

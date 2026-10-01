@@ -256,7 +256,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Builds a downcaster chain from annotated candidates for the supplied serialized data type.\n"
   }, {
     "name" : "createUpcaster",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#createUpcaster",
@@ -277,7 +277,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Builds an upcaster chain from the candidate handlers, using the converter to bridge their internal data\n representation without normalizing incoming type identifiers before upcaster selection.\n"
   }, {
     "name" : "createUpcaster",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#createUpcaster",
@@ -324,7 +324,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Builds an upcaster chain from annotated candidates for the supplied serialized data type.\n"
   }, {
     "name" : "hasCaster",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#hasCaster",

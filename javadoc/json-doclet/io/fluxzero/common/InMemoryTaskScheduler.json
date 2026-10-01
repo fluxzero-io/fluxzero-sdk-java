@@ -402,17 +402,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "executeExpiredTasksAsync",
-    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#executeExpiredTasksAsync",
-    "returnType" : "void",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "executeExpiredTasksOnce",
     "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#executeExpiredTasksOnce",
     "returnType" : "boolean",
@@ -433,7 +422,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the currently scheduled deadlines in chronological order.\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#schedule",
@@ -494,6 +483,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "submitExpiredTasks",
+    "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#submitExpiredTasks",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes tasks whose deadlines have passed and submits them to the configured worker pool.\n Execution and completion depend on that executor; the default direct executor runs tasks inline.\n"
   }, {
     "name" : "tryRunTask",
     "qualifiedName" : "io.fluxzero.common.InMemoryTaskScheduler#tryRunTask",

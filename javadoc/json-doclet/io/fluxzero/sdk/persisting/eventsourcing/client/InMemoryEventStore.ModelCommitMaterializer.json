@@ -39,7 +39,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Materializes direct Model documents and eligible snapshots, excluding the supplied Model identifiers.\n Returns the publication action to run after materialization and Graph-projection fences advance.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Maps an authorization failure to the exception exposed by the handler integration.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Writes the migrated materialized Graph document and returns a future representing write completion or\n failure.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

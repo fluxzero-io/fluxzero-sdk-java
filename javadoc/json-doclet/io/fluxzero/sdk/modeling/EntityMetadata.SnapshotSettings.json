@@ -67,7 +67,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the stored events cross a snapshot period boundary; disabled snapshots and batches with\n no stored events return false.\n"
   }, {
     "name" : "enabled",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$SnapshotSettings#enabled",
@@ -78,7 +78,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether periodic snapshots are enabled by a positive period.\n"
   }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$SnapshotSettings#equals",

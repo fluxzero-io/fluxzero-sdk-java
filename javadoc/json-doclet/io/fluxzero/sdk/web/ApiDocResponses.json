@@ -34,7 +34,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the response documentation annotations grouped by this container.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

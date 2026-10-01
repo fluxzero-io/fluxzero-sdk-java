@@ -108,7 +108,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the number of documents in this indexing request.\n"
   }, {
     "name" : "routingKey",
     "qualifiedName" : "io.fluxzero.common.api.search.IndexDocuments#routingKey",

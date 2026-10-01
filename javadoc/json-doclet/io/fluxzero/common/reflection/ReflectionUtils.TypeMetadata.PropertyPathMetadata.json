@@ -121,7 +121,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether resolving the property path requires runtime values rather than declared types\n alone.\n"
   }, {
     "name" : "dynamic",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata$PropertyPathMetadata#dynamic",
@@ -148,7 +148,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the property path exists according to the structural metadata.\n"
   }, {
     "name" : "missing",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata$PropertyPathMetadata#missing",
@@ -170,7 +170,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Claims the one-time missing-timestamp warning for this metadata; returns true only for the first\n claim on a missing path.\n"
   }, {
     "name" : "shouldLogUnsupportedTimestampWarning",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata$PropertyPathMetadata#shouldLogUnsupportedTimestampWarning",
@@ -181,7 +181,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Claims the one-time unsupported-timestamp warning for this metadata; returns true only for the first\n claim.\n"
   }, {
     "name" : "supportsTimeConversion",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata$PropertyPathMetadata#supportsTimeConversion",
@@ -192,7 +192,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the path is dynamic or its declared leaf type supports timestamp conversion.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

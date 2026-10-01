@@ -139,7 +139,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the request body through the payload builder method and returns this builder.\n"
   }, {
     "name" : "build",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#build",
@@ -150,7 +150,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Builds the request. Throws {@link IllegalStateException} when no HTTP method has been configured.\n"
   }, {
     "name" : "clearHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#clearHeader",
@@ -166,7 +166,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes all values for the header and returns this builder.\n"
   }, {
     "name" : "contentType",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#contentType",
@@ -182,7 +182,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a {@code Content-Type} header and returns this builder.\n"
   }, {
     "name" : "cookie",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#cookie",
@@ -198,7 +198,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adds a request cookie, first parsing any stored Cookie headers, and returns this builder.\n"
   }, {
     "name" : "cookies",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#cookies",
@@ -209,7 +209,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the builder's mutable cookie list after moving any stored Cookie header values into parsed\n cookies.\n"
   }, {
     "name" : "header",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#header",
@@ -230,7 +230,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a header value and returns this builder.\n"
   }, {
     "name" : "header",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#header",
@@ -256,7 +256,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Appends a header value and returns this builder. If {@code ifAbsent} is true, existing non-empty values\n are preserved without appending.\n"
   }, {
     "name" : "headerIfAbsent",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#headerIfAbsent",
@@ -277,7 +277,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adds the header value only when the header has no values, and returns this builder.\n"
   }, {
     "name" : "headers",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#headers",
@@ -288,7 +288,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Assembles request headers, adding the configured gzip acceptance and inferred string or byte-array\n content type when absent. Registered cookies supply the Cookie header.\n"
   }, {
     "name" : "headers",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest$Builder#headers",
@@ -304,7 +304,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces values for the supplied header keys with copied lists, retains other headers, and returns this\n builder.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

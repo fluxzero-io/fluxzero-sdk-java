@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves document collection names indexed by the supplied Model identifiers.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

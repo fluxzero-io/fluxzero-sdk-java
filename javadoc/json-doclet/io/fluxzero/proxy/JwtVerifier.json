@@ -222,7 +222,7 @@
     } ],
     "thrownTypes" : [ "java.lang.Exception" ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves a public key by key identifier from the cached JWKS, refreshing stale keys and forcing another\n refresh on a miss. Throws {@link SecurityException} if the identifier remains unknown; retrieval failures\n propagate.\n"
   }, {
     "name" : "verify",
     "qualifiedName" : "io.fluxzero.proxy.JwtVerifier#verify",

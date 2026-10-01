@@ -1058,7 +1058,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes session, command-idempotency, backlog, and ping bookkeeping and reports disconnection when\n appropriate for the transport-close lifecycle.\n"
   }, {
     "name" : "onError",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#onError",
@@ -1079,7 +1079,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Classifies and logs a transport error, aborts the session, and always performs close cleanup.\n"
   }, {
     "name" : "onMessage",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#onMessage",
@@ -1100,7 +1100,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Deserializes and dispatches an incoming binary request for the session, logging failures that escape\n dispatch.\n"
   }, {
     "name" : "onOpen",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#onOpen",
@@ -1116,7 +1116,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers an accepted session, its command-idempotency state and result backlog, emits connection metrics,\n and schedules a ping. Rejects new sessions during shutdown.\n"
   }, {
     "name" : "onPong",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#onPong",
@@ -1137,7 +1137,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Acknowledges a pong by cancelling the pending ping deadline and scheduling the next ping for an active ping\n registration.\n"
   }, {
     "name" : "payloadCodecs",
     "qualifiedName" : "io.fluxzero.testserver.websocket.WebsocketEndpoint#payloadCodecs",

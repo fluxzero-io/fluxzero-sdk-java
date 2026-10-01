@@ -96,7 +96,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates encryption from an {@code algorithm|key} specification. Missing separators and unsupported algorithm\n names cause {@link IllegalArgumentException}.\n"
   }, {
     "name" : "generateNewEncryptionKey",
     "qualifiedName" : "io.fluxzero.common.encryption.DefaultEncryption#generateNewEncryptionKey",

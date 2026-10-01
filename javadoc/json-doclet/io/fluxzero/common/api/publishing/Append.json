@@ -122,7 +122,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the requested delivery guarantee, defaulting to {@link Guarantee#NONE} when absent.\n"
   }, {
     "name" : "getSize",
     "qualifiedName" : "io.fluxzero.common.api.publishing.Append#getSize",
@@ -136,7 +136,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the number of messages in this append request.\n"
   }, {
     "name" : "routingKey",
     "qualifiedName" : "io.fluxzero.common.api.publishing.Append#routingKey",

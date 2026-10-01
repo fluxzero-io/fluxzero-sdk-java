@@ -34,7 +34,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Handles a result-preparation failure with access to a retry operation; the returned stage represents\n completion of the selected recovery action.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

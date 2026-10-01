@@ -599,7 +599,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a big-endian 32-bit integer at the supplied offset without maintaining or advancing a cursor.\n"
   }, {
     "name" : "peekLong",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire#peekLong",
@@ -803,7 +803,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Compares the selected byte region with the UTF-8 encoding of the value without allocating encoded bytes;\n unpaired surrogates are compared as question marks.\n"
   }, {
     "name" : "utf8Length",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire#utf8Length",
@@ -819,7 +819,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the UTF-8 byte length without allocating encoded bytes, or -1 for null. Unpaired surrogates use a\n one-byte replacement; length overflow throws {@link ArithmeticException}.\n"
   }, {
     "name" : "validateEnvelopeComponents",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire#validateEnvelopeComponents",

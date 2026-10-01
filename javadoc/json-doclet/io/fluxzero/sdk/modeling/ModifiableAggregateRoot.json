@@ -604,7 +604,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns active aggregate identifiers and types that contain the supplied entity identifier.\n"
   }, {
     "name" : "getActiveAggregatesFor",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregatesFor",
@@ -667,7 +667,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Finds an aggregate with the supplied identifier among the current thread's active aggregate contexts.\n"
   }, {
     "name" : "getIfActive",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getIfActive",
@@ -1061,7 +1061,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Loads or reuses an aggregate in the default active context with the supplied commit, publication, routing,\n serialization, and handler policies.\n"
   }, {
     "name" : "previous",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#previous",

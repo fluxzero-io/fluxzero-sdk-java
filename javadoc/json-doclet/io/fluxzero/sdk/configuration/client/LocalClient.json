@@ -365,7 +365,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates an in-memory client using {@code FLUXZERO_LOG_RETENTION} from application properties, defaulting to\n two minutes of message retention.\n"
   }, {
     "name" : "newInstance",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#newInstance",
@@ -381,7 +381,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates an in-memory client with the supplied message-retention duration.\n"
   }, {
     "name" : "newInstance",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#newInstance",

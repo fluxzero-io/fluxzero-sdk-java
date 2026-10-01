@@ -214,7 +214,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reconstructs metadata from entries beneath the reserved metadata root, preserving structured values as JSON\n strings.\n"
   }, {
     "name" : "fromData",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#fromData",
@@ -406,7 +406,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the path is the reserved metadata root or one of its descendants; null returns false.\n"
   }, {
     "name" : "metadataPath",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#metadataPath",
@@ -422,7 +422,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the reserved metadata path for the key, escaping it as a search field name.\n"
   }, {
     "name" : "parseArray",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#parseArray",
@@ -580,7 +580,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Produces the document summary using this inverter's configured summarizer.\n"
   }, {
     "name" : "summarizeEntries",
     "qualifiedName" : "io.fluxzero.common.search.JacksonInverter#summarizeEntries",

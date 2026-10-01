@@ -1656,7 +1656,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replays the event for one target Model through the compiled plan's reducer using the supplied attempt\n context, returning the reconstructed value.\n"
   }, {
     "name" : "replay",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#replay",

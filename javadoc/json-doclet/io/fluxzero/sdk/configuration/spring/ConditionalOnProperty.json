@@ -36,7 +36,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the regular expression the property value must match; the default accepts any non-empty value.\n"
   }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnProperty#value",
@@ -47,7 +47,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the application property key whose value is tested.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

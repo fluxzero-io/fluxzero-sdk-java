@@ -113,7 +113,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Dispatches a request and delivers intermediate responses to the callback. The returned future completes with\n the final response or failure; a null timeout uses the handler default and a negative timeout disables\n expiry.\n"
   }, {
     "name" : "sendRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.RequestHandler#sendRequest",
@@ -139,7 +139,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Dispatches a request using the configured default timeout, delivering intermediate responses to the callback\n and completing the returned future with the final response or failure.\n"
   }, {
     "name" : "sendRequests",
     "qualifiedName" : "io.fluxzero.sdk.publishing.RequestHandler#sendRequests",

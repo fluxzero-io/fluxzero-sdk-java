@@ -58,7 +58,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether a non-null parameter value is present.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

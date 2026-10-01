@@ -59,7 +59,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Invokes the adapted member with 7 positional arguments, discarding any result.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

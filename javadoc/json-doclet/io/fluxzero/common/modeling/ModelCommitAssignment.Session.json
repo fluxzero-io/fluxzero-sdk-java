@@ -110,7 +110,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the alias replacements accumulated across assignments in this session.\n"
   }, {
     "name" : "assign",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Session#assign",
@@ -131,7 +131,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Assigns state indices and Model heads in substep order, invoking the consumer for each target. Updates\n session-local heads and aliases for subsequent assignments; exhausted state-index space causes {@link\n IllegalStateException}.\n"
   }, {
     "name" : "previous",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Session#previous",

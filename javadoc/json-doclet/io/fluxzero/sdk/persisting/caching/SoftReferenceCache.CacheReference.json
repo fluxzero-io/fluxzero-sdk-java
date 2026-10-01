@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the referenced value, or null if it is no longer available.\n"
   }, {
     "name" : "getDeadline",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#getDeadline",
@@ -32,7 +32,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the expiry deadline, or null when this reference does not expire by time.\n"
   }, {
     "name" : "getId",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#getId",
@@ -43,7 +43,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cache key associated with this reference.\n"
   }, {
     "name" : "hasExpired",
     "qualifiedName" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache$CacheReference#hasExpired",
@@ -59,7 +59,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether a non-null deadline is strictly before the supplied clock's current instant; equality is\n not expired.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

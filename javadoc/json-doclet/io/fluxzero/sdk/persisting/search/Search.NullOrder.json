@@ -44,7 +44,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the sort-expression suffix representing this null-ordering choice.\n"
   }, {
     "name" : "valueOf",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder#valueOf",

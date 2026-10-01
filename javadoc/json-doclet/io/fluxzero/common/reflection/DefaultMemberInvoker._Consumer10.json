@@ -74,7 +74,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Invokes the adapted member with 10 positional arguments, discarding any result.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

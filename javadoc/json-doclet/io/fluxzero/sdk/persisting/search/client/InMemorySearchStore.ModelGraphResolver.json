@@ -34,7 +34,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves Graph edges for the supplied root Models using the requested composition rules.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Loads child identifiers for the supplied set of parent identifiers.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -227,7 +227,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns only the discovered methods classified as apply handlers.\n"
   }, {
     "name" : "assertionFields",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#assertionFields",
@@ -328,7 +328,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the entity identifier property, if one was discovered.\n"
   }, {
     "name" : "entityIdName",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#entityIdName",
@@ -525,7 +525,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the discovered entity handler methods and their kinds.\n"
   }, {
     "name" : "hasAliases",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#hasAliases",
@@ -722,7 +722,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the type carries Model configuration.\n"
   }, {
     "name" : "isModelType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#isModelType",
@@ -969,7 +969,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the discovered parent-reference descriptors for this type.\n"
   }, {
     "name" : "parentRelationships",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#parentRelationships",
@@ -1251,7 +1251,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class described by this entity metadata.\n"
   }, {
     "name" : "unscopedRepositoryId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#unscopedRepositoryId",

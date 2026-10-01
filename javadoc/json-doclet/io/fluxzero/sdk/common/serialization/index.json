@@ -85,6 +85,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$RestoredPayloadMessage",
     "kind" : "class"
   }, {
+    "file" : "DeserializingMessage.TransportContext.json",
+    "name" : "DeserializingMessage.TransportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext",
+    "kind" : "record"
+  }, {
     "file" : "DeserializingObject.json",
     "name" : "DeserializingObject",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingObject",

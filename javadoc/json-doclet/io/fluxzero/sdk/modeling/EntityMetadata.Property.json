@@ -161,7 +161,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads this property from the supplied target using its prepared invoker.\n"
   }, {
     "name" : "reader",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$Property#reader",

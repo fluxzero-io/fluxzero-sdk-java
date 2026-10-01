@@ -904,7 +904,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Prepares and executes document materialization for the assigned Model commit, excluding the supplied Model\n identifiers.\n"
   }, {
     "name" : "materializeModelGraphProjection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#materializeModelGraphProjection",
@@ -1045,7 +1045,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns up to {@code maxSize} document messages after {@code lastIndex}, excluding tombstones; a null index\n starts from the beginning and an unknown collection yields an empty stream.\n"
   }, {
     "name" : "openStream",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#openStream",
@@ -1076,7 +1076,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns up to {@code maxSize} document messages after {@code lastIndex}, optionally including tombstones. A\n null index starts from the beginning; an unknown collection yields an empty stream.\n"
   }, {
     "name" : "prepareMessages",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareMessages",
@@ -1238,7 +1238,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers a monitor restricted to the supplied collection and returns a registration that removes it.\n"
   }, {
     "name" : "registerMonitor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#registerMonitor",
@@ -1254,7 +1254,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers a monitor for updates across collections and returns a registration that removes it.\n"
   }, {
     "name" : "requiresTextSummary",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#requiresTextSummary",
@@ -1581,7 +1581,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes the collection's documents, indices, message log, and audit trail, then notifies its monitors with\n an empty batch.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

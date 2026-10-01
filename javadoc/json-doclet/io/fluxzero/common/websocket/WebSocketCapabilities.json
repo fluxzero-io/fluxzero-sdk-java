@@ -164,7 +164,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the advertised client SDK version from handshake headers, if present.\n"
   }, {
     "name" : "getClientSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getClientSessionId",
@@ -180,7 +180,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the client's session identifier from handshake headers, if present.\n"
   }, {
     "name" : "getHeaderValue",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getHeaderValue",
@@ -249,7 +249,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the identifier of the session being replaced by this connection, if present.\n"
   }, {
     "name" : "getRuntimeSessionId",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeSessionId",
@@ -265,7 +265,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the Runtime session identifier from handshake headers, if present.\n"
   }, {
     "name" : "getRuntimeVersion",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getRuntimeVersion",
@@ -281,7 +281,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the advertised Runtime version from handshake headers, if present.\n"
   }, {
     "name" : "getSelectedCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSelectedCompressionAlgorithm",
@@ -297,7 +297,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the negotiated compression algorithm from handshake headers, returning empty for a missing or\n unrecognized selection.\n"
   }, {
     "name" : "getSelectedTransportFormat",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSelectedTransportFormat",
@@ -313,7 +313,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the negotiated transport format from handshake headers, returning empty for a missing or unrecognized\n selection.\n"
   }, {
     "name" : "getSupportedCompressionAlgorithms",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#getSupportedCompressionAlgorithms",
@@ -356,7 +356,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Generates a twelve-character hexadecimal session identifier from a random UUID.\n"
   }, {
     "name" : "parseCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#parseCompressionAlgorithm",

@@ -21,7 +21,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the child Model identifier.\n"
   }, {
     "name" : "deleteOnParentDeletion",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#deleteOnParentDeletion",
@@ -32,7 +32,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether deleting the parent also deletes the child through this relationship.\n"
   }, {
     "name" : "edge",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#edge",
@@ -43,7 +43,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Converts this relationship to a Graph edge while preserving its validity interval and deletion policy.\n"
   }, {
     "name" : "parentId",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#parentId",
@@ -54,7 +54,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the parent Model identifier.\n"
   }, {
     "name" : "parentType",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#parentType",
@@ -65,7 +65,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the declared parent Model type.\n"
   }, {
     "name" : "path",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#path",
@@ -76,7 +76,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the child's composition path in the parent Graph.\n"
   }, {
     "name" : "searchExcluded",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#searchExcluded",
@@ -98,7 +98,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the inclusive state index at which this relationship became valid.\n"
   }, {
     "name" : "validUntil",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship#validUntil",
@@ -109,7 +109,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the exclusive end of the relationship's validity, or null while open-ended.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

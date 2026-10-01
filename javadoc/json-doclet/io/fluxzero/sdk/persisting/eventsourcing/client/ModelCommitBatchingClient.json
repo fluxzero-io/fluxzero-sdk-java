@@ -26,7 +26,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Begins a batch with the supplied reserved-slot capacity for independently prepared Model commits.\n"
   }, {
     "name" : "beginReadyModelCommitBatch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient#beginReadyModelCommitBatch",

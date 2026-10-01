@@ -275,7 +275,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Wakes registered monitors with an empty message batch, without appending messages.\n"
   }, {
     "name" : "notifyMonitors",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.InMemoryMessageStore#notifyMonitors",

@@ -20,7 +20,7 @@
       "value" : "io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty.Condition.class"
     }
   } ],
-  "documentation" : " {@link Conditional} that only matches when the specified property is either unset or blank.\n <p>\n This can be used to register default behavior when configuration is absent.\n\n <h2>Usage</h2>\n <pre>{@code\n @ConditionalOnMissingProperty(\"custom.datasource.url\")\n @Bean\n public DataSource defaultDataSource() {\n     return new H2DataSource();\n }\n }</pre>\n",
+  "documentation" : " {@link Conditional} that only matches when the specified property is either unset or the empty string.\n <p>\n This can be used to register default behavior when configuration is absent.\n\n <h2>Usage</h2>\n <pre>{@code\n @ConditionalOnMissingProperty(\"custom.datasource.url\")\n @Bean\n public DataSource defaultDataSource() {\n     return new H2DataSource();\n }\n }</pre>\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],
@@ -36,7 +36,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the application property key that must be absent or have an empty string value for this condition to match.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

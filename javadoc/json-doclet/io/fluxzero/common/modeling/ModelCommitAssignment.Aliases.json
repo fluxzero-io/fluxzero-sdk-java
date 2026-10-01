@@ -108,7 +108,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether there are no alias replacements.\n"
   }, {
     "name" : "owners",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#owners",
@@ -119,7 +119,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns canonical Model owners indexed by alias.\n"
   }, {
     "name" : "put",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#put",
@@ -151,7 +151,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns replacement alias lists indexed by canonical Model identifier.\n"
   }, {
     "name" : "validate",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#validate",

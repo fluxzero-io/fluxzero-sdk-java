@@ -187,7 +187,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a web handler matcher using the supplied handler, parameter resolvers, and handling configuration.\n"
   }, {
     "name" : "create",
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#create",
@@ -218,7 +218,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a matcher using a shared route registry. The registry must come from {@link #createRouteRegistry()};\n other values cause {@link IllegalArgumentException}.\n"
   }, {
     "name" : "createRouteRegistry",
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#createRouteRegistry",
@@ -229,7 +229,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates an opaque route registry that can be shared by matchers to coordinate route selection.\n"
   }, {
     "name" : "describeWebRequest",
     "qualifiedName" : "io.fluxzero.sdk.web.WebHandlerMatcher#describeWebRequest",

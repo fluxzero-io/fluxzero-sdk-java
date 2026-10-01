@@ -106,7 +106,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the packaged test-server version, resolving and caching build metadata on first access. Returns\n empty and logs a warning when metadata is unavailable.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

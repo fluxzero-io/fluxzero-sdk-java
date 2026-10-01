@@ -495,7 +495,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Forwards a binary frame as a socket message request.\n"
   }, {
     "name" : "onClose",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onClose",
@@ -519,7 +519,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes session bookkeeping and keep-alive scheduling, sends its close notification, and waits up to the\n configured notification timeout. Notification failures propagate and are recorded for close completion.\n"
   }, {
     "name" : "onError",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onError",
@@ -540,7 +540,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Logs a socket transport error, distinguishing already closing channels and idle timeouts from unexpected\n failures.\n"
   }, {
     "name" : "onOpen",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onOpen",
@@ -556,7 +556,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers an opened socket, forwards its open notification, and schedules keep-alive checks.\n"
   }, {
     "name" : "onPong",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onPong",
@@ -577,7 +577,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Consumes matching internal keep-alive pongs and forwards other pong payloads to application handlers.\n"
   }, {
     "name" : "onText",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#onText",
@@ -598,7 +598,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Encodes a text frame as UTF-8 and forwards it as a socket message request.\n"
   }, {
     "name" : "publishBackpressureMetric",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#publishBackpressureMetric",
@@ -830,7 +830,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Shuts down the endpoint with the default close-notification timeout and the standard client and\n request-handler cleanup policy.\n"
   }, {
     "name" : "shutDown",
     "qualifiedName" : "io.fluxzero.proxy.ProxyWebsocketEndpoint#shutDown",

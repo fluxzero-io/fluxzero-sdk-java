@@ -78,7 +78,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the asynchronous result future, or a completed future containing the stored synchronous value.\n"
   }, {
     "name" : "asynchronous",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#asynchronous",
@@ -99,7 +99,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a handled result backed by the supplied asynchronous completion.\n"
   }, {
     "name" : "completed",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#completed",
@@ -131,7 +131,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a handled result whose future has already failed with the supplied error.\n"
   }, {
     "name" : "getValue",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#getValue",
@@ -142,7 +142,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the stored synchronous result, which may be null; asynchronous values are obtained through {@link\n #asFuture()}.\n"
   }, {
     "name" : "isCompletedSuccessfully",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#isCompletedSuccessfully",
@@ -153,7 +153,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether this is a handled synchronous success. An asynchronous result remains false even if its\n future has completed successfully.\n"
   }, {
     "name" : "isHandled",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#isHandled",
@@ -164,7 +164,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether a local handler accepted the invocation.\n"
   }, {
     "name" : "notHandled",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#notHandled",

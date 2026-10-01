@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Loads relationships touching the current traversal frontier in the caller-selected traversal direction.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

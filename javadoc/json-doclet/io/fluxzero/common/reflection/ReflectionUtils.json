@@ -222,7 +222,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the represented Java class for a class literal, or the runtime class of an ordinary object.\n"
   }, {
     "name" : "asInstance",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#asInstance",
@@ -243,7 +243,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Instantiates a Java or supported Kotlin class literal using its no-argument constructor; returns ordinary\n instances unchanged. Construction failures are wrapped in {@link IllegalStateException}.\n"
   }, {
     "name" : "box",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#box",
@@ -275,7 +275,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the SDK's class lookup can resolve the supplied class name.\n"
   }, {
     "name" : "classForName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#classForName",
@@ -294,7 +294,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves a class name through the SDK's class lookup; throws {@link ClassNotFoundException} if unresolved.\n"
   }, {
     "name" : "classForName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#classForName",
@@ -315,7 +315,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves a class name, returning {@code defaultClass} when it cannot be resolved.\n"
   }, {
     "name" : "classLookup",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#classLookup",
@@ -493,7 +493,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Converts the annotation's attributes into the requested representation.\n"
   }, {
     "name" : "copyFields",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#copyFields",
@@ -517,7 +517,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Copies all non-static fields between objects of the same runtime class and returns the target. Null inputs\n leave the target unchanged; arrays return the source instead of copying elements.\n"
   }, {
     "name" : "declaresField",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#declaresField",
@@ -538,7 +538,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the target type itself declares the named field, excluding inherited fields.\n"
   }, {
     "name" : "determineCommonAncestors",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#determineCommonAncestors",
@@ -570,7 +570,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns common ancestor types for the runtime classes of the elements, treating null elements as {@link\n Void}.\n"
   }, {
     "name" : "ensureAccessible",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#ensureAccessible",
@@ -586,7 +586,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Enables reflective access to the member and returns it; platform access restrictions can still reject the\n operation.\n"
   }, {
     "name" : "getAllInterfaces",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAllInterfaces",
@@ -618,7 +618,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cached methods discovered across the type hierarchy.\n"
   }, {
     "name" : "getAnnotatedFields",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedFields",
@@ -639,7 +639,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns discovered fields carrying the annotation directly or through a meta-annotation.\n"
   }, {
     "name" : "getAnnotatedFields",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedFields",
@@ -660,7 +660,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns matching annotated fields on the target or represented class, or an empty list for a null target.\n"
   }, {
     "name" : "getAnnotatedMethods",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedMethods",
@@ -681,7 +681,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns discovered methods carrying the annotation directly, through a meta-annotation, or through an\n overridden declaration.\n"
   }, {
     "name" : "getAnnotatedMethods",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedMethods",
@@ -702,7 +702,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns matching annotated methods on the target's runtime class, or an empty list for a null target.\n"
   }, {
     "name" : "getAnnotatedProperties",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedProperties",
@@ -723,7 +723,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns annotated fields and readable methods, deduplicated by property name, including inherited and\n meta-annotated properties.\n"
   }, {
     "name" : "getAnnotatedProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedProperty",
@@ -744,7 +744,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first annotated property discovered for the type, or an empty optional when none matches.\n"
   }, {
     "name" : "getAnnotatedProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedProperty",
@@ -765,7 +765,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first matching annotated property on the target or represented class, or an empty optional for a\n null target.\n"
   }, {
     "name" : "getAnnotatedPropertyInvoker",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyInvoker",
@@ -786,7 +786,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a cached invoker for the first matching annotated property, with reflective access enabled.\n"
   }, {
     "name" : "getAnnotatedPropertyName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyName",
@@ -807,7 +807,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the logical name of the first matching annotated property, if present.\n"
   }, {
     "name" : "getAnnotatedPropertyValue",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyValue",
@@ -828,7 +828,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the first matching annotated property, returning an empty optional for a missing or null value.\n"
   }, {
     "name" : "getAnnotatedPropertyValueOrNull",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotatedPropertyValueOrNull",
@@ -870,7 +870,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads all matching annotated properties and returns their non-null values; a null target yields an empty\n collection.\n"
   }, {
     "name" : "getAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotation",
@@ -891,7 +891,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a direct or composed annotation, using inherited method and type lookup where applicable.\n"
   }, {
     "name" : "getAnnotationAs",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAs",
@@ -917,7 +917,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Finds a matching type annotation and projects its attributes into the requested representation; null or\n unmatched targets yield an empty optional.\n"
   }, {
     "name" : "getAnnotationAs",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAs",
@@ -951,7 +951,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the annotation or its matching meta-annotation when {@code returnType} is the target annotation\n type. For maps and converted objects, merges meta-annotation defaults with the outer annotation's\n attributes, which take precedence. A null annotation or target annotation type yields an empty optional.\n"
   }, {
     "name" : "getAnnotationAs",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAs",
@@ -982,7 +982,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Finds a matching annotation on the element and projects its attributes into the requested representation, or\n returns an empty optional if absent.\n"
   }, {
     "name" : "getAnnotationAttribute",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getAnnotationAttribute",
@@ -1056,7 +1056,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first calling class outside the immediate invoking class and {@code java.*}, or null if none is\n found.\n"
   }, {
     "name" : "getClassHierarchy",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getClassHierarchy",
@@ -1088,7 +1088,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves the collection element or map value class from a field or method's generic type.\n"
   }, {
     "name" : "getCollectionElementType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getCollectionElementType",
@@ -1104,7 +1104,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves the first generic argument, or the value argument for maps, using a wildcard's upper bound. Returns\n {@link Object} for unresolved arguments and an empty optional for raw types.\n"
   }, {
     "name" : "getDefaultConstructor",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getDefaultConstructor",
@@ -1139,7 +1139,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class declaring the member; rejects accessible objects that do not represent a member.\n"
   }, {
     "name" : "getField",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getField",
@@ -1160,7 +1160,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first discovered field with the given name, including inherited fields.\n"
   }, {
     "name" : "getFieldAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getFieldAnnotation",
@@ -1181,7 +1181,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the field's direct or composed annotation, if present; composed matches retain the outer annotation\n instance.\n"
   }, {
     "name" : "getFieldValue",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getFieldValue",
@@ -1207,7 +1207,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a named field with reflective access enabled, returning an empty optional for a null target, missing\n field, or null value.\n"
   }, {
     "name" : "getFirstKnownAncestorPackage",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getFirstKnownAncestorPackage",
@@ -1239,7 +1239,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first actual generic argument. A raw type is rejected with {@link IllegalArgumentException}.\n"
   }, {
     "name" : "getGenericPropertyType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getGenericPropertyType",
@@ -1255,7 +1255,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a field's generic type or a method's generic return type; rejects other accessible objects.\n"
   }, {
     "name" : "getGenericType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getGenericType",
@@ -1276,7 +1276,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves the requested supertype's generic arguments in the context of the candidate class.\n"
   }, {
     "name" : "getMemberAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getMemberAnnotation",
@@ -1302,7 +1302,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Finds an annotation on a method with the supplied name, falling back to a case-insensitive field-name match\n with an optional getter prefix removed.\n"
   }, {
     "name" : "getMethod",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getMethod",
@@ -1323,7 +1323,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first discovered method with the given name; parameter types are not used to select an overload.\n"
   }, {
     "name" : "getMethodAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getMethodAnnotation",
@@ -1344,7 +1344,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first matching direct or composed annotation in the executable's override hierarchy.\n"
   }, {
     "name" : "getMethodAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getMethodAnnotations",
@@ -1365,7 +1365,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns matching annotations from the first declaration in the override hierarchy that supplies them.\n"
   }, {
     "name" : "getMethodOverrideHierarchy",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getMethodOverrideHierarchy",
@@ -1381,7 +1381,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the method followed by the superclass and interface methods it overrides, without duplicates.\n"
   }, {
     "name" : "getName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getName",
@@ -1400,7 +1400,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the member name; rejects accessible objects that do not represent a member.\n"
   }, {
     "name" : "getPackageAndParentPackages",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPackageAndParentPackages",
@@ -1416,7 +1416,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the package and the parent packages that can be resolved for its name.\n"
   }, {
     "name" : "getPackageAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPackageAnnotation",
@@ -1442,7 +1442,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the requested annotation from the package or its enclosing package hierarchy, if present.\n"
   }, {
     "name" : "getPackageAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPackageAnnotations",
@@ -1458,7 +1458,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns package annotations, including those discovered recursively on enclosing packages.\n"
   }, {
     "name" : "getPackageAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPackageAnnotations",
@@ -1479,7 +1479,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns package annotations, optionally including enclosing packages when {@code recursive} is true.\n"
   }, {
     "name" : "getParameterIndex",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getParameterIndex",
@@ -1495,7 +1495,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the zero-based position of the parameter in its declaring executable.\n"
   }, {
     "name" : "getParameterOverrideHierarchy",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getParameterOverrideHierarchy",
@@ -1511,7 +1511,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the parameter at the same position throughout its method's override hierarchy, or just the supplied\n constructor parameter.\n"
   }, {
     "name" : "getParentPackageName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getParentPackageName",
@@ -1553,7 +1553,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the value at a property path, returning an empty optional for a null target, missing property, or null\n value, including missing JSON fields and explicit JSON nulls. Despite its name, this method reads a value\n rather than annotation metadata.\n"
   }, {
     "name" : "getPropertyName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPropertyName",
@@ -1569,7 +1569,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a field name or derives a property name from a method, stripping conventional {@code get} and {@code\n is} prefixes.\n"
   }, {
     "name" : "getPropertyPathMetadata",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPropertyPathMetadata",
@@ -1590,7 +1590,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns structural metadata for a nested property path; a null type or null or empty path yields missing\n metadata.\n"
   }, {
     "name" : "getPropertyType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPropertyType",
@@ -1606,7 +1606,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a field's declared type or a method's return type; rejects other accessible objects.\n"
   }, {
     "name" : "getRegisteredTypes",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getRegisteredTypes",
@@ -1633,7 +1633,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class name after its last package or nested-class separator.\n"
   }, {
     "name" : "getSimpleName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getSimpleName",
@@ -1649,7 +1649,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the final component of the package name.\n"
   }, {
     "name" : "getSimpleName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getSimpleName",
@@ -1665,7 +1665,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the name after the last dot or dollar separator; null or blank names are rejected.\n"
   }, {
     "name" : "getTopLevelAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getTopLevelAnnotation",
@@ -1743,7 +1743,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Finds a direct or composed type annotation, falling back to enclosing classes; returns null if absent. For a\n composed annotation, the returned instance is the outer annotation.\n"
   }, {
     "name" : "getTypeAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getTypeAnnotations",
@@ -1759,7 +1759,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cached annotations on the type and its interfaces, deduplicated by annotation type.\n"
   }, {
     "name" : "getTypeArgument",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getTypeArgument",
@@ -1785,7 +1785,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the actual generic argument at the zero-based index. A raw type is rejected with {@link\n IllegalArgumentException}.\n"
   }, {
     "name" : "getTypeArguments",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getTypeArguments",
@@ -1801,7 +1801,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns actual generic arguments for a parameterized type, or an empty list for a raw type.\n"
   }, {
     "name" : "getTypeMetadata",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getTypeMetadata",
@@ -1820,7 +1820,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the shared, class-scoped structural metadata for the given type.\n"
   }, {
     "name" : "getValue",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getValue",
@@ -1844,7 +1844,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a field or invokes a property method with reflective access enabled.\n"
   }, {
     "name" : "getValue",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getValue",
@@ -1873,7 +1873,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a field or invokes a property method on the target. {@code forceAccess} controls whether Java access\n checks are suppressed where permitted.\n"
   }, {
     "name" : "has",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#has",
@@ -1894,7 +1894,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the method or an overridden declaration has the requested direct or composed annotation.\n"
   }, {
     "name" : "has",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#has",
@@ -1915,7 +1915,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the parameter directly carries the annotation or a composed annotation of that type.\n"
   }, {
     "name" : "hasNonDefaultAnnotationAttribute",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasNonDefaultAnnotationAttribute",
@@ -1978,7 +1978,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the property path can be read, including a property whose value is null. Null targets and\n paths return false; failures other than a missing property propagate.\n"
   }, {
     "name" : "hasReturnType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#hasReturnType",
@@ -1994,7 +1994,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the executable produces a result: constructors and methods whose return type is not {@code\n void} do.\n"
   }, {
     "name" : "ifClass",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#ifClass",
@@ -2031,7 +2031,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the type, its interfaces, or an enclosing class supplies a matching annotation.\n"
   }, {
     "name" : "isAnnotationPresent",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isAnnotationPresent",
@@ -2052,7 +2052,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the parameter has a direct or composed annotation of the requested type.\n"
   }, {
     "name" : "isClass",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isClass",
@@ -2068,7 +2068,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the value represents a Java class or a supported Kotlin class literal.\n"
   }, {
     "name" : "isKotlinDataClassComponent",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isKotlinDataClassComponent",
@@ -2095,7 +2095,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the optional Kotlin reflection implementation is available on the classpath.\n"
   }, {
     "name" : "isLeafValue",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isLeafValue",
@@ -2132,7 +2132,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether an executable has a matching direct, meta-, or inherited method annotation.\n"
   }, {
     "name" : "isNullable",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isNullable",
@@ -2148,7 +2148,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether a parameter or an overridden declaration allows null according to nullable annotations or\n available Kotlin metadata.\n"
   }, {
     "name" : "isNullableAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isNullableAnnotation",
@@ -2201,7 +2201,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the class is the requested annotation type or directly carries that annotation; null returns\n false.\n"
   }, {
     "name" : "isOrHas",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isOrHas",
@@ -2222,7 +2222,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether an annotation is of the requested type or directly carries that type as a meta-annotation.\n"
   }, {
     "name" : "isStatic",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isStatic",
@@ -2238,7 +2238,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the executable has the Java {@code static} modifier.\n"
   }, {
     "name" : "isTimePropertyType",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#isTimePropertyType",
@@ -2428,7 +2428,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a nested property path. Null targets, blank paths, missing properties, and null values yield an empty\n optional, including missing JSON fields and explicit JSON nulls; other access failures propagate.\n"
   }, {
     "name" : "remainingPropertyPath",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#remainingPropertyPath",
@@ -2562,7 +2562,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Assigns a field declared directly on the target's class, with reflective access enabled.\n"
   }, {
     "name" : "setField",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#setField",
@@ -2591,7 +2591,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Assigns the field with reflective access enabled; access and assignment failures propagate.\n"
   }, {
     "name" : "setValue",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#setValue",
@@ -2710,7 +2710,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Writes a nested property if the target and property exist. A null target or missing property is ignored;\n other write failures propagate.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

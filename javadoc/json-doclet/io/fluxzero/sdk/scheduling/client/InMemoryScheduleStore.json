@@ -427,7 +427,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Deserializes and returns schedules after the current clock-derived index boundary without removing them.\n"
   }, {
     "name" : "getSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#getSchedule",
@@ -497,7 +497,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes schedules due by the current clock time, clears their ownership records, and returns their\n deserialized values.\n"
   }, {
     "name" : "removeOwnership",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#removeOwnership",
@@ -645,7 +645,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the scheduling clock, refreshes clock-change monitoring, resets the minimum schedule index, and\n notifies monitors.\n"
   }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#toString",

@@ -34,7 +34,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether replay should continue for the supplied state and next event.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

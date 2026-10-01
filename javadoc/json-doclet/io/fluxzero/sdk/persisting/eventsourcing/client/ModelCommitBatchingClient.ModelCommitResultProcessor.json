@@ -34,7 +34,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Processes commit results together with their positionally aligned request contexts; the future completes\n when post-commit processing finishes or fails.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

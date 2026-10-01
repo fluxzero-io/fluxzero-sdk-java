@@ -171,7 +171,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a constraint with the same matching condition applied to the supplied property paths.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

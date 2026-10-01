@@ -115,7 +115,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first state index assigned to this commit.\n"
   }, {
     "name" : "hasMaterialization",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#hasMaterialization",
@@ -126,7 +126,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the commit contains document or eligible snapshot materialization work.\n"
   }, {
     "name" : "result",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Commit#result",
@@ -137,7 +137,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the authoritative commit result, constructing and retaining it on first access.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -29,7 +29,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Customizes the application's builder and returns the builder to use for subsequent configuration.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

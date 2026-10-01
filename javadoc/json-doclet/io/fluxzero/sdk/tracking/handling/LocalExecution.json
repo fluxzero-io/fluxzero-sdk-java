@@ -356,7 +356,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the asynchronous result future, or null when this execution has no retained future.\n"
   }, {
     "name" : "getResultMessage",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getResultMessage",
@@ -367,7 +367,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the retained result message, or null when no result message is available.\n"
   }, {
     "name" : "getUser",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getUser",
@@ -534,7 +534,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Clears retained result references, including the result future and message, without cancelling the future.\n"
   }, {
     "name" : "setUser",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#setUser",

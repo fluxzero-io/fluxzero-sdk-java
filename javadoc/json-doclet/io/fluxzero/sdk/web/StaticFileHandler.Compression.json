@@ -67,7 +67,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Selects an available Brotli or gzip sibling file when the encoding header contains its token, preferring\n Brotli; otherwise selects uncompressed content. This helper does not interpret quality weights.\n"
   }, {
     "name" : "valueOf",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$Compression#valueOf",

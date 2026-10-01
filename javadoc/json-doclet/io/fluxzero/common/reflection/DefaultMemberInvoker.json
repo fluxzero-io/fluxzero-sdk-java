@@ -161,7 +161,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class-scoped cached invoker for the member with reflective access enabled.\n"
   }, {
     "name" : "asInvoker",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#asInvoker",
@@ -182,7 +182,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class-scoped cached invoker, using {@code forceAccess} to control suppression of Java access\n checks where permitted.\n"
   }, {
     "name" : "computeFallbackFunction",
     "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker#computeFallbackFunction",

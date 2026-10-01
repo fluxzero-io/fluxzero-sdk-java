@@ -594,7 +594,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the filter for payloads that handle themselves and invalidates cached handler plans.\n"
   }, {
     "name" : "supportsDeferredExternalization",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerRegistry#supportsDeferredExternalization",

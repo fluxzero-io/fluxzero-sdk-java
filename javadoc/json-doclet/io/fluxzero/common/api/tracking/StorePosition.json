@@ -104,7 +104,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a position request from JSON properties, validating that the segment has two ordered boundaries\n within the supported segment range.\n"
   }, {
     "name" : "routingKey",
     "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#routingKey",

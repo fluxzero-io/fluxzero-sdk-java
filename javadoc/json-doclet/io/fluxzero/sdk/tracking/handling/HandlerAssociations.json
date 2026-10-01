@@ -102,7 +102,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the executable's association metadata allows unconditional association.\n"
   }, {
     "name" : "applicableParameterResolvers",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerAssociations#applicableParameterResolvers",

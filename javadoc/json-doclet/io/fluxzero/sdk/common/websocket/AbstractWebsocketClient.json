@@ -1948,7 +1948,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Acknowledges the session's pong and dispatches the configured pong handling through the result-callback\n execution path.\n"
   }, {
     "name" : "onRuntimeIngressBackpressure",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#onRuntimeIngressBackpressure",

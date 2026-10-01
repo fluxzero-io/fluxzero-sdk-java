@@ -110,7 +110,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Records the Runtime session identity, version, and negotiated compression and transport format from the\n response headers; missing selections remain null.\n"
   }, {
     "name" : "beforeRequest",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$ClientHandshakeConfigurator#beforeRequest",
@@ -126,7 +126,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adds session identity, replacement identity, SDK version, and supported transport and Model capabilities\n to the outgoing handshake headers.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -99,7 +99,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a range covering all segments with the supplied last processed index.\n"
   }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.common.api.tracking.SegmentRange#hashCode",

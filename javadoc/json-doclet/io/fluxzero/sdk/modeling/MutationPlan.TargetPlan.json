@@ -262,7 +262,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves mutation targets from the input using the default resolution mode without an explicit message\n context.\n"
   }, {
     "name" : "resolve",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan#resolve",

@@ -47,7 +47,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers a non-null listener for test-server metrics and returns a registration that removes it.\n"
   }, {
     "name" : "record",
     "qualifiedName" : "io.fluxzero.testserver.metrics.TestServerMetricsMonitor#record",

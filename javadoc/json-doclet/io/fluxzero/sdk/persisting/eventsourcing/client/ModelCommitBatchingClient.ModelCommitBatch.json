@@ -31,7 +31,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adds a prepared commit at its reserved slot and returns a future for that commit's result.\n"
   }, {
     "name" : "add",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#add",
@@ -73,7 +73,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Fails the batch and its pending commit completions with the supplied cause.\n"
   }, {
     "name" : "flush",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#flush",
@@ -84,7 +84,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Flushes pending commits according to the implementation's batch-release policy.\n"
   }, {
     "name" : "skip",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch#skip",

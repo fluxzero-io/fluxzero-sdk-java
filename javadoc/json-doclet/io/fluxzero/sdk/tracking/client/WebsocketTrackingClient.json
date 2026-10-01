@@ -152,7 +152,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Requests a tracker segment using this client's message type and the consumer's filtering, waiting, and\n index-control settings; returns the asynchronous claim result.\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient#close",

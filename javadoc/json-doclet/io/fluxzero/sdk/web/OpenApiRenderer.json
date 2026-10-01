@@ -1577,7 +1577,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Renders the discovered API catalog as an OpenAPI JSON tree using catalog document information and renderer\n defaults.\n"
   }, {
     "name" : "render",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#render",
@@ -1598,7 +1598,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Renders the catalog's supported HTTP endpoints and schemas as an OpenAPI JSON tree, applying the supplied\n document options when present.\n"
   }, {
     "name" : "renderJson",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#renderJson",
@@ -1614,7 +1614,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Renders the catalog as compact OpenAPI JSON using catalog document information and renderer defaults.\n"
   }, {
     "name" : "renderJson",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#renderJson",
@@ -1635,7 +1635,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Renders the catalog as compact OpenAPI JSON with the supplied document options.\n"
   }, {
     "name" : "renderPrettyJson",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#renderPrettyJson",
@@ -1656,7 +1656,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Renders the catalog as formatted OpenAPI JSON with the supplied document options.\n"
   }, {
     "name" : "replacesDefaultContent",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#replacesDefaultContent",

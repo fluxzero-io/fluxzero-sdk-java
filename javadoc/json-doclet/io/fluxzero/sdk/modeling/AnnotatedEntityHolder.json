@@ -197,7 +197,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Clears the current thread's loading-entity cache.\n"
   }, {
     "name" : "clearLoadingRouteValuesCache",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#clearLoadingRouteValuesCache",
@@ -208,7 +208,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Clears the current thread's loading-route-value cache.\n"
   }, {
     "name" : "computeCopyMethodWither",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#computeCopyMethodWither",
@@ -422,7 +422,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Finds the first entity in this holder matching the routing value, or returns null when the parent value,\n holder value, or matching entity is absent. The parent entity itself must be non-null.\n"
   }, {
     "name" : "getEntityByRoute",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#getEntityByRoute",
@@ -589,7 +589,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the current thread's loading-entity cache from a snapshot obtained through {@link\n #snapshotLoadingEntityCache()}.\n"
   }, {
     "name" : "restoreLoadingRouteValuesCache",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#restoreLoadingRouteValuesCache",
@@ -610,7 +610,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the current thread's loading-route-value cache from a snapshot obtained through {@link\n #snapshotLoadingRouteValuesCache()}.\n"
   }, {
     "name" : "routeValues",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#routeValues",
@@ -642,7 +642,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Copies the current thread's loading-entity cache, including its identity-keyed inner maps, for later\n restoration.\n"
   }, {
     "name" : "snapshotLoadingRouteValuesCache",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#snapshotLoadingRouteValuesCache",
@@ -653,7 +653,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Copies the current thread's loading-route-value cache and its identity-keyed inner maps for later\n restoration.\n"
   }, {
     "name" : "updateFunctionAdvice",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder#updateFunctionAdvice",

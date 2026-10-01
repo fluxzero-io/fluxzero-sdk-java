@@ -1681,7 +1681,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Loads a commit attempt for the resolved Models at the supplied maximum state index, with staged values and\n the requested message-batch and migration visibility.\n"
   }, {
     "name" : "loadCurrent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadCurrent",

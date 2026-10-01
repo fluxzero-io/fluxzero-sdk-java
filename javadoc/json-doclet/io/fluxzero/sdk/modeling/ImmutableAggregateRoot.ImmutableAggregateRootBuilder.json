@@ -39,7 +39,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the last event identifier and returns this builder.\n"
   }, {
     "name" : "lastEventIndex",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot$ImmutableAggregateRootBuilder#lastEventIndex",
@@ -58,7 +58,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the last event index and returns this builder.\n"
   }, {
     "name" : "previous",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot$ImmutableAggregateRootBuilder#previous",
@@ -77,7 +77,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the previous entity revision and returns this builder.\n"
   }, {
     "name" : "sequenceNumber",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot$ImmutableAggregateRootBuilder#sequenceNumber",
@@ -96,7 +96,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the last event sequence number and returns this builder.\n"
   }, {
     "name" : "timestamp",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot$ImmutableAggregateRootBuilder#timestamp",
@@ -115,7 +115,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Sets the aggregate timestamp and returns this builder.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

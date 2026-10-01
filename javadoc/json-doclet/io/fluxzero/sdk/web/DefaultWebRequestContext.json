@@ -360,7 +360,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns request cookie values indexed by cookie name.\n"
   }, {
     "name" : "getCurrentWebRequestContext",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getCurrentWebRequestContext",
@@ -382,7 +382,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns parsed form parameter values grouped by name, parsing the body on demand.\n"
   }, {
     "name" : "getFormParts",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getFormParts",
@@ -393,7 +393,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns parsed multipart form parts grouped by name, parsing the body on demand.\n"
   }, {
     "name" : "getJsonBody",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getJsonBody",
@@ -404,7 +404,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the JSON representation of the request body, parsing it on demand.\n"
   }, {
     "name" : "getMetadata",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getMetadata",
@@ -415,7 +415,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the request message metadata.\n"
   }, {
     "name" : "getParameter",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getParameter",
@@ -450,7 +450,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the route parameter map, equivalent to {@link #pathMap()}.\n"
   }, {
     "name" : "getQueryParameters",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getQueryParameters",
@@ -461,7 +461,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns parsed query parameter values grouped by name.\n"
   }, {
     "name" : "getUri",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getUri",
@@ -472,7 +472,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the parsed request URI.\n"
   }, {
     "name" : "getWebRequestContext",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#getWebRequestContext",
@@ -531,7 +531,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the request path matches the supplied route pattern.\n"
   }, {
     "name" : "matchesAny",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#matchesAny",
@@ -547,7 +547,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the request path matches any supplied route pattern.\n"
   }, {
     "name" : "mediaType",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#mediaType",
@@ -691,7 +691,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the route parameter values currently bound to this request.\n"
   }, {
     "name" : "setPathMap",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#setPathMap",
@@ -707,7 +707,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces route parameter bindings with a copy of the supplied map and returns this context.\n"
   }, {
     "name" : "skipLineBreak",
     "qualifiedName" : "io.fluxzero.sdk.web.DefaultWebRequestContext#skipLineBreak",

@@ -106,7 +106,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Emits and clears the buffered chunk. A final flush emits a chunk even when empty so the handler can observe\n completion.\n"
   }, {
     "name" : "flushIfNeeded",
     "qualifiedName" : "io.fluxzero.sdk.web.OutputStreamCapturer#flushIfNeeded",

@@ -167,7 +167,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the upper time boundary, clamped to {@code since} when both are present and the upper boundary\n precedes it; an absent boundary remains null.\n"
   }, {
     "name" : "matches",
     "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery#matches",

@@ -345,7 +345,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Dispatches the schedule to local handlers and waits for an available handling result; handler failures\n propagate to the caller.\n"
   }, {
     "name" : "registerHandler",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#registerHandler",

@@ -122,7 +122,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Resolves activity, event storage, publication, and state-update effects from the transition settings,\n modification flag, cascade status, and publish-only state policy.\n"
   }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$TransitionSettings#equals",
@@ -160,7 +160,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether the publication settings require treating the transition as modified, excluding\n publish-only transitions.\n"
   }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$TransitionSettings#hashCode",

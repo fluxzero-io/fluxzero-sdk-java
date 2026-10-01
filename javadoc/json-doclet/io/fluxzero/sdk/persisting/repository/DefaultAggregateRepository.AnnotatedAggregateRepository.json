@@ -147,7 +147,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Commits state and unpublished events using this aggregate's policies, updating relationships, caches,\n eligible snapshots, and its configured document. The returned future represents completion or failure of\n the required storage operations.\n"
   }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#delete",
@@ -163,7 +163,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Evicts cached aggregate state and removes its relationships, events, snapshots, and configured document.\n The future completes when the requested storage operations finish; failures are propagated.\n"
   }, {
     "name" : "eventSourceModel",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#eventSourceModel",
@@ -205,7 +205,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Wraps a value as a side-effect-free entity using its configured identifier property, without loading or\n storing aggregate state.\n"
   }, {
     "name" : "handleCommitFailure",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#handleCommitFailure",
@@ -252,7 +252,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Loads or reuses the aggregate in this repository's active context, reconstructing it from its snapshot\n and events when required by the configured loading policy.\n"
   }, {
     "name" : "loadSnapshot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository$AnnotatedAggregateRepository#loadSnapshot",

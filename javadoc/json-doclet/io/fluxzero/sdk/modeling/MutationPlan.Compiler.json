@@ -281,7 +281,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cached replay plan for the supplied payload and Model types, compiling it on first use.\n"
   }, {
     "name" : "memberInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#memberInterceptors",

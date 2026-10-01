@@ -142,7 +142,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns an open session using round-robin slot selection, creating or replacing the selected session as\n needed. Calls after shutdown fail with {@link IllegalStateException}.\n"
   }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#get",
@@ -174,7 +174,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns an open session selected by consistent hashing of the routing key; a null key uses round-robin\n selection. Calls after shutdown fail with {@link IllegalStateException}.\n"
   }, {
     "name" : "isClosed",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.SessionPool#isClosed",

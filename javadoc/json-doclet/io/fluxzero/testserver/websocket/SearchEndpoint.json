@@ -310,7 +310,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Computes the requested search histogram; logs failures and returns an empty histogram retaining the query's\n time boundaries on failure.\n"
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
@@ -443,7 +443,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Executes a document search and returns a response correlated to the request; logs search failures and\n returns an empty result on failure.\n"
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
@@ -462,7 +462,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Executes a Model-document search and returns a correlated response; logs search failures and returns an\n empty result on failure.\n"
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.SearchEndpoint#handle",
@@ -481,7 +481,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Executes a Model-Graph document search and returns a correlated response; logs search failures and returns\n an empty result on failure.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

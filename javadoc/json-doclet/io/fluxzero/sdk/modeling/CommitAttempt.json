@@ -388,7 +388,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Attaches this attempt to the non-null message's context and returns that message.\n"
   }, {
     "name" : "bindGraphReads",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#bindGraphReads",
@@ -441,7 +441,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the Model identifiers that initiate cascaded deletion in this attempt.\n"
   }, {
     "name" : "cascadeRoots",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#cascadeRoots",
@@ -664,7 +664,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the loaded entity map and records all its identifiers when read collection is active.\n"
   }, {
     "name" : "entity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#entity",
@@ -680,7 +680,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the loaded entity for the Model identifier, or null if absent, and records the identifier when read\n collection is active.\n"
   }, {
     "name" : "evaluated",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#evaluated",
@@ -1127,7 +1127,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns an immutable list of resolved Model identifiers in resolution order.\n"
   }, {
     "name" : "modelPolicy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#modelPolicy",
@@ -1262,7 +1262,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the Model identifiers retained as read dependencies for this attempt.\n"
   }, {
     "name" : "readModelIds",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#readModelIds",
@@ -1343,7 +1343,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the attempt's read state index, using the deferred boundary when one is attached.\n"
   }, {
     "name" : "readsDurableStateOnly",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#readsDurableStateOnly",
@@ -1619,7 +1619,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the ordered message/change steps retained by this attempt.\n"
   }, {
     "name" : "strictest",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#strictest",
@@ -1672,7 +1672,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the resolved target with the supplied Model identifier, or null if absent.\n"
   }, {
     "name" : "targets",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#targets",
@@ -1683,7 +1683,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the Models resolved as targets for this attempt.\n"
   }, {
     "name" : "trackGraph",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#trackGraph",
@@ -1752,7 +1752,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the Model changes retained by this attempt.\n"
   }, {
     "name" : "validateLoadedEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#validateLoadedEntity",

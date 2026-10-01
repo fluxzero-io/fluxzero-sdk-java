@@ -260,7 +260,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns fields matching the requested annotation directly or through a meta-annotation.\n"
   }, {
     "name" : "annotatedMethods",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotatedMethods",
@@ -276,7 +276,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns methods matching the requested annotation, including composed annotations and overridden\n declarations.\n"
   }, {
     "name" : "annotatedProperties",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotatedProperties",
@@ -292,7 +292,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns matching fields and readable methods, including interface properties, deduplicated by logical\n property name.\n"
   }, {
     "name" : "annotatedProperty",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotatedProperty",
@@ -308,7 +308,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first matching annotated property, or an empty optional if none exists.\n"
   }, {
     "name" : "annotatedPropertyInvoker",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotatedPropertyInvoker",
@@ -324,7 +324,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a cached invoker for the first matching annotated property, with reflective access enabled.\n"
   }, {
     "name" : "annotationAs",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotationAs",
@@ -355,7 +355,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a cached projection of the matching annotation into the requested representation, or an empty\n optional if absent.\n"
   }, {
     "name" : "annotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#annotations",
@@ -371,7 +371,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns cached annotations for the supplied element.\n"
   }, {
     "name" : "computeAnnotatedFields",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#computeAnnotatedFields",
@@ -578,7 +578,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether this type itself declares the named field; inherited fields do not count.\n"
   }, {
     "name" : "defaultConstructor",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#defaultConstructor",
@@ -589,7 +589,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the type's no-argument constructor, if one exists.\n"
   }, {
     "name" : "field",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#field",
@@ -605,7 +605,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first discovered field with this name, including inherited fields.\n"
   }, {
     "name" : "fieldAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#fieldAnnotation",
@@ -631,7 +631,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the field's direct or composed annotation, if present; a composed match returns the outer\n annotation instance.\n"
   }, {
     "name" : "fields",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#fields",
@@ -642,7 +642,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cached, immutable list of discovered fields across the type hierarchy.\n"
   }, {
     "name" : "getter",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#getter",
@@ -658,7 +658,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a cached reader for a nested property path, accepting dot or slash separators. Missing\n properties raise {@link PropertyNotFoundException} when resolved or read.\n"
   }, {
     "name" : "invoker",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#invoker",
@@ -679,7 +679,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class-owned cached invoker for the member and access policy.\n"
   }, {
     "name" : "method",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#method",
@@ -695,7 +695,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first discovered method with this name, without selecting by parameter types.\n"
   }, {
     "name" : "methodAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#methodAnnotation",
@@ -721,7 +721,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first direct or composed annotation found along the executable's override hierarchy.\n"
   }, {
     "name" : "methodAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#methodAnnotations",
@@ -747,7 +747,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns matching annotations from the first declaration in the override hierarchy that supplies any.\n"
   }, {
     "name" : "methods",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#methods",
@@ -758,7 +758,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cached, immutable list of discovered methods across the type hierarchy.\n"
   }, {
     "name" : "methods",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#methods",
@@ -774,7 +774,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns all discovered overloads with this name, or an empty list if none exists.\n"
   }, {
     "name" : "propertyAccessor",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#propertyAccessor",
@@ -822,7 +822,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns cached structural metadata for the normalized nested property path, including missing and\n dynamically resolved paths.\n"
   }, {
     "name" : "setter",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#setter",
@@ -838,7 +838,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a cached writer for a nested property path, accepting dot or slash separators. Missing\n properties raise {@link PropertyNotFoundException} when resolved or written.\n"
   }, {
     "name" : "specializedMetadata",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#specializedMetadata",
@@ -870,7 +870,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the class whose structural metadata this instance owns.\n"
   }, {
     "name" : "typeAnnotation",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#typeAnnotation",
@@ -891,7 +891,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a matching direct or composed type annotation, or null. For a composed annotation, returns the\n outer annotation instance.\n"
   }, {
     "name" : "typeAnnotations",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#typeAnnotations",
@@ -902,7 +902,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns type and interface annotations, deduplicated by annotation type.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -130,7 +130,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the distinct parent identifiers required by the desired relationships.\n"
   }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipChange#toString",

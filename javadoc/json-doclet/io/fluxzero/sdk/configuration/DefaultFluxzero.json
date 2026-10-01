@@ -324,7 +324,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a new builder with the SDK's default component configuration.\n"
   }, {
     "name" : "clock",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#clock",
@@ -335,7 +335,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the clock currently configured for this Fluxzero instance.\n"
   }, {
     "name" : "close",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero#close",

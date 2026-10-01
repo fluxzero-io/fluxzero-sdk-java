@@ -145,7 +145,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a lazy root retaining the delegate's metadata but clearing its value for deferred reconstruction.\n"
   }, {
     "name" : "from",
     "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot#from",
@@ -166,7 +166,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a lazy root with the supplied reconstruction checkpoint, retaining the delegate's metadata and\n clearing its eager value.\n"
   }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.sdk.modeling.LazyAggregateRoot#get",

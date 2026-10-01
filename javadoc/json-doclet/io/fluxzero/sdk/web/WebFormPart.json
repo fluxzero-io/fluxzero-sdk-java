@@ -96,7 +96,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Decodes the content using the charset in the Content-Type header, defaulting to UTF-8 when that charset is\n absent or unsupported.\n"
   }, {
     "name" : "charset",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#charset",
@@ -169,7 +169,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a defensive copy of the part's content bytes.\n"
   }, {
     "name" : "getContentType",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getContentType",
@@ -180,7 +180,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the part's content type, if supplied.\n"
   }, {
     "name" : "getFileName",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getFileName",
@@ -191,7 +191,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the uploaded file name, or null for a part without a file name.\n"
   }, {
     "name" : "getHeader",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getHeader",
@@ -207,7 +207,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the first value of a header, or an empty optional if absent.\n"
   }, {
     "name" : "getHeaders",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getHeaders",
@@ -218,7 +218,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the part's headers grouped by name.\n"
   }, {
     "name" : "getHeaders",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getHeaders",
@@ -234,7 +234,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns all values for a header, or an empty list if absent.\n"
   }, {
     "name" : "getInputStream",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getInputStream",
@@ -245,7 +245,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a new input stream over the part's content, with an independent read position.\n"
   }, {
     "name" : "getName",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#getName",
@@ -256,7 +256,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the form field name associated with this part.\n"
   }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#hashCode",
@@ -281,7 +281,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether this part carries a file name, including an empty file name.\n"
   }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart#toString",

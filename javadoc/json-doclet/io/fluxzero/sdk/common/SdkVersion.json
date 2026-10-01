@@ -106,7 +106,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the packaged SDK version, resolving and caching build metadata on first access. Returns empty and\n logs a warning when the metadata is unavailable.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

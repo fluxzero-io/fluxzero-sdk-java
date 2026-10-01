@@ -1028,7 +1028,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Purges expired entries and requests pressure-driven trimming; returns whether the delegate evicted entries.\n"
   }, {
     "name" : "unwrap",
     "qualifiedName" : "io.fluxzero.common.caching.AdaptiveObjectCache#unwrap",
@@ -1163,7 +1163,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Purges expired entries and returns the total estimated weight of the remaining entries.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

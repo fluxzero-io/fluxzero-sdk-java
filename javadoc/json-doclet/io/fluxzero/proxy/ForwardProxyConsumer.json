@@ -1750,7 +1750,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Starts managed forwarding with the supplied client and returns a registration for stopping its lifecycle.\n"
   }, {
     "name" : "startConsumer",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#startConsumer",

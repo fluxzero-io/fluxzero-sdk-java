@@ -117,7 +117,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Stores each key-value pair using {@link Guarantee#NONE} in the underlying key-value store.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

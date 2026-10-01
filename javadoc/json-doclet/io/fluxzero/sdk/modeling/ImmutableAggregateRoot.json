@@ -93,7 +93,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Applies the deserializing message and returns a new aggregate root with an incremented sequence number,\n previous-state link, and updated event identity and timestamp.\n"
   }, {
     "name" : "asPrevious",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot#asPrevious",
@@ -140,7 +140,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Copies an entity and its previous-state chain into immutable aggregate roots using the supplied helpers and\n stores; null input returns null.\n"
   }, {
     "name" : "resolveDeclaredType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot#resolveDeclaredType",

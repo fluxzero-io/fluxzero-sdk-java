@@ -120,7 +120,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether a non-empty path in the parent enables automatic Graph composition for this reference.\n"
   }, {
     "name" : "deleteOnParentDeletion",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#deleteOnParentDeletion",
@@ -256,7 +256,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads the parent-reference value from the supplied target.\n"
   }, {
     "name" : "repositoryId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentReference#repositoryId",

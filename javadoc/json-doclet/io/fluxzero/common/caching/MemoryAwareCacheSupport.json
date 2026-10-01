@@ -354,7 +354,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes all entries and delivers manual-eviction notifications after releasing the cache lock.\n"
   }, {
     "name" : "clearEntries",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#clearEntries",
@@ -395,7 +395,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether an entry exists for the key without updating access bookkeeping.\n"
   }, {
     "name" : "currentWeightForMemoryPressure",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#currentWeightForMemoryPressure",
@@ -517,7 +517,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the lowest key according to the configured key ordering, or null when empty or no ordering is\n configured.\n"
   }, {
     "name" : "get",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#get",
@@ -533,7 +533,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the cached value, updating access bookkeeping, or null if the key is absent.\n"
   }, {
     "name" : "getEntryForAccess",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#getEntryForAccess",
@@ -560,7 +560,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns an independent snapshot of the cached keys.\n"
   }, {
     "name" : "lastKey",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#lastKey",
@@ -571,7 +571,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the highest key according to the configured key ordering, or null when empty or no ordering is\n configured.\n"
   }, {
     "name" : "maxEntryWeight",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#maxEntryWeight",
@@ -582,7 +582,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the configured maximum weight for a single entry.\n"
   }, {
     "name" : "maxWeight",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#maxWeight",
@@ -593,7 +593,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the configured maximum total cache weight.\n"
   }, {
     "name" : "nextAccessSequence",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#nextAccessSequence",
@@ -768,7 +768,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers an eviction listener and returns a registration that removes it when cancelled.\n"
   }, {
     "name" : "registerMemoryPressureCache",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#registerMemoryPressureCache",
@@ -795,7 +795,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Removes the entry and reports a manual eviction; returns its former value or null when absent.\n"
   }, {
     "name" : "removeEntry",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#removeEntry",
@@ -874,7 +874,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the current number of cached entries.\n"
   }, {
     "name" : "startMemoryPressureMonitor",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#startMemoryPressureMonitor",
@@ -1203,7 +1203,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns the total weight currently accounted for by the cache.\n"
   }, {
     "name" : "weightToEvictForPressureTrim",
     "qualifiedName" : "io.fluxzero.common.caching.MemoryAwareCacheSupport#weightToEvictForPressureTrim",

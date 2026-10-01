@@ -68,7 +68,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether this non-empty step starts with a direct mutation change.\n"
   }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#equals",

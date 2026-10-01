@@ -127,7 +127,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a shared preparation result indicating that no handler method matches.\n"
   }, {
     "name" : "plan",
     "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#plan",
@@ -192,7 +192,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a shared preparation result indicating that preparation is unsupported and ordinary matching is\n required.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {

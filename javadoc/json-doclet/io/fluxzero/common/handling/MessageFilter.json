@@ -37,7 +37,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a shared filter that accepts every message.\n"
   }, {
     "name" : "and",
     "qualifiedName" : "io.fluxzero.common.handling.MessageFilter#and",

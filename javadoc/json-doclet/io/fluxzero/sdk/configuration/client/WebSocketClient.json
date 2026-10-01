@@ -249,7 +249,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Creates a WebSocket client using the supplied connection configuration.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

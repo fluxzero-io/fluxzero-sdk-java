@@ -26,7 +26,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers a metrics event with empty metadata and returns its asynchronous completion.\n"
   }, {
     "name" : "registerMetrics",
     "qualifiedName" : "io.fluxzero.testserver.metrics.MetricsLog#registerMetrics",
@@ -47,7 +47,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Registers a metrics event with the supplied metadata and returns its asynchronous completion or failure.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

@@ -39,7 +39,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Receives a current Model entity together with the state index through which it is valid and its own\n Model state index.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

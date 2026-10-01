@@ -95,7 +95,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adapts a throwing consumer to a standard consumer, propagating failures through {@link\n #run(ThrowingRunnable)}.\n"
   }, {
     "name" : "asFunction",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#asFunction",
@@ -111,7 +111,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adapts a throwing function to a standard function, propagating failures through {@link #call(Callable)}.\n"
   }, {
     "name" : "asProperties",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#asProperties",
@@ -146,7 +146,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adapts a throwing action to a runnable, propagating failures through {@link #run(ThrowingRunnable)}.\n"
   }, {
     "name" : "asRunnable",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#asRunnable",
@@ -162,7 +162,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adapts a callable to a runnable that discards its result and propagates failures through {@link\n #call(Callable)}.\n"
   }, {
     "name" : "asStream",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#asStream",
@@ -194,7 +194,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Adapts a callable to a supplier, propagating checked failures through {@link #call(Callable)}.\n"
   }, {
     "name" : "call",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#call",
@@ -554,7 +554,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a function that memoizes results by argument pair, reusing an existing {@link MemoizingBiFunction}\n instance.\n"
   }, {
     "name" : "memoize",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#memoize",
@@ -570,7 +570,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a function that memoizes results by key, reusing an existing {@link MemoizingFunction} instance.\n"
   }, {
     "name" : "memoize",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#memoize",
@@ -586,7 +586,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a memoizing supplier, reusing the supplied instance if it already implements {@link\n MemoizingSupplier}.\n"
   }, {
     "name" : "merge",
     "qualifiedName" : "io.fluxzero.common.ObjectUtils#merge",

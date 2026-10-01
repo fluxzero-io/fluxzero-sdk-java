@@ -754,7 +754,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Accepts the HTTP exchange for asynchronous proxy handling, enforcing shutdown, body-size, CORS, and\n in-flight request limits. Always returns true; completion is reported through the supplied callback.\n"
   }, {
     "name" : "handleAcceptedRequest",
     "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler#handleAcceptedRequest",

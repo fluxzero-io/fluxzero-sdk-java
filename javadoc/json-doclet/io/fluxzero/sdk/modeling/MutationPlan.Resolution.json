@@ -177,7 +177,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns whether this resolution still contains ancestor dependencies.\n"
   }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#hashCode",
@@ -237,7 +237,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Returns a resolution with the supplied Models, retaining deferred writes and references while clearing\n ancestor dependencies.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {

@@ -88,7 +88,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's aggregate repository as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "cancelHandlerRegistration",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#cancelHandlerRegistration",
@@ -121,7 +121,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's command gateway as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "destroy",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#destroy",
@@ -157,7 +157,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's document store as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "errorGateway",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#errorGateway",
@@ -179,7 +179,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's error gateway as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "eventGateway",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#eventGateway",
@@ -201,7 +201,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's event gateway as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "fluxzero",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#fluxzero",
@@ -353,7 +353,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's key-value store as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "metricsGateway",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#metricsGateway",
@@ -375,7 +375,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's metrics gateway as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "modelHandlerPostProcessor",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#modelHandlerPostProcessor",
@@ -435,7 +435,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's query gateway as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "resultGateway",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#resultGateway",
@@ -457,7 +457,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's result gateway as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "scheduler",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#scheduler",
@@ -479,7 +479,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Exposes this Fluxzero instance's message scheduler as a Spring bean when no overriding bean exists.\n"
   }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig#serializer",
