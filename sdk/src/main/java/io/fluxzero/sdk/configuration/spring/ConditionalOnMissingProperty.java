@@ -29,7 +29,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * {@link Conditional} that only matches when the specified property is either unset or blank.
+ * {@link Conditional} that only matches when the specified property is either unset or the empty string.
  * <p>
  * This can be used to register default behavior when configuration is absent.
  *
@@ -48,7 +48,7 @@ import java.lang.annotation.Target;
 public @interface ConditionalOnMissingProperty {
 
     /**
-     * Returns the application property key that must be absent for this condition to match.
+     * Returns the application property key that must be absent or have an empty string value for this condition to match.
      */
     String value();
 
