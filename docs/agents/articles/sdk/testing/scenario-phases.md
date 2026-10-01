@@ -82,6 +82,10 @@ Avoid helpers that call `getResult(...)` without first asserting the contract, o
 - `expectOnlyEvents(a)` means the event collection has exactly that count and content; duplicates or unrelated events fail.
 - The same distinction applies to commands, queries, web requests/responses, metrics, and custom messages.
 - Use `expectNoEvents()` or the category's equivalent for an exact empty collection.
+- `expectNoEventsLike(ForbiddenEvent.class)` excludes only matching events; unrelated events may exist.
+  `.<ForbiddenEvent>expectNoEventLike(event -> ...)` excludes a field-specific predicate match.
+  Use the focused signature map for these methods and `expectResultContaining(...)` for inclusive collection/map
+  results. A targeted exclusion is not a substitute for checking every forbidden effect category of a rejection.
 
 For logical-once effects, use `expectOnlyWebRequests(expected)` or an exact predicate/count rather than `expectWebRequests(expected)`: an inclusive assertion does not detect a duplicate.
 

@@ -34,9 +34,11 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy` |
 | Model storage and search | `io.fluxzero.sdk.modeling.ModelPersistence`, `SearchSettings`, `GraphProjection`, `GraphProjectionMode`, `GraphProjectionCompletion` |
 | Model repository | `io.fluxzero.sdk.persisting.repository.ModelRepository` |
+| published Aggregate event migration | `io.fluxzero.sdk.configuration.PublishedEventModelMigration`; `ModelRepository.followPublishedEventMigration`, `adoptModelMigrations` |
 | event store | `io.fluxzero.sdk.persisting.eventsourcing.EventStore` |
 | search document store | `io.fluxzero.sdk.persisting.search.DocumentStore` |
 | search builder | `io.fluxzero.sdk.persisting.search.Search` |
+| asynchronous document queries | `Search.fetchAsync`, `countAsync`, `aggregateAsync`, `facetStatsAsync`; `io.fluxzero.sdk.persisting.search.GroupSearch.aggregateAsync`, `countAsync` |
 | searchable/index annotations | `io.fluxzero.sdk.persisting.search.Searchable`; `io.fluxzero.common.search.Sortable`, `Facet`, `SearchInclude`, `SearchExclude` |
 
 ## Handling, tracking, and scheduling
@@ -52,6 +54,8 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | trigger correlation | `io.fluxzero.sdk.tracking.handling.Trigger` |
 | routing key | `io.fluxzero.sdk.publishing.routing.RoutingKey` |
 | message gateways | `io.fluxzero.sdk.publishing.CommandGateway`, `QueryGateway`, `EventGateway`, `GenericGateway`, `WebRequestGateway` |
+| fire-and-forget command | `Fluxzero.sendAndForgetCommand`, `sendAndForgetCommands`; `CommandGateway.sendAndForget` |
+| correlation metadata extension | `io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider`; `FluxzeroBuilder.replaceCorrelationDataProvider` |
 | request timeout | `io.fluxzero.sdk.publishing.Timeout` |
 | tracking operations | `io.fluxzero.sdk.tracking.client.TrackingClient` |
 | consumer builder | `io.fluxzero.sdk.tracking.ConsumerConfiguration` |
@@ -70,10 +74,10 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | sockets/static | `io.fluxzero.sdk.web.SocketEndpoint`, `SocketSession`, `ServeStatic` |
 | API discovery | `io.fluxzero.sdk.web.ApiDoc`, `ApiDocInfo`, `ApiDocComponent`, `ApiDocResponse` |
 | advanced API discovery | `io.fluxzero.sdk.web.ApiDocExclude`, `ApiDocCatalog`, `ApiDocExtractor`, `OpenApiOptions`, `OpenApiRenderer`, `ApiReferenceRenderer` |
-| authentication/authorization | `io.fluxzero.sdk.tracking.handling.authentication.User`, `UserProvider`, `RequiresUser`, `RequiresAnyRole`, `NoUserRequired` |
+| authentication/authorization | `io.fluxzero.sdk.tracking.handling.authentication.User`, `UserProvider`, `RequiresUser`, `RequiresAnyRole`, `ForbidsAnyRole`, `NoUserRequired` |
 | identity provider | `io.fluxzero.sdk.common.IdentityProvider` |
 | validation | `io.fluxzero.sdk.tracking.handling.validation.ValidateWith`, `ValidationUtils`, `ValidationException` |
-| content/protected data | `io.fluxzero.sdk.common.serialization.FilterContent`, `io.fluxzero.sdk.publishing.dataprotection.ProtectData`, `DropProtectedData` |
+| content/protected data | `io.fluxzero.sdk.common.serialization.FilterContent`, `io.fluxzero.sdk.publishing.dataprotection.ProtectData`, `DropProtectedData`, `MissingProtectedDataPolicy`; `FluxzeroBuilder.onMissingProtectedData` |
 | schema evolution | `io.fluxzero.common.serialization.Revision`, `io.fluxzero.sdk.common.serialization.casting.Upcast`, `Downcast` |
 | fixture phases | `io.fluxzero.sdk.test.TestFixture`, `Given`, `Then` |
 

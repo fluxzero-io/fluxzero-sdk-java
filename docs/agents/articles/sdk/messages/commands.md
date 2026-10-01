@@ -36,6 +36,36 @@ The client supplies only `articleId`; the persisted transition receives the auth
 
 Use `Request<R>` on command payloads when callers need a typed result from `Fluxzero.sendCommand(...)` or `Fluxzero.sendCommandAndWait(...)`. Use fire-and-forget sends only when the caller does not need a result; a fire-and-forget command cannot return one later.
 
+## Fire-and-forget entry points and completion
+
+```java
+Fluxzero.sendAndForgetCommand(new RefreshCatalogue(catalogueId));
+
+CompletableFuture<Void> stored = Fluxzero.get().commandGateway()
+        .sendAndForget(Guarantee.STORED, new RefreshCatalogue(catalogueId));
+```
+
+```kotlin
+Fluxzero.sendAndForgetCommand(RefreshCatalogue(catalogueId))
+
+val stored: CompletableFuture<Void> = Fluxzero.get().commandGateway()
+    .sendAndForget(Guarantee.STORED, RefreshCatalogue(catalogueId))
+```
+
+The static `sendAndForgetCommand(...)` and plural `sendAndForgetCommands(...)` methods return **void** (Kotlin
+`Unit`), not a future. The ordinary default send does not wait for remote acknowledgement outside a participating
+tracking-completion scope; that scope normally awaits outgoing writes before advancing the consumer position.
+Use the guarantee-first gateway overload above to observe publication completion or asynchronous failure.
+For remote publication, `STORED` confirms storage, not business handling, state changes or eventual success.
+An immediately eligible local handler can run instead; storage acknowledgement is not a way to force tracked delivery.
+
+The static overload `sendAndForgetCommand(payload, metadata, guarantee)` still returns void and waits for the
+explicit guarantee's publication completion. It does not wait for a business result. If the caller needs that result,
+use `sendCommand(...)` or `sendCommandAndWait(...)` instead. Read delivery defaults for completion scopes, guarantees
+and local-versus-tracked dispatch before choosing a boundary.
+
+## Routing, atomicity and retries
+
 Do not call handler methods directly from application code. Dispatch the command through `Fluxzero.sendCommand...` or route it through the Model operation so tracking, security, legality, and metadata behave the same way in tests and production.
 
 For invariants spanning Models, use one atomic action with injected Model/Graph dependencies. A unique business

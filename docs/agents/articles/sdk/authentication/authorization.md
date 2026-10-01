@@ -94,7 +94,13 @@ Fluxzero security annotations can be applied at package, type, constructor, and 
 
 Precedence is method, then class, then package, then super-package. Put broad defaults high in the package tree and explicit exceptions only at the endpoint or payload that needs them.
 
-`throwIfUnauthorized` belongs on auth annotations such as `@RequiresUser` and `@RequiresAnyRole`, not on `@HandleQuery`. Use it only when a handler should be silently skipped so another eligible handler can process the same message.
+`throwIfUnauthorized` belongs on auth annotations such as `@RequiresUser` and `@RequiresAnyRole`, not on
+`@HandleQuery`. Keep the default throwing behavior for ordinary denial. For queries whose result varies by role,
+prefer one authenticated handler with an explicit role branch rather than competing silently filtered methods.
+
+`@ForbidsAnyRole` is the negative role check. By default it rejects both an absent user and a user with any listed
+forbidden role; it does not grant anonymous access. Read negative roles and role-specific query results for
+Java/Kotlin handler alternatives, enum-valued meta-annotations, and the roleless/anonymous test boundaries.
 
 Register a `SenderProvider`. The code fragment below maps an already validated identity to application roles; it is deliberately not a complete production HTTP provider. `getUserById(...)` alone is not HTTP authentication. For a real frontend, follow the authenticated-frontend recipe and implement the cookie/bearer `fromMessage(...)` boundary described by production HTTP identity:
 

@@ -53,6 +53,44 @@ cluster internals.
 `maxFetchBytes = -1` inherits it; `0` is deliberately unbounded. Raise limits only after measuring payload size and
 memory behavior.
 
+Retained Aggregate-history paging has its own `fluxzero.eventsourcing.maxFetchBytes` setting. Read history fetching
+for the versioned default, explicit count-only override, and oversized-event/older-Runtime limits. Neither property
+is a universal heap-memory cap or the independent Model-history configuration.
+
+## Extend correlation metadata without replacing it
+
+`replaceCorrelationDataProvider(existing -> existing.andThen(extra))` preserves normal trace/trigger/client metadata
+while adding safe application context. `CorrelationDataProvider` is not a functional interface: implement its two
+context overloads rather than copying a three-argument lambda from older examples.
+
+```java
+Map<String, String> deploymentMetadata = Map.of("deploymentTier",
+        Optional.ofNullable(builder.propertySource().get("deployment.tier")).orElse("unspecified"));
+
+CorrelationDataProvider extra = new CorrelationDataProvider() {
+    @Override
+    public Map<String, String> getCorrelationData(DeserializingMessage message) {
+        return deploymentMetadata;
+    }
+
+    @Override
+    public Map<String, String> getCorrelationData(
+            Client client, SerializedMessage message, MessageType messageType) {
+        return deploymentMetadata;
+    }
+};
+builder.replaceCorrelationDataProvider(existing -> existing.andThen(extra));
+```
+
+Use `io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider`,
+`io.fluxzero.sdk.common.serialization.DeserializingMessage`, `io.fluxzero.common.api.SerializedMessage`,
+`io.fluxzero.sdk.configuration.client.Client`, and `io.fluxzero.common.MessageType`.
+The two paths support handling-context and serialized/asynchronous dispatch. Kotlin can implement the same two
+overrides on an `object : CorrelationDataProvider`; it is not a Kotlin SAM interface either.
+Resolve deployment configuration once through the builder's `PropertySource`, not on each dispatch. The second
+provider wins on duplicate keys, so do not overwrite reserved trace keys accidentally or add tokens, private payload
+fields, or high-cardinality sensitive data. Verify preservation and addition on both dispatch paths.
+
 ## Compatibility forwarding and direct clients
 
 `forwardWebRequestsToLocalServer(port)` bridges Fluxzero web requests to an existing local HTTP server. It is a

@@ -51,6 +51,22 @@ proof that the operation succeeded; correlate it with its result, an error signa
 | --- | --- |
 | `GetRelationships` / `GetRelationshipsResult` | Relationship records were requested and returned. |
 
+### Independent Models and Graphs
+
+The request types below emit their nested `Metric` payloads, not the whole Model/event content. These types live
+under `io.fluxzero.common.api.modeling`; use them for diagnostics, not as application write commands.
+
+| Payload | Meaning |
+| --- | --- |
+| `CommitModels.Metric` / `CommitModelsResult.Metric` | Atomic Model commit request and its result/conflicts |
+| `GetModelEvents.Metric` / `GetModelEventsResult.Metric` | Model-history request and returned event-page statistics |
+| `GetModelGraph.Metric` / `GetModelGraphResult.Metric` | Graph request and returned graph/event statistics |
+| `PlanModelDeletion.Metric` / `ModelDeletionPlan.Metric` | Physical erasure planning and the resulting scope |
+| `DeleteModel.Metric` / `ModelDeletionResult.Metric` | Erasure request and result, including affected Model scope |
+
+Do not infer successful commit or completed erasure from the request metric alone. Inspect the result and qualify
+the application-facing completion boundary.
+
 ### Scheduling
 
 | Payload | Meaning |

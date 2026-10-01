@@ -51,6 +51,38 @@ configuredFluxzero.registerHandlers(new ReleaseNoteProjection());
 
 Handler parameter resolution can inject the payload, `Sender`/user context, metadata, current time, entity state, schedules, web request/response/session objects, Spring beans, and other supported runtime context. Prefer these injected parameters over static lookups.
 
+## Inject an existing Spring bean explicitly
+
+In a Spring-configured Fluxzero application, annotate a bean parameter with
+`org.springframework.beans.factory.annotation.Autowired`; a bare service-typed parameter is not enough:
+
+```java
+@Component
+final class CatalogueHandler {
+    @HandleCommand
+    void handle(RefreshCatalogue command, @Autowired CatalogueService service) {
+        service.refresh(command);
+    }
+}
+```
+
+```kotlin
+@Component
+class CatalogueHandler {
+    @HandleCommand
+    fun handle(command: RefreshCatalogue, @Autowired service: CatalogueService) {
+        service.refresh(command)
+    }
+}
+```
+
+When multiple beans match, add `@Qualifier("beanName")` to the parameter or mark the intended bean `@Primary`.
+Missing or ambiguous resolution prevents injection and is diagnosed; test the production Spring context, not only
+`fixture.withBean(...)`. Use this for existing application dependencies, not as a replacement for Model injection
+or the self-handling outbound-request pattern. Constructor injection remains available for ordinary Spring beans.
+
+## Tracking and fixture registration
+
 Use `@Consumer` for explicit tracking shape: name, thread count, fetch size, segments, single-tracker behavior, passive consumers, index bounds, namespaces, and interceptors. Keep defaults until a real reliability or throughput need appears, then read tracking and runtime interaction before changing replay or cross-app delivery behavior.
 
 In tests, register class-based handlers explicitly when behavior depends on separately discovered classes such as `@Stateful` or `@SocketEndpoint`. Do not register ordinary local self-handling payload classes merely to dispatch them. A synchronous fixture handles a dispatched self-handler locally, while an asynchronous fixture can discover and register dispatched `@TrackSelf` payloads; register a track-self class explicitly only when the scenario cannot dispatch an instance first.

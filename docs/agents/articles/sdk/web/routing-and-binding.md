@@ -65,6 +65,32 @@ Use a plain request DTO parameter for the whole JSON body. Use `@BodyParam` on m
 
 Name injected parameters explicitly when the route or public contract depends on a different name. Java annotation processing records method parameter metadata, but an explicit `@PathParam("articleId")` or `@QueryParam("offset")` keeps the binding and OpenAPI intent visible.
 
+The same method-parameter boundary applies in Kotlin:
+
+```kotlin
+@Component
+@Path("/api/folios")
+class FolioEndpoint {
+    @HandleGet("/{folioId}")
+    fun get(@PathParam("folioId") folioId: String): FolioView =
+        Fluxzero.queryAndWait(GetFolio(folioId))
+
+    @HandlePost
+    fun register(@Valid request: RegisterFolioRequest): String =
+        Fluxzero.sendCommandAndWait(RegisterFolio(request.folioId, request.caption))
+}
+
+data class RegisterFolioRequest(
+    @field:NotBlank val folioId: String,
+    @field:NotBlank val caption: String
+)
+```
+
+The request is a whole-body DTO, so its properties have validation annotations, not `@BodyParam`/`@QueryParam`.
+Use Kotlin annotation use-site targets such as `@field:NotBlank` to make DTO validation unambiguous, and enable kapt
+as described by Kotlin setup for generated API discovery. Test the exact route and decoded response through the
+fixture; direct Kotlin method calls bypass web binding just as Java calls do.
+
 Path parameters are percent-decoded once as UTF-8 after raw-path route matching and before type conversion.
 Literal `+` stays `+`; `%2F` is part of the parameter value, not a route separator. Do not decode injected values again.
 

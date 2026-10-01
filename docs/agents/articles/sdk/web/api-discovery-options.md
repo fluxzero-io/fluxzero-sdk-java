@@ -59,6 +59,18 @@ generation in one build profile while tests or packaging still promise the gener
 content-security and asset-hosting policy requires it. A browser page is presentation; the served JSON contract
 remains the machine-readable source.
 
+The annotation attributes are `ApiDocInfo.apiReferenceScriptUrl` and `apiReferenceStylesheetUrl`. Empty strings use
+the selected renderer's defaults. For self-hosted assets, configure URLs appropriate to that renderer, for example:
+
+```java
+@ApiDocInfo(serveApiReference = true,
+        apiReferenceRenderer = ApiReferenceRenderer.REDOC,
+        apiReferenceScriptUrl = "/assets/redoc.standalone.js")
+```
+
+The stylesheet attribute is available when the renderer needs one; a script URL is not automatically a stylesheet.
+Qualify asset serving and content-security policy as well as the OpenAPI JSON.
+
 ## Programmatic extraction is exceptional
 
 `ApiDocExtractor.extract(handlerInstance)` supports dynamically supplied handler instances.

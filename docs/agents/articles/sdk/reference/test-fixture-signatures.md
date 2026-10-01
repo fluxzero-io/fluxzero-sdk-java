@@ -108,6 +108,35 @@ Then<R> expectExceptionalResult(Class<? extends Throwable> type)
 `Request<R>` generic is always the unwrapped public value type; read query result contracts when a handler returns
 `Optional<R>` or the compiler reports that the request handler should return `Optional<...>`.
 
+## Exclude a specific event without excluding all events
+
+```java
+Then<R> expectNoEventsLike(Object... events)
+<T> Then<R> expectNoEventLike(ThrowingPredicate<T> predicate)
+<T> Then<R> expectResultContaining(T... results)
+```
+
+`ThrowingPredicate` is `io.fluxzero.common.ThrowingPredicate`. The targeted negative assertions allow unrelated
+events; `expectNoEvents()` instead asserts an exactly empty event collection for this When phase. Pass a payload,
+payload class, or matcher to `expectNoEventsLike(...)`; use the predicate overload when the forbidden combination
+depends on fields:
+
+```java
+fixture.whenCommand(command)
+        .expectNoEventsLike(PublicationReleased.class);
+
+fixture.whenCommand(command)
+        .<PublicationReleased>expectNoEventLike(event -> event.editionId().equals(editionId));
+
+fixture.whenQuery(listQuery)
+        .expectResultContaining(expectedView);
+```
+
+The last assertion is inclusive: additional collection items may exist. For map results, expected maps/entries
+match entries, while other expected items match values. It is not a size, order or exact-result assertion.
+Keep exact assertions for duplicate prevention and use targeted exclusion only when other outputs are genuinely
+allowed. Read the Kotlin fixture companion for explicit generic arguments and decoded web results.
+
 ## Schedule constructors and setup methods
 
 ```java

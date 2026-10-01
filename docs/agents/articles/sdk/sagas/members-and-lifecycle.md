@@ -37,6 +37,33 @@ record ReleaseProcess(
 Do not publish a non-idempotent effect and delete the state in the same handler while claiming atomicity. Retain a
 durable pending/terminal marker until the effect protocol is safely completed.
 
+### Kotlin creation and nullable deletion
+
+```kotlin
+@Stateful
+data class ReleaseProcess(
+    @EntityId @Association val releaseId: String,
+    val status: Status,
+    @Member val stages: List<ReleaseStage>
+) {
+    companion object {
+        @JvmStatic
+        @HandleEvent
+        fun start(event: ReleaseStarted): ReleaseProcess =
+            ReleaseProcess(event.releaseId, Status.ACTIVE, emptyList())
+    }
+
+    @HandleEvent
+    fun complete(event: ReleaseCompleted): ReleaseProcess? = null
+}
+```
+
+Use `@JvmStatic` on the companion factory so discovery sees a static creation handler. Updates return a `copy(...)`
+of the stateful data class. Deletion needs a nullable state-compatible return type; a `Unit` method does not delete
+or persist a copy. A `Collection<ReleaseProcess>` result has the same split/rekey/omitted-current-ID semantics as
+Java. Kotlin members also need resolvable immutable reconstruction (`copy`/wither) and an association that identifies
+their parent; being nested in a data class does not itself provide routing.
+
 ## Member creation, update, and deletion
 
 A member can declare `@Handle...` and `@Association`. Fluxzero loads the parent, invokes every matching member, and

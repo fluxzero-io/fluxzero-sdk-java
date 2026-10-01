@@ -4,6 +4,124 @@
   "root": "/docs",
   "articles": [
     {
+      "path": "/docs/sdk/models/published-event-migration",
+      "title": "Published Aggregate event migration to Models",
+      "summary": "Replay legacy published events in an isolated runner, coordinate event-bound readers, validate durable catch-up and adopt at a single-writer cutover.",
+      "source": "articles/sdk/models/published-event-migration.md",
+      "symbols": [
+        "PublishedEventModelMigration",
+        "PublishedEventModelMigration.builder",
+        "PublishedEventModelMigration.replay",
+        "PublishedEventModelMigration.adopt",
+        "modelsInPackage",
+        "migration.repository()",
+        "ModelRepository.followPublishedEventMigration",
+        "followPublishedEventMigration",
+        "ModelRepository.adoptModelMigrations",
+        "adoptModelMigrations",
+        "Aggregate to Model",
+        "cutover event index",
+        "durable migration consumer"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose replacement Model lifecycle and language guidance"
+        },
+        {
+          "path": "/docs/sdk/models/migration",
+          "description": "Distinguish data migration from Model deletion and erasure"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Qualify retained storage and historical data beyond synthetic seeding"
+        },
+        {
+          "path": "/docs/sdk/messages/events",
+          "description": "Preserve published event contracts and effect idempotency"
+        },
+        {
+          "path": "/docs/sdk/operations",
+          "description": "Choose deliberate application-facing operational boundaries"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/authentication/role-fallbacks",
+      "title": "Negative roles and role-specific query results",
+      "summary": "Use ForbidsAnyRole with correct anonymous, roleless and forbidden-role behavior; choose explicit Java/Kotlin role branches and reusable role annotations.",
+      "source": "articles/sdk/authentication/role-fallbacks.md",
+      "symbols": [
+        "@ForbidsAnyRole",
+        "ForbidsAnyRole",
+        "throwIfUnauthorized",
+        "negative role",
+        "role-specific query result",
+        "ForbidsRole",
+        "UnauthenticatedException",
+        "UnauthorizedException"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/authentication/authorization",
+          "description": "Map application-owned roles and authorization defaults"
+        },
+        {
+          "path": "/docs/sdk/testing/behavior-matrices",
+          "description": "Test inherited roles, adjacent denial, roleless and absent callers"
+        },
+        {
+          "path": "/docs/sdk/authentication/local",
+          "description": "Avoid fixture system-user fallback in anonymous tests"
+        },
+        {
+          "path": "/docs/sdk/handlers",
+          "description": "Make handler components discoverable and keep consumers deliberate"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/testing/kotlin-fixtures",
+      "title": "Kotlin fixture types and routed assertions",
+      "summary": "Bind Kotlin result and predicate type arguments, preserve Given/Then phase types, decode HTTP bodies and choose targeted versus exact assertions.",
+      "source": "articles/sdk/testing/kotlin-fixtures.md",
+      "symbols": [
+        "Kotlin TestFixture",
+        "expectResult<FolioView>",
+        "expectNoEventLike",
+        "expectNoEventsLike",
+        "expectResultContaining",
+        "getPayloadAs<Type>",
+        "Given<*>",
+        "Then<*>",
+        "ThrowingPredicate",
+        "Kotlin SAM",
+        "whenSearching"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/testing",
+          "description": "Choose business setup and independent evidence boundaries"
+        },
+        {
+          "path": "/docs/sdk/reference/test-fixture-signatures",
+          "description": "Inspect exact Java API signatures beneath Kotlin inference"
+        },
+        {
+          "path": "/docs/sdk/testing/scenario-phases",
+          "description": "Keep one action and explicit advancement per fixture phase"
+        },
+        {
+          "path": "/docs/sdk/testing/http",
+          "description": "Verify every advertised operation through the router"
+        },
+        {
+          "path": "/docs/sdk/project-setup/kotlin",
+          "description": "Configure kapt, JVM target and SDK artifacts"
+        }
+      ]
+    },
+    {
       "path": "/docs/sdk/models/recipes-java",
       "title": "Model recipes (Java)",
       "summary": "One-to-one companions, Graph preferences, atomic CAS and retryable updates, consume-once, and external-effect orchestration.",
@@ -983,6 +1101,10 @@
         {
           "description": "Choose domain-first application packages before creating files and check the final tree",
           "path": "/docs/sdk/project-setup/package-structure"
+        },
+        {
+          "path": "/docs/sdk/testing/kotlin-fixtures",
+          "description": "Write typed Kotlin Given/When/Then and HTTP assertions"
         }
       ]
     },
@@ -1541,7 +1663,8 @@
         "AuthenticatingInterceptor",
         "Entity.get()",
         "withProductionUserProvider()",
-        "UserProvider.defaultUserProvider"
+        "UserProvider.defaultUserProvider",
+        "@ForbidsAnyRole"
       ],
       "links": [
         {
@@ -1579,6 +1702,10 @@
         {
           "description": "Model state-changing intent and Model transitions",
           "path": "/docs/sdk/messages/commands"
+        },
+        {
+          "path": "/docs/sdk/authentication/role-fallbacks",
+          "description": "Exclude roles, choose an explicit role branch and test absent or roleless callers"
         }
       ]
     },
@@ -1654,7 +1781,11 @@
         "Guarantee.STORED",
         "Sender",
         "Instant",
-        "User.getCurrent()"
+        "User.getCurrent()",
+        "Fluxzero.sendAndForgetCommand",
+        "Fluxzero.sendAndForgetCommands",
+        "CommandGateway.sendAndForget",
+        "fire-and-forget void"
       ],
       "links": [
         {
@@ -1700,6 +1831,10 @@
         {
           "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
           "path": "/docs/sdk/messages/local-only"
+        },
+        {
+          "path": "/docs/sdk/messages/events",
+          "description": "Distinguish publication acknowledgement, outgoing-write scopes and business results"
         }
       ]
     },
@@ -1964,6 +2099,10 @@
         {
           "description": "Test behavior across fixture message and HTTP flows",
           "path": "/docs/sdk/testing"
+        },
+        {
+          "path": "/docs/sdk/models/published-event-migration",
+          "description": "Coordinate legacy-event Model reads with an isolated published-event migration"
         }
       ]
     },
@@ -2391,7 +2530,7 @@
     {
       "path": "/docs/sdk/handlers",
       "title": "Handlers",
-      "summary": "Place and register Spring, standalone, local, tracked, and stateful handlers without confusing fixture registration with production discovery.",
+      "summary": "Choose discoverable handlers, explicit Spring bean parameter injection and local versus tracked execution boundaries.",
       "source": "articles/sdk/handlers.md",
       "symbols": [
         "@HandleCommand",
@@ -2413,7 +2552,11 @@
         "fixture.registerHandlers(handler)",
         "production handler discovery",
         "Tracker",
-        "singleTracker"
+        "singleTracker",
+        "@Autowired",
+        "@Qualifier",
+        "@Primary",
+        "SpringBeanParameterResolver"
       ],
       "links": [
         {
@@ -3101,7 +3244,17 @@
         "HandlerMonitor",
         "TrackerMonitor",
         "DisableMetrics",
-        "FluxzeroBuilder.disableTrackingMetrics()"
+        "FluxzeroBuilder.disableTrackingMetrics()",
+        "CommitModels.Metric",
+        "CommitModelsResult.Metric",
+        "GetModelEvents.Metric",
+        "GetModelEventsResult.Metric",
+        "GetModelGraph.Metric",
+        "GetModelGraphResult.Metric",
+        "PlanModelDeletion.Metric",
+        "ModelDeletionPlan.Metric",
+        "DeleteModel.Metric",
+        "ModelDeletionResult.Metric"
       ],
       "links": [
         {
@@ -3167,6 +3320,10 @@
         {
           "description": "Use runtime subsystem clients only for justified advanced operations",
           "path": "/docs/sdk/operations/low-level-clients"
+        },
+        {
+          "path": "/docs/sdk/models/published-event-migration",
+          "description": "Perform a durable replay and verified Aggregate-to-Model ownership switch"
         }
       ]
     },
@@ -3589,7 +3746,9 @@
         "@WebParam",
         "package-info.java",
         "route binding",
-        "leading slash"
+        "leading slash",
+        "Kotlin handler binding",
+        "@field:NotBlank"
       ],
       "links": [
         {
@@ -3615,6 +3774,14 @@
         {
           "description": "add a web endpoint",
           "path": "/docs/recipes/add-web-endpoint"
+        },
+        {
+          "path": "/docs/sdk/project-setup/kotlin",
+          "description": "Configure Kotlin kapt and annotation targets"
+        },
+        {
+          "path": "/docs/sdk/testing/kotlin-fixtures",
+          "description": "Verify Kotlin route binding and decoded response bodies"
         }
       ]
     },
@@ -3890,6 +4057,10 @@
         {
           "path": "/docs/sdk/messages/envelopes",
           "description": "Distinguish in-process, tracked and native HTTP envelope behavior"
+        },
+        {
+          "path": "/docs/sdk/testing/kotlin-fixtures",
+          "description": "Use explicit Kotlin generic arguments and routed transport assertions"
         }
       ]
     },
@@ -3921,7 +4092,10 @@
         "independent invalid field",
         "identify rejected transition",
         "forbidden state schedule document outbound absent",
-        "fresh application retained store without reseeding"
+        "fresh application retained store without reseeding",
+        "expectNoEventsLike",
+        "expectNoEventLike",
+        "expectResultContaining"
       ],
       "links": [
         {
@@ -3955,6 +4129,14 @@
         {
           "description": "Write TestFixture scenarios for domain behavior and adapters",
           "path": "/docs/recipes/test-behavior"
+        },
+        {
+          "path": "/docs/sdk/reference/test-fixture-signatures",
+          "description": "Use exact negative-event and inclusive-result signatures"
+        },
+        {
+          "path": "/docs/sdk/testing/kotlin-fixtures",
+          "description": "Apply phase and assertion typing in Kotlin"
         }
       ]
     },
@@ -4197,7 +4379,8 @@
         "whenCommandByUser",
         "whenQueryByUser",
         "whenWebRequestByUser",
-        "withProductionUserProvider()"
+        "withProductionUserProvider()",
+        "@ForbidsAnyRole"
       ],
       "links": [
         {
@@ -4231,6 +4414,10 @@
         {
           "description": "Write TestFixture scenarios for domain behavior and adapters",
           "path": "/docs/recipes/test-behavior"
+        },
+        {
+          "path": "/docs/sdk/authentication/role-fallbacks",
+          "description": "Verify negative-role eligibility without confusing absence with a roleless user"
         }
       ]
     },
@@ -4623,7 +4810,7 @@
     {
       "path": "/docs/sdk/validation/protected-data",
       "title": "Protected Data Lifecycle And Testing",
-      "summary": "Restore protected values in a registered trusted handler, apply safe data through an Entity, account for pre-handler deletion, and prove deletion and later visibility.",
+      "summary": "Redact protected values, choose deletion boundaries, configure missing-data policies before building and verify vault erasure.",
       "source": "articles/sdk/validation/protected-data.md",
       "symbols": [
         "@ProtectData",
@@ -4641,7 +4828,12 @@
         "pre-handler deletion",
         "throwing handler protected data",
         "later handler protected data",
-        "direct KV deletion test"
+        "direct KV deletion test",
+        "MissingProtectedDataPolicy.PROPERTY",
+        "FluxzeroBuilder.onMissingProtectedData",
+        "fluxzero.dataProtection.onMissingProtectedData",
+        "FLUXZERO_DATA_PROTECTION_ON_MISSING_PROTECTED_DATA",
+        "FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA"
       ],
       "links": [
         {
@@ -5305,7 +5497,10 @@
         "FZ-SDK-0007",
         "FZ-SDK-0008",
         "FZ-SDK-0009",
-        "FZ-SDK-0010"
+        "FZ-SDK-0010",
+        "Fluxzero.applicationInstance",
+        "Message.addUser",
+        "FluxzeroBuilder.registerUserProvider"
       ],
       "links": [
         {
@@ -5479,7 +5674,11 @@
         "replaceValidator",
         "forwardWebRequestsToLocalServer",
         "disableTrackingMetrics",
-        "enableHostMetrics"
+        "enableHostMetrics",
+        "fluxzero.eventsourcing.maxFetchBytes",
+        "replaceCorrelationDataProvider",
+        "CorrelationDataProvider.andThen",
+        "getCorrelationData"
       ],
       "links": [
         {
@@ -5507,7 +5706,7 @@
           "path": "/docs/sdk/configuration/websocket-recovery"
         },
         {
-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+          "description": "Configure retained Aggregate history byte limits separately from consumer tracking",
           "path": "/docs/sdk/entities/history-fetching"
         }
       ]
@@ -5583,7 +5782,7 @@
     {
       "path": "/docs/sdk/sagas/members-and-lifecycle",
       "title": "Stateful Members And Lifecycle Semantics",
-      "summary": "Persist stateful root and nested member changes by returning the correct lifecycle value from each handler.",
+      "summary": "Understand Java/Kotlin stateful return, static creation, split, rekey, nullable deletion and member lifecycles.",
       "source": "articles/sdk/sagas/members-and-lifecycle.md",
       "symbols": [
         "@Stateful",
@@ -5591,7 +5790,10 @@
         "@EntityId",
         "Entity",
         "null stateful return",
-        "stateful member return"
+        "stateful member return",
+        "@JvmStatic",
+        "Kotlin Unit",
+        "nullable saga deletion"
       ],
       "links": [
         {
@@ -5704,7 +5906,7 @@
     {
       "path": "/docs/sdk/search/constraints-aggregations",
       "title": "Advanced Search Constraints And Aggregations",
-      "summary": "Compose nested constraints, paths, projections, grouping, and statistics in the Fluxzero search model.",
+      "summary": "Compose constraints and statistics, distinguish normalized versus strict matching, and return typed async search results.",
       "source": "articles/sdk/search/constraints-aggregations.md",
       "symbols": [
         "Constraint",
@@ -5718,7 +5920,20 @@
         "SearchResult",
         "Group",
         "DocumentStats.FieldStats",
-        "aggregate"
+        "aggregate",
+        "match(value, true)",
+        "Search.fetchAsync",
+        "fetchAsync",
+        "countAsync",
+        "aggregateAsync",
+        "GroupSearch",
+        "GroupSearch.aggregateAsync",
+        "GroupSearch.countAsync",
+        "facetStatsAsync",
+        "FieldStats",
+        "FacetStats",
+        "normalization",
+        "case accent strict"
       ],
       "links": [
         {
@@ -5736,6 +5951,10 @@
         {
           "description": "Test complete lists explicit pages and top results",
           "path": "/docs/sdk/search/pagination"
+        },
+        {
+          "path": "/docs/sdk/messages/queries/result-contracts",
+          "description": "Keep Request result types unwrapped when returning async search futures"
         }
       ]
     },
@@ -5908,7 +6127,24 @@
         "HandlerInterceptor",
         "BatchInterceptor",
         "FluxzeroErrorCode",
-        "FluxzeroErrors"
+        "FluxzeroErrors",
+        "ForbidsAnyRole",
+        "PublishedEventModelMigration",
+        "ModelRepository.followPublishedEventMigration",
+        "ModelRepository.adoptModelMigrations",
+        "Search.fetchAsync",
+        "Search.countAsync",
+        "Search.aggregateAsync",
+        "Search.facetStatsAsync",
+        "GroupSearch",
+        "GroupSearch.aggregateAsync",
+        "GroupSearch.countAsync",
+        "Fluxzero.sendAndForgetCommand",
+        "Fluxzero.sendAndForgetCommands",
+        "CommandGateway.sendAndForget",
+        "CorrelationDataProvider",
+        "FluxzeroBuilder.replaceCorrelationDataProvider",
+        "MissingProtectedDataPolicy"
       ],
       "links": [
         {
@@ -5934,6 +6170,22 @@
         {
           "description": "Use exact TestFixture generics schedules and setup signatures",
           "path": "/docs/sdk/reference/test-fixture-signatures"
+        },
+        {
+          "path": "/docs/sdk/models/published-event-migration",
+          "description": "Use the safe published-event migration lifecycle"
+        },
+        {
+          "path": "/docs/sdk/authentication/role-fallbacks",
+          "description": "Use negative roles and explicit role-specific query results"
+        },
+        {
+          "path": "/docs/sdk/search/constraints-aggregations",
+          "description": "Look up typed async search terminals and comparison rules"
+        },
+        {
+          "path": "/docs/sdk/configuration/advanced-builder",
+          "description": "Extend correlation metadata through both context overloads"
         }
       ]
     },
@@ -5964,7 +6216,11 @@
         "expectOnlyActiveScheduledCommands",
         "Predicate<Schedule>",
         "all active scheduled commands",
-        "schedule ID deadline payload"
+        "schedule ID deadline payload",
+        "expectNoEventsLike",
+        "expectNoEventLike",
+        "expectResultContaining",
+        "ThrowingPredicate"
       ],
       "links": [
         {
@@ -5994,6 +6250,10 @@
         {
           "description": "Decode web helper results through WebResponse payloads",
           "path": "/docs/sdk/testing/http"
+        },
+        {
+          "path": "/docs/sdk/testing/kotlin-fixtures",
+          "description": "Bind Kotlin fixture generics, phase types and decoded web results"
         }
       ]
     },
@@ -6183,7 +6443,11 @@
         "ApiDoc.AdditionalProperties.DENY",
         "propertyNames",
         "requestBody.required",
-        "Id.DEDUCTION"
+        "Id.DEDUCTION",
+        "ApiDocInfo.apiReferenceScriptUrl",
+        "ApiDocInfo.apiReferenceStylesheetUrl",
+        "apiReferenceScriptUrl",
+        "apiReferenceStylesheetUrl"
       ],
       "links": [
         {
@@ -6911,11 +7175,15 @@
     {
       "path": "/docs/sdk/entities/history-fetching",
       "title": "Reconstructing Model history efficiently",
-      "summary": "Bound historical traversal and measure snapshots, cold replay and independent Model streams.",
+      "summary": "Bound Model historical traversal and retained Aggregate history pages; distinguish snapshots, event-count limits and byte budgets.",
       "source": "articles/sdk/entities/history-fetching.md",
       "symbols": [
         "Graph.revisions",
-        "Model.snapshotPeriod"
+        "Model.snapshotPeriod",
+        "fluxzero.eventsourcing.maxFetchBytes",
+        "FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES",
+        "aggregateHistoryMaxFetchBytes",
+        "retained Aggregate history"
       ],
       "links": [
         {
@@ -6971,7 +7239,7 @@
           "path": "/docs/sdk/models/conflicts"
         },
         {
-          "description": "Model deletion and Model migration",
+          "description": "Logical deletion, cascades and permanent erasure",
           "path": "/docs/sdk/models/migration"
         },
         {
@@ -6992,15 +7260,15 @@
         },
         {
           "path": "/docs/sdk/entities/relationships",
-          "description": "Independent Model Relationships \u2014 supplementary examples"
+          "description": "Independent Model Relationships — supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/graphs",
-          "description": "Loading Models And Temporal Graphs \u2014 supplementary examples"
+          "description": "Loading Models And Temporal Graphs — supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/graph-events",
-          "description": "Graph Change Subscriptions \u2014 supplementary examples"
+          "description": "Graph Change Subscriptions — supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/graph-search",
@@ -7008,19 +7276,19 @@
         },
         {
           "path": "/docs/sdk/entities/legacy-migration",
-          "description": "Legacy Model Migration \u2014 supplementary examples"
+          "description": "Legacy Model Migration — supplementary examples"
         },
         {
           "path": "/docs/sdk/testing/model-transitions",
-          "description": "Testing Model Transitions \u2014 supplementary examples"
+          "description": "Testing Model Transitions — supplementary examples"
         },
         {
           "path": "/docs/sdk/search/model-relationships",
-          "description": "Search Through Model Relationships \u2014 supplementary examples"
+          "description": "Search Through Model Relationships — supplementary examples"
         },
         {
           "path": "/docs/sdk/entities/kotlin-models",
-          "description": "Kotlin Models And Updates \u2014 supplementary examples"
+          "description": "Kotlin Models And Updates — supplementary examples"
         },
         {
           "path": "/docs/sdk/models/migration-testing",
@@ -7049,6 +7317,10 @@
         {
           "path": "/docs/sdk/models/configuration",
           "description": "Introduce optional settings only when required"
+        },
+        {
+          "path": "/docs/sdk/models/published-event-migration",
+          "description": "Replay published Aggregate events, coordinate readers and adopt at a verified cutover"
         }
       ]
     },
@@ -7288,6 +7560,10 @@
         {
           "path": "/docs/sdk/models/migration-testing",
           "description": "Preserve old Model data and qualify reconstruction, retained storage and search migration"
+        },
+        {
+          "path": "/docs/sdk/models/published-event-migration",
+          "description": "Migrate published Aggregate events to replacement Models without conflating migration and deletion"
         }
       ]
     },

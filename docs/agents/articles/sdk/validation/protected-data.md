@@ -59,6 +59,47 @@ protected field as `null`. Missing protected data is controlled by `MissingProte
 missing value must stop handling, `SKIP` when the handler should not run, `WARN` for a null-tolerant warned path, and
 `HANDLE` only when passing `null` is intentional.
 
+## Configure the application fallback before building
+
+| Configuration | Contract |
+| --- | --- |
+| `fluxzero.dataProtection.onMissingProtectedData` | Case-insensitive `handle`, `warn`, `skip`, `fail`, or `default` |
+| `FLUXZERO_DATA_PROTECTION_ON_MISSING_PROTECTED_DATA` | Conventional environment-variable form; `FLUXZERO_DATAPROTECTION_ONMISSINGPROTECTEDDATA` is also accepted |
+| Unconfigured, blank, or application-level `DEFAULT` | `HANDLE`: invoke with missing fields set to `null` |
+| `FluxzeroBuilder.onMissingProtectedData(policy)` | Explicit non-`DEFAULT` programmatic override of the property |
+
+Resolve this through the configured `PropertySource`, not direct environment reads. Handler → consumer → application
+precedence still applies; `DEFAULT` at the handler/consumer level inherits the next level rather than forcing
+`HANDLE`. Set the application property before construction because the interceptor captures the fallback then.
+
+```java
+FluxzeroBuilder builder = DefaultFluxzero.builder()
+        .onMissingProtectedData(MissingProtectedDataPolicy.FAIL);
+```
+
+```kotlin
+val builder = DefaultFluxzero.builder()
+    .onMissingProtectedData(MissingProtectedDataPolicy.FAIL)
+```
+
+To test property resolution rather than the programmatic override, supply the property on the fixture builder:
+
+```java
+TestFixture.createAsync(DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        MissingProtectedDataPolicy.PROPERTY, "FAIL")).andThen(existing)),
+        protectedEventHandler)
+        .whenEvent(eventWithMissingVaultReference)
+        .expectError(MissingProtectedDataException.class);
+```
+
+`SimplePropertySource` is `io.fluxzero.common.application.SimplePropertySource`. Here
+`eventWithMissingVaultReference` is a `Message` with a protected field-to-key reference to an absent vault entry,
+not merely a payload whose field happens to be `null`. Use the reference shape from the existing restoration/deletion
+test and remove its KV entry. Also test an overriding consumer/handler policy and assert whether the handler ran.
+`fixture.withProperty(...)` is appropriate for properties read during a scenario, not for rebuilding this interceptor's
+already captured application fallback.
+
 ## Prove sanitization, restoration, and deletion separately
 
 A durable-event assertion with the sensitive field set to `null` proves sanitization. A capture in the trusted handler

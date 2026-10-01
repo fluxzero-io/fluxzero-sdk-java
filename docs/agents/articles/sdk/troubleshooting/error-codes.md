@@ -4,13 +4,13 @@ failure.
 
 | Code | Meaning | Application-side checks |
 | --- | --- | --- |
-| `FZ-SDK-0001` | No active Fluxzero instance | Run inside a configured instance, set the application instance during bootstrap, or use `TestFixture`. |
+| `FZ-SDK-0001` | No active Fluxzero instance | Run inside a configured instance or use `TestFixture`. `Fluxzero.applicationInstance` is the explicit global bootstrap reference, not a replacement for managed application setup. |
 | `FZ-SDK-0002` | Request timed out | Check matching handler discovery, namespace/topic, passive/result behavior, routing, authentication, and whether the remote consumer is running. |
 | `FZ-SDK-0003` | Handler invocation failed | Inspect the cause, resolved parameters, payload shape, and user context. Use a `FunctionalException` only for an expected business rejection. |
 | `FZ-SDK-0004` | Response dispatch failed | Check response serialization, custom dispatch interceptors, result/web-response connectivity, and the target request ID. |
 | `FZ-SDK-0005` | Blocking wait was interrupted | Check application shutdown, caller cancellation, test-runner interruption, and whether retry is safe. Preserve the interrupt contract. |
 | `FZ-SDK-0006` | Message dispatch failed | Check serialization, dispatch interceptors, client connection, namespace, message type, and topic. |
-| `FZ-SDK-0007` | No `UserProvider` | Register the application user provider before adding a user to message metadata, or remove the user attachment if it is not required. |
+| `FZ-SDK-0007` | No `UserProvider` | `Message.addUser(...)` needs a configured provider. Register it with `FluxzeroBuilder.registerUserProvider(...)`, or remove the user attachment if it is not required. |
 | `FZ-SDK-0008` | Invalid tracking configuration | Check that each tracked handler matches one valid consumer, consumer names/configurations do not conflict, and handlers are registered before tracking starts. |
 | `FZ-SDK-0009` | Invalid periodic schedule | Configure a cron expression or positive delay, add `@Periodic` when calling periodic scheduling, or use `Periodic.DISABLED` deliberately. |
 | `FZ-SDK-0010` | Tracker runtime operation failed | Check the cause and managed-runtime connectivity; distinguish an expected shutdown/disconnect from failed position storage or tracker maintenance. |
