@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : "Storage and completion policy for the optional composed Graph document. ",
+  "documentation" : "Materialization and completion policy for the optional composed Graph document. ",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.GraphProjectionMode>",
   "interfaces" : [ ],
@@ -74,7 +74,7 @@
     "name" : "NONE",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionMode.NONE",
     "annotations" : [ ],
-    "documentation" : "Keep only the indexed node documents; assemble Graph results when read. "
+    "documentation" : " Default. Do not store a complete composed Graph document; keep the indexed node documents and assemble Graph\n results live when read. This does not disable Graph search.\n"
   } ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

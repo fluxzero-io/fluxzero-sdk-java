@@ -18,7 +18,7 @@
       "value" : "RUNTIME"
     }
   } ],
-  "documentation" : " Optional precomputation of a searchable Model's complete Graph. Searchability and descendant scope are owned by\n {@link Model#searchable()} and {@link Model#searchSettings()}; these settings alone do not activate search.\n",
+  "documentation" : " Optional materialization of a searchable Model's complete composed Graph.\n <p>\n Search activation and Graph materialization are independent choices. {@link Model#searchable()} and\n {@link Model#searchSettings()} determine which canonical nodes participate in search. This annotation only controls\n whether Fluxzero additionally stores the composed Graph.\n <p>\n The default mode is {@link GraphProjectionMode#NONE NONE}: no complete Graph document is stored. Searchable node\n documents are still maintained, and Graph queries compose them live when read. {@link GraphProjectionMode#ASYNC}\n and {@link GraphProjectionMode#AWAIT} additionally maintain a stored complete Graph.\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],
@@ -45,7 +45,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Whether to store the composed Graph and whether commits wait for it.\n"
+    "documentation" : " Whether to materialize the composed Graph and whether commits wait for that materialization.\n {@link GraphProjectionMode#NONE NONE} is the default and means live Graph composition from indexed nodes, not\n absence of Graph search.\n"
   }, {
     "name" : "pathOverrides",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjection#pathOverrides",

@@ -56,7 +56,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Include composed descendants in Graph queries rooted here. Defaults to the complete finite Graph. "
+    "documentation" : " Whether a searchable scope started at this Model includes composed descendants.\n <p>\n Defaults to {@code true}. Setting this to {@code false} limits this Model's own root scope to itself; it does\n not veto inclusion of this Model in a broader searchable ancestor scope. Descendant traversal still follows only\n composed parent relationships, and {@link Parent#propagateSearch()} may block propagation across individual edges.\n"
   }, {
     "name" : "timestampPath",
     "qualifiedName" : "io.fluxzero.sdk.modeling.SearchSettings#timestampPath",

@@ -58,8 +58,8 @@
     "varArgs" : false,
     "documentation" : " Optional slash-separated, non-reserved collection path relative to the parent document.\n"
   }, {
-    "name" : "searchable",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.Parent#searchable",
+    "name" : "propagateSearch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Parent#propagateSearch",
     "returnType" : "boolean",
     "modifiers" : [ "abstract", "public" ],
     "annotations" : [ ],
@@ -67,7 +67,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Whether search Graphs may include this child and its descendants through this relationship.\n <p>\n Set to {@code false} to exclude this complete branch from ancestor search documents and Graph-document\n notifications, in every projection mode. Search activation is not inherited through an excluded edge.\n The child's own {@link Model#searchable()} choice, other parent edges, ordinary Graph navigation,\n response composition and deletion policy remain independent. This setting does not activate search by itself\n and has no effect on schedule ownership.\n <p>\n This policy is persisted with the relationship. Existing relationships retain their previous policy until\n explicitly rewritten; an annotation change or an ordinary value-only update does not rewrite them.\n Rebuild existing stored Graph projections after migrating the relationships.\n"
+    "documentation" : " Whether searchability may propagate from the referenced parent through this relationship.\n <p>\n This setting does not make either Model searchable by itself. {@link Model#searchable()} starts a searchable\n scope; this setting controls whether that scope may propagate across this relationship.\n <p>\n Search propagation only applies when this relationship participates in search composition through a non-empty\n {@link #pathInParent()}. This setting does not create a composition path. A pathless parent relationship remains\n available for ordinary Graph navigation and relationship predicates, but does not inherit search activation.\n <p>\n When {@code true} (the default), a searchable parent can make this child and its composed descendants effectively\n searchable even when the child's own {@link Model#searchable()} value is {@code false}. When {@code false}, the\n complete branch is excluded from ancestor search Graphs and Graph-document notifications, in every projection\n mode, and inherited searchability stops at this edge.\n <p>\n The child may still activate its own searchable scope, or inherit searchability through another included parent\n relationship. Ordinary Graph navigation, response composition, persistence, loading by identity, deletion policy\n and schedule ownership remain independent.\n <p>\n This policy is persisted with the relationship. Existing relationships retain their previous policy until\n explicitly rewritten; an annotation change or an ordinary value-only update does not rewrite them.\n Rebuild existing stored Graph projections after migrating the relationships.\n"
   }, {
     "name" : "types",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Parent#types",
