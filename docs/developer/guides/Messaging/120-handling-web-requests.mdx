@@ -23,6 +23,10 @@ acknowledgment and retry flow. Publication failures fail a still-pending HTTP re
 timeout does not wait for a storage acknowledgment. This adds no HTTP-level retry or exactly-once guarantee across
 Runtime replacement: keep externally visible effects replay-safe when an unconfirmed append is retried.
 
+Named JSON body fields that are missing or explicitly null provide no parameter value. In Java and Kotlin,
+`WebRequestContext.getParameter(name, sources...)` continues to the next configured source in that case.
+An empty string, `false`, or zero is a value and does not trigger this fallback.
+
 ## Why this design?
 
 This architecture enables several key benefits:
