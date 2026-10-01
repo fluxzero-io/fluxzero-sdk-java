@@ -145,6 +145,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "transportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.transportContext",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage.TransportContext",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "DeserializingMessage",
@@ -893,7 +909,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the payload while preserving identity, metadata, handling context, message type, topic, and\n transport segment, index, source, target, and request ID. Serialization stays lazy and uses the new\n payload's type and revision.\n"
   }, {
     "name" : "withSameContext",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage#withSameContext",
@@ -918,6 +934,12 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$MessageSpliterator",
     "kind" : "class",
     "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "TransportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }

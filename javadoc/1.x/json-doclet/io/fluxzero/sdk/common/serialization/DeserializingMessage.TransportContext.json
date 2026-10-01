@@ -1,0 +1,247 @@
+{
+  "name" : "TransportContext",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext.index",
+    "type" : "java.lang.Long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext.requestId",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "segment",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext.segment",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext.source",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "target",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext.target",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TransportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#TransportContext",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fallbackIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "TransportContext",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#TransportContext",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "index",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "applyTo",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#applyTo",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#index",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#requestId",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "segment",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#segment",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#source",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "target",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#target",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.DeserializingMessage$TransportContext#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "index",
+    "type" : "java.lang.Long",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "requestId",
+    "type" : "java.lang.Integer",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "segment",
+    "type" : "java.lang.Integer",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "source",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "target",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

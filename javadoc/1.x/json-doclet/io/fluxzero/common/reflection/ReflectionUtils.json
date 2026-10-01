@@ -1492,7 +1492,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a property value, returning an empty optional for missing properties or null values, including\n missing JSON fields and explicit JSON nulls. Other access failures propagate.\n"
   }, {
     "name" : "getPropertyName",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#getPropertyName",
@@ -2319,7 +2319,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Reads a property value, returning an empty optional for missing properties or null values, including\n missing JSON fields and explicit JSON nulls. Other access failures propagate.\n"
   }, {
     "name" : "remainingPropertyPath",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils#remainingPropertyPath",
