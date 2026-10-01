@@ -584,6 +584,10 @@ public class ReflectionUtils {
         Read a property
      */
 
+    /**
+     * Reads a property value, returning an empty optional for missing properties or null values, including
+     * missing JSON fields and explicit JSON nulls. Other access failures propagate.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> readProperty(String propertyPath, Object target) {
         if (target == null) {
@@ -619,6 +623,10 @@ public class ReflectionUtils {
         throw new IllegalArgumentException("Type is raw and does not define arguments");
     }
 
+    /**
+     * Reads a property value, returning an empty optional for missing properties or null values, including
+     * missing JSON fields and explicit JSON nulls. Other access failures propagate.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> getPropertyAnnotation(String propertyPath, Object target) {
         if (target == null) {
@@ -1302,8 +1310,15 @@ public class ReflectionUtils {
 
         private Function<Object, Object> computeGetter(String propertyName) {
             if (ObjectNode.class.isAssignableFrom(type)) {
+                PropertyNotFoundException notFoundException = new PropertyNotFoundException(propertyName, type);
                 return target -> {
                     JsonNode path = ((ObjectNode) target).path(propertyName);
+                    if (path.isMissingNode()) {
+                        throw notFoundException;
+                    }
+                    if (path.isNull()) {
+                        return null;
+                    }
                     return switch (path) {
                         case TextNode n -> n.asText();
                         case NumericNode n -> n.numberValue();

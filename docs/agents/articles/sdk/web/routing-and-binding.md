@@ -63,6 +63,11 @@ record PublishArticleRequest(
 
 Use a plain request DTO parameter for the whole JSON body. Use `@BodyParam` on method parameters only when deliberately extracting named body fields. Put Jakarta validation and `@ApiDoc(required = true)` on DTO record components according to the runtime and generated contract; do not put web injection annotations there.
 
+Missing JSON body fields and explicit JSON nulls provide no parameter value. When using
+`WebRequestContext.getParameter(name, sources...)`, resolution continues to the next configured source.
+The same rule applies in Java and Kotlin. `ReflectionUtils.hasProperty` distinguishes an absent JSON field
+(`false`) from a present field with a null value (`true`); `readProperty` returns an empty optional for both.
+
 Name injected parameters explicitly when the route or public contract depends on a different name. Java annotation processing records method parameter metadata, but an explicit `@PathParam("articleId")` or `@QueryParam("offset")` keeps the binding and OpenAPI intent visible.
 
 Path parameters are percent-decoded once as UTF-8 after raw-path route matching and before type conversion.
