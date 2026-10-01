@@ -680,7 +680,7 @@ public abstract class SearchableModelGraphContract {
     }
     @Model(searchable = true, persistence = ModelPersistence.DOCUMENT)
     public record ExcludedBranch(@EntityId String id,
-            @Parent(value = PolyRoot.class, pathInParent = "privateBranches", searchable = false) String privateParent,
+            @Parent(value = PolyRoot.class, pathInParent = "privateBranches", propagateSearch = false) String privateParent,
             @Parent(value = PolyRoot.class, pathInParent = "sharedBranches") String sharedParent,
             @Facet String text) { }
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
@@ -688,7 +688,7 @@ public abstract class SearchableModelGraphContract {
             @Parent(value = ExcludedBranch.class, pathInParent = "leaves") String parent, @Facet String text) { }
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
     public record UnindexedBranch(@EntityId String id,
-            @Parent(value = PolyRoot.class, pathInParent = "unindexed", searchable = false) String parent) { }
+            @Parent(value = PolyRoot.class, pathInParent = "unindexed", propagateSearch = false) String parent) { }
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
     public record UnindexedLeaf(@EntityId String id,
             @Parent(value = UnindexedBranch.class, pathInParent = "leaves") String parent) { }

@@ -10,13 +10,18 @@ appears in a Graph; it never activates storage or search.
 2. **Searchability:** `@Model(searchable = true)` maintains the canonical indexed node document. By default it also
    activates composed descendants. They use their own `SearchSettings`, and can be queried directly. A child's local
    `searchable = false` means no independent activation; it does not veto inclusion by an ancestor.
-3. **Graph materialization:** `graphProjection = @GraphProjection(mode = ...)` optionally adds a stored composed Graph.
-   `NONE` is the default: retain indexed nodes and compose results when read. `ASYNC` precomputes the Graph; `AWAIT`
-   also waits for affected projections before completing a commit. Application/consumer completion settings may
-   additionally wait for an enabled projection, but never enable one in `NONE`.
+3. **Graph materialization:** `graphProjection = @GraphProjection(mode = ...)` is independent from search activation
+   and controls only whether the complete composed Graph is stored. `NONE` is the default: no complete Graph document
+   is materialized; indexed node documents are retained and Graph results are composed live when read. `NONE` does
+   **not** disable Graph search. `ASYNC` materializes the Graph asynchronously; `AWAIT` also waits for affected
+   projections before completing a commit. Application/consumer completion settings may additionally wait for an
+   enabled projection, but never enable materialization in `NONE`.
 
-`searchable` is mandatory so an upgrade requires an explicit choice in every Model declaration. SearchSettings alone
-never activates search. Event publication, caching, snapshots and conflict handling remain separate choices.
+`searchable` defaults to `false`. Set it to `true` only when that Model should independently activate search.
+The controls are deliberately orthogonal: Model starts the scope, `SearchSettings.includeDescendants` limits that
+root's scope, `Parent.propagateSearch` gates composed edges, and `graphProjection.mode` chooses live versus materialized
+Graph search. A pathless parent remains navigable but does not propagate search activation. SearchSettings alone never
+activates search. Event publication, caching, snapshots and conflict handling remain separate choices.
 
 ## Capability matrix
 
@@ -56,8 +61,9 @@ List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
         .fetch(10);
 ```
 
-Each Task remains an independent Model. The Project configuration activates its indexed source through the typed,
-composed parent contract. The returned Projects include all participating Tasks, including those that did not match
+Each Task remains an independent Model. This example spells out `searchable = false` deliberately to show that local
+false does not veto inherited activation; ordinary descendants can omit it because false is the default. The Project
+configuration activates the Task's indexed source through the typed, composed parent contract. The returned Projects include all participating Tasks, including those that did not match
 the selecting predicate. A pathless relationship is navigable by identity but is not embedded in a search Graph and
 does not inherit search activation through that relationship.
 
@@ -71,13 +77,13 @@ scopes are rejected during catalog configuration. Missing writers or old data ar
 
 ## Excluding a branch from ancestor search Graphs
 
-Use `@Parent(pathInParent = "tasks", searchable = false)` to stop search composition at that edge.
+Use `@Parent(pathInParent = "tasks", propagateSearch = false)` to stop search composition at that edge.
 The Task and its complete subtree are absent from ancestor search documents in NONE, ASYNC and AWAIT, and their
 changes do not trigger those ancestor Graph-document subscriptions. The default is `true`.
 
 This is independent of `@Model(searchable = ...)`: a Task with its own `searchable = true` remains directly searchable
 and can expose its own Graph, including its children. A false Model setting does not veto inherited activation;
-a false **Parent** setting blocks inheritance and composition through that relationship. Another included parent
+a false **Parent.propagateSearch** setting blocks inheritance and composition through that relationship. Another included parent
 edge can still expose the same Task. If two declarations resolve to the exact same parent/type/path, exclusion wins.
 
 Ordinary Graph navigation, domain/event Graphs, response serialization and deletion ownership retain the relationship
@@ -165,9 +171,10 @@ unsupported; use an explicit ordinary read model or Model commands for those ope
 
 ## Migrating existing data
 
-`DocumentProjection` and `materializeGraph` have been removed. Choose `searchable` explicitly; move node collection
-and timestamp settings to `SearchSettings`, and choose a GraphProjection mode separately. Kotlin nested annotations
-omit `@`, for example `searchSettings = SearchSettings(includeDescendants = false)`.
+`DocumentProjection` and `materializeGraph` have been removed. Set `searchable = true` on Models that should
+independently activate search; omitting it keeps the default `false`. Move node collection and timestamp settings to
+`SearchSettings`, and choose a GraphProjection mode separately. Kotlin nested annotations omit `@`, for example
+`searchSettings = SearchSettings(includeDescendants = false)`.
 
 The default canonical collection retains the existing internal `$modelGraphComponents/<logical Model name>` source.
 An old **public** DocumentProjection collection must not be blindly copied into SearchSettings: it is a projection,
@@ -183,10 +190,10 @@ mixed-writer and stored-data transition requirements.
 
 This is a coordinated 2.x contract change, not a rolling mixed-writer upgrade. Stop old Model writers, source/Graph
 migration consumers and Graph subscribers. Upgrade all Runtime instances first, then rebuild every participating
-contract/application with an explicit `@Model(searchable = ...)`. Old `DocumentProjection`, `materializeGraph`,
-`HandleDocument.modelGraph` and `HandleDocument.modelState` declarations no longer compile.
-Rebuild shared contract JARs too: Java does not recheck an annotation inside a previously compiled dependency.
-An application may otherwise compile successfully and fail with an incomplete-annotation error when that Model is discovered.
+contract/application against the current Model contract, setting `searchable = true` only where independent search
+activation is intended. Old `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and
+`HandleDocument.modelState` declarations no longer compile. Rebuild shared contract JARs too so their Model index and
+search declarations match the current SDK.
 An old writer can re-register an aggregate definition after it was changed to NONE; do not run it alongside the new
 configuration. Reading old stored projection definitions remains supported (missing `storeGraph` means the old
 aggregate behavior); that is not permission to mix old and new writers.

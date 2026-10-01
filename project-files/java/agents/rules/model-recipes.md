@@ -44,7 +44,7 @@ The result retains its exact root value and revision, not a later writer's state
 historical-availability limits: a retained root is not retained history for deleted DOCUMENT-only children.
 
 ```java
-@Model(searchable = false) record Counter(@EntityId String id, int value) {}
+@Model record Counter(@EntityId String id, int value) {}
 record CreateCounter(String id) {
     @Apply Counter apply() { return new Counter(id, 0); }
 }
@@ -89,9 +89,9 @@ companion's repository identity, not to the parent relation.
 
 
 ```java
-@Model(searchable = false) record Project(@EntityId ProjectId projectId, boolean enabled) {}
+@Model record Project(@EntityId ProjectId projectId, boolean enabled) {}
 static class ProjectId extends Id<Project> { ProjectId(String value) { super(value, "project-"); } }
-@Model(searchable = false) record ProjectStatus(@EntityId(prefix = "status-") @Parent(pathInParent = "status") ProjectId projectId,
+@Model record ProjectStatus(@EntityId(prefix = "status-") @Parent(pathInParent = "status") ProjectId projectId,
                             boolean online) {}
 record CreateProject(ProjectId projectId) {
     @Apply Project apply() { return new Project(projectId, false); }
@@ -139,10 +139,10 @@ Store the selected Device ID once on Space. Device's `primary` property is deriv
 
 
 ```java
-@Model(searchable = false) record Space(@EntityId SpaceId spaceId, DeviceId primaryLightId) {}
+@Model record Space(@EntityId SpaceId spaceId, DeviceId primaryLightId) {}
 static class SpaceId extends Id<Space> { SpaceId(String value) { super(value); } }
 static class DeviceId extends Id<Device> { DeviceId(String value) { super(value); } }
-@Model(searchable = false) record Device(@EntityId DeviceId deviceId, @Parent(pathInParent = "devices") SpaceId spaceId) {
+@Model record Device(@EntityId DeviceId deviceId, @Parent(pathInParent = "devices") SpaceId spaceId) {
     @GraphProperty boolean primary(Graph<Space> space) {
         return space.get() != null && deviceId.equals(space.get().primaryLightId());
     }
@@ -231,7 +231,7 @@ record ActivateProject(ProjectId projectId, boolean operational) {
 }
 static class Rejected extends FunctionalException { public Rejected(String message) { super(message); } }
 enum Outcome { STARTED, REJECTED }
-@Model(searchable = false) record LaunchReport(@EntityId(prefix = "launch-") @Parent ProjectId projectId, Outcome outcome) {}
+@Model record LaunchReport(@EntityId(prefix = "launch-") @Parent ProjectId projectId, Outcome outcome) {}
 record RecordLaunchOutcome(ProjectId projectId, Outcome outcome) {
     @Apply LaunchReport apply(@Nullable LaunchReport current) { return new LaunchReport(projectId, outcome); }
 }

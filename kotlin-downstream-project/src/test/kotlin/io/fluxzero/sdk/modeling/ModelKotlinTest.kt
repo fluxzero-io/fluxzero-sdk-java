@@ -20,12 +20,12 @@ class ModelKotlinTest {
         val metadata = EntityMetadata.of(KotlinExcludedChild::class.java)
         assertTrue(metadata.isSearchable)
         assertTrue(metadata.participatesInGraphComposition())
-        assertEquals(false, metadata.parentReferences().single().searchable())
+        assertEquals(false, metadata.parentReferences().single().propagateSearch())
     }
 
     @Model(searchable = true)
     data class KotlinExcludedChild(@EntityId val id: String,
-        @Parent(value = KotlinModel::class, pathInParent = "excluded", searchable = false) val parent: String)
+        @Parent(value = KotlinModel::class, pathInParent = "excluded", propagateSearch = false) val parent: String)
 
     @ParameterizedTest
     @ValueSource(booleans = [false, true])

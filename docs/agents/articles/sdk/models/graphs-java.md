@@ -22,7 +22,7 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, one Model can have two parents with different meanings:
 
 ```java
-@Model(searchable = false)
+@Model
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -48,7 +48,7 @@ annotation: concrete cycles between Model IDs are rejected, including cycles con
 Use `@Parent` on the child:
 
 ```java
-@Model(searchable = false)
+@Model
 public record Task(
         @EntityId TaskId taskId,
         @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -179,7 +179,7 @@ is immutable, shared across the view and never persisted as Model state.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```java
-@Model(searchable = false)
+@Model
 record Project(
         @EntityId ProjectId projectId,
         @Alias(prefix = "external:") String externalId) {

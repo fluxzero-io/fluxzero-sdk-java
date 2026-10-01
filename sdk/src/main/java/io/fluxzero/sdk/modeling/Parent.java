@@ -117,19 +117,29 @@ public @interface Parent {
     String pathInParent() default "";
 
     /**
-     * Whether search Graphs may include this child and its descendants through this relationship.
+     * Whether searchability may propagate from the referenced parent through this relationship.
      * <p>
-     * Set to {@code false} to exclude this complete branch from ancestor search documents and Graph-document
-     * notifications, in every projection mode. Search activation is not inherited through an excluded edge.
-     * The child's own {@link Model#searchable()} choice, other parent edges, ordinary Graph navigation,
-     * response composition and deletion policy remain independent. This setting does not activate search by itself
-     * and has no effect on schedule ownership.
+     * This setting does not make either Model searchable by itself. {@link Model#searchable()} starts a searchable
+     * scope; this setting controls whether that scope may propagate across this relationship.
+     * <p>
+     * Search propagation only applies when this relationship participates in search composition through a non-empty
+     * {@link #pathInParent()}. This setting does not create a composition path. A pathless parent relationship remains
+     * available for ordinary Graph navigation and relationship predicates, but does not inherit search activation.
+     * <p>
+     * When {@code true} (the default), a searchable parent can make this child and its composed descendants effectively
+     * searchable even when the child's own {@link Model#searchable()} value is {@code false}. When {@code false}, the
+     * complete branch is excluded from ancestor search Graphs and Graph-document notifications, in every projection
+     * mode, and inherited searchability stops at this edge.
+     * <p>
+     * The child may still activate its own searchable scope, or inherit searchability through another included parent
+     * relationship. Ordinary Graph navigation, response composition, persistence, loading by identity, deletion policy
+     * and schedule ownership remain independent.
      * <p>
      * This policy is persisted with the relationship. Existing relationships retain their previous policy until
      * explicitly rewritten; an annotation change or an ordinary value-only update does not rewrite them.
      * Rebuild existing stored Graph projections after migrating the relationships.
      */
-    boolean searchable() default true;
+    boolean propagateSearch() default true;
 
     /**
      * Optional API documentation for the list-valued graph property at {@link #pathInParent()}.

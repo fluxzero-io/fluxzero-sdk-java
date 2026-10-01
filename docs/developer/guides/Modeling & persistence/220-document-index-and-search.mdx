@@ -63,7 +63,7 @@ You can also specify the collection in which the object should be stored directl
 
 ## Model documents and searchable values
 
-Start ordinary domain state at `@Model(searchable = false)`. The examples below enable `searchable` for a list of user accounts across the application. Node, relationship and Graph queries use the same canonical indexed documents. Neither `DOCUMENT` nor a composition path activates search. See the central
+Start ordinary domain state at `@Model`. The examples below enable `searchable` for a list of user accounts across the application. Node, relationship and Graph queries use the same canonical indexed documents. Neither `DOCUMENT` nor a composition path activates search. See the central
 [Model and Graph query matrix](../model-query-guide) for required configuration, available predicates and actual state.
 
 Other values use the document-store annotations that own automatic indexing:
@@ -123,7 +123,6 @@ reference-only:
   <TabItem label="Java">
     ```java
     @Model(
-    searchable = false,
     persistence = ModelPersistence.DOCUMENT
 )
     public record UserPreferences(@EntityId UserId userId,
@@ -134,7 +133,6 @@ reference-only:
   <TabItem label="Kotlin">
     ```kotlin
     @Model(
-    searchable = false,
     persistence = [ModelPersistence.DOCUMENT]
 )
     data class UserPreferences(

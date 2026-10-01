@@ -33,8 +33,8 @@ An independent Product must remain active when a Reservation is committed. Bind 
 it does not need a parent relation to the Reservation:
 
 ```java
-@Model(searchable = false) record Product(@EntityId String productId, boolean active) {}
-@Model(searchable = false) record Reservation(@EntityId String reservationId) {}
+@Model record Product(@EntityId String productId, boolean active) {}
+@Model record Reservation(@EntityId String reservationId) {}
 
 record Reserve(String reservationId, String productId) {
     @AssertLegal
@@ -52,8 +52,8 @@ record Reserve(String reservationId, String productId) {
 In Kotlin, the same binding uses a nullable Model parameter:
 
 ```kotlin
-@Model(searchable = false) data class Product(@EntityId val productId: String, val active: Boolean)
-@Model(searchable = false) data class Reservation(@EntityId val reservationId: String)
+@Model data class Product(@EntityId val productId: String, val active: Boolean)
+@Model data class Reservation(@EntityId val reservationId: String)
 
 data class Reserve(val reservationId: String, val productId: String) {
     @AssertLegal

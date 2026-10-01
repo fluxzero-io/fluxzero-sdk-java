@@ -64,7 +64,7 @@ its owning Model, not a separate entity update. The Model/Member lifecycle rules
 ## Define a model
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -157,7 +157,7 @@ compatible responses prepared by the Runtime. Older runtimes may ignore the opti
 Storage and query visibility are not authorization. `DOCUMENT` with effective `eventPublication = NEVER`
 can persist current state without Model events, but has no history or `previous()`. Event-sourced state changes
 must store their event. This does not suppress incoming request logs, results or application logs.
-`searchable = false` with no searchable ancestor keeps document state internal. Searchability is not authorization.
+A DOCUMENT Model with default search off and no searchable ancestor keeps its document state internal. Searchability is not authorization.
 
 `@ProtectData` on an input does not carry over to copies in Model state, snapshots, documents or return values.
 Result payloads can declare their own protected fields for normal RESULT dispatch; do not infer HTTP-body protection.
@@ -422,7 +422,7 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, one Model can have two parents with different meanings:
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class LineItem(
     @EntityId val lineItemId: LineItemId,
     @Parent(pathInParent = "lines") val orderId: OrderId,
@@ -446,7 +446,7 @@ rule separately when deletion must be refused while references exist. `@Parent` 
 annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks")
@@ -506,7 +506,7 @@ not modify direct Models, histories or relationships.
 `@Model` plus `@Member` is the intentional shared-stream option:
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Invoice(
     @EntityId val invoiceId: InvoiceId,
     @Member val lines: List<InvoiceLine>
@@ -666,7 +666,7 @@ Persistent instability fails with an explicit platform error.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(
     @EntityId val projectId: ProjectId,
     @Alias(prefix = "external:") val externalId: String

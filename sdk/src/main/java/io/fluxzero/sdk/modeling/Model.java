@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 
 import java.lang.annotation.Documented;
@@ -59,7 +60,7 @@ import java.lang.annotation.Target;
  *
  * <h2>Example</h2>
  * <pre>{@code
- * @Model(searchable = false)
+ * @Model
  * public record Product(@EntityId ProductId productId, ProductDetails details) {
  *     @Apply
  *     Product rename(RenameProduct command) {
@@ -222,16 +223,38 @@ public @interface Model {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
-     * Explicitly activates indexed current documents for this Model and, by default, its composed descendants.
-     * A false value makes no independent request: an ancestor's searchable scope can still include this type.
-     * Recompiled declarations must make this choice explicitly. Rebuild shared contract JARs as well: Java does not
-     * revalidate annotations in an already compiled dependency, which otherwise fails when its settings are read.
+     * Whether this Model independently activates search.
+     * <p>
+     * Setting this to {@code true} starts a searchable scope at this Model and, by default, makes composed descendants
+     * effectively searchable as well. Setting it to {@code false} does <strong>not</strong> mean that this Model can
+     * never be searched; it only means that this Model does not activate search by itself. A searchable ancestor can
+     * still include it.
+     * <p>
+     * {@link Model#searchable()} starts a searchable scope. {@link Parent#propagateSearch()} controls whether that scope may
+     * propagate across a parent relationship. Set {@code @Parent(propagateSearch = false)} to block inherited searchability
+     * through one edge while leaving the child's own search activation and other parent relationships independent.
+     * {@link SearchSettings#includeDescendants()} can limit this Model's own searchable scope to the Model itself; it
+     * does not prevent the Model from participating in a broader searchable ancestor scope.
+     * <p>
+     * Search activation does not require every property to participate in text search. Use
+     * {@link SearchExclude @SearchExclude} on individual properties or types to exclude them from text indexing and
+     * matching while retaining them in the stored and returned document.
+     * <p>
+     * Whether the complete composed Graph is materialized is a separate choice controlled by {@link #graphProjection()}.
+     * Its default mode is {@link GraphProjectionMode#NONE NONE}: Fluxzero keeps the separate indexed node documents and
+     * composes Graph results live when queried, without storing a complete Graph document. Use
+     * {@link GraphProjectionMode#ASYNC ASYNC} or {@link GraphProjectionMode#AWAIT AWAIT} only when a stored composed
+     * Graph is desired.
      */
-    boolean searchable();
+    boolean searchable() default false;
 
     /** Per-node index settings and the scope of Graph queries rooted at this Model. Does not activate search. */
     SearchSettings searchSettings() default @SearchSettings;
 
-    /** Optional storage of a complete Graph in addition to the separate indexed node documents. */
+    /**
+     * Optional materialization of a complete composed Graph, configured independently from search activation.
+     * The default {@link GraphProjectionMode#NONE NONE} stores no complete Graph document and composes searchable
+     * Graphs live from the separate indexed nodes. ASYNC/AWAIT additionally maintain a stored composed Graph.
+     */
     GraphProjection graphProjection() default @GraphProjection;
 }

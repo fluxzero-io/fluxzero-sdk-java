@@ -378,7 +378,7 @@ the regular payload.
 
 Input-message protection does not carry over to copies in Model state, snapshots, documents, results or logs.
 A result payload can declare its own protected fields for normal RESULT dispatch; this is not a blanket HTTP-body guarantee.
-Neither `DOCUMENT` nor `searchable = false` is an authorization or encryption boundary. For eventless state,
+Neither `DOCUMENT` nor lack of effective searchability is an authorization or encryption boundary. For eventless state,
 atomic transitions and erasure limits, see [Model persistence boundaries](entities.md#persistence-and-protection-boundaries).
 
 ### @DropProtectedData

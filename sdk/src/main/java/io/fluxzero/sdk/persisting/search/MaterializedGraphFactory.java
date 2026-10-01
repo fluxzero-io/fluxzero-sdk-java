@@ -289,7 +289,7 @@ final class MaterializedGraphFactory {
                 }
                 for (EntityMetadata.ParentReference reference : metadata.parentReferences()) {
                     String path = reference.pathInParent();
-                    if (reference.searchableComposition()) {
+                    if (reference.propagatesSearch()) {
                         for (Class<?> parentType : reference.parentModelTypes()) {
                             mutable.computeIfAbsent(parentType, ignored -> new LinkedHashSet<>())
                                     .add(pathOverrides.getOrDefault(path, path));

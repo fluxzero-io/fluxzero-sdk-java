@@ -508,7 +508,7 @@ public final class EntityMetadata {
             ParentRelationship relationship = new ParentRelationship(
                     repositoryId, parentType,
                     reference.pathInParent().isEmpty() ? null : reference.pathInParent(),
-                    reference.deleteOnParentDeletion(), !reference.searchable());
+                    reference.deleteOnParentDeletion(), !reference.propagateSearch());
             RelationshipKey key = new RelationshipKey(
                     repositoryId, parentType, relationship.pathInParent());
             result.merge(
@@ -550,7 +550,7 @@ public final class EntityMetadata {
         if (!visited.add(type)) {
             return false;
         }
-        return parentReferences.stream().filter(ParentReference::searchableComposition)
+        return parentReferences.stream().filter(ParentReference::propagatesSearch)
                 .flatMap(reference -> reference.parentModelTypes().stream())
                 .map(EntityMetadata::of)
                 .anyMatch(parent -> parent.model != null
@@ -683,7 +683,7 @@ public final class EntityMetadata {
                     continue;
                 }
                 boolean participates = EntityMetadata.of(candidate).parentReferences().stream()
-                        .filter(ParentReference::searchableComposition)
+                        .filter(ParentReference::propagatesSearch)
                         .flatMap(reference -> reference.parentModelTypes().stream())
                         .anyMatch(parent -> reachable.stream()
                                 .anyMatch(reachableType ->
@@ -883,7 +883,7 @@ public final class EntityMetadata {
             }
             result.add(new ParentReference(
                     parentProperty.property(), pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
-                    annotation.deleteOnParentDeletion(), annotation.searchable()));
+                    annotation.deleteOnParentDeletion(), annotation.propagateSearch()));
         }
         return List.copyOf(result);
     }
@@ -1383,7 +1383,7 @@ public final class EntityMetadata {
      * @param pathInParent    optional parent-relative automatic composition path
      * @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
-     * @param searchable     whether ancestor search composition may traverse this edge
+     * @param propagateSearch whether ancestor search composition may traverse this edge
      * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
      */
     public record ParentReference(
@@ -1392,7 +1392,7 @@ public final class EntityMetadata {
             List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
             boolean deleteOnParentDeletion,
-            boolean searchable) {
+            boolean propagateSearch) {
         public ParentReference {
             parentModelTypes = List.copyOf(parentModelTypes);
         }
@@ -1454,8 +1454,8 @@ public final class EntityMetadata {
         }
 
         /** Whether this edge participates in search composition and inherited search activation. */
-        public boolean searchableComposition() {
-            return searchable && automaticallyComposed();
+        public boolean propagatesSearch() {
+            return propagateSearch && automaticallyComposed();
         }
     }
 
@@ -1565,7 +1565,7 @@ public final class EntityMetadata {
 
         private static boolean hasPolymorphicParent(Class<?> modelType, Set<Class<?>> visited) {
             if (!visited.add(modelType)) { return false; }
-            return of(modelType).parentReferences.stream().filter(ParentReference::searchableComposition)
+            return of(modelType).parentReferences.stream().filter(ParentReference::propagatesSearch)
                     .flatMap(reference -> reference.parentModelTypes().stream())
                     .anyMatch(parent -> !java.lang.reflect.Modifier.isFinal(parent.getModifiers())
                             || hasPolymorphicParent(parent, visited));
@@ -1585,7 +1585,7 @@ public final class EntityMetadata {
                         modelType, metadata.model.graphProjection()));
             }
             metadata.parentReferences.stream()
-                    .filter(ParentReference::searchableComposition)
+                    .filter(ParentReference::propagatesSearch)
                     .flatMap(reference -> reference.parentModelTypes().stream())
                     .forEach(parent -> {
                         result.addAll(inspect(parent, visited, true, knownModelTypes));

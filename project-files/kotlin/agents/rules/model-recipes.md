@@ -44,7 +44,7 @@ The result retains its exact root value and revision, not a later writer's state
 historical-availability limits: a retained root is not retained history for deleted DOCUMENT-only children.
 
 ```kotlin
-@Model(searchable = false) data class Counter(@EntityId val id: String, val value: Int)
+@Model data class Counter(@EntityId val id: String, val value: Int)
 data class CreateCounter(val id: String) {
     @Apply fun apply() = Counter(id, 0)
 }
@@ -90,9 +90,9 @@ companion's repository identity, not to the parent relation.
 
 
 ```kotlin
-@Model(searchable = false) data class Project(@EntityId val projectId: ProjectId, val enabled: Boolean)
+@Model data class Project(@EntityId val projectId: ProjectId, val enabled: Boolean)
 class ProjectId(value: String) : Id<Project>(value, "project-")
-@Model(searchable = false) data class ProjectStatus(
+@Model data class ProjectStatus(
     @EntityId(prefix = "status-") @Parent(pathInParent = "status") val projectId: ProjectId,
     val online: Boolean
 )
@@ -140,10 +140,10 @@ Store the selected Device ID once on Space. Device's `primary` property is deriv
 
 
 ```kotlin
-@Model(searchable = false) data class Space(@EntityId val spaceId: SpaceId, val primaryLightId: DeviceId?)
+@Model data class Space(@EntityId val spaceId: SpaceId, val primaryLightId: DeviceId?)
 class SpaceId(value: String) : Id<Space>(value)
 class DeviceId(value: String) : Id<Device>(value)
-@Model(searchable = false) data class Device(@EntityId val deviceId: DeviceId,
+@Model data class Device(@EntityId val deviceId: DeviceId,
                         @Parent(pathInParent = "devices") val spaceId: SpaceId) {
     @GraphProperty fun primary(space: Graph<Space>) = deviceId == space.get()?.primaryLightId
 }
@@ -233,7 +233,7 @@ data class ActivateProject(val projectId: ProjectId, val operational: Boolean) {
 }
 class Rejected(message: String) : FunctionalException(message)
 enum class Outcome { STARTED, REJECTED }
-@Model(searchable = false) data class LaunchReport(@EntityId(prefix = "launch-") @Parent val projectId: ProjectId,
+@Model data class LaunchReport(@EntityId(prefix = "launch-") @Parent val projectId: ProjectId,
                                val outcome: Outcome)
 data class RecordLaunchOutcome(val projectId: ProjectId, val outcome: Outcome) {
     @Apply fun apply(current: LaunchReport?) = LaunchReport(projectId, outcome)

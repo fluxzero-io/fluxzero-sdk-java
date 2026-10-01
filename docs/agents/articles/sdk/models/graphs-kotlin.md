@@ -22,7 +22,7 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, one Model can have two parents with different meanings:
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class LineItem(
     @EntityId val lineItemId: LineItemId,
     @Parent(pathInParent = "lines") val orderId: OrderId,
@@ -46,7 +46,7 @@ rule separately when deletion must be refused while references exist. `@Parent` 
 annotation: concrete cycles between Model IDs are rejected, including cycles containing non-owning edges.
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks")
@@ -178,7 +178,7 @@ context is immutable, shared across the view and never persisted as Model state.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(
     @EntityId val projectId: ProjectId,
     @Alias(prefix = "external:") val externalId: String

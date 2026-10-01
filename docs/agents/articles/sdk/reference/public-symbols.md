@@ -26,6 +26,7 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | Objective | Public symbol |
 | --- | --- |
 | Model/entity annotations | `io.fluxzero.sdk.modeling.Model`, `EntityId`, `Parent`, `Alias`; `io.fluxzero.sdk.tracking.handling.Association` |
+| Parent search propagation | `io.fluxzero.sdk.modeling.Parent#propagateSearch` |
 | entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
 | Model graph and metadata selection | `io.fluxzero.sdk.modeling.Graph`, `Graphs`; `children`, `namedChildren`, `descendants`, `namedDescendants`, `modelName`, `knownType` |
 | legality/apply | `io.fluxzero.sdk.modeling.AssertLegal`, `io.fluxzero.sdk.persisting.eventsourcing.Apply` |

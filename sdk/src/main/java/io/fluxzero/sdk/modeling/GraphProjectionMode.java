@@ -16,9 +16,12 @@
 
 package io.fluxzero.sdk.modeling;
 
-/** Storage and completion policy for the optional composed Graph document. */
+/** Materialization and completion policy for the optional composed Graph document. */
 public enum GraphProjectionMode {
-    /** Keep only the indexed node documents; assemble Graph results when read. */
+    /**
+     * Default. Do not store a complete composed Graph document; keep the indexed node documents and assemble Graph
+     * results live when read. This does not disable Graph search.
+     */
     NONE,
     /** Also maintain the composed Graph asynchronously. */
     ASYNC,

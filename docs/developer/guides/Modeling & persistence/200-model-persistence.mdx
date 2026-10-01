@@ -17,7 +17,7 @@ criteria and shows validated Java/Kotlin creation and targeted updates. A plain 
 separate Model nor `@Member`; its owner determines persistence.
 
 ```java
-@Model(searchable = false)
+@Model
 record Account(
         @EntityId AccountId accountId,
         Money balance) {
@@ -69,7 +69,7 @@ substitutes for a durable event history. Every historical Graph node whose value
 Event sourcing is the default:
 
 ```java
-@Model(searchable = false)
+@Model
 record Account(@EntityId AccountId accountId, Money balance) {
 }
 ```
@@ -198,7 +198,7 @@ Persistent instability fails with an explicit platform error.
 Select `DOCUMENT` to load state from its internal current document. Search remains an independent choice:
 
 ```java
-@Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+@Model(persistence = ModelPersistence.DOCUMENT)
 record UserPreferences(@EntityId UserId userId, Preferences preferences) {
 }
 ```
@@ -336,7 +336,6 @@ the following is an illustrative tuning choice, not a standard Model configurati
 
 ```java
 @Model(
-    searchable = false,
     snapshotPeriod = 1000,
     maxSnapshotCount = 2,
     checkpointPeriod = 100

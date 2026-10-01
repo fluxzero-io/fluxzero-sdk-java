@@ -21,8 +21,8 @@ deleting the project also deletes the reminder. The deadline and completion flag
 details. ID types below extend `Id<Project>` and `Id<Reminder>`.
 
 ```java
-@Model(searchable = false) record Project(@EntityId ProjectId projectId) {}
-@Model(searchable = false) record Reminder(@EntityId ReminderId reminderId, @Parent ProjectId projectId,
+@Model record Project(@EntityId ProjectId projectId) {}
+@Model record Reminder(@EntityId ReminderId reminderId, @Parent ProjectId projectId,
                        Instant deadline, boolean completed) {}
 
 record PlanReminder(ReminderId reminderId, ProjectId projectId, Instant deadline) {

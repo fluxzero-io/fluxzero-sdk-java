@@ -55,6 +55,19 @@ class ModelSearchConfigurationTest {
     }
 
     @Test
+    void defaultFalseStillInheritsSearchThroughComposedParent() {
+        org.junit.jupiter.api.Assertions.assertTrue(EntityMetadata.of(CatalogChild.class).isSearchable());
+    }
+
+    @Test
+    void pathlessParentDoesNotInheritSearchActivation() {
+        var metadata = EntityMetadata.of(PathlessChild.class);
+        org.junit.jupiter.api.Assertions.assertFalse(metadata.isSearchable());
+        org.junit.jupiter.api.Assertions.assertFalse(metadata.parentReferences().getFirst().automaticallyComposed());
+        org.junit.jupiter.api.Assertions.assertFalse(metadata.parentReferences().getFirst().propagatesSearch());
+    }
+
+    @Test
     void excludedParentStopsSearchInheritanceButKeepsDomainComposition() {
         var excluded = EntityMetadata.of(PrivateBranch.class);
         org.junit.jupiter.api.Assertions.assertFalse(excluded.isSearchable());
@@ -78,14 +91,14 @@ class ModelSearchConfigurationTest {
 
     @Model(searchable = false)
     record PrivateBranch(@EntityId String id,
-            @Parent(value = CatalogParent.class, pathInParent = "private", searchable = false) String parent) { }
+            @Parent(value = CatalogParent.class, pathInParent = "private", propagateSearch = false) String parent) { }
     @Model(searchable = false)
     record PrivateLeaf(@EntityId String id,
             @Parent(value = PrivateBranch.class, pathInParent = "leaves") String parent) { }
     @Model(searchable = true)
     record DuplicateBranch(@EntityId String id,
             @Parent(value = CatalogParent.class, pathInParent = "children", deleteOnParentDeletion = false) String first,
-            @Parent(value = CatalogParent.class, pathInParent = "children", searchable = false) String second) { }
+            @Parent(value = CatalogParent.class, pathInParent = "children", propagateSearch = false) String second) { }
 
     @Model(searchable = true, graphProjection = @GraphProjection(mode = GraphProjectionMode.AWAIT))
     interface CatalogParent { @EntityId String id(); }
@@ -97,8 +110,10 @@ class ModelSearchConfigurationTest {
     interface CatalogAncestor { @EntityId String id(); }
     @Model(searchable = true, graphProjection = @GraphProjection(mode = GraphProjectionMode.AWAIT))
     record ConcreteCatalogAncestor(@EntityId String id) implements CatalogAncestor { }
-    @Model(searchable = false)
+    @Model
     record CatalogChild(@EntityId String id, @Parent(value = CatalogParent.class, pathInParent = "children") String parent) { }
+    @Model
+    record PathlessChild(@EntityId String id, @Parent(value = CatalogParent.class) String parent) { }
 
     @Model(searchable = true, persistence = ModelPersistence.DOCUMENT,
             searchSettings = @SearchSettings(collection = "${nodeCollection}"),

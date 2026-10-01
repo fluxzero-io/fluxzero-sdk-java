@@ -86,9 +86,11 @@ class DownstreamProjectTest {
         assertNotNull(typedParent);
         assertNotNull(untypedParent);
         assertEquals("children", typedParent.pathInParent());
+        assertTrue(typedParent.propagateSearch());
         assertEquals(void.class, typedParent.value());
         assertEquals(DownstreamModel.Parent.class, untypedParent.value());
         assertEquals("externalChildren", untypedParent.pathInParent());
+        assertTrue(untypedParent.propagateSearch());
     }
 
     private static String readResource(String name) throws IOException {

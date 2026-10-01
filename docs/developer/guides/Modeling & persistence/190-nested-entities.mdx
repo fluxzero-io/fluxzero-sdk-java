@@ -27,13 +27,13 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, an order line belongs to an order and has a non-owning relation to a product:
 
 ```java
-@Model(searchable = false)
+@Model
 record Order(
         @EntityId OrderId orderId,
         String customerName) {
 }
 
-@Model(searchable = false)
+@Model
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -58,7 +58,7 @@ The named parent path lets Fluxzero include it in the order’s composed Graph.
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
 
 ```java
-@Model(searchable = false)
+@Model
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
@@ -297,7 +297,7 @@ root, state boundary, nodes or placements, and never modifies direct Models or r
 Use `@Member` inside a model when the nested value intentionally shares everything with its owner:
 
 ```java
-@Model(searchable = false)
+@Model
 record Invoice(
         @EntityId InvoiceId invoiceId,
         @Member List<InvoiceNote> notes) {

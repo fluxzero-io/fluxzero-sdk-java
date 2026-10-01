@@ -147,10 +147,10 @@ data class Task(@EntityId val taskId: TaskId, val details: TaskDetails, val comp
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false)
+@Model
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
-@Model(searchable = false)
+@Model
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -161,10 +161,10 @@ record Task(@EntityId TaskId taskId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
-@Model(searchable = false)
+@Model
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -241,7 +241,7 @@ For that variant, add a second parent reference to Task:
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false)
+@Model
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -253,7 +253,7 @@ record Task(@EntityId TaskId taskId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -315,7 +315,7 @@ For example, a notes feature can add independently managed notes to a Task. The 
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false)
+@Model
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {}
@@ -325,7 +325,7 @@ record InternalNote(@EntityId String noteId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -451,7 +451,7 @@ For example, this status Model uses document storage and disables the shared sta
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false, persistence = ModelPersistence.DOCUMENT, cached = false)
+@Model(persistence = ModelPersistence.DOCUMENT, cached = false)
 record TaskStatus(@EntityId String statusId,
                   @Parent TaskId taskId,
                   boolean online) {}
@@ -461,7 +461,7 @@ record TaskStatus(@EntityId String statusId,
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false, persistence = [ModelPersistence.DOCUMENT], cached = false)
+@Model(persistence = [ModelPersistence.DOCUMENT], cached = false)
 data class TaskStatus(
     @EntityId val statusId: String,
     @Parent val taskId: TaskId,
@@ -942,7 +942,7 @@ The schema follows the Models' declared composition paths. Filtering still deter
 
 ### Searchable Graphs and optional materialization
 
-`searchable = true` maintains indexed node documents for Project and its composed descendants, including Tasks. The default `GraphProjectionMode.NONE` composes them when queried. This also makes each Task directly searchable. `DOCUMENT` persistence and `pathInParent` do not activate search.
+`searchable` and Graph materialization are separate settings. `searchable` defaults to `false`; setting it to `true` maintains indexed node documents for Project and its composed descendants, including Tasks, and also makes each Task directly searchable. Search propagation follows composed `@Parent(pathInParent = "...")` edges by default; set `propagateSearch = false` on a specific edge to stop that scope there without changing ordinary Graph navigation or lifecycle ownership. `graphProjection.mode` defaults to `NONE`: Fluxzero stores no complete Graph document and composes those indexed nodes live when queried. `NONE` does **not** disable Graph search. `DOCUMENT` persistence and `pathInParent` do not activate search.
 
 For frequent broad Graph queries, optional `ASYNC` or `AWAIT` materialization additionally stores the complete composed view. Fluxzero updates it automatically; you do not need an event handler to rebuild it. Both live and stored queries can match Task fields and return the containing Project Graph:
 
@@ -979,7 +979,7 @@ In this ASYNC example, Task changes update the stored view automatically; moving
 
 ## Upgrading an existing 2.x application
 
-Every Model must now declare `searchable` explicitly. The former document/projector settings are not source-compatible. Existing canonical state can be retained, but changing annotations does not backfill missing indexes or replace old durable projection definitions. Coordinate all writers and Runtime instances using the [2.x search upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade); this is not a rolling upgrade with old Model writers.
+`searchable` now defaults to `false`; set it to `true` only on Models that should independently activate search. The former document/projector settings are not source-compatible. Existing canonical state can be retained, but changing annotations does not backfill missing indexes or replace old durable projection definitions. Coordinate all writers and Runtime instances using the [2.x search upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade); this is not a rolling upgrade with old Model writers.
 
 ## Upgrading from 1.x
 
