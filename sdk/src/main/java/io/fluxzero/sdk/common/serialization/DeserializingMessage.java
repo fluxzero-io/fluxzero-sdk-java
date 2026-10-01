@@ -146,6 +146,25 @@ public class DeserializingMessage implements HasMessage {
     @NonFinal
     transient Map<Class<?>, Object> context;
 
+    @Getter(AccessLevel.NONE)
+    @NonFinal
+    transient TransportContext transportContext;
+
+    private record TransportContext(Integer segment, Long index, String source, String target, Integer requestId) {
+        private TransportContext(SerializedMessage message, Long fallbackIndex) {
+            this(message.getSegment(), message.getIndex() == null ? fallbackIndex : message.getIndex(),
+                 message.getSource(), message.getTarget(), message.getRequestId());
+        }
+
+        private void applyTo(SerializedMessage message) {
+            message.setSegment(segment);
+            message.setIndex(index);
+            message.setSource(source);
+            message.setTarget(target);
+            message.setRequestId(requestId);
+        }
+    }
+
     public DeserializingMessage(SerializedMessage message, Function<Type, Object> payload,
                                 MessageType messageType, String topic, Serializer serializer) {
         this(new DeserializingObject<>(message, payload), messageType, topic, serializer);
@@ -180,6 +199,7 @@ public class DeserializingMessage implements HasMessage {
         this.delegate = input.delegate;
         this.serializedMessage = input.serializedMessage;
         this.context = input.context;
+        this.transportContext = input.transportContext;
     }
 
     /*
@@ -321,17 +341,25 @@ public class DeserializingMessage implements HasMessage {
                     topic,
                     serializer));
         }
-        return withSameContext(new DeserializingMessage(
+        DeserializingMessage result = withSameContext(new DeserializingMessage(
                 message.withMetadata(metadata), messageType, topic, serializer));
+        result.transportContext = transportContext;
+        return result;
     }
 
     /**
-     * Returns a message with a replacement payload while preserving the handling context and other message
-     * properties.
+     * Returns a message with a replacement payload, preserving metadata, message ID, timestamp, message type,
+     * topic, handling context, and received transport fields (segment, index, source, target, and request ID).
+     * The replacement is serialized lazily using its own payload type and revision.
+     * Use {@link #withMessage(Message)} for a new logical envelope without inherited transport fields.
      */
     public DeserializingMessage withPayload(Object payload) {
-        return withSameContext(new DeserializingMessage(toMessage().withPayload(payload), messageType, topic,
-                                                       serializer));
+        DeserializingMessage result = withSameContext(new DeserializingMessage(
+                toMessage().withPayload(payload), messageType, topic, serializer));
+        SerializedMessage source = delegate == null ? serializedMessage : delegate.getSerializedObject();
+        result.transportContext = transportContext != null ? transportContext
+                : source == null ? null : new TransportContext(source, getIndex());
+        return result;
     }
 
     /**
@@ -371,6 +399,7 @@ public class DeserializingMessage implements HasMessage {
 
     /**
      * Replaces the complete logical message while retaining this wrapper's type, topic, serializer, and context.
+     * Transport fields from the original message are not inherited.
      *
      * <p>Unlike {@link #withPayload(Object)}, this method deliberately retains the supplied message identity. It is
      * used when one handled message expands into several independently publishable model updates.</p>
@@ -392,6 +421,9 @@ public class DeserializingMessage implements HasMessage {
      * schedule; other local messages return null.
      */
     public Long getIndex() {
+        if (transportContext != null) {
+            return transportContext.index();
+        }
         if (delegate != null) {
             return delegate.getSerializedObject().getIndex();
         }
@@ -469,10 +501,14 @@ public class DeserializingMessage implements HasMessage {
             return delegate.getSerializedObject();
         }
         if (serializedMessage == null) {
-            serializedMessage = message.serialize(
+            SerializedMessage result = message.serialize(
                     serializer == null
                             ? Objects.requireNonNull(fallbackSerializer, "serializer")
                             : serializer);
+            if (transportContext != null) {
+                transportContext.applyTo(result);
+            }
+            serializedMessage = result;
         }
         return serializedMessage;
     }
