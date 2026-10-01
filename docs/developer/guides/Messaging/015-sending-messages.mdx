@@ -442,3 +442,10 @@ If no response arrives in time, a `TimeoutException` is thrown.
 <Aside type="tip">
   Asynchronous requests like <code>send(...)</code> don’t enforce timeouts automatically. Use <code>orTimeout(...)</code> on the returned `CompletableFuture` if needed.
 </Aside>
+
+## Payload replacements
+
+`DeserializingMessage.withPayload(...)` preserves message identity, metadata, handling context, message type,
+topic, and transport segment, index, source, target, and request ID. Serialization remains lazy and uses the
+replacement payload's type and revision. This applies to Java and Kotlin. For a new logical envelope,
+construct a new `DeserializingMessage` from a logical `Message` instead of inheriting received transport fields.

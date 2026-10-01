@@ -12,3 +12,10 @@ Runtime delivery details to keep in mind:
 - Message logs assign stable increasing indexes when messages are appended; consumers resume after the last processed index.
 - WebSocket commands with guarantee `STORED` or stronger are request-level idempotent by `(clientId, requestId)`. Completed duplicates replay the cached result and duplicates already in progress are not re-executed. `SENT` commands are not cached this way.
 - Scheduled messages are delivered only when due. Reusing the same schedule ID overwrites the previous deadline unless the caller uses an if-absent schedule mode.
+
+## Payload replacements
+
+`DeserializingMessage.withPayload(...)` preserves message identity, metadata, handling context, message type,
+topic, and transport segment, index, source, target, and request ID. Serialization remains lazy and uses the
+replacement payload's type and revision. This applies to Java and Kotlin. For a new logical envelope,
+construct a new `DeserializingMessage` from a logical `Message` instead of inheriting received transport fields.

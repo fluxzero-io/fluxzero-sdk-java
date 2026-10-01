@@ -429,3 +429,10 @@ Framework scheduling retains its own completion requirements: periodic initializ
 await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
 these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
 methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.
+
+## Payload replacements
+
+`DeserializingMessage.withPayload(...)` preserves message identity, metadata, handling context, message type,
+topic, and transport segment, index, source, target, and request ID. Serialization remains lazy and uses the
+replacement payload's type and revision. This applies to Java and Kotlin. For a new logical envelope,
+construct a new `DeserializingMessage` from a logical `Message` instead of inheriting received transport fields.

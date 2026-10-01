@@ -1258,6 +1258,8 @@
       "summary": "Fluxzero models interactions as command, query, event, web, and scheduled messages with runtime tracking semantics.",
       "source": "articles/sdk/messages/index.md",
       "symbols": [
+        "DeserializingMessage",
+        "withPayload",
         "@HandleCommand",
         "@HandleQuery",
         "@HandleEvent",

@@ -73,6 +73,50 @@ class HandlerInterceptorTest {
     }
 
     @Test
+    void payloadReplacementPreservesContextInSynchronousHandling() {
+        payloadReplacementPreservesContext(false);
+    }
+
+    @Test
+    void payloadReplacementPreservesContextInAsynchronousHandling() {
+        payloadReplacementPreservesContext(true);
+    }
+
+    private void payloadReplacementPreservesContext(boolean async) {
+        AtomicInteger invocations = new AtomicInteger();
+        var builder = DefaultFluxzero.builder().addHandlerInterceptor((function, invoker) -> message -> {
+            var raw = message.getSerializedObject();
+            var expected = new TransportFields(raw.getSegment(), raw.getIndex(), raw.getSource(),
+                                               raw.getTarget(), raw.getRequestId());
+            if (async) {
+                assertNotNull(raw.getSource());
+                assertNotNull(raw.getRequestId());
+                assertNotNull(raw.getIndex());
+            }
+            return function.apply(message.putContext(TransportFields.class, expected).withPayload("changed")
+                    .withMetadata(message.getMetadata().with("extra", "value")));
+        }, COMMAND);
+        Object handler = new Object() {
+            @HandleCommand
+            String handle(String payload, DeserializingMessage message) {
+                var expected = message.getContext(TransportFields.class).orElseThrow();
+                var actual = message.getSerializedObject();
+                assertEquals(expected, new TransportFields(actual.getSegment(), actual.getIndex(), actual.getSource(),
+                                                           actual.getTarget(), actual.getRequestId()));
+                assertEquals(expected.index(), message.getIndex());
+                assertEquals("changed", payload);
+                invocations.incrementAndGet();
+                return payload;
+            }
+        };
+        TestFixture fixture = async ? TestFixture.createAsync(builder, handler) : TestFixture.create(builder, handler);
+        fixture.whenCommand("original").expectResult("changed").expectNoErrors();
+        assertEquals(1, invocations.get());
+    }
+
+    private record TransportFields(Integer segment, Long index, String source, String target, Integer requestId) {}
+
+    @Test
     void changePayloadTypeNotSupported() {
         TestFixture.create(DefaultFluxzero.builder().addHandlerInterceptor(
                         (f, i) -> m -> f.apply(new DeserializingMessage(

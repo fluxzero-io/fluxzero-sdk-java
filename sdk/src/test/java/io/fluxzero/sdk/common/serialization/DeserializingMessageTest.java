@@ -19,6 +19,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -44,6 +45,69 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeserializingMessageTest {
+
+    @Test
+    void payloadReplacementRetainsTransportAcrossCopiesAndResetsPayloadRepresentation() {
+        Serializer serializer = new JacksonSerializer();
+        SerializedMessage raw = new SerializedMessage(serializer.serialize("old").withType("old-alias")
+                .withRevision(3), Metadata.of("key", "value"), "id", 42L);
+        raw.setOriginalRevision(1);
+        raw.setSegment(11);
+        raw.setIndex(123L);
+        raw.setSource("source");
+        raw.setTarget("target");
+        raw.setRequestId(7);
+        DeserializingMessage source = new DeserializingMessage(raw, ignored -> "old", MessageType.COMMAND,
+                                                               "topic", serializer);
+        source.putContext(AtomicInteger.class, new AtomicInteger(7));
+        DeserializingMessage replacement = source.withPayload(12).withMetadata(Metadata.of("extra", "value"))
+                .withPayload(13);
+        replacement = new DeserializingMessage(replacement);
+        assertEquals(123L, replacement.getIndex());
+        assertEquals(13, replacement.<Integer>getPayload());
+        assertEquals("id", replacement.getMessageId());
+        assertEquals(source.getTimestamp(), replacement.getTimestamp());
+        assertEquals(MessageType.COMMAND, replacement.getMessageType());
+        assertEquals("topic", replacement.getTopic());
+        assertSame(source.getContext(AtomicInteger.class).orElseThrow(),
+                   replacement.getContext(AtomicInteger.class).orElseThrow());
+        SerializedMessage serialized = replacement.getSerializedObject();
+        assertEquals(11, serialized.getSegment());
+        assertEquals(123L, serialized.getIndex());
+        assertEquals("source", serialized.getSource());
+        assertEquals("target", serialized.getTarget());
+        assertEquals(7, serialized.getRequestId());
+        assertEquals(Metadata.of("extra", "value"), serialized.getMetadata());
+        assertEquals(serializer.serialize(13).getType(), serialized.getType());
+        assertEquals(serializer.serialize(13).getRevision(), serialized.getRevision());
+        assertEquals(serialized.getRevision(), serialized.getOriginalRevision());
+        assertEquals(13, serializer.<Integer>deserialize(serialized.getData()));
+        assertEquals("old-alias", raw.getType());
+        assertEquals(3, raw.getRevision());
+        assertEquals(1, raw.getOriginalRevision());
+        assertEquals(Metadata.of("key", "value"), raw.getMetadata());
+        assertEquals("old", source.getPayload());
+    }
+
+    @Test
+    void materializedLocalScheduleRetainsDeadlineIndexOnPayloadReplacement() {
+        var serializer = new JacksonSerializer();
+        var schedule = new io.fluxzero.sdk.scheduling.Schedule("old", "schedule", java.time.Instant.ofEpochMilli(1234));
+        var source = new DeserializingMessage(schedule, MessageType.SCHEDULE, serializer);
+        Long index = source.getIndex();
+        assertNull(source.getSerializedObject().getIndex());
+        var replaced = source.withPayload("new").withMetadata(Metadata.of("extra", "value"));
+        assertEquals(index, replaced.getIndex());
+        assertEquals(index, replaced.getSerializedObject().getIndex());
+        assertEquals(schedule.getDeadline(), ((io.fluxzero.sdk.scheduling.Schedule) replaced.toMessage()).getDeadline());
+    }
+
+    @Test
+    void payloadReplacementDoesNotRequireSerializationForLocalHandling() {
+        DeserializingMessage local = new DeserializingMessage(new Message("local"), MessageType.EVENT, null);
+        Object localOnly = new Object();
+        assertSame(localOnly, local.withPayload(localOnly).getPayload());
+    }
 
     @Test
     void returnsVoidPayloadClassWhenDelegatePayloadClassIsUnknown() {
