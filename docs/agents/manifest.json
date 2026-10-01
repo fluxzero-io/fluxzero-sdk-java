@@ -298,6 +298,8 @@
         "source",
         "withMessageId",
         "withMessage",
+        "withPayload",
+        "withRestoredPayload",
         "interceptDispatch",
         "modifySerializedMessage"
       ],

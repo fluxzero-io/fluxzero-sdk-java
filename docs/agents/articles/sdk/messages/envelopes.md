@@ -21,6 +21,13 @@ metadata for a deliberately forwarded correlation value and preserve the appropr
 
 ## Replacements and interceptors
 
+`DeserializingMessage.withPayload(...)` changes the payload while preserving message identity, metadata,
+handling context, and received transport fields: segment, index, source, target, and request ID.
+Serialization stays lazy and uses the replacement payload's type and revision. This applies to Java and Kotlin.
+Use `withMessage(...)` for a complete logical replacement without inheriting the original transport fields.
+Use `withRestoredPayload(...)` only for a restored view of the same payload type that retains the original
+serialized data, such as values recovered from private storage.
+
 For a logical identity change, return a replacement rather than mutating a cached serialized representation:
 
 ```java
