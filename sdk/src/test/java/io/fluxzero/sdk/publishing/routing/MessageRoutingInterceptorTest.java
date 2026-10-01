@@ -45,6 +45,16 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class MessageRoutingInterceptorTest {
 
+    @Test
+    void missingAndNullJsonPropertiesDoNotBecomeRoutingKeys() {
+        var json = io.fluxzero.common.serialization.JsonUtils.valueToTree(java.util.Map.of("present", "key"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) json).putNull("nil");
+        Message message = new Message(json);
+        assertEquals(java.util.Optional.empty(), message.getRoutingKey("missing", false));
+        assertEquals(java.util.Optional.empty(), message.getRoutingKey("nil", false));
+        assertEquals(java.util.Optional.of("key"), message.getRoutingKey("present", false));
+    }
+
     private final MessageRoutingInterceptor subject = new MessageRoutingInterceptor();
     private Integer expectedHash = ConsistentHashing.computeSegment("bar");
 

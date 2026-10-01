@@ -71,6 +71,32 @@ class ReflectionUtilsTest {
     @Nested
     class ReadTest {
         @Test
+        void jsonPropertiesDistinguishMissingFromExplicitNull() {
+            ObjectNode node = JsonUtils.valueToTree(java.util.Map.of("text", "value", "number", 12, "flag", false));
+            node.putNull("nil");
+            node.putObject("child").putNull("nil");
+            node.putArray("array").add("element");
+            for (String path : List.of("missing", "child/missing", "missing/child")) {
+                assertFalse(hasProperty(path, node), path);
+                assertTrue(readProperty(path, node).isEmpty(), path);
+                assertTrue(ReflectionUtils.getPropertyAnnotation(path, node).isEmpty(), path);
+            }
+            for (String path : List.of("nil", "child/nil")) {
+                assertTrue(hasProperty(path, node), path);
+                assertTrue(readProperty(path, node).isEmpty(), path);
+                assertTrue(ReflectionUtils.getPropertyAnnotation(path, node).isEmpty(), path);
+            }
+            assertEquals("value", readProperty("text", node).orElseThrow());
+            assertEquals(12, readProperty("number", node).orElseThrow());
+            assertEquals(false, readProperty("flag", node).orElseThrow());
+            assertSame(node.get("child"), readProperty("child", node).orElseThrow());
+            assertSame(node.get("array"), readProperty("array", node).orElseThrow());
+            node.put("missing", "now present");
+            assertTrue(hasProperty("missing", node));
+            assertEquals("now present", readProperty("missing", node).orElseThrow());
+        }
+
+        @Test
         void testReadingRootGetter() {
             assertEquals(someObject.getPropertyWithGetter(),
                          readProperty("propertyWithGetter", someObject).orElseThrow());
