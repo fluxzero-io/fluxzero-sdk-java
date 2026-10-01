@@ -237,13 +237,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./mvnw -B fluxzero:publish-package -Dfluxzero.package.channel-tag=${{ steps.release_version.outputs.package_channel_tag }}
 
-      - name: Create project files zips
-        run: |
-          mkdir -p target
-          cd project-files
-          zip -r ../target/project-java.zip java
-          zip -r ../target/project-kotlin.zip kotlin
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -254,14 +247,12 @@ jobs:
             !**/target/*-javadoc.jar
           retention-days: 1
 
-      - name: Upload project files
+      - name: Upload release notes
         uses: actions/upload-artifact@v7
         with:
-          name: project-files
-          path: |
-            target/project-java.zip
-            target/project-kotlin.zip
-            target/release-notes.md
+          name: release-notes
+          path: target/release-notes.md
+          if-no-files-found: error
           retention-days: 1
 
       - name: Deploy to packages.fluxzero.io with GitHub OIDC
@@ -376,10 +367,10 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v7
 
-      - name: Download project files
+      - name: Download release notes
         uses: actions/download-artifact@v8
         with:
-          name: project-files
+          name: release-notes
           path: release-assets
 
       - name: Download agent documentation
@@ -397,8 +388,6 @@ jobs:
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
           fail_on_unmatched_files: true
           files: |
-            release-assets/project-java.zip
-            release-assets/project-kotlin.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip.sha256
 

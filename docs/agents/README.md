@@ -25,9 +25,9 @@ or a moving `latest` version in the manifest. Documentation corrections ship wit
 a patch release when only documentation changes; published release contents are immutable.
 
 The graph is data, independent of MCP transport. A documentation bridge must load the archive matching the project's
-SDK version; transport, download and cache ownership remain outside this archive. Existing
-`project-java.zip` and `project-kotlin.zip` release consumers continue to use the legacy `project-files` tree during
-that transition; it is not the source for new graph articles.
+SDK version; transport, download and cache ownership remain outside this archive. New releases distribute this graph
+instead of separate legacy Java/Kotlin manual ZIPs. Existing release assets remain immutable; consumers upgrading
+from those manuals must migrate to the graph archive described below.
 
 ## Release archive
 

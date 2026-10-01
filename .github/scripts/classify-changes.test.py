@@ -67,7 +67,7 @@ class PullRequestChangesTest(unittest.TestCase):
                 self.classify(False)
 
     def test_documentation_formats_assets_and_graph_manifest_are_lightweight(self):
-        for path in ('docs/agents/README.md', 'project-files/readme.md',
+        for path in ('docs/agents/README.md', 'manuals/readme.md',
                      'module/NOTES.MD', 'design/decision.adoc', 'CONTRIBUTING.rst',
                      'docs/notes.txt', 'README.txt', 'guide.markdown', 'LICENSE', 'NOTICE',
                      'docs/agents/manifest.json', 'docs/diagram.svg',

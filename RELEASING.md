@@ -67,7 +67,7 @@ Both sides of renames count; pushes compare the whole pushed range and PRs compa
 The required `build-pr` check still runs. Agent graph validation and archive tests run on the lightweight route,
 but Java setup, Maven and executable artifact qualification are skipped. Use ordinary commit messages without
 `[skip ci]`. Documentation-only pushes do not create SDK versions or publish packages, Javadoc or release ZIPs.
-Versioned agent documentation and legacy project ZIPs incorporate edits at the next SDK release; existing release
+Versioned agent documentation incorporates edits at the next SDK release; existing release
 assets remain immutable. Skipped commits remain in history and participate in the next release's version selection.
 
 Validated documentation-only pushes affecting `docs/developer/` still send `fluxzero-sdk-updated` to the website
