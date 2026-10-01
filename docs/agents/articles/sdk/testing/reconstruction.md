@@ -39,7 +39,7 @@ Supply the **historical event payload**, not a serialized Model state and not a 
 For an automatic command persisted as its own `@Apply` event, these happen to be the same payload type.
 
 ```java
-@Model(searchable = false)
+@Model
 record Project(@EntityId String projectId, ProjectDetails details) {}
 record ProjectDetails(String name) {}
 

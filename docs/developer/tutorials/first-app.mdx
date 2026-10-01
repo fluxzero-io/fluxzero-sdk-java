@@ -80,7 +80,7 @@ Now define the information we want to remember:
 public record TaskDetails(@NotBlank String name) {
 }
 
-@Model(searchable = false)
+@Model
 public record Task(@EntityId TaskId taskId,
                    @With TaskDetails details,
                    @With UserId assignee,
@@ -94,7 +94,7 @@ public record Task(@EntityId TaskId taskId,
 ```kotlin
 data class TaskDetails(@field:NotBlank val name: String)
 
-@Model(searchable = false)
+@Model
 data class Task(
     @EntityId val taskId: TaskId,
     val details: TaskDetails,
@@ -490,7 +490,7 @@ public record ProjectDetails(@NotBlank String name,
                              @Size(max = 1000) String description) {
 }
 
-@Model(searchable = false)
+@Model
 public record Project(@EntityId ProjectId id,
                       @With ProjectDetails details,
                       UserId ownerId) {
@@ -508,7 +508,7 @@ data class ProjectDetails(
     @field:Size(max = 1000) val description: String? = null
 )
 
-@Model(searchable = false)
+@Model
 data class Project(
     @EntityId val id: ProjectId,
     val details: ProjectDetails,
@@ -592,7 +592,7 @@ We already have standalone tasks. Now let a task optionally belong to a project 
   <TabItem label="Java">
 
 ```java
-@Model(searchable = false)
+@Model
 public record Task(@EntityId TaskId taskId,
                    @With @Parent(pathInParent = "tasks") ProjectId projectId,
                    @With TaskDetails details,
@@ -605,7 +605,7 @@ public record Task(@EntityId TaskId taskId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId?,

@@ -85,7 +85,7 @@ Use `@Parent` on the child model. Creating or updating it does not rewrite the p
 
 [//]: # (@formatter:off)
 ```java
-// Task is @Model(searchable = false) and has @Parent(pathInParent = "tasks") ProjectId projectId.
+// Task is @Model and has @Parent(pathInParent = "tasks") ProjectId projectId.
 public record CreateTask(ProjectId projectId, @NotNull TaskId taskId, @NotNull @Valid TaskDetails details) {
     @Apply
     Task apply() {

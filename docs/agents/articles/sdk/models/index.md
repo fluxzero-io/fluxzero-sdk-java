@@ -25,7 +25,7 @@ The SDK requires Java 25 or newer and a compatible Runtime for standalone Models
 Choose the focused state, actions or Graph article for the application's language:
 
 - State: immutable Models, details versus settings/status, validated creation and targeted edits, and typed identity.
-- Configuration: optional storage, search projections and operational settings; start with an explicit `@Model(searchable = false)` and enable search where needed.
+- Configuration: optional storage, search projections and operational settings; search is off by default, so set `@Model(searchable = true)` only where the Model should independently activate it.
 - Actions: automatic `@Apply` command handling, recursive assertions, interception and atomic multi-Model commits.
 - Graphs: independent children via `@Parent`, lazy navigation, exact event-state injection and graph search/projections.
 - Conflicts: read dependencies, empty collections, `RETRY`/`FAIL`/`ACCEPT` and the cost of actual navigation.

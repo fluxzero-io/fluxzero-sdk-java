@@ -44,7 +44,7 @@ import java.lang.annotation.Target;
  * <p>
  * This annotation supports modeling persistence roots with deliberately embedded values, for example:
  * <pre>{@code
- * @Model(searchable = false)
+ * @Model
  * public class Invoice {
  *     @EntityId
  *     String invoiceId;

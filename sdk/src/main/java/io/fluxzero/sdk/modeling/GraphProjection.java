@@ -20,8 +20,15 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Optional precomputation of a searchable Model's complete Graph. Searchability and descendant scope are owned by
- * {@link Model#searchable()} and {@link Model#searchSettings()}; these settings alone do not activate search.
+ * Optional materialization of a searchable Model's complete composed Graph.
+ * <p>
+ * Search activation and Graph materialization are independent choices. {@link Model#searchable()} and
+ * {@link Model#searchSettings()} determine which canonical nodes participate in search. This annotation only controls
+ * whether Fluxzero additionally stores the composed Graph.
+ * <p>
+ * The default mode is {@link GraphProjectionMode#NONE NONE}: no complete Graph document is stored. Searchable node
+ * documents are still maintained, and Graph queries compose them live when read. {@link GraphProjectionMode#ASYNC}
+ * and {@link GraphProjectionMode#AWAIT} additionally maintain a stored complete Graph.
  */
 @Documented
 @Target({})
@@ -29,7 +36,9 @@ import java.lang.annotation.Target;
 public @interface GraphProjection {
 
     /**
-     * Whether to store the composed Graph and whether commits wait for it.
+     * Whether to materialize the composed Graph and whether commits wait for that materialization.
+     * {@link GraphProjectionMode#NONE NONE} is the default and means live Graph composition from indexed nodes, not
+     * absence of Graph search.
      */
     GraphProjectionMode mode() default GraphProjectionMode.NONE;
 

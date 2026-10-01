@@ -14,7 +14,7 @@ document and snapshots are enabled independently through the model settings. Loa
 loading its parent, siblings or children.
 
 ```java
-@Model(searchable = false)
+@Model
 public record Order(@EntityId OrderId orderId, OrderStatus status) {
 }
 ```
@@ -80,7 +80,7 @@ Order order = Fluxzero.loadModel("order-123", Order.class).get();
 Use `@Alias` when an independently stored model must also be addressable by a current business or external identifier:
 
 ```java
-@Model(searchable = false)
+@Model
 record Customer(
         @EntityId CustomerId customerId,
         @Alias(prefix = "email:") String email,
@@ -102,7 +102,7 @@ always resolved before an equal alias. Use parent-scoped primary identities when
 Use `@EntityId(parentScoped = true)` when a parent-owned child ID is intentionally unique only inside one parent:
 
 ```java
-@Model(searchable = false)
+@Model
 record Line(
         @EntityId(parentScoped = true) String lineId,
         @Parent(value = Order.class, pathInParent = "lines") OrderId orderId) {
@@ -136,7 +136,7 @@ See [Model recipes](./197-model-recipes.mdx) for examples, including direct comp
 Event sourcing is the default:
 
 ```java
-@Model(searchable = false)
+@Model
 record Order(@EntityId OrderId orderId, OrderStatus status) {
 }
 ```
@@ -172,7 +172,7 @@ Background cache replay runs in that repository's configured application context
 Select document persistence to load the current model directly from its synchronously maintained document:
 
 ```java
-@Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+@Model(persistence = ModelPersistence.DOCUMENT)
 record Country(@EntityId CountryId countryId, CountryDetails details) {
 }
 ```

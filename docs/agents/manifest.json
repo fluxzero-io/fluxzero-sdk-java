@@ -7467,6 +7467,8 @@
       "source": "articles/sdk/entities/relationships.md",
       "symbols": [
         "Parent",
+        "Parent.propagateSearch",
+        "propagateSearch",
         "Member",
         "io.fluxzero.sdk.modeling.Parent"
       ],
@@ -7541,6 +7543,8 @@
         "Model.searchable",
         "SearchSettings",
         "Parent.pathInParent",
+        "Parent.propagateSearch",
+        "propagateSearch",
         "whereParent",
         "whereAncestor",
         "whereChild",
@@ -7713,6 +7717,8 @@
         "ModelPersistence",
         "Model.searchable",
         "SearchSettings",
+        "Parent.propagateSearch",
+        "propagateSearch",
         "DocumentSource",
         "GraphProjectionMode",
         "GraphProjection",

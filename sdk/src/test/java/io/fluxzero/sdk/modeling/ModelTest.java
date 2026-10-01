@@ -271,7 +271,7 @@ class ModelTest {
         assertDoesNotThrow(() -> DefaultEntityHelper.validateModelApplyMethods(ImmutableModelUpdate.class));
     }
 
-    @Model(searchable = false)
+    @Model
     private static class DefaultModel {
     }
 

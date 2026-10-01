@@ -64,7 +64,7 @@ its owning Model, not a separate entity update. The Model/Member lifecycle rules
 ## Define a model
 
 ```java
-@Model(searchable = false)
+@Model
 @With
 public record Project(
         @EntityId ProjectId projectId,
@@ -154,7 +154,7 @@ compatible responses prepared by the Runtime. Older runtimes may ignore the opti
 Storage and query visibility are not authorization. `DOCUMENT` with effective `eventPublication = NEVER`
 can persist current state without Model events, but has no history or `previous()`. Event-sourced state changes
 must store their event. This does not suppress incoming request logs, results or application logs.
-`searchable = false` with no searchable ancestor keeps document state internal. Searchability is not authorization.
+A DOCUMENT Model with default search off and no searchable ancestor keeps its document state internal. Searchability is not authorization.
 
 `@ProtectData` on an input does not carry over to copies in Model state, snapshots, documents or return values.
 Result payloads can declare their own protected fields for normal RESULT dispatch; do not infer HTTP-body protection.
@@ -437,7 +437,7 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 For example, one Model can have two parents with different meanings:
 
 ```java
-@Model(searchable = false)
+@Model
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -463,7 +463,7 @@ annotation: concrete cycles between Model IDs are rejected, including cycles con
 Use `@Parent` on the child:
 
 ```java
-@Model(searchable = false)
+@Model
 public record Task(
         @EntityId TaskId taskId,
         @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -522,7 +522,7 @@ not modify direct Models, histories or relationships.
 `@Model` plus `@Member` is the intentional shared-stream option:
 
 ```java
-@Model(searchable = false)
+@Model
 public record Invoice(
         @EntityId InvoiceId invoiceId,
         @Member List<InvoiceLine> lines) {
@@ -682,7 +682,7 @@ Persistent instability fails with an explicit platform error.
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```java
-@Model(searchable = false)
+@Model
 record Project(
         @EntityId ProjectId projectId,
         @Alias(prefix = "external:") String externalId) {

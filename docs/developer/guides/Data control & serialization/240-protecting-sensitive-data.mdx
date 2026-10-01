@@ -56,7 +56,7 @@ performed by the handler.
 
 ### Independent Model events
 
-Automatic `@Model(searchable = false)` commands and explicit `assertAndApply` updates also protect their stored and published events,
+Automatic `@Model` commands and explicit `assertAndApply` updates also protect their stored and published events,
 including records, ordinary objects, and replacement payloads returned by `@InterceptApply`. A local Model commit is
 a durable write: its protected values must be available in the vault before the commit is sent. Unchanged restored
 values keep their references, even after erasure; a genuinely changed value receives a new reference. JSON property

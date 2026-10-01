@@ -67,7 +67,6 @@ value; do not annotate a Model with it.
 public record Project(...) {}
 
 @Model(
-    searchable = false,
     persistence = ModelPersistence.DOCUMENT
 )
 public record UserPreferences(@EntityId UserId userId, ...) {}

@@ -62,7 +62,7 @@ Java uses Lombok `@With` and Jakarta Validation's `@NotBlank`, `@NotNull`, `@Siz
 Put public records in their own source files.
 
 ```java
-@Model(searchable = false)
+@Model
 @With
 public record Project(
         @EntityId ProjectId projectId,
@@ -113,7 +113,7 @@ the non-null `name` fails during deserialization before bean validation; its exc
 bean-validation rejection. Both prevent the Model write.
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,

@@ -1,10 +1,17 @@
 # Model configuration
 
-Choose `@Model(searchable = false)` for ordinary event-sourced state, or `searchable = true` for indexed node and
-Graph queries. Persistence, search activation and optional Graph precomputation are independent. Searchable roots
+`@Model` does not activate search by default. Set `searchable = true` when that Model should independently start a
+searchable scope. Persistence, search activation and optional Graph precomputation are independent. Searchable roots
 include composed descendants by default; their local `searchable = false` does not veto inherited activation.
-Use `@Parent(searchable = false)` to block inherited activation and ancestor search composition through one edge,
-including its subtree. The child can still independently activate its own search Graph.
+`Model.searchable` starts a searchable scope; `SearchSettings.includeDescendants` limits that root's scope;
+`Parent.propagateSearch` gates propagation across each composed edge. A non-empty `pathInParent` opts an edge into search
+composition; a pathless parent remains navigable but does not inherit search activation. Use
+`@Parent(propagateSearch = false)` to block inherited activation through one composed edge and its subtree. The child can
+still independently activate its own search Graph.
+
+Graph materialization is configured separately with `graphProjection.mode`. Its default is `NONE`: searchable Models
+still maintain their indexed node documents and Graph queries compose those nodes live, but Fluxzero does not store a
+complete composed Graph document. Use `ASYNC` or `AWAIT` only when that complete Graph should also be materialized.
 
 Storage choices do not establish privacy. DOCUMENT plus effective `eventPublication = NEVER` supports
 eventless current state, not history or `previous()`. Non-searchable documents still support identity/relationship
@@ -32,8 +39,8 @@ Important settings:
   - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and maintain internal current state; searchability controls its indexes.
   - `{DOCUMENT}`: load authoritative state from the canonical document; it can be entirely internal and unsearchable.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `searchable`: required explicit search activation. False means no independent activation, while a searchable
-  ancestor's composed scope can still include this type. This never changes Model load authority.
+- `searchable`: independent search activation, defaulting to `false`. False means no independent activation, while a
+  searchable ancestor's composed scope can still include this type. This never changes Model load authority.
 - `searchSettings`: per-node collection and timestamp paths plus `includeDescendants` (default true). Settings alone
   do not activate search. Parent paths describe composition only. The default canonical collection preserves the
   existing internal source; do not migrate an old public DocumentProjection collection into this setting blindly.
@@ -48,8 +55,9 @@ Important settings:
 - `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
 - `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `graphProjection.mode`: NONE (default) composes indexed nodes when read; ASYNC stores a composed Graph; AWAIT also
-  waits for affected projections. Completion/waiting configuration alone never activates materialization in NONE.
+- `graphProjection.mode`: independent from search activation. `NONE` (default) stores no complete Graph document and
+  composes indexed nodes live when read; it does not disable Graph search. `ASYNC` stores a composed Graph; `AWAIT`
+  also waits for affected projections. Completion/waiting configuration alone never activates materialization in NONE.
 - `graphProjection.collection` and `pathOverrides`: optional stored Graph collection and replacements for canonical
   composition paths. Path overrides also apply to live queries. The default collection is the logical Model name plus
   `-graphs`, or the explicitly configured node collection plus `-graphs`.

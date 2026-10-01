@@ -4,13 +4,13 @@ Use immutable `@Model` state for a domain concept with its own creation, changes
 Connect independent lifecycles with `@Parent`; use ordinary value objects for details replaced with their owner.
 
 ```java
-@Model(searchable = false)
+@Model
 public record Project(@EntityId ProjectId projectId, ProjectDetails details) {
 }
 ```
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 ```
 
@@ -22,7 +22,7 @@ Put transitions in `@Apply` and business invariants in `@AssertLegal`. Applicabl
 command handling. One action can update several Models in one atomic commit; a separately sent command or external
 API call has a separate completion boundary.
 
-Start with event-sourced `@Model(searchable = false)`. Enable `searchable` for node and Graph queries; composed
+Start with event-sourced `@Model`. Enable `searchable` for node and Graph queries; composed
 descendants are included by default. Add `DOCUMENT` only for internal current-state persistence, and optional
 ASYNC/AWAIT Graph materialization to precompute a composed search view. These choices do not change the domain's
 lifecycle boundaries.

@@ -103,12 +103,12 @@ Snippets omit imports and use the normal [SDK project setup](/docs/getting-start
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false, name = "project")
+@Model(name = "project")
 record Project(@EntityId ProjectId projectId, ProjectDetails details) {}
 
 record ProjectDetails(@NotBlank String name) {}
 
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -130,12 +130,12 @@ static class TaskId extends Id<Task> {
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false, name = "project")
+@Model(name = "project")
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails)
 
 data class ProjectDetails(@field:NotBlank val name: String)
 
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -360,7 +360,7 @@ an operational-status companion to Project: one per Project, but independently u
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false)
+@Model
 record ProjectStatus(
         @EntityId(prefix = "status-") @Parent(pathInParent = "status") ProjectId projectId,
         boolean online) {}
@@ -377,7 +377,7 @@ record PutProjectStatus(ProjectId projectId, boolean online) {
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class ProjectStatus(
     @EntityId(prefix = "status-") @Parent(pathInParent = "status") val projectId: ProjectId,
     val online: Boolean
@@ -416,14 +416,14 @@ For example, suppose Project owns its Tasks, while Sprint only groups them for p
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
             @Parent(pathInParent = "tasks", deleteOnParentDeletion = false) SprintId sprintId,
             TaskDetails details, boolean completed) {}
 
-@Model(searchable = false, name = "sprint")
+@Model(name = "sprint")
 record Sprint(@EntityId SprintId sprintId) {}
 
 static class SprintId extends Id<Sprint> {
@@ -435,7 +435,7 @@ static class SprintId extends Id<Sprint> {
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -444,7 +444,7 @@ data class Task(
     val completed: Boolean
 )
 
-@Model(searchable = false, name = "sprint")
+@Model(name = "sprint")
 data class Sprint(@EntityId val sprintId: SprintId)
 
 class SprintId(value: String) : Id<Sprint>(value)
@@ -475,7 +475,7 @@ Relationship discovery, cascade ownership and output placement are separate sett
 | `@Parent(pathInParent = "tasks", deleteOnParentDeletion = false)` | Yes | No | `tasks` |
 
 To omit a branch only from ancestor **search** Graphs, declare
-`@Parent(pathInParent = "tasks", searchable = false)` (the same syntax works in Kotlin). This excludes the Task and
+`@Parent(pathInParent = "tasks", propagateSearch = false)` (the same syntax works in Kotlin). This excludes the Task and
 its subtree in NONE, ASYNC and AWAIT and stops ancestor Graph-document notifications for that branch. Its own
 `@Model(searchable = true)` still enables independent Task search. Ordinary Graph navigation, event handling,
 response placement and cascade deletion are unchanged. Existing stored relations require an explicit policy
@@ -685,12 +685,12 @@ record PlaceOrder(@NotNull OrderId orderId,
     }
 }
 
-@Model(searchable = false)
+@Model
 record Order(@EntityId OrderId orderId, InventoryId inventoryId, OrderDetails details) {}
 
 record OrderDetails(int quantity) {}
 
-@Model(searchable = false)
+@Model
 @With
 record Inventory(@EntityId InventoryId inventoryId, int available) {}
 ```
@@ -718,7 +718,7 @@ data class PlaceOrder(
     fun reserve(inventory: Inventory) = inventory.copy(available = inventory.available - quantity)
 }
 
-@Model(searchable = false)
+@Model
 data class Order(
     @EntityId val orderId: OrderId,
     val inventoryId: InventoryId,
@@ -727,7 +727,7 @@ data class Order(
 
 data class OrderDetails(val quantity: Int)
 
-@Model(searchable = false)
+@Model
 data class Inventory(@EntityId val inventoryId: InventoryId, val available: Int)
 ```
 
@@ -834,7 +834,7 @@ record CompleteTask(TaskId taskId) {
     }
 }
 
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -845,7 +845,7 @@ record Task(@EntityId TaskId taskId,
     }
 }
 
-@Model(searchable = false, name = "project")
+@Model(name = "project")
 @With
 record Project(@EntityId ProjectId projectId, ProjectDetails details,
                TaskId lastCompletedTaskId) {}
@@ -860,7 +860,7 @@ data class CompleteTask(val taskId: TaskId) {
     fun apply(task: Task) = task.copy(completed = true)
 }
 
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -871,7 +871,7 @@ data class Task(
         project.copy(lastCompletedTaskId = taskId)
 }
 
-@Model(searchable = false, name = "project")
+@Model(name = "project")
 data class Project(@EntityId val projectId: ProjectId, val details: ProjectDetails,
                    val lastCompletedTaskId: TaskId?)
 ```
@@ -1039,7 +1039,7 @@ For example, keep Task's event-sourced history but store only the latest externa
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+@Model(persistence = ModelPersistence.DOCUMENT)
 record TaskStatus(
         @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") TaskId taskId,
         boolean online) {}
@@ -1049,7 +1049,7 @@ record TaskStatus(
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false, persistence = [ModelPersistence.DOCUMENT])
+@Model(persistence = [ModelPersistence.DOCUMENT])
 data class TaskStatus(
     @EntityId(prefix = "task-status-") @Parent(pathInParent = "status") val taskId: TaskId,
     val online: Boolean
@@ -1068,18 +1068,20 @@ Updating status does not append to Task's stream. Task history also does not pro
 A **node document** contains one Model's current state. DOCUMENT uses it for internal state; `searchable`
 adds the indexes used by node, relationship and Graph queries. Those uses share one canonical representation.
 A **stored Graph document** optionally contains the root and recursively composed children as an additional read projection.
+Searchability and whole-Graph materialization are separate choices: a searchable Model does not imply that the complete
+Graph is stored. By default, searchable Graphs are composed live from the indexed node documents.
 
 | Configuration | Authoritative state | Node document | Whole Graph stored? |
 | --- | --- | --- | --- |
-| `@Model(searchable = false)`, with or without a parent path, outside any searchable ancestor scope | Events | None | No |
+| `@Model`, with or without a parent path, outside any searchable ancestor scope | Events | None | No |
 | DOCUMENT, no effective searchability | Current internal document | One unindexed internal document | No |
 | `@Model(searchable = true)` | Events | One indexed current representation per included node | No: live composition |
 | DOCUMENT and effective searchability | Current canonical node document | The same document, indexed | No: live composition |
 | Searchable plus `graphProjection.mode = ASYNC` or AWAIT | Unchanged persistence policy | Same indexed nodes | Yes: an additional composed projection |
 
-Every Model declares `searchable` explicitly. It defaults to including its composed descendants in the search scope;
-`SearchSettings(includeDescendants = false)` limits the request to that node. A child's false value does not veto an
-ancestor's scope. A typed parent path specifies placement, never storage by itself. Per-node `SearchSettings` select
+`searchable` defaults to `false`. Setting it to `true` starts a searchable scope that includes composed descendants by
+default; `SearchSettings(includeDescendants = false)` limits that request to the node itself. A child's local false
+value does not veto an ancestor's scope. A typed parent path specifies placement, never storage by itself. Per-node `SearchSettings` select
 collection and time fields independently of who activates searchability. See the
 [query guide](/docs/guides/modeling-and-persistence/model-query-guide).
 
@@ -1162,7 +1164,12 @@ val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
 </TabItem>
 </Tabs>
 
-With searchable Project and the default NONE projection mode, the SDK composes Graphs **live** from canonical root and child documents. ASYNC and AWAIT maintain a **stored whole-Graph projection** instead. `searchGraph(Project.class, true)` explicitly chooses live composition when materialization is enabled. A Project without effective searchability still supports `loadGraph(projectId)`, but cannot be a `searchGraph` root.
+With searchable Project and the default `GraphProjectionMode.NONE`, the SDK composes Graphs **live** from canonical
+root and child documents. `NONE` does **not** mean that Graph search is disabled; it means that no complete Graph
+document is materialized. Search activation is controlled separately by `searchable`. `ASYNC` and `AWAIT`
+additionally maintain a **stored whole-Graph projection**. `searchGraph(Project.class, true)` explicitly chooses live
+composition when materialization is enabled. A Project without effective searchability still supports
+`loadGraph(projectId)`, but cannot be a `searchGraph` root.
 
 A matching Project includes its composed Tasks, not only the completed ones. `whereDescendant(Task.class, MatchConstraint.match(true, "completed"))` can instead narrow candidate roots using Task source documents before composition. Live composition costs work at query time; materialization pays that work after commits and can lag. [Materialization and completion](#automatically-materialize-the-complete-graph) explains when to wait for the stored view.
 
@@ -1397,7 +1404,7 @@ A new note feature can attach its own Model to Task, without adding a notes coll
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false, name = "internalNote")
+@Model(name = "internalNote")
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {}
@@ -1409,7 +1416,7 @@ record NoteDetails(String text) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false, name = "internalNote")
+@Model(name = "internalNote")
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -1930,7 +1937,7 @@ Suppose Tasks have internal notes:
 <TabItem label="Java">
 
 ```java
-@Model(searchable = false, name = "internalNote")
+@Model(name = "internalNote")
 record InternalNote(@EntityId String noteId,
                     @Parent(pathInParent = "notes") TaskId taskId,
                     NoteDetails details) {
@@ -1947,7 +1954,7 @@ record NoteDetails(String text) {}
 <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = false, name = "internalNote")
+@Model(name = "internalNote")
 data class InternalNote(
     @EntityId val noteId: String,
     @Parent(pathInParent = "notes") val taskId: TaskId,
@@ -2077,7 +2084,12 @@ Configure endpoint authorization and the OpenAPI security declaration for your a
 
 ### Automatically materialize the complete Graph
 
-The [storage table](#which-documents-are-stored) distinguishes a composed Graph document from per-Model sources. This section shows how the stored Graph is maintained and when command completion waits for it. Enable the projection on Project:
+The [storage table](#which-documents-are-stored) distinguishes a composed Graph document from per-Model sources.
+Search activation and Graph materialization are two independent settings. `searchable` defaults to `false`; setting it
+to `true` enables indexed node sources and live Graph search. `graphProjection.mode` separately decides whether
+Fluxzero also stores the complete composed Graph. Its default is `NONE`: no complete Graph document is stored, while
+Graph search still works by composing the indexed nodes live. `NONE` therefore means **not materialized**, not **not
+searchable**. This section shows how the optional stored Graph is maintained and when command completion waits for it. Enable the projection on Project:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2155,8 +2167,9 @@ required: searchability maintains the canonical node documents independently of 
 means the declared composition paths recursively; a pathless relation is still navigable but does not acquire
 a made-up position in the search document.
 
-The ASYNC mode shown above can lag and combine successive changes. NONE remains the default and stores no composed Graph. If the caller must search the
-updated projection immediately after a command, select `AWAIT`:
+The ASYNC mode shown above can lag and combine successive changes. `NONE` remains the default: it stores no composed
+Graph, but search still works by composing the indexed nodes live. If the caller specifically needs a stored Graph and
+must search that updated materialization immediately after a command, select `AWAIT`:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2582,7 +2595,7 @@ The [Home example](https://github.com/fluxzero-io/fluxzero-sample-home) exercise
 
 - **Flexible identity.** Parent-scoped identities, one-to-one companions, aliases and `Graph.functionalId()`
   let storage identity and a domain-facing identifier serve their different purposes.
-- **Stable Model names.** The default is the simple class name, without the package. `@Model(searchable = false, name = "task")` supplies an explicit logical name that can survive a class rename. Serialized state/event type changes still need their own compatible mapping or upcaster. Renaming a durable Model identity is a migration, not a refactor.
+- **Stable Model names.** The default is the simple class name, without the package. `@Model(name = "task")` supplies an explicit logical name that can survive a class rename. Serialized state/event type changes still need their own compatible mapping or upcaster. Renaming a durable Model identity is a migration, not a refactor.
 - **Polymorphic IDs.** Properties such as `@Parent(types = {Project.class, Folder.class}) Id<?> parentId`
   retain the concrete type. Model IDs use their logical name; other polymorphic IDs use `@class`.
   Concrete ID properties remain scalar. Ambiguous historical scalar values need an explicit migration, not guessing.
@@ -2688,7 +2701,7 @@ same event using a Model-side replay apply:
 // The existing event contract, reused in the new app with its original serialized identity.
 record TaskAdded(TaskId taskId, ProjectId projectId, String title) {}
 
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 @With
 record Task(@EntityId TaskId taskId,
             @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -2708,7 +2721,7 @@ record Task(@EntityId TaskId taskId,
 // The existing event contract, reused in the new app with its original serialized identity.
 data class TaskAdded(val taskId: TaskId, val projectId: ProjectId, val title: String)
 
-@Model(searchable = false, name = "task")
+@Model(name = "task")
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -2883,7 +2896,7 @@ Choose the following boundaries independently, then configure the places where t
 | Annotation | Role in the 2.0 model |
 | --- | --- |
 | `@Model` | An independent state, persistence and lifecycle boundary. |
-| `@Parent` | A directed relationship to another Model; also ownership for scheduled payloads. |
+| `@Parent` | A directed relationship to another Model. `pathInParent` opts the edge into composition, `propagateSearch` gates inherited search on that edge, and `deleteOnParentDeletion` controls lifecycle ownership. It also declares ownership for scheduled payloads. |
 | `@GraphProperty` | A serialized value derived from the current node or its typed ancestor Graphs. Its optional `value` sets the JSON property name. |
 | `@SearchSettings` | Per-node search collection, temporal paths and descendant scope, nested in `@Model(searchSettings = ...)`. |
 | `@GraphProjection` | Settings for the complete materialized view, nested in `@Model(graphProjection = ...)`. |
@@ -2900,7 +2913,7 @@ you do not need a parallel validation or messaging vocabulary.
 
 ### Upgrading existing 2.x search configurations
 
-This contract requires coordinated Runtime and writer upgrades. Existing applications must choose `searchable` on every Model and replace the removed `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and `HandleDocument.modelState` settings. Keep canonical collection identities stable; preserve DOCUMENT-only state and its head proofs. Missing node documents need a controlled backfill; the SDK currently has no public operation to create those missing canonical sources safely, so that case blocks migration. Existing indexes need reindexing, and registered Graph definitions must be updated explicitly. Stopping an old projector in one process does not remove its durable Runtime definition.
+This contract requires coordinated Runtime and writer upgrades. Existing applications should set `searchable = true` only on Models that independently activate search and replace the removed `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and `HandleDocument.modelState` settings. Keep canonical collection identities stable; preserve DOCUMENT-only state and its head proofs. Missing node documents need a controlled backfill; the SDK currently has no public operation to create those missing canonical sources safely, so that case blocks migration. Existing indexes need reindexing, and registered Graph definitions must be updated explicitly. Stopping an old projector in one process does not remove its durable Runtime definition.
 
 Follow the [complete upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade) before resuming writers or exposing the changed queries. Reading the old stored definition format is supported; concurrent old/new Model writers are not.
 
@@ -2924,9 +2937,9 @@ additional behavior alongside the resolved policy.
 | `cached` | `true` | Shared application caching of the latest Model state. Commit-local state is a separate concern. |
 | `cachingDepth` | `1` | Older versions retained in cache: `0` keeps only current; `-1` retains all available cached versions. This is not durable history retention. |
 | `checkpointPeriod` | `100` | Intermediate replay checkpoints within a reconstruction session, not extra stored document versions. |
-| `searchable` | Required explicit boolean | Request indexed canonical node documents; the scope includes descendants by default. |
+| `searchable` | `false` | Set to `true` to request indexed canonical node documents; the scope includes descendants by default. |
 | `searchSettings` | `@SearchSettings` | Configure this node's collection, temporal fields and descendant scope, including when searchability is inherited. |
-| `graphProjection` | `@GraphProjection(mode = NONE)` | Choose live composition or optional ASYNC/AWAIT storage of the whole Graph. Does not activate searchability. |
+| `graphProjection` | `@GraphProjection(mode = NONE)` | Independent from searchability. NONE stores no whole Graph and composes searchable nodes live; ASYNC/AWAIT additionally materialize the complete Graph. |
 
 Changing persistence or durable identities on existing data deserves a migration plan. Enabling a cache,
 snapshot or projection does not redefine which object owns a domain lifecycle.
@@ -2958,7 +2971,7 @@ must be unique across independent Models. An alias is not another Model or anoth
 | Configuration | Settings and defaults |
 | --- | --- |
 | `@SearchSettings` | `includeDescendants = true`; blank collection derives an internal type-isolated name; optional `timestampPath` and `endPath` select node document time fields. |
-| `@GraphProjection` | `mode = NONE`; ASYNC stores a complete Graph without normally waiting and AWAIT waits for it. Blank collection derives the Graph collection; `pathOverrides = {}` leaves canonical paths unchanged. |
+| `@GraphProjection` | `mode = NONE` by default: no complete Graph is stored and searchable nodes are composed live. ASYNC materializes a complete Graph without normally waiting; AWAIT materializes it and waits for affected updates. Blank collection derives the Graph collection; `pathOverrides = {}` leaves canonical paths unchanged. |
 | `@GraphPathOverride` | Required `path` and `projectionPath`: replace a canonical path in this Graph search view, both live and stored. |
 
 For example, keep the relationship named `tasks` while placing it differently in one stored view:

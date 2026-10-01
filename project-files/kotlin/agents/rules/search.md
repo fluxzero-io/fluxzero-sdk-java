@@ -66,7 +66,6 @@ value; do not annotate a Model with it.
 data class Project(...)
 
 @Model(
-    searchable = false,
     persistence = [ModelPersistence.DOCUMENT]
 )
 data class UserPreferences(@EntityId val userId: UserId, ...)

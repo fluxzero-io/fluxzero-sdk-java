@@ -29,7 +29,13 @@ import java.lang.annotation.Target;
 @Target({})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface SearchSettings {
-    /** Include composed descendants in Graph queries rooted here. Defaults to the complete finite Graph. */
+    /**
+     * Whether a searchable scope started at this Model includes composed descendants.
+     * <p>
+     * Defaults to {@code true}. Setting this to {@code false} limits this Model's own root scope to itself; it does
+     * not veto inclusion of this Model in a broader searchable ancestor scope. Descendant traversal still follows only
+     * composed parent relationships, and {@link Parent#propagateSearch()} may block propagation across individual edges.
+     */
     boolean includeDescendants() default true;
 
     /** Canonical node collection. Blank retains the stable internal collection derived from the logical Model name. */

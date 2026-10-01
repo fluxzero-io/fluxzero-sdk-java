@@ -45,7 +45,7 @@ its owning Model, not a separate entity update. The Model/Member lifecycle rules
 ## Define a model
 
 ```kotlin
-@Model(searchable = false)
+@Model
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,

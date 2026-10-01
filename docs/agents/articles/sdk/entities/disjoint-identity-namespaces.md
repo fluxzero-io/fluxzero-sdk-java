@@ -21,7 +21,7 @@ public final class AssetJobId extends Id<AssetJob> {
 Keep the Model root and aliases in disjoint namespaces:
 
 ```java
-@Model(searchable = false)
+@Model
 public record AssetJob(
         @EntityId AssetJobId assetJobId,
         @Alias(prefix = "caption-ref-") String captionReference,
