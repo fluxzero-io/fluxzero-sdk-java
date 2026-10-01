@@ -37,17 +37,35 @@ class InMemoryTaskSchedulerTest {
     }
 
     @Test
-    void executeExpiredTasksAsyncDelegatesExpiredTasksToWorkerPool() {
+    void submitExpiredTasksDelegatesExpiredTasksToWorkerPool() {
         RecordingExecutorService workerPool = new RecordingExecutorService();
-        InMemoryTaskScheduler scheduler = new InMemoryTaskScheduler("scheduler-test", Clock.systemUTC(), workerPool);
+        InMemoryTaskScheduler scheduler = new InMemoryTaskScheduler(
+                "scheduler-test", Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), workerPool, false);
 
         try {
-            scheduler.schedule(System.currentTimeMillis() - 1, () -> {});
-            scheduler.schedule(System.currentTimeMillis() - 1, () -> {});
+            scheduler.schedule(-1, () -> {});
+            scheduler.schedule(-1, () -> {});
 
-            scheduler.executeExpiredTasksAsync();
+            scheduler.submitExpiredTasks();
 
             assertEquals(2, workerPool.submittedTasks.size());
+        } finally {
+            scheduler.shutdown();
+        }
+    }
+
+    @Test
+    void submitExpiredTasksRunsInlineWithDirectExecutor() {
+        var order = new java.util.ArrayList<String>();
+        InMemoryTaskScheduler scheduler = new InMemoryTaskScheduler(
+                "scheduler-test", Clock.fixed(Instant.EPOCH, ZoneOffset.UTC), DirectExecutorService.newInstance(), false);
+        try {
+            scheduler.schedule(-1, () -> order.add("task"));
+            order.add("before");
+            scheduler.submitExpiredTasks();
+            order.add("after");
+            assertEquals(List.of("before", "task", "after"), order);
+            assertEquals(List.of(), scheduler.getScheduledDeadlines());
         } finally {
             scheduler.shutdown();
         }
