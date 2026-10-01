@@ -93,6 +93,10 @@ public class SearchEndpoint extends WebsocketEndpoint {
         return CompletableFuture.allOf(results.toArray(CompletableFuture[]::new));
     }
 
+    /**
+     * Executes a document search and returns a response correlated to the request; logs search failures and
+     * returns an empty result on failure.
+     */
     @Handle
     public SearchDocumentsResult handle(SearchDocuments request) {
         try {
@@ -104,6 +108,10 @@ public class SearchEndpoint extends WebsocketEndpoint {
         }
     }
 
+    /**
+     * Executes a Model-document search and returns a correlated response; logs search failures and returns an
+     * empty result on failure.
+     */
     @Handle
     public SearchDocumentsResult handle(
             SearchModelDocuments request) {
@@ -124,6 +132,10 @@ public class SearchEndpoint extends WebsocketEndpoint {
         }
     }
 
+    /**
+     * Executes a Model-Graph document search and returns a correlated response; logs search failures and returns
+     * an empty result on failure.
+     */
     @Handle
     public SearchDocumentsResult handle(
             SearchModelGraphDocuments request) {
@@ -149,6 +161,10 @@ public class SearchEndpoint extends WebsocketEndpoint {
         return new BooleanResult(request.getRequestId(), store.documentExists(request));
     }
 
+    /**
+     * Computes the requested search histogram; logs failures and returns an empty histogram retaining the query's
+     * time boundaries on failure.
+     */
     @Handle
     public GetSearchHistogramResult handle(GetSearchHistogram request) {
         try {

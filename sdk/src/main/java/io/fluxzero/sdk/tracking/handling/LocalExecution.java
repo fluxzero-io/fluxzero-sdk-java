@@ -175,15 +175,24 @@ public final class LocalExecution implements LocalHandlerInput {
         return result;
     }
 
+    /**
+     * Returns the asynchronous result future, or null when this execution has no retained future.
+     */
     @SuppressWarnings("unchecked")
     public CompletableFuture<Object> getResultFuture() {
         return (CompletableFuture<Object>) resultFuture;
     }
 
+    /**
+     * Returns the retained result message, or null when no result message is available.
+     */
     public Message getResultMessage() {
         return resultMessage;
     }
 
+    /**
+     * Clears retained result references, including the result future and message, without cancelling the future.
+     */
     public void releaseResult() {
         result = null;
         resultFuture = null;

@@ -109,6 +109,10 @@ public class ForwardingWebConsumer implements AutoCloseable {
         this.httpClient = HttpClient.newBuilder().executor(HTTP_EXECUTOR).build();
     }
 
+    /**
+     * Restarts forwarding for the supplied Fluxzero instance, consuming web requests and asynchronously returning
+     * correlated responses from the configured local server.
+     */
     @Synchronized
     public void start(Fluxzero fluxzero) {
         close();

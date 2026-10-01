@@ -199,6 +199,9 @@ public class ReflectionUtils {
     }
 
 
+    /**
+     * Returns the method followed by the superclass and interface methods it overrides, without duplicates.
+     */
     public static Stream<Method> getMethodOverrideHierarchy(Method method) {
         LinkedHashSet<Method> result = new LinkedHashSet<>();
         result.add(method);
@@ -210,6 +213,10 @@ public class ReflectionUtils {
         return result.stream();
     }
 
+    /**
+     * Returns the parameter at the same position throughout its method's override hierarchy, or just the supplied
+     * constructor parameter.
+     */
     public static Stream<Parameter> getParameterOverrideHierarchy(Parameter parameter) {
         if (parameter.getDeclaringExecutable() instanceof Method method) {
             Parameter[] parameters = method.getParameters();
@@ -246,6 +253,9 @@ public class ReflectionUtils {
         return true;
     }
 
+    /**
+     * Returns whether the optional Kotlin reflection implementation is available on the classpath.
+     */
     public static boolean isKotlinReflectionSupported() {
         return ReflectionUtils.classExists("kotlin.reflect.full.KClasses");
     }
@@ -278,18 +288,30 @@ public class ReflectionUtils {
         return null;
     }
 
+    /**
+     * Returns whether the value represents a Java class or a supported Kotlin class literal.
+     */
     public static boolean isClass(Object value) {
         return ifClass(value) != null;
     }
 
+    /**
+     * Returns the represented Java class for a class literal, or the runtime class of an ordinary object.
+     */
     public static Class<?> asClass(@NonNull Object value) {
         return ifClass(value) instanceof Class<?> c ? c : value.getClass();
     }
 
+    /**
+     * Returns the shared, class-scoped structural metadata for the given type.
+     */
     public static TypeMetadata getTypeMetadata(@NonNull Class<?> type) {
         return typeMetadataCache.get(type);
     }
 
+    /**
+     * Returns the cached methods discovered across the type hierarchy.
+     */
     public static List<Method> getAllMethods(Class<?> type) {
         return getTypeMetadata(type).methods();
     }
@@ -364,6 +386,9 @@ public class ReflectionUtils {
         };
     }
 
+    /**
+     * Returns the first discovered method with the given name; parameter types are not used to select an overload.
+     */
     public static Optional<Method> getMethod(Class<?> type, String name) {
         return getTypeMetadata(type).method(name);
     }
@@ -436,32 +461,53 @@ public class ReflectionUtils {
         }
     }
 
+    /**
+     * Returns annotated fields and readable methods, deduplicated by property name, including inherited and
+     * meta-annotated properties.
+     */
     public static List<? extends AccessibleObject> getAnnotatedProperties(Class<?> target,
                                                                           Class<? extends Annotation> annotation) {
         return getTypeMetadata(target).annotatedProperties(annotation);
     }
 
+    /**
+     * Returns the first matching annotated property on the target or represented class, or an empty optional for a
+     * null target.
+     */
     public static Optional<? extends AccessibleObject> getAnnotatedProperty(Object target,
                                                                             Class<? extends Annotation> annotation) {
         return target == null ? Optional.empty() : getAnnotatedProperty(asClass(target), annotation);
     }
 
+    /**
+     * Returns the first annotated property discovered for the type, or an empty optional when none matches.
+     */
     public static Optional<? extends AccessibleObject> getAnnotatedProperty(Class<?> target,
                                                                             Class<? extends Annotation> annotation) {
         return getTypeMetadata(target).annotatedProperty(annotation);
     }
 
+    /**
+     * Returns a cached invoker for the first matching annotated property, with reflective access enabled.
+     */
     public static Optional<MemberInvoker> getAnnotatedPropertyInvoker(
             Class<?> target, Class<? extends Annotation> annotation) {
         return getTypeMetadata(target).annotatedPropertyInvoker(annotation);
     }
 
+    /**
+     * Returns structural metadata for a nested property path; a null type or null or empty path yields missing
+     * metadata.
+     */
     public static TypeMetadata.PropertyPathMetadata getPropertyPathMetadata(Class<?> target, String propertyPath) {
         return target == null || propertyPath == null || propertyPath.isEmpty()
                 ? TypeMetadata.PropertyPathMetadata.missing()
                 : getTypeMetadata(target).propertyPath(propertyPath);
     }
 
+    /**
+     * Reads the first matching annotated property, returning an empty optional for a missing or null value.
+     */
     public static Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
         return Optional.ofNullable(getAnnotatedPropertyValueOrNull(target, annotation));
     }
@@ -487,6 +533,10 @@ public class ReflectionUtils {
         return invoker.isEmpty() ? null : invoker.get().invoke(target);
     }
 
+    /**
+     * Reads all matching annotated properties and returns their non-null values; a null target yields an empty
+     * collection.
+     */
     public static Collection<Object> getAnnotatedPropertyValues(Object target, Class<? extends Annotation> annotation) {
         if (target == null) {
             return emptyList();
@@ -501,10 +551,17 @@ public class ReflectionUtils {
         return results;
     }
 
+    /**
+     * Returns the logical name of the first matching annotated property, if present.
+     */
     public static Optional<String> getAnnotatedPropertyName(Object target, Class<? extends Annotation> annotation) {
         return getAnnotatedProperty(target, annotation).map(ReflectionUtils::getPropertyName);
     }
 
+    /**
+     * Returns a field name or derives a property name from a method, stripping conventional {@code get} and {@code
+     * is} prefixes.
+     */
     public static String getPropertyName(AccessibleObject property) {
         if (property instanceof Field field) {
             return field.getName();
@@ -525,30 +582,53 @@ public class ReflectionUtils {
         throw new UnsupportedOperationException("Not a property: " + property);
     }
 
+    /**
+     * Returns discovered methods carrying the annotation directly, through a meta-annotation, or through an
+     * overridden declaration.
+     */
     public static List<Method> getAnnotatedMethods(Class<?> target, Class<? extends Annotation> annotation) {
         return getTypeMetadata(target).annotatedMethods(annotation);
     }
 
+    /**
+     * Returns matching annotated methods on the target's runtime class, or an empty list for a null target.
+     */
     public static List<Method> getAnnotatedMethods(Object target, Class<? extends Annotation> annotation) {
         return target == null ? List.of() : getAnnotatedMethods(target.getClass(), annotation);
     }
 
+    /**
+     * Returns whether an executable has a matching direct, meta-, or inherited method annotation.
+     */
     public static boolean isMethodAnnotationPresent(Executable method, Class<? extends Annotation> annotation) {
         return getMethodAnnotation(method, annotation).isPresent();
     }
 
+    /**
+     * Returns discovered fields carrying the annotation directly or through a meta-annotation.
+     */
     public static List<Field> getAnnotatedFields(Class<?> target, Class<? extends Annotation> annotation) {
         return getTypeMetadata(target).annotatedFields(annotation);
     }
 
+    /**
+     * Returns matching annotated fields on the target or represented class, or an empty list for a null target.
+     */
     public static List<Field> getAnnotatedFields(Object target, Class<? extends Annotation> annotation) {
         return target == null ? emptyList() : getAnnotatedFields(asClass(target), annotation);
     }
 
+    /**
+     * Returns whether the type, its interfaces, or an enclosing class supplies a matching annotation.
+     */
     public static boolean isAnnotationPresent(Class<?> type, Class<? extends Annotation> annotationType) {
         return getTypeAnnotation(type, annotationType) != null;
     }
 
+    /**
+     * Finds a direct or composed type annotation, falling back to enclosing classes; returns null if absent. For a
+     * composed annotation, the returned instance is the outer annotation.
+     */
     @SuppressWarnings("unchecked")
     public static <A extends Annotation> A getTypeAnnotation(Class<?> type,
                                                              Class<? extends Annotation> annotationType) {
@@ -559,6 +639,9 @@ public class ReflectionUtils {
         return result != null ? result : getTypeAnnotation(type.getEnclosingClass(), annotationType);
     }
 
+    /**
+     * Returns the cached annotations on the type and its interfaces, deduplicated by annotation type.
+     */
     public static Collection<? extends Annotation> getTypeAnnotations(Class<?> type) {
         return getTypeMetadata(type).typeAnnotations();
     }
@@ -589,6 +672,9 @@ public class ReflectionUtils {
         return List.of(element.getAnnotations());
     }
 
+    /**
+     * Returns the requested annotation from the package or its enclosing package hierarchy, if present.
+     */
     @SuppressWarnings("unchecked")
     public static <A extends Annotation> Optional<A> getPackageAnnotation(Package p, Class<A> annotationType) {
         return getPackageAnnotations(p).stream()
@@ -596,10 +682,16 @@ public class ReflectionUtils {
                 .map(a -> (A) a).findFirst();
     }
 
+    /**
+     * Returns package annotations, including those discovered recursively on enclosing packages.
+     */
     public static Collection<? extends Annotation> getPackageAnnotations(Package p) {
         return getPackageAnnotations(p, true);
     }
 
+    /**
+     * Returns package annotations, optionally including enclosing packages when {@code recursive} is true.
+     */
     public static Collection<? extends Annotation> getPackageAnnotations(Package p, boolean recursive) {
         return packageAnnotationsCache.apply(p, recursive);
     }
@@ -623,6 +715,10 @@ public class ReflectionUtils {
         Read a property
      */
 
+    /**
+     * Reads a nested property path. Null targets, blank paths, missing properties, and null values yield an empty
+     * optional; other access failures propagate.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> readProperty(String propertyPath, Object target) {
         if (target == null) {
@@ -639,6 +735,9 @@ public class ReflectionUtils {
         }
     }
 
+    /**
+     * Returns actual generic arguments for a parameterized type, or an empty list for a raw type.
+     */
     public static List<Type> getTypeArguments(Type genericType) {
         if (genericType instanceof ParameterizedType pt) {
             return Arrays.asList(pt.getActualTypeArguments());
@@ -646,10 +745,17 @@ public class ReflectionUtils {
         return emptyList();
     }
 
+    /**
+     * Returns the first actual generic argument. A raw type is rejected with {@link IllegalArgumentException}.
+     */
     public static <T extends Type> T getFirstTypeArgument(Type genericType) {
         return getTypeArgument(genericType, 0);
     }
 
+    /**
+     * Returns the actual generic argument at the zero-based index. A raw type is rejected with {@link
+     * IllegalArgumentException}.
+     */
     @SuppressWarnings("unchecked")
     public static <T extends Type> T getTypeArgument(Type genericType, int index) {
         if (genericType instanceof ParameterizedType pt) {
@@ -658,6 +764,10 @@ public class ReflectionUtils {
         throw new IllegalArgumentException("Type is raw and does not define arguments");
     }
 
+    /**
+     * Reads the value at a property path, returning an empty optional for a null target, missing property, or null
+     * value. Despite its name, this method reads a value rather than annotation metadata.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> getPropertyAnnotation(String propertyPath, Object target) {
         if (target == null) {
@@ -671,6 +781,10 @@ public class ReflectionUtils {
         }
     }
 
+    /**
+     * Returns whether the property path can be read, including a property whose value is null. Null targets and
+     * paths return false; failures other than a missing property propagate.
+     */
     public static boolean hasProperty(String propertyPath, Object target) {
         if (target == null || propertyPath == null) {
             return false;
@@ -683,16 +797,28 @@ public class ReflectionUtils {
         }
     }
 
+    /**
+     * Returns whether the executable produces a result: constructors and methods whose return type is not {@code
+     * void} do.
+     */
     public static boolean hasReturnType(Executable executable) {
         return !(executable instanceof Method m) || !void.class.equals(m.getReturnType());
     }
 
+    /**
+     * Reads a named field with reflective access enabled, returning an empty optional for a null target, missing
+     * field, or null value.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> getFieldValue(String fieldName, Object target) {
         return target == null ? Optional.empty() :
                 getField(asClass(target), fieldName).map(f -> (T) getValue(f, target, true));
     }
 
+    /**
+     * Reads a field or invokes a property method on the target. {@code forceAccess} controls whether Java access
+     * checks are suppressed where permitted.
+     */
     @SneakyThrows
     public static Object getValue(AccessibleObject fieldOrMethod, Object target, boolean forceAccess) {
         if (fieldOrMethod instanceof Method) {
@@ -704,11 +830,17 @@ public class ReflectionUtils {
         throw new IllegalStateException("Object property should be field or method: " + fieldOrMethod);
     }
 
+    /**
+     * Reads a field or invokes a property method with reflective access enabled.
+     */
     @SneakyThrows
     public static Object getValue(AccessibleObject fieldOrMethod, Object target) {
         return getValue(fieldOrMethod, target, true);
     }
 
+    /**
+     * Returns the member name; rejects accessible objects that do not represent a member.
+     */
     @SneakyThrows
     public static String getName(AccessibleObject fieldOrMethod) {
         if (fieldOrMethod instanceof Member) {
@@ -717,6 +849,9 @@ public class ReflectionUtils {
         throw new IllegalStateException("Object property should be field or method: " + fieldOrMethod);
     }
 
+    /**
+     * Returns the class declaring the member; rejects accessible objects that do not represent a member.
+     */
     @SneakyThrows
     public static Class<?> getEnclosingClass(AccessibleObject fieldOrMethod) {
         if (fieldOrMethod instanceof Member) {
@@ -725,6 +860,9 @@ public class ReflectionUtils {
         throw new IllegalStateException("Object property should be field or method: " + fieldOrMethod);
     }
 
+    /**
+     * Returns a field's declared type or a method's return type; rejects other accessible objects.
+     */
     public static Class<?> getPropertyType(AccessibleObject fieldOrMethod) {
         if (fieldOrMethod instanceof Method) {
             return ((Method) fieldOrMethod).getReturnType();
@@ -735,6 +873,9 @@ public class ReflectionUtils {
         throw new IllegalStateException("Object property should be field or method: " + fieldOrMethod);
     }
 
+    /**
+     * Returns a field's generic type or a method's generic return type; rejects other accessible objects.
+     */
     public static Type getGenericPropertyType(AccessibleObject fieldOrMethod) {
         if (fieldOrMethod instanceof Method) {
             return ((Method) fieldOrMethod).getGenericReturnType();
@@ -749,6 +890,10 @@ public class ReflectionUtils {
         Write a property
      */
 
+    /**
+     * Writes a nested property if the target and property exist. A null target or missing property is ignored;
+     * other write failures propagate.
+     */
     public static void writeProperty(String propertyPath, Object target, Object value) {
         if (target != null) {
             try {
@@ -763,19 +908,33 @@ public class ReflectionUtils {
         asInvoker(fieldOrMethod).invoke(target, value);
     }
 
+    /**
+     * Returns whether an annotation is of the requested type or directly carries that type as a meta-annotation.
+     */
     public static boolean isOrHas(Annotation annotation, Class<? extends Annotation> annotationType) {
         return annotation != null && (Objects.equals(annotation.annotationType(), annotationType)
                                       || annotation.annotationType().isAnnotationPresent(annotationType));
     }
 
+    /**
+     * Returns whether the class is the requested annotation type or directly carries that annotation; null returns
+     * false.
+     */
     public static boolean isOrHas(Class<?> type, Class<? extends Annotation> annotationType) {
         return type != null && (Objects.equals(type, annotationType) || type.isAnnotationPresent(annotationType));
     }
 
+    /**
+     * Returns the first discovered field with the given name, including inherited fields.
+     */
     public static Optional<Field> getField(Class<?> owner, String name) {
         return getTypeMetadata(owner).field(name);
     }
 
+    /**
+     * Returns the first calling class outside the immediate invoking class and {@code java.*}, or null if none is
+     * found.
+     */
     public static Class<?> getCallerClass() {
         return StackWalker.getInstance(Set.of(StackWalker.Option.RETAIN_CLASS_REFERENCE))
                 .walk(s -> {
@@ -793,6 +952,10 @@ public class ReflectionUtils {
                 });
     }
 
+    /**
+     * Returns whether a parameter or an overridden declaration allows null according to nullable annotations or
+     * available Kotlin metadata.
+     */
     public static boolean isNullable(Parameter parameter) {
         return isNullableCache.apply(parameter);
     }
@@ -806,6 +969,10 @@ public class ReflectionUtils {
         return annotation.annotationType().getSimpleName().equals("Nullable");
     }
 
+    /**
+     * Instantiates a Java or supported Kotlin class literal using its no-argument constructor; returns ordinary
+     * instances unchanged. Construction failures are wrapped in {@link IllegalStateException}.
+     */
     @SuppressWarnings("unchecked")
     public static <T> T asInstance(Object classOrInstance) {
         if (ifClass(classOrInstance) instanceof Class<?> c) {
@@ -821,6 +988,9 @@ public class ReflectionUtils {
         return (T) classOrInstance;
     }
 
+    /**
+     * Returns the zero-based position of the parameter in its declaring executable.
+     */
     public static int getParameterIndex(Parameter parameter) {
         var executable = parameter.getDeclaringExecutable();
         for (int i = 0; i < executable.getParameters().length; i++) {
@@ -833,6 +1003,10 @@ public class ReflectionUtils {
 
     /*
     Based on this SO question https://stackoverflow.com/questions/9797212/finding-the-nearest-common-superclass-or-superinterface-of-a-collection-of-cla
+     */
+    /**
+     * Returns common ancestor types for the runtime classes of the elements, treating null elements as {@link
+     * Void}.
      */
     public static List<Class<?>> determineCommonAncestors(Collection<?> elements) {
         return determineCommonAncestors(
@@ -873,6 +1047,9 @@ public class ReflectionUtils {
         return classes;
     }
 
+    /**
+     * Returns the package and the parent packages that can be resolved for its name.
+     */
     public static List<Package> getPackageAndParentPackages(Package p) {
         List<Package> result = new ArrayList<>();
         while (p != null) {
@@ -922,6 +1099,10 @@ public class ReflectionUtils {
         return null;
     }
 
+    /**
+     * Finds an annotation on a method with the supplied name, falling back to a case-insensitive field-name match
+     * with an optional getter prefix removed.
+     */
     public static <A extends Annotation> Optional<A> getMemberAnnotation(Class<?> type, String memberName,
                                                                          Class<? extends Annotation> a) {
         return getAnnotatedMethods(type, a).stream().filter(m -> m.getName().equals(memberName)).findFirst()
@@ -935,6 +1116,9 @@ public class ReflectionUtils {
                 });
     }
 
+    /**
+     * Returns whether the executable has the Java {@code static} modifier.
+     */
     public static boolean isStatic(Executable method) {
         return Modifier.isStatic(method.getModifiers());
     }
@@ -984,10 +1168,16 @@ public class ReflectionUtils {
         return leafValueTypeCache.get(value.getClass());
     }
 
+    /**
+     * Returns whether the parameter has a direct or composed annotation of the requested type.
+     */
     public static boolean isAnnotationPresent(Parameter parameter, Class<? extends Annotation> annotationType) {
         return getAnnotation(parameter, annotationType).isPresent();
     }
 
+    /**
+     * Resolves the requested supertype's generic arguments in the context of the candidate class.
+     */
     public static Type getGenericType(Class<?> candidate, Class<?> wantedClass) {
         return GenericTypeResolver.getGenericType(candidate, wantedClass);
     }
@@ -1074,55 +1264,96 @@ public class ReflectionUtils {
                     .collect(toMap(PropertyDescriptor::getName, Function.identity(), (a, b) -> a, LinkedHashMap::new));
         }
 
+        /**
+         * Returns the class whose structural metadata this instance owns.
+         */
         public Class<?> type() {
             return type;
         }
 
+        /**
+         * Returns the cached, immutable list of discovered methods across the type hierarchy.
+         */
         public List<Method> methods() {
             return methods;
         }
 
+        /**
+         * Returns the type's no-argument constructor, if one exists.
+         */
         public Optional<Constructor<?>> defaultConstructor() {
             return defaultConstructor;
         }
 
+        /**
+         * Returns the first discovered method with this name, without selecting by parameter types.
+         */
         public Optional<Method> method(String name) {
             return methods(name).stream().findFirst();
         }
 
+        /**
+         * Returns all discovered overloads with this name, or an empty list if none exists.
+         */
         public List<Method> methods(String name) {
             return methodsByName.getOrDefault(name, List.of());
         }
 
+        /**
+         * Returns the cached, immutable list of discovered fields across the type hierarchy.
+         */
         public List<Field> fields() {
             return fields;
         }
 
+        /**
+         * Returns the first discovered field with this name, including inherited fields.
+         */
         public Optional<Field> field(String name) {
             return Optional.ofNullable(fieldsByName.get(name));
         }
 
+        /**
+         * Returns whether this type itself declares the named field; inherited fields do not count.
+         */
         public boolean declaresField(String fieldName) {
             return fieldName != null && !fieldName.isEmpty() && declaredFieldsByName.containsKey(fieldName);
         }
 
+        /**
+         * Returns type and interface annotations, deduplicated by annotation type.
+         */
         public Collection<? extends Annotation> typeAnnotations() {
             return typeAnnotations;
         }
 
+        /**
+         * Returns cached annotations for the supplied element.
+         */
         public List<Annotation> annotations(AnnotatedElement element) {
             return annotations.computeIfAbsent(element, ReflectionUtils::rawAnnotations);
         }
 
+        /**
+         * Returns a matching direct or composed type annotation, or null. For a composed annotation, returns the
+         * outer annotation instance.
+         */
         @SuppressWarnings("unchecked")
         public <A extends Annotation> A typeAnnotation(Class<? extends Annotation> annotationType) {
             return (A) typeAnnotationCache.computeIfAbsent(annotationType, this::computeTypeAnnotation).orElse(null);
         }
 
+        /**
+         * Returns fields matching the requested annotation directly or through a meta-annotation.
+         */
         public List<Field> annotatedFields(Class<? extends Annotation> annotation) {
             return annotatedFields.computeIfAbsent(annotation, this::computeAnnotatedFields);
         }
 
+        /**
+         * Returns methods matching the requested annotation, including composed annotations and overridden
+         * declarations.
+         */
         public List<Method> annotatedMethods(Class<? extends Annotation> annotation) {
             return annotatedMethods.computeIfAbsent(annotation, this::computeAnnotatedMethods);
         }
@@ -1140,6 +1371,10 @@ public class ReflectionUtils {
                     .toList();
         }
 
+        /**
+         * Returns matching fields and readable methods, including interface properties, deduplicated by logical
+         * property name.
+         */
         public List<? extends AccessibleObject> annotatedProperties(Class<? extends Annotation> annotation) {
             List<? extends AccessibleObject> cached = annotatedProperties.get(annotation);
             if (cached != null) {
@@ -1150,10 +1385,16 @@ public class ReflectionUtils {
             return existing == null ? computed : existing;
         }
 
+        /**
+         * Returns the first matching annotated property, or an empty optional if none exists.
+         */
         public Optional<? extends AccessibleObject> annotatedProperty(Class<? extends Annotation> annotation) {
             return annotatedProperty.computeIfAbsent(annotation, a -> annotatedProperties(a).stream().findFirst());
         }
 
+        /**
+         * Returns a cached invoker for the first matching annotated property, with reflective access enabled.
+         */
         public Optional<MemberInvoker> annotatedPropertyInvoker(Class<? extends Annotation> annotation) {
             Optional<MemberInvoker> cached = annotatedPropertyInvokers.get(annotation);
             if (cached != null) {
@@ -1167,14 +1408,26 @@ public class ReflectionUtils {
             return existing == null ? computed : existing;
         }
 
+        /**
+         * Returns a cached reader for a nested property path, accepting dot or slash separators. Missing
+         * properties raise {@link PropertyNotFoundException} when resolved or read.
+         */
         public Function<Object, Object> getter(String propertyPath) {
             return getters.computeIfAbsent(normalizePropertyPath(propertyPath), this::computeNestedGetter);
         }
 
+        /**
+         * Returns a cached writer for a nested property path, accepting dot or slash separators. Missing
+         * properties raise {@link PropertyNotFoundException} when resolved or written.
+         */
         public BiConsumer<Object, Object> setter(String propertyPath) {
             return setters.computeIfAbsent(normalizePropertyPath(propertyPath), this::computeNestedSetter);
         }
 
+        /**
+         * Returns cached structural metadata for the normalized nested property path, including missing and
+         * dynamically resolved paths.
+         */
         public PropertyPathMetadata propertyPath(String propertyPath) {
             String normalizedPath = normalizePropertyPath(propertyPath);
             PropertyPathMetadata cached = propertyPaths.get(normalizedPath);
@@ -1186,6 +1439,9 @@ public class ReflectionUtils {
             return existing == null ? computed : existing;
         }
 
+        /**
+         * Returns the class-owned cached invoker for the member and access policy.
+         */
         public MemberInvoker invoker(Member member, boolean forceAccess) {
             return invokers.computeIfAbsent(new MemberInvokerKey(member, forceAccess),
                                             ignored -> new DefaultMemberInvoker(member, forceAccess));
@@ -1222,6 +1478,10 @@ public class ReflectionUtils {
             return metadataType.cast(result);
         }
 
+        /**
+         * Returns the field's direct or composed annotation, if present; a composed match returns the outer
+         * annotation instance.
+         */
         @SuppressWarnings("unchecked")
         public <A extends Annotation> Optional<A> fieldAnnotation(Field field, Class<? extends Annotation> annotation) {
             return (Optional<A>) fieldAnnotationCache.computeIfAbsent(
@@ -1229,6 +1489,9 @@ public class ReflectionUtils {
                     ignored -> resolveFieldAnnotation(field, annotation));
         }
 
+        /**
+         * Returns the first direct or composed annotation found along the executable's override hierarchy.
+         */
         @SuppressWarnings("unchecked")
         public <A extends Annotation> Optional<A> methodAnnotation(
                 Executable executable, Class<? extends Annotation> annotation) {
@@ -1237,6 +1500,9 @@ public class ReflectionUtils {
                     ignored -> resolveMethodAnnotation(executable, annotation));
         }
 
+        /**
+         * Returns matching annotations from the first declaration in the override hierarchy that supplies any.
+         */
         @SuppressWarnings("unchecked")
         public <A extends Annotation> List<A> methodAnnotations(
                 Executable executable, Class<? extends Annotation> annotation) {
@@ -1245,6 +1511,10 @@ public class ReflectionUtils {
                     ignored -> resolveMethodAnnotations(executable, annotation));
         }
 
+        /**
+         * Returns a cached projection of the matching annotation into the requested representation, or an empty
+         * optional if absent.
+         */
         @SuppressWarnings("unchecked")
         public <T> Optional<T> annotationAs(AnnotatedElement member,
                                             Class<? extends Annotation> annotationType,
@@ -1465,22 +1735,40 @@ public class ReflectionUtils {
                 return source.dynamic ? dynamic(source.leafType) : declared(source.leafType);
             }
 
+            /**
+             * Returns whether the path is dynamic or its declared leaf type supports timestamp conversion.
+             */
             public boolean supportsTimeConversion() {
                 return dynamic || isTimePropertyType(leafType);
             }
 
+            /**
+             * Returns whether the property path exists according to the structural metadata.
+             */
             public boolean exists() {
                 return exists;
             }
 
+            /**
+             * Returns whether resolving the property path requires runtime values rather than declared types
+             * alone.
+             */
             public boolean dynamic() {
                 return dynamic;
             }
 
+            /**
+             * Claims the one-time missing-timestamp warning for this metadata; returns true only for the first
+             * claim on a missing path.
+             */
             public boolean shouldLogMissingTimestampWarning() {
                 return !exists && missingTimestampWarningLogged.compareAndSet(false, true);
             }
 
+            /**
+             * Claims the one-time unsupported-timestamp warning for this metadata; returns true only for the first
+             * claim.
+             */
             public boolean shouldLogUnsupportedTimestampWarning() {
                 return unsupportedTimestampWarningLogged.compareAndSet(false, true);
             }
@@ -1505,6 +1793,9 @@ public class ReflectionUtils {
         Class<?> type;
     }
 
+    /**
+     * Resolves the collection element or map value class from a field or method's generic type.
+     */
     public static Optional<Class<?>> getCollectionElementType(AccessibleObject fieldOrMethod) {
         if (fieldOrMethod instanceof Method) {
             return getCollectionElementType(((Method) fieldOrMethod).getGenericReturnType());
@@ -1515,6 +1806,10 @@ public class ReflectionUtils {
         throw new IllegalStateException("Object property should be field or method: " + fieldOrMethod);
     }
 
+    /**
+     * Resolves the first generic argument, or the value argument for maps, using a wildcard's upper bound. Returns
+     * {@link Object} for unresolved arguments and an empty optional for raw types.
+     */
     public static Optional<Class<?>> getCollectionElementType(Type parameterizedType) {
         if (parameterizedType instanceof ParameterizedType) {
             Type elementType;
@@ -1533,20 +1828,33 @@ public class ReflectionUtils {
         return Optional.empty();
     }
 
+    /**
+     * Returns whether the target type itself declares the named field, excluding inherited fields.
+     */
     public static boolean declaresField(Class<?> target, String fieldName) {
         return getTypeMetadata(target).declaresField(fieldName);
     }
 
+    /**
+     * Assigns the field with reflective access enabled; access and assignment failures propagate.
+     */
     @SneakyThrows
     public static void setField(Field field, Object target, Object value) {
         ensureAccessible(field).set(target, value);
     }
 
+    /**
+     * Assigns a field declared directly on the target's class, with reflective access enabled.
+     */
     @SneakyThrows
     public static void setField(String fieldName, Object target, Object value) {
         setField(target.getClass().getDeclaredField(fieldName), target, value);
     }
 
+    /**
+     * Enables reflective access to the member and returns it; platform access restrictions can still reject the
+     * operation.
+     */
     public static <T extends AccessibleObject> T ensureAccessible(T member) {
         member.setAccessible(true);
         return member;
@@ -1621,12 +1929,19 @@ public class ReflectionUtils {
         Returns meta annotation if desired
      */
 
+    /**
+     * Returns a direct or composed annotation, using inherited method and type lookup where applicable.
+     */
     public static <A extends Annotation> Optional<A> getAnnotation(AnnotatedElement m, Class<A> a) {
         return getAnnotationAs(m, a, a);
     }
 
     /*
         Returns any object
+     */
+    /**
+     * Finds a matching type annotation and projects its attributes into the requested representation; null or
+     * unmatched targets yield an empty optional.
      */
     public static <T> Optional<T> getAnnotationAs(Class<?> target, Class<? extends Annotation> annotationType,
                                                   Class<T> returnType) {
@@ -1637,6 +1952,10 @@ public class ReflectionUtils {
         return getAnnotationAs(annotation, annotationType, returnType);
     }
 
+    /**
+     * Finds a matching annotation on the element and projects its attributes into the requested representation, or
+     * returns an empty optional if absent.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> getAnnotationAs(AnnotatedElement member,
                                                   Class<? extends Annotation> annotationType,
@@ -1653,6 +1972,11 @@ public class ReflectionUtils {
         };
     }
 
+    /**
+     * Returns the annotation or its matching meta-annotation when {@code returnType} is the target annotation
+     * type. For maps and converted objects, merges meta-annotation defaults with the outer annotation's
+     * attributes, which take precedence. A null annotation or target annotation type yields an empty optional.
+     */
     @SneakyThrows
     @SuppressWarnings("unchecked")
     public static <T> Optional<T> getAnnotationAs(Annotation annotation,
@@ -1688,14 +2012,23 @@ public class ReflectionUtils {
         return Optional.of(JsonUtils.convertValue(params, returnType));
     }
 
+    /**
+     * Converts the annotation's attributes into the requested representation.
+     */
     public static <T> T convertAnnotation(Annotation annotation, Class<? extends T> returnType) {
         return getAnnotationAs(annotation, annotation.annotationType(), returnType).orElseThrow();
     }
 
+    /**
+     * Returns whether the method or an overridden declaration has the requested direct or composed annotation.
+     */
     public static boolean has(Class<? extends Annotation> annotationClass, Method method) {
         return getMethodAnnotation(method, annotationClass).isPresent();
     }
 
+    /**
+     * Returns whether the parameter directly carries the annotation or a composed annotation of that type.
+     */
     public static boolean has(Class<? extends Annotation> annotationClass, Parameter parameter) {
         for (Annotation annotation : getAnnotations(parameter)) {
             if (isOrHas(annotation, annotationClass)) {
@@ -1705,6 +2038,10 @@ public class ReflectionUtils {
         return false;
     }
 
+    /**
+     * Returns the field's direct or composed annotation, if present; composed matches retain the outer annotation
+     * instance.
+     */
     public static <A extends Annotation> Optional<A> getFieldAnnotation(Field f, Class<? extends Annotation> a) {
         return getTypeMetadata(f.getDeclaringClass()).fieldAnnotation(f, a);
     }
@@ -1714,10 +2051,16 @@ public class ReflectionUtils {
 
        Returns annotation or meta annotation.
     */
+    /**
+     * Returns the first matching direct or composed annotation in the executable's override hierarchy.
+     */
     public static <A extends Annotation> Optional<A> getMethodAnnotation(Executable m, Class<? extends Annotation> a) {
         return getTypeMetadata(m.getDeclaringClass()).methodAnnotation(m, a);
     }
 
+    /**
+     * Returns matching annotations from the first declaration in the override hierarchy that supplies them.
+     */
     public static <A extends Annotation> List<A> getMethodAnnotations(Executable m, Class<? extends Annotation> a) {
         return getTypeMetadata(m.getDeclaringClass()).methodAnnotations(m, a);
     }
@@ -1812,6 +2155,10 @@ public class ReflectionUtils {
         return compare(ACCESS_ORDER.indexOf(lhs & ACCESS_MODIFIERS), ACCESS_ORDER.indexOf(rhs & ACCESS_MODIFIERS));
     }
 
+    /**
+     * Copies all non-static fields between objects of the same runtime class and returns the target. Null inputs
+     * leave the target unchanged; arrays return the source instead of copying elements.
+     */
     @SneakyThrows
     public static <V> V copyFields(V source, V target) {
         if (target == null || source == null) {
@@ -1832,6 +2179,9 @@ public class ReflectionUtils {
         return target;
     }
 
+    /**
+     * Resolves a class name through the SDK's class lookup; throws {@link ClassNotFoundException} if unresolved.
+     */
     @SneakyThrows
     public static Class<?> classForName(String type) {
         Class<?> result = classLookup(type).type();
@@ -1841,11 +2191,17 @@ public class ReflectionUtils {
         throw new ClassNotFoundException(type);
     }
 
+    /**
+     * Resolves a class name, returning {@code defaultClass} when it cannot be resolved.
+     */
     public static Class<?> classForName(String type, Class<?> defaultClass) {
         Class<?> result = classLookup(type).type();
         return result == null ? defaultClass : result;
     }
 
+    /**
+     * Returns whether the SDK's class lookup can resolve the supplied class name.
+     */
     public static boolean classExists(String className) {
         return classLookup(className).type() != null;
     }
@@ -1890,14 +2246,23 @@ public class ReflectionUtils {
         private static final ClassLookup unknown = new ClassLookup(null, null);
     }
 
+    /**
+     * Returns the class name after its last package or nested-class separator.
+     */
     public static String getSimpleName(Class<?> c) {
         return getSimpleName(c.getName());
     }
 
+    /**
+     * Returns the final component of the package name.
+     */
     public static String getSimpleName(Package p) {
         return p.getName().substring(p.getName().lastIndexOf('.') + 1);
     }
 
+    /**
+     * Returns the name after the last dot or dollar separator; null or blank names are rejected.
+     */
     public static String getSimpleName(String fullyQualifiedName) {
         if (fullyQualifiedName == null || fullyQualifiedName.trim().isEmpty()) {
             throw new IllegalArgumentException("Fully qualified name cannot be null or empty");

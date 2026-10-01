@@ -137,12 +137,20 @@ public class AnnotatedEntityHolder {
                                      l -> new AnnotatedEntityHolder(ownerType, l, entityHelper, serializer));
     }
 
+    /**
+     * Copies the current thread's loading-entity cache, including its identity-keyed inner maps, for later
+     * restoration.
+     */
     public static Map<?, ?> snapshotLoadingEntityCache() {
         Map<AnnotatedEntityHolder, IdentityHashMap<Object, ImmutableEntity<?>>> snapshot = new IdentityHashMap<>();
         loadingEntityCache.get().forEach((holder, entities) -> snapshot.put(holder, new IdentityHashMap<>(entities)));
         return snapshot;
     }
 
+    /**
+     * Replaces the current thread's loading-entity cache from a snapshot obtained through {@link
+     * #snapshotLoadingEntityCache()}.
+     */
     @SuppressWarnings("unchecked")
     public static void restoreLoadingEntityCache(Map<?, ?> snapshot) {
         Map<AnnotatedEntityHolder, IdentityHashMap<Object, ImmutableEntity<?>>> target = loadingEntityCache.get();
@@ -151,16 +159,27 @@ public class AnnotatedEntityHolder {
                 .forEach((holder, entities) -> target.put(holder, new IdentityHashMap<>(entities)));
     }
 
+    /**
+     * Clears the current thread's loading-entity cache.
+     */
     public static void clearLoadingEntityCache() {
         loadingEntityCache.get().clear();
     }
 
+    /**
+     * Copies the current thread's loading-route-value cache and its identity-keyed inner maps for later
+     * restoration.
+     */
     public static Map<?, ?> snapshotLoadingRouteValuesCache() {
         Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>> snapshot = new IdentityHashMap<>();
         loadingRouteValuesCache.get().forEach((holder, routes) -> snapshot.put(holder, new IdentityHashMap<>(routes)));
         return snapshot;
     }
 
+    /**
+     * Replaces the current thread's loading-route-value cache from a snapshot obtained through {@link
+     * #snapshotLoadingRouteValuesCache()}.
+     */
     @SuppressWarnings("unchecked")
     public static void restoreLoadingRouteValuesCache(Map<?, ?> snapshot) {
         Map<AnnotatedEntityHolder, IdentityHashMap<Object, Collection<String>>> target = loadingRouteValuesCache.get();
@@ -169,6 +188,9 @@ public class AnnotatedEntityHolder {
                 .forEach((holder, routes) -> target.put(holder, new IdentityHashMap<>(routes)));
     }
 
+    /**
+     * Clears the current thread's loading-route-value cache.
+     */
     public static void clearLoadingRouteValuesCache() {
         loadingRouteValuesCache.get().clear();
     }
@@ -397,6 +419,10 @@ public class AnnotatedEntityHolder {
         return entity == null ? List.of(emptyEntity) : List.of(entity, emptyEntity);
     }
 
+    /**
+     * Finds the first entity in this holder matching the routing value, or returns null when the parent value,
+     * holder value, or matching entity is absent. The parent entity itself must be non-null.
+     */
     public ImmutableEntity<?> getEntityByRoute(Entity<?> parent, String routeValue) {
         if (parent.get() == null) {
             return null;

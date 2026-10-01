@@ -192,6 +192,9 @@ public class Invocation {
                 ? null : targetClass.getSimpleName();
     }
 
+    /**
+     * Returns this invocation's technical identifier, generating and retaining it on first access.
+     */
     public String getId() {
         if (id == null) {
             id = IdentityProvider.defaultIdentityProvider.nextTechnicalId();

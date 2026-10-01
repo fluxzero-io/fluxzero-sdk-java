@@ -164,16 +164,27 @@ public abstract class ImmutableRoot<T> extends ImmutableEntity<T> implements Per
 
     @FunctionalInterface
     public interface Transition<S, E> {
+        /**
+         * Applies an event to the replay state and returns the resulting state; failures are passed to the replay
+         * failure policy.
+         */
         S apply(S state, E event) throws Throwable;
     }
 
     @FunctionalInterface
     public interface ReplayContinuation<S, E> {
+        /**
+         * Returns whether replay should continue for the supplied state and next event.
+         */
         boolean test(S state, E event);
     }
 
     @FunctionalInterface
     public interface ReplayFailure<S, E> {
+        /**
+         * Maps a replay failure to the runtime exception exposed to the caller, with access to the state and
+         * failing event.
+         */
         RuntimeException map(S state, E event, Throwable error);
     }
 }

@@ -64,10 +64,17 @@ public final class OpenApiDocumentEndpoint {
         this.modelTypes = modelTypes;
     }
 
+    /**
+     * Discovers OpenAPI document endpoints for the handler with no additional registered Model types.
+     */
     public static List<OpenApiDocumentEndpoint> forHandler(Class<?> handlerType, Object handler) {
         return forHandler(handlerType, handler, List::of);
     }
 
+    /**
+     * Discovers OpenAPI document endpoints from the handler and package configuration, using the supplier to
+     * obtain registered Model types when rendering schemas.
+     */
     public static List<OpenApiDocumentEndpoint> forHandler(
             Class<?> handlerType, Object handler, Supplier<? extends Collection<Class<?>>> modelTypes) {
         List<OpenApiDocumentEndpoint> endpoints = new ArrayList<>();

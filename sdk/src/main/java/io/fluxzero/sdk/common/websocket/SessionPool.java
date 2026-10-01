@@ -84,10 +84,18 @@ public class SessionPool implements AutoCloseable {
         this.sessionLocks = IntStream.range(0, size).mapToObj(i -> new Object()).toArray();
     }
 
+    /**
+     * Returns an open session using round-robin slot selection, creating or replacing the selected session as
+     * needed. Calls after shutdown fail with {@link IllegalStateException}.
+     */
     public WebsocketSession get() {
         return get(counter.getAndUpdate(i -> Math.floorMod(i + 1, size)));
     }
 
+    /**
+     * Returns an open session selected by consistent hashing of the routing key; a null key uses round-robin
+     * selection. Calls after shutdown fail with {@link IllegalStateException}.
+     */
     public WebsocketSession get(String routingKey) {
         if (routingKey == null) {
             return get();

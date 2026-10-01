@@ -201,6 +201,10 @@ public abstract class WebsocketEndpoint {
                 return null;
             }));
 
+    /**
+     * Registers an accepted session, its command-idempotency state and result backlog, emits connection metrics,
+     * and schedules a ping. Rejects new sessions during shutdown.
+     */
     public void onOpen(ServerWebsocketSession session) {
         if (shuttingDown.get()) {
             throw new IllegalStateException("Cannot accept client. Endpoint is shutting down");
@@ -223,6 +227,10 @@ public abstract class WebsocketEndpoint {
         return transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
     }
 
+    /**
+     * Deserializes and dispatches an incoming binary request for the session, logging failures that escape
+     * dispatch.
+     */
     public void onMessage(byte[] bytes, ServerWebsocketSession session) {
         long requestReceivedTimestamp = currentTimeMillis();
         try {
@@ -746,6 +754,10 @@ public abstract class WebsocketEndpoint {
         }
     }
 
+    /**
+     * Acknowledges a pong by cancelling the pending ping deadline and scheduling the next ping for an active ping
+     * registration.
+     */
     public void onPong(ByteBuffer message, ServerWebsocketSession session) {
         pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
             if (v == null) {
@@ -776,6 +788,10 @@ public abstract class WebsocketEndpoint {
         onClose(session, closeReason);
     }
 
+    /**
+     * Removes session, command-idempotency, backlog, and ping bookkeeping and reports disconnection when
+     * appropriate for the transport-close lifecycle.
+     */
     public void onClose(ServerWebsocketSession session, WebsocketCloseReason closeReason) {
         String sessionId = getNegotiatedSessionId(session);
         boolean wasActive = activeSessionIds.remove(sessionId);
@@ -799,6 +815,9 @@ public abstract class WebsocketEndpoint {
         }
     }
 
+    /**
+     * Classifies and logs a transport error, aborts the session, and always performs close cleanup.
+     */
     public void onError(ServerWebsocketSession session, Throwable e) {
         String sessionId = getNegotiatedSessionId(session);
         boolean expectedTransportClose = shuttingDown.get() || isClosedChannel(e);

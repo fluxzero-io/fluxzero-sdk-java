@@ -94,11 +94,18 @@ public class LocalClient extends AbstractClient {
                     DefaultPropertySource.getInstance().get("FLUX_TASK_ID",
                             ManagementFactory.getRuntimeMXBean().getName()));
 
+    /**
+     * Creates an in-memory client using {@code FLUXZERO_LOG_RETENTION} from application properties, defaulting to
+     * two minutes of message retention.
+     */
     public static LocalClient newInstance() {
         return new LocalClient(ApplicationProperties.mapProperty(
                 "FLUXZERO_LOG_RETENTION", Duration::parse, () -> Duration.ofMinutes(2)));
     }
 
+    /**
+     * Creates an in-memory client with the supplied message-retention duration.
+     */
     public static LocalClient newInstance(Duration messageExpiration) {
         return new LocalClient(messageExpiration);
     }

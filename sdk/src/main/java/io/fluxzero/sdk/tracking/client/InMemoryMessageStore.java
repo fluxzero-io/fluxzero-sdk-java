@@ -151,6 +151,9 @@ public class InMemoryMessageStore implements MessageStore {
         return MessageStoreBatch.scan(messagesFrom(minIndex, inclusive), maxSize, maxBytes, filter);
     }
 
+    /**
+     * Wakes registered monitors with an empty message batch, without appending messages.
+     */
     public void notifyMonitors() {
         notifyMonitors(Collections.emptyList());
     }

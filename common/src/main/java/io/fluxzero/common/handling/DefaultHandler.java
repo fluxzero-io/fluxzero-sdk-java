@@ -35,6 +35,10 @@ public class DefaultHandler<M> implements Handler<M> {
         this(targetClass, targetSupplier, handlerMatcher, null, null);
     }
 
+    /**
+     * Creates a handler bound to the supplied target and matcher, preparing its method binding and invocation
+     * planner.
+     */
     public static <M> DefaultHandler<M> forTarget(Class<?> targetClass, Object target,
                                                   HandlerMatcher<Object, M> handlerMatcher) {
         return new DefaultHandler<>(targetClass, ignored -> target, handlerMatcher,

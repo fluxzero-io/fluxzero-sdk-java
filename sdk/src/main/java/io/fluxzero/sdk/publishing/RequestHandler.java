@@ -124,6 +124,10 @@ public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseabl
                                                             Consumer<List<SerializedMessage>> requestSender,
                                                             @Nullable Duration timeout);
 
+    /**
+     * Dispatches a request using the configured default timeout, delivering intermediate responses to the callback
+     * and completing the returned future with the final response or failure.
+     */
     default CompletableFuture<SerializedMessage> sendRequest(
             SerializedMessage request,
             Consumer<SerializedMessage> requestSender,
@@ -131,6 +135,11 @@ public interface RequestHandler extends Namespaced<RequestHandler>, AutoCloseabl
         return sendRequest(request, requestSender, null, intermediateCallback);
     }
 
+    /**
+     * Dispatches a request and delivers intermediate responses to the callback. The returned future completes with
+     * the final response or failure; a null timeout uses the handler default and a negative timeout disables
+     * expiry.
+     */
     CompletableFuture<SerializedMessage> sendRequest(
             SerializedMessage request,
             Consumer<SerializedMessage> requestSender, Duration timeout,

@@ -103,6 +103,10 @@ public class SearchQuery {
         this.constraints = constraints;
     }
 
+    /**
+     * Returns the upper time boundary, clamped to {@code since} when both are present and the upper boundary
+     * precedes it; an absent boundary remains null.
+     */
     public Instant getBefore() {
         return before == null || since == null || before.isAfter(since) ? before : since;
     }

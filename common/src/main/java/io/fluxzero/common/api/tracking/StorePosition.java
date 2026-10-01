@@ -61,6 +61,10 @@ public class StorePosition extends Command {
      */
     Guarantee guarantee;
 
+    /**
+     * Creates a position request from JSON properties, validating that the segment has two ordered boundaries
+     * within the supported segment range.
+     */
     @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
     public static StorePosition fromJson(MessageType messageType, String consumer, int[] segment, long lastIndex, Guarantee guarantee) {
         if (segment.length != 2) {

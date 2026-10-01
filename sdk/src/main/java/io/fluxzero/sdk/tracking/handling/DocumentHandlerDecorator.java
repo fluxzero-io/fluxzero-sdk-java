@@ -232,6 +232,10 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
 
     @FunctionalInterface
     public interface GraphDocumentWriter {
+        /**
+         * Writes the migrated materialized Graph document and returns a future representing write completion or
+         * failure.
+         */
         CompletableFuture<Void> rewrite(
                 MaterializedGraphDocumentMigration.Migration migration);
     }

@@ -45,6 +45,9 @@ import java.lang.annotation.Target;
 @Conditional(ConditionalOnBean.Condition.class)
 public @interface ConditionalOnBean {
 
+    /**
+     * Returns the bean type that must be present for this condition to match.
+     */
     Class<?> value();
 
     @Order

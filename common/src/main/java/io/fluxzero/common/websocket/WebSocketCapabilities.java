@@ -114,6 +114,10 @@ public final class WebSocketCapabilities {
         return getSupportedCompressionAlgorithms(headers).stream().findFirst();
     }
 
+    /**
+     * Reads the negotiated compression algorithm from handshake headers, returning empty for a missing or
+     * unrecognized selection.
+     */
     public static Optional<CompressionAlgorithm> getSelectedCompressionAlgorithm(Map<String, List<String>> headers) {
         return getHeaderValue(headers, SELECTED_COMPRESSION_ALGORITHM_HEADER)
                 .flatMap(WebSocketCapabilities::parseCompressionAlgorithm);
@@ -145,31 +149,53 @@ public final class WebSocketCapabilities {
         return getSupportedTransportFormats(headers).stream().findFirst();
     }
 
+    /**
+     * Reads the negotiated transport format from handshake headers, returning empty for a missing or unrecognized
+     * selection.
+     */
     public static Optional<WebSocketTransportFormat> getSelectedTransportFormat(Map<String, List<String>> headers) {
         return getHeaderValue(headers, SELECTED_TRANSPORT_FORMAT_HEADER)
                 .flatMap(WebSocketCapabilities::parseTransportFormat);
     }
 
+    /**
+     * Reads the client's session identifier from handshake headers, if present.
+     */
     public static Optional<String> getClientSessionId(Map<String, List<String>> headers) {
         return getHeaderValue(headers, CLIENT_SESSION_ID_HEADER);
     }
 
+    /**
+     * Reads the identifier of the session being replaced by this connection, if present.
+     */
     public static Optional<String> getReplacedSessionId(Map<String, List<String>> headers) {
         return getHeaderValue(headers, REPLACES_SESSION_ID_HEADER);
     }
 
+    /**
+     * Reads the advertised client SDK version from handshake headers, if present.
+     */
     public static Optional<String> getClientSdkVersion(Map<String, List<String>> headers) {
         return getHeaderValue(headers, CLIENT_SDK_VERSION_HEADER);
     }
 
+    /**
+     * Reads the Runtime session identifier from handshake headers, if present.
+     */
     public static Optional<String> getRuntimeSessionId(Map<String, List<String>> headers) {
         return getHeaderValue(headers, RUNTIME_SESSION_ID_HEADER);
     }
 
+    /**
+     * Reads the advertised Runtime version from handshake headers, if present.
+     */
     public static Optional<String> getRuntimeVersion(Map<String, List<String>> headers) {
         return getHeaderValue(headers, RUNTIME_VERSION_HEADER);
     }
 
+    /**
+     * Generates a twelve-character hexadecimal session identifier from a random UUID.
+     */
     public static String newShortSessionId() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 12);
     }

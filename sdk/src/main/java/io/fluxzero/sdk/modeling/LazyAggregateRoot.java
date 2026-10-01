@@ -50,10 +50,17 @@ public class LazyAggregateRoot<T> implements AggregateRoot<T> {
     private final ImmutableAggregateRoot<T> delegate;
     private final Entity<T> lastCheckpoint;
 
+    /**
+     * Creates a lazy root retaining the delegate's metadata but clearing its value for deferred reconstruction.
+     */
     public static <T> LazyAggregateRoot<T> from(ImmutableAggregateRoot<T> delegate) {
         return new LazyAggregateRoot<>(delegate.toBuilder().value(null).build(), null);
     }
 
+    /**
+     * Creates a lazy root with the supplied reconstruction checkpoint, retaining the delegate's metadata and
+     * clearing its eager value.
+     */
     public static <T> LazyAggregateRoot<T> from(ImmutableAggregateRoot<T> delegate, Entity<T> lastCheckpoint) {
         return new LazyAggregateRoot<>(delegate.toBuilder().value(null).build(), lastCheckpoint);
     }

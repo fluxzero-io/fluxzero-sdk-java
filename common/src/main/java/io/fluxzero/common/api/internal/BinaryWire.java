@@ -65,6 +65,9 @@ public final class BinaryWire {
     private BinaryWire() {
     }
 
+    /**
+     * Reads a big-endian 32-bit integer at the supplied offset without maintaining or advancing a cursor.
+     */
     public static int peekInt(byte[] bytes, int offset) {
         return (bytes[offset] & 0xff) << 24
                | (bytes[offset + 1] & 0xff) << 16
@@ -72,6 +75,10 @@ public final class BinaryWire {
                | bytes[offset + 3] & 0xff;
     }
 
+    /**
+     * Returns the UTF-8 byte length without allocating encoded bytes, or -1 for null. Unpaired surrogates use a
+     * one-byte replacement; length overflow throws {@link ArithmeticException}.
+     */
     public static int utf8Length(String value) {
         if (value == null) {
             return -1;
@@ -372,18 +379,31 @@ public final class BinaryWire {
             this.limit = offset + length;
         }
 
+        /**
+         * Returns the backing array without copying it; the cursor's position and limit determine the readable
+         * region.
+         */
         public byte[] bytes() {
             return bytes;
         }
 
+        /**
+         * Returns the current absolute offset in the backing array.
+         */
         public int position() {
             return position;
         }
 
+        /**
+         * Returns the number of bytes remaining before the cursor's limit.
+         */
         public int remaining() {
             return limit - position;
         }
 
+        /**
+         * Reads a big-endian 32-bit integer and advances the cursor, rejecting truncated input.
+         */
         public int readInt() {
             require(Integer.BYTES);
             int result = peekInt(bytes, position);
@@ -391,6 +411,10 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Reads a non-negative size bounded by {@code maximum}; invalid values throw {@link
+         * IllegalArgumentException} with the supplied label.
+         */
         public int readSize(int maximum, String label) {
             int value = readInt();
             if (value < 0 || value > maximum) {
@@ -399,12 +423,20 @@ public final class BinaryWire {
             return value;
         }
 
+        /**
+         * Reads and validates a non-negative string byte length and verifies that its bytes are available, without
+         * consuming the string bytes.
+         */
         public int readStringLength(int maximum) {
             int length = readSize(maximum, "string");
             require(length);
             return length;
         }
 
+        /**
+         * Reads a length-prefixed UTF-8 string bounded by {@code maximum} bytes. Negative lengths and truncated
+         * input are rejected.
+         */
         public String readString(int maximum) {
             int length = readStringLength(maximum);
             String result = new String(bytes, position, length, StandardCharsets.UTF_8);
@@ -412,6 +444,10 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Consumes a bounded, length-prefixed string and compares its encoded bytes with the supplied value
+         * without decoding a new string.
+         */
         public boolean readStringEquals(String value, int maximum) {
             int length = readStringLength(maximum);
             boolean result = utf8Equals(bytes, position, length, value);
@@ -419,16 +455,26 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Skips a length-prefixed string after validating its byte length against {@code maximum} and the
+         * available input.
+         */
         public void skipString(int maximum) {
             int length = readStringLength(maximum);
             position += length;
         }
 
+        /**
+         * Advances by the specified number of bytes, rejecting negative lengths or truncated input.
+         */
         public void skip(int length) {
             require(length);
             position += length;
         }
 
+        /**
+         * Requires the cursor to be at its limit; trailing bytes cause {@link IllegalArgumentException}.
+         */
         public void requireComplete() {
             if (position != limit) {
                 throw new IllegalArgumentException("Unexpected trailing binary wire bytes");
@@ -442,6 +488,10 @@ public final class BinaryWire {
         }
     }
 
+    /**
+     * Compares the selected byte region with the UTF-8 encoding of the value without allocating encoded bytes;
+     * unpaired surrogates are compared as question marks.
+     */
     public static boolean utf8Equals(byte[] bytes, int offset, int byteLength, String value) {
         int byteIndex = 0;
         for (int charIndex = 0; charIndex < value.length(); charIndex++) {
@@ -484,15 +534,24 @@ public final class BinaryWire {
             this.bytes = new byte[initialSize];
         }
 
+        /**
+         * Appends the low eight bits of the value to the output.
+         */
         public void writeByte(int value) {
             ensure(1);
             bytes[position++] = (byte) value;
         }
 
+        /**
+         * Appends a boolean as one byte: zero for false and one for true.
+         */
         public void writeBoolean(boolean value) {
             writeByte(value ? 1 : 0);
         }
 
+        /**
+         * Appends a big-endian 32-bit integer.
+         */
         public void writeInt(int value) {
             ensure(Integer.BYTES);
             bytes[position++] = (byte) (value >>> 24);
@@ -501,6 +560,9 @@ public final class BinaryWire {
             bytes[position++] = (byte) value;
         }
 
+        /**
+         * Appends a big-endian 64-bit integer.
+         */
         public void writeLong(long value) {
             ensure(Long.BYTES);
             bytes[position++] = (byte) (value >>> 56);
@@ -513,6 +575,9 @@ public final class BinaryWire {
             bytes[position++] = (byte) value;
         }
 
+        /**
+         * Appends a presence flag followed by a 32-bit integer when the value is non-null.
+         */
         public void writeNullableInt(Integer value) {
             writeBoolean(value != null);
             if (value != null) {
@@ -520,6 +585,9 @@ public final class BinaryWire {
             }
         }
 
+        /**
+         * Appends a presence flag followed by a 64-bit integer when the value is non-null.
+         */
         public void writeNullableLong(Long value) {
             writeBoolean(value != null);
             if (value != null) {
@@ -527,6 +595,9 @@ public final class BinaryWire {
             }
         }
 
+        /**
+         * Appends a UTF-8 string prefixed by its byte length, using a length of -1 for null.
+         */
         public void writeString(String value) {
             if (value == null) {
                 writeInt(-1);
@@ -546,6 +617,9 @@ public final class BinaryWire {
             }
         }
 
+        /**
+         * Appends a byte array prefixed by its length, using a length of -1 for null.
+         */
         public void writeBytes(byte[] value) {
             if (value == null) {
                 writeInt(-1);
@@ -554,21 +628,33 @@ public final class BinaryWire {
             }
         }
 
+        /**
+         * Appends the selected byte region prefixed by its length.
+         */
         public void writeBytes(byte[] value, int offset, int length) {
             writeInt(length);
             writeRaw(value, offset, length);
         }
 
+        /**
+         * Appends the entire byte array without a length prefix.
+         */
         public void writeRaw(byte[] value) {
             writeRaw(value, 0, value.length);
         }
 
+        /**
+         * Appends the selected byte region without a length prefix.
+         */
         public void writeRaw(byte[] value, int offset, int length) {
             ensure(length);
             System.arraycopy(value, offset, bytes, position, length);
             position += length;
         }
 
+        /**
+         * Appends an element count followed by big-endian 64-bit values, using a count of -1 for null.
+         */
         public void writeLongs(long[] values) {
             if (values == null) {
                 writeInt(-1);
@@ -581,6 +667,9 @@ public final class BinaryWire {
             }
         }
 
+        /**
+         * Appends a binary message envelope prefixed by its encoded byte length.
+         */
         public void writeEnvelope(SerializedMessage message) {
             int frameOffset = position;
             writeInt(0);
@@ -718,10 +807,18 @@ public final class BinaryWire {
             bytes[offset + 7] = (byte) value;
         }
 
+        /**
+         * Returns exactly the written bytes, reusing the backing array when it is completely filled and copying
+         * otherwise.
+         */
         public byte[] toByteArray() {
             return position == bytes.length ? bytes : Arrays.copyOf(bytes, position);
         }
 
+        /**
+         * Returns the backing array only if it has been filled exactly; otherwise throws {@link
+         * IllegalStateException} for a size mismatch.
+         */
         public byte[] toExactByteArray() {
             if (position != bytes.length) {
                 throw new IllegalStateException(
@@ -791,27 +888,46 @@ public final class BinaryWire {
             this.limit = offset + length;
         }
 
+        /**
+         * Returns the number of unread bytes within this reader's limit.
+         */
         public int available() {
             return limit - position;
         }
 
+        /**
+         * Returns the current absolute offset in the backing array.
+         */
         public int position() {
             return position;
         }
 
+        /**
+         * Returns the backing array without copying it; the reader's position and limit delimit the readable
+         * region.
+         */
         public byte[] bytes() {
             return bytes;
         }
 
+        /**
+         * Reads one signed byte and advances, throwing {@link EOFException} if no byte remains.
+         */
         public byte readByte() throws EOFException {
             require(1);
             return bytes[position++];
         }
 
+        /**
+         * Reads one byte as an unsigned integer from 0 through 255.
+         */
         public int readUnsignedByte() throws EOFException {
             return readByte() & 0xff;
         }
 
+        /**
+         * Reads a boolean encoded as zero or one; other values and truncated input cause {@link IOException}.
+         */
         public boolean readBoolean() throws IOException {
             int value = readUnsignedByte();
             if (value > 1) {
@@ -820,6 +936,9 @@ public final class BinaryWire {
             return value == 1;
         }
 
+        /**
+         * Reads a big-endian 32-bit integer, throwing {@link EOFException} on truncated input.
+         */
         public int readInt() throws EOFException {
             require(Integer.BYTES);
             int result = peekInt(bytes, position);
@@ -827,6 +946,9 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Reads a big-endian 64-bit integer, throwing {@link EOFException} on truncated input.
+         */
         public long readLong() throws EOFException {
             require(Long.BYTES);
             long result = (long) (bytes[position] & 0xff) << 56
@@ -841,14 +963,24 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Reads a presence flag and, when present, a big-endian 32-bit integer; returns null for an absent value.
+         */
         public Integer readNullableInt() throws IOException {
             return readBoolean() ? readInt() : null;
         }
 
+        /**
+         * Reads a presence flag and, when present, a big-endian 64-bit integer; returns null for an absent value.
+         */
         public Long readNullableLong() throws IOException {
             return readBoolean() ? readLong() : null;
         }
 
+        /**
+         * Reads a length-prefixed UTF-8 string, accepting -1 as null and enforcing the configured maximum value
+         * size.
+         */
         public String readString() throws IOException {
             int length = readInt();
             if (length == -1) {
@@ -861,11 +993,18 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Reads a length-prefixed byte array, accepting -1 as null and enforcing the configured maximum value
+         * size.
+         */
         public byte[] readBytes() throws IOException {
             Data.ByteArrayView view = readByteView();
             return view == null ? null : view.get();
         }
 
+        /**
+         * Reads a nullable array of big-endian 64-bit values, enforcing {@code maximumElements} before allocation.
+         */
         public long[] readLongs(int maximumElements) throws IOException {
             int size = readInt();
             if (size == -1) {
@@ -880,6 +1019,10 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Reads and validates a length-prefixed message envelope and returns a message backed by the input array.
+         * Invalid envelope sizes, components, or truncated input cause {@link IOException}.
+         */
         public SerializedMessage readEnvelope() throws IOException {
             int envelopeSize = readInt();
             if (envelopeSize < ENVELOPE_HEADER_SIZE || envelopeSize > maximumValueSize) {
@@ -907,17 +1050,29 @@ public final class BinaryWire {
             return result;
         }
 
+        /**
+         * Reads a non-negative size no greater than {@code maximum}; invalid values cause {@link IOException} with
+         * the supplied label.
+         */
         public int readSize(int maximum, String label) throws IOException {
             int size = readInt();
             validateSize(size, maximum, label);
             return size;
         }
 
+        /**
+         * Advances by the specified number of bytes, throwing {@link EOFException} for a negative length or
+         * truncated input.
+         */
         public void skip(int length) throws EOFException {
             require(length);
             position += length;
         }
 
+        /**
+         * Checks that the specified number of bytes is available without advancing; negative lengths and
+         * insufficient input cause {@link EOFException}.
+         */
         public void require(int length) throws EOFException {
             if (length < 0 || position > limit - length) {
                 throw new EOFException();

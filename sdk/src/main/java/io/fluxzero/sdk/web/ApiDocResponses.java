@@ -27,5 +27,8 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR, ElementType.TYPE, ElementType.PACKAGE})
 @Documented
 public @interface ApiDocResponses {
+    /**
+     * Returns the response documentation annotations grouped by this container.
+     */
     ApiDocResponse[] value();
 }

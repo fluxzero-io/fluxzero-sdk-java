@@ -50,11 +50,18 @@ public record HandlerMethodPreparation<M>(Status status, HandlerMethodPlan<M> pl
         return new HandlerMethodPreparation<>(Status.PREPARED, Objects.requireNonNull(plan));
     }
 
+    /**
+     * Returns a shared preparation result indicating that no handler method matches.
+     */
     @SuppressWarnings("unchecked")
     public static <M> HandlerMethodPreparation<M> noMatch() {
         return (HandlerMethodPreparation<M>) noMatch;
     }
 
+    /**
+     * Returns a shared preparation result indicating that preparation is unsupported and ordinary matching is
+     * required.
+     */
     @SuppressWarnings("unchecked")
     public static <M> HandlerMethodPreparation<M> unsupported() {
         return (HandlerMethodPreparation<M>) unsupported;

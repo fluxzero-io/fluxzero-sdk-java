@@ -152,6 +152,9 @@ public final class ModelRelationshipCycleValidator {
      */
     @FunctionalInterface
     public interface ParentLoader {
+        /**
+         * Loads parent identifiers indexed by the supplied child identifiers for cycle detection.
+         */
         Map<String, Set<String>> load(Set<String> childIds);
     }
 

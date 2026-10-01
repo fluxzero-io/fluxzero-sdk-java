@@ -50,42 +50,73 @@ public final class WebFormPart {
         this.content = Optional.ofNullable(content).orElseGet(() -> new byte[0]).clone();
     }
 
+    /**
+     * Returns the form field name associated with this part.
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Returns the uploaded file name, or null for a part without a file name.
+     */
     public String getFileName() {
         return fileName;
     }
 
+    /**
+     * Returns the part's content type, if supplied.
+     */
     public String getContentType() {
         return contentType;
     }
 
+    /**
+     * Returns the part's headers grouped by name.
+     */
     public Map<String, List<String>> getHeaders() {
         return headers;
     }
 
+    /**
+     * Returns all values for a header, or an empty list if absent.
+     */
     public List<String> getHeaders(String name) {
         return headers.getOrDefault(name, List.of());
     }
 
+    /**
+     * Returns the first value of a header, or an empty optional if absent.
+     */
     public Optional<String> getHeader(String name) {
         return getHeaders(name).stream().findFirst();
     }
 
+    /**
+     * Returns a defensive copy of the part's content bytes.
+     */
     public byte[] getContent() {
         return content.clone();
     }
 
+    /**
+     * Returns a new input stream over the part's content, with an independent read position.
+     */
     public InputStream getInputStream() {
         return new ByteArrayInputStream(content);
     }
 
+    /**
+     * Returns whether this part carries a file name, including an empty file name.
+     */
     public boolean isFile() {
         return fileName != null;
     }
 
+    /**
+     * Decodes the content using the charset in the Content-Type header, defaulting to UTF-8 when that charset is
+     * absent or unsupported.
+     */
     public String asString() {
         return new String(content, charset());
     }

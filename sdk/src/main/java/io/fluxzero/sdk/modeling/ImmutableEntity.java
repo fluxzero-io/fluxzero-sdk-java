@@ -186,6 +186,9 @@ public class ImmutableEntity<T> implements Entity<T> {
         return result;
     }
 
+    /**
+     * Returns the runtime type of the current value, or the declared entity type when the value is null.
+     */
     @SuppressWarnings("unchecked")
     public Class<T> type() {
         T value = get();
@@ -616,16 +619,26 @@ public class ImmutableEntity<T> implements Entity<T> {
         private static final DescendantTargetMetadata CERTAIN_EMPTY = new DescendantTargetMetadata(Set.of(), true);
     }
 
+    /**
+     * Returns a copy of the current thread's loading-route cache for later restoration.
+     */
     public static Map<?, String> snapshotLoadingRouteCache() {
         return new HashMap<>(loadingRouteCache.get());
     }
 
+    /**
+     * Replaces the current thread's loading-route cache with a snapshot obtained from {@link
+     * #snapshotLoadingRouteCache()}.
+     */
     @SuppressWarnings("unchecked")
     public static void restoreLoadingRouteCache(Map<?, String> snapshot) {
         loadingRouteCache.get().clear();
         loadingRouteCache.get().putAll((Map<RouteCacheKey, String>) snapshot);
     }
 
+    /**
+     * Clears the current thread's loading-route cache.
+     */
     public static void clearLoadingRouteCache() {
         loadingRouteCache.get().clear();
     }

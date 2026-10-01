@@ -266,6 +266,10 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
                                                   s.getScheduleId(), Instant.ofEpochMilli(s.getTimestamp()))));
     }
 
+    /**
+     * Dispatches the schedule to local handlers and waits for an available handling result; handler failures
+     * propagate to the caller.
+     */
     @SneakyThrows
     public void handleLocally(Schedule schedule) {
         var result = localHandlerRegistry.handle(deserializingMessage(schedule));

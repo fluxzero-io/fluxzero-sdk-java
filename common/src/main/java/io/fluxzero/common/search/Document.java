@@ -210,6 +210,10 @@ public class Document {
         return toBuilder().entries(result).build();
     }
 
+    /**
+     * Returns the document end timestamp, clamped to the start timestamp when both are present and the end
+     * precedes it; an absent end remains null.
+     */
     public Instant getEnd() {
         return end == null || timestamp == null || end.isAfter(timestamp) ? end : timestamp;
     }

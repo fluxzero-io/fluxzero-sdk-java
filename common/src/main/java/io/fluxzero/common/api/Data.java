@@ -45,10 +45,19 @@ public class Data<T> implements SerializedObject<T> {
      * and may materialize an independent array.</p>
      */
     public interface ByteArrayView extends Supplier<byte[]> {
+        /**
+         * Returns the backing byte array without copying it.
+         */
         byte[] array();
 
+        /**
+         * Returns the zero-based offset where this view starts in the backing array.
+         */
         int offset();
 
+        /**
+         * Returns the number of bytes covered by this view.
+         */
         int length();
     }
 

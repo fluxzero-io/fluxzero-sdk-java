@@ -712,20 +712,32 @@ public final class CommitAttempt {
         }
     }
 
+    /**
+     * Returns the attempt's read state index, using the deferred boundary when one is attached.
+     */
     public long readStateIndex() {
         return deferredBoundary == null ? readStateIndex : deferredBoundary.stateIndex;
     }
 
+    /**
+     * Returns an immutable list of resolved Model identifiers in resolution order.
+     */
     public List<String> modelIds() {
         ArrayList<String> result = new ArrayList<>(resolution.models().size());
         resolution.models().forEach(target -> result.add(target.modelId()));
         return List.copyOf(result);
     }
 
+    /**
+     * Returns the Models resolved as targets for this attempt.
+     */
     public List<MutationPlan.ResolvedModel> targets() {
         return resolution.models();
     }
 
+    /**
+     * Returns the resolved target with the supplied Model identifier, or null if absent.
+     */
     public MutationPlan.ResolvedModel target(String modelId) {
         for (MutationPlan.ResolvedModel target : resolution.models()) {
             if (target.modelId().equals(modelId)) {
@@ -735,6 +747,10 @@ public final class CommitAttempt {
         return null;
     }
 
+    /**
+     * Returns the loaded entity for the Model identifier, or null if absent, and records the identifier when read
+     * collection is active.
+     */
     public Entity<?> entity(String modelId) {
         if (readCollector != null && modelId != null) {
             readCollector.add(modelId);
@@ -748,6 +764,9 @@ public final class CommitAttempt {
                 : recordRead(entities.get(aliasSelections.getOrDefault(modelId, modelId)));
     }
 
+    /**
+     * Returns the loaded entity map and records all its identifiers when read collection is active.
+     */
     public Map<String, Entity<?>> entities() {
         if (readCollector != null) {
             readCollector.addAll(entities.keySet());
@@ -761,6 +780,9 @@ public final class CommitAttempt {
         return graphOverlayEntities == null ? direct : graphOverlayEntities;
     }
 
+    /**
+     * Attaches this attempt to the non-null message's context and returns that message.
+     */
     public DeserializingMessage attachTo(DeserializingMessage message) {
         return Objects.requireNonNull(message, "message").putContext(CommitAttempt.class, this);
     }
@@ -997,6 +1019,9 @@ public final class CommitAttempt {
         cascadeRootIds = Set.copyOf(modelIds);
     }
 
+    /**
+     * Returns the Model identifiers retained as read dependencies for this attempt.
+     */
     public List<String> readModelIds() {
         return readModelIds;
     }
@@ -1016,14 +1041,23 @@ public final class CommitAttempt {
         return readModelTypes;
     }
 
+    /**
+     * Returns the ordered message/change steps retained by this attempt.
+     */
     public List<Step> steps() {
         return steps;
     }
 
+    /**
+     * Returns the Model changes retained by this attempt.
+     */
     public List<Change> transitions() {
         return changes;
     }
 
+    /**
+     * Returns the Model identifiers that initiate cascaded deletion in this attempt.
+     */
     public Set<String> cascadeRootIds() {
         return cascadeRootIds;
     }
@@ -1155,6 +1189,9 @@ public final class CommitAttempt {
             }
         }
 
+        /**
+         * Returns whether this non-empty step starts with a direct mutation change.
+         */
         public boolean directMutation() {
             return !changes.isEmpty() && changes.getFirst().directMutation();
         }

@@ -505,6 +505,9 @@ public class WebRequest extends Message {
             metadata = request.getMetadata();
         }
 
+        /**
+         * Adds the header value only when the header has no values, and returns this builder.
+         */
         public Builder headerIfAbsent(String key, String value) {
             List<String> values = headers.computeIfAbsent(key, k -> new ArrayList<>());
             if (values.isEmpty()) {
@@ -513,10 +516,17 @@ public class WebRequest extends Message {
             return this;
         }
 
+        /**
+         * Appends a header value and returns this builder.
+         */
         public Builder header(String key, String value) {
             return header(key, value, false);
         }
 
+        /**
+         * Appends a header value and returns this builder. If {@code ifAbsent} is true, existing non-empty values
+         * are preserved without appending.
+         */
         public Builder header(String key, String value, boolean ifAbsent) {
             List<String> values = headers.computeIfAbsent(key, k -> new ArrayList<>());
             if (values.isEmpty() || !ifAbsent) {
@@ -525,21 +535,35 @@ public class WebRequest extends Message {
             return this;
         }
 
+        /**
+         * Replaces values for the supplied header keys with copied lists, retains other headers, and returns this
+         * builder.
+         */
         public Builder headers(Map<String, List<String>> headers) {
             headers.forEach((key, values) -> this.headers.put(key, new ArrayList<>(values)));
             return this;
         }
 
+        /**
+         * Removes all values for the header and returns this builder.
+         */
         public Builder clearHeader(String key) {
             headers.computeIfPresent(key, (k, v) -> null);
             return this;
         }
 
+        /**
+         * Adds a request cookie, first parsing any stored Cookie headers, and returns this builder.
+         */
         public Builder cookie(HttpCookie cookie) {
             cookies().add(cookie);
             return this;
         }
 
+        /**
+         * Returns the builder's mutable cookie list after moving any stored Cookie header values into parsed
+         * cookies.
+         */
         public List<HttpCookie> cookies() {
             List<String> cookieHeaders = headers.remove("Cookie");
             if (cookieHeaders != null) {
@@ -548,14 +572,24 @@ public class WebRequest extends Message {
             return cookies;
         }
 
+        /**
+         * Appends a {@code Content-Type} header and returns this builder.
+         */
         public Builder contentType(String contentType) {
             return header("Content-Type", contentType);
         }
 
+        /**
+         * Sets the request body through the payload builder method and returns this builder.
+         */
         public Builder body(Object payload) {
             return payload(payload);
         }
 
+        /**
+         * Assembles request headers, adding the configured gzip acceptance and inferred string or byte-array
+         * content type when absent. Registered cookies supply the Cookie header.
+         */
         public Map<String, List<String>> headers() {
             var result = WebUtils.asHeaderMap(headers);
             if (acceptGzipEncoding) {
@@ -575,6 +609,9 @@ public class WebRequest extends Message {
             return result;
         }
 
+        /**
+         * Builds the request. Throws {@link IllegalStateException} when no HTTP method has been configured.
+         */
         public WebRequest build() {
             if (method == null) {
                 throw new IllegalStateException("HTTP request method not set");

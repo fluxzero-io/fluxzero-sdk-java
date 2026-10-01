@@ -231,6 +231,10 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
     }
 
+    /**
+     * Converts a bulk update into its protocol action, resolving the collection and identifier and serializing
+     * index payloads unless already serialized.
+     */
     public DocumentUpdate serializeAction(BulkUpdate update) {
         String collection = determineCollection(update.getCollection());
         var builder = DocumentUpdate.builder().collection(collection)

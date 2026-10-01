@@ -44,11 +44,18 @@ public interface ModelCommitBatchingClient {
     @FunctionalInterface
     interface ModelCommitResultProcessor {
 
+        /**
+         * Processes commit results together with their positionally aligned request contexts; the future completes
+         * when post-commit processing finishes or fails.
+         */
         CompletableFuture<Void> process(
                 List<CommitModelsResult> results,
                 List<Object> contexts);
     }
 
+    /**
+     * Begins a batch with the supplied reserved-slot capacity for independently prepared Model commits.
+     */
     ModelCommitBatch beginModelCommitBatch(int capacity);
 
     /**
@@ -64,6 +71,9 @@ public interface ModelCommitBatchingClient {
 
     interface ModelCommitBatch {
 
+        /**
+         * Adds a prepared commit at its reserved slot and returns a future for that commit's result.
+         */
         CompletableFuture<CommitModelsResult> add(int slot, CommitModels commit);
 
         /**
@@ -84,8 +94,14 @@ public interface ModelCommitBatchingClient {
         /** Marks a reserved slot as intentionally empty. */
         void skip(int slot);
 
+        /**
+         * Flushes pending commits according to the implementation's batch-release policy.
+         */
         void flush();
 
+        /**
+         * Fails the batch and its pending commit completions with the supplied cause.
+         */
         void fail(Throwable failure);
     }
 }

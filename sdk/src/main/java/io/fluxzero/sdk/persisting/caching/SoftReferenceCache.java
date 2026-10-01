@@ -384,12 +384,25 @@ public class SoftReferenceCache implements Cache, AutoCloseable {
     }
 
     protected interface CacheReference {
+        /**
+         * Returns the cache key associated with this reference.
+         */
         Object getId();
 
+        /**
+         * Returns the referenced value, or null if it is no longer available.
+         */
         Object get();
 
+        /**
+         * Returns the expiry deadline, or null when this reference does not expire by time.
+         */
         Instant getDeadline();
 
+        /**
+         * Returns whether a non-null deadline is strictly before the supplied clock's current instant; equality is
+         * not expired.
+         */
         default boolean hasExpired(Clock clock) {
             return getDeadline() != null && getDeadline().isBefore(clock.instant());
         }

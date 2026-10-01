@@ -110,6 +110,9 @@ public class ProxyWebsocketEndpoint {
         this.keepAlivePingTimeout = pingTimeout;
     }
 
+    /**
+     * Registers an opened socket, forwards its open notification, and schedules keep-alive checks.
+     */
     public void onOpen(ProxyWebsocketSession session) {
         ensureStarted();
         openSessions.put(session.getId(), session);
@@ -117,14 +120,23 @@ public class ProxyWebsocketEndpoint {
         scheduleKeepAlive(session);
     }
 
+    /**
+     * Forwards a binary frame as a socket message request.
+     */
     public void onBinary(ProxyWebsocketSession session, byte[] message) {
         sendRequest(session, HttpRequestMethod.WS_MESSAGE, message);
     }
 
+    /**
+     * Encodes a text frame as UTF-8 and forwards it as a socket message request.
+     */
     public void onText(ProxyWebsocketSession session, String message) {
         sendRequest(session, HttpRequestMethod.WS_MESSAGE, message.getBytes(UTF_8));
     }
 
+    /**
+     * Consumes matching internal keep-alive pongs and forwards other pong payloads to application handlers.
+     */
     public void onPong(ProxyWebsocketSession session, ByteBuffer message) {
         byte[] payload = getBytes(message);
         if (handleKeepAlivePong(session, payload)) {
@@ -133,6 +145,10 @@ public class ProxyWebsocketEndpoint {
         sendRequest(session, HttpRequestMethod.WS_PONG, payload);
     }
 
+    /**
+     * Removes session bookkeeping and keep-alive scheduling, sends its close notification, and waits up to the
+     * configured notification timeout. Notification failures propagate and are recorded for close completion.
+     */
     @SneakyThrows
     public void onClose(ProxyWebsocketSession session, WebsocketCloseReason closeReason) {
         cancelKeepAlive(session.getId());
@@ -152,6 +168,10 @@ public class ProxyWebsocketEndpoint {
         }
     }
 
+    /**
+     * Logs a socket transport error, distinguishing already closing channels and idle timeouts from unexpected
+     * failures.
+     */
     public void onError(ProxyWebsocketSession session, Throwable error) {
         if (error instanceof ClosedChannelException) {
             log.debug("Websocket session {} was closed while the channel was already closing",
@@ -486,6 +506,10 @@ public class ProxyWebsocketEndpoint {
         }
     }
 
+    /**
+     * Shuts down the endpoint with the default close-notification timeout and the standard client and
+     * request-handler cleanup policy.
+     */
     public void shutDown() {
         shutDown(CLOSE_NOTIFICATION_TIMEOUT, true, true);
     }

@@ -467,11 +467,19 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .build();
     }
 
+    /**
+     * Returns whether exclusivity is enabled only within part of the configured index range.
+     */
     public boolean conditionallyExclusive() {
         return exclusive && ((minIndex != null && !exclusiveBeforeMinIndex)
                              || (maxIndexExclusive != null && !exclusiveAfterMaxIndex));
     }
 
+    /**
+     * Returns the exclusivity priority at an index: -1 for non-exclusive, 0 for exclusive outside a configured
+     * boundary, 1 for unbounded exclusivity, and 2 within a bounded exclusive range. A null index uses the
+     * configuration's conditional-exclusivity status.
+     */
     public int exclusivityPriority(Long index) {
         if (!exclusive) {
             return -1;

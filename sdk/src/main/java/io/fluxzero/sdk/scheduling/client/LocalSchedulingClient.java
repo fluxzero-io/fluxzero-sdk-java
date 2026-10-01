@@ -58,6 +58,9 @@ public class LocalSchedulingClient extends LocalTrackingClient implements Schedu
         super(new InMemoryScheduleStore(messageExpiration, clock), MessageType.SCHEDULE, null, initialPositionLag);
     }
 
+    /**
+     * Replaces the clock used by the underlying in-memory schedule store.
+     */
     public void setClock(Clock clock) {
         getMessageStore().setClock(clock);
     }

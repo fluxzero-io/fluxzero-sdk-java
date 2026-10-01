@@ -724,6 +724,10 @@ public class Backlog<T> implements Monitored<List<T>> {
      */
     @FunctionalInterface
     public interface BatchConsumer<T> {
+        /**
+         * Consumes a batch and returns its asynchronous completion. A thrown exception or exceptionally completed
+         * future signals batch failure.
+         */
         CompletableFuture<Void> accept(List<T> batch) throws Exception;
     }
 }

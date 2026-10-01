@@ -58,6 +58,10 @@ public final class ApiReferenceEndpoint {
                 ? defaultStylesheetUrl(renderer) : info.apiReferenceStylesheetUrl();
     }
 
+    /**
+     * Discovers enabled API reference endpoints from the handler and package-level API documentation
+     * configuration, composing their route prefixes.
+     */
     public static List<ApiReferenceEndpoint> forHandler(Class<?> handlerType) {
         List<ApiReferenceEndpoint> endpoints = new ArrayList<>();
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();

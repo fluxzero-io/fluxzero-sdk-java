@@ -1556,6 +1556,10 @@ public final class ModelReducer {
         }
     }
 
+    /**
+     * Replays the event for one target Model through the compiled plan's reducer using the supplied attempt
+     * context, returning the reconstructed value.
+     */
     public static Object replay(
             MutationPlan plan,
             DeserializingMessage event,

@@ -61,6 +61,11 @@ public record ProxyServerConfig(
                 ? null : List.copyOf(supportedCompressionAlgorithms);
     }
 
+    /**
+     * Loads proxy settings through application properties. The Runtime URL is taken from {@code
+     * FLUXZERO_BASE_URL}, {@code FLUX_BASE_URL}, or {@code FLUX_URL}; absence of all three causes {@link
+     * IllegalStateException}.
+     */
     public static ProxyServerConfig fromProperties() {
         String runtimeBaseUrl = getFirstAvailableProperty("FLUXZERO_BASE_URL", "FLUX_BASE_URL", "FLUX_URL");
         if (runtimeBaseUrl == null) {
@@ -77,21 +82,34 @@ public record ProxyServerConfig(
                 true);
     }
 
+    /**
+     * Creates default proxy settings for a Runtime URL, selecting an ephemeral port and enabling metrics and
+     * graceful shutdown.
+     */
     public static ProxyServerConfig forRuntime(String runtimeBaseUrl) {
         return new ProxyServerConfig(
                 0, runtimeBaseUrl, DEFAULT_APPLICATION_NAME, null, true, null, DEFAULT_HEALTH_ENDPOINT, true);
     }
 
+    /**
+     * Returns a copy with the supplied listen port, preserving all other settings.
+     */
     public ProxyServerConfig withPort(int port) {
         return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
                                      supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown);
     }
 
+    /**
+     * Returns a copy with the supplied namespace, preserving all other settings.
+     */
     public ProxyServerConfig withNamespace(String namespace) {
         return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
                                      supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown);
     }
 
+    /**
+     * Returns a copy with metrics enabled or disabled as specified, preserving all other settings.
+     */
     public ProxyServerConfig withMetricsEnabled(boolean metricsEnabled) {
         return new ProxyServerConfig(port, runtimeBaseUrl, applicationName, namespace, metricsEnabled,
                                      supportedCompressionAlgorithms, healthEndpoint, gracefulShutdown);

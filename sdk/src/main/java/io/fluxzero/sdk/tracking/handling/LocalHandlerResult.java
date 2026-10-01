@@ -57,29 +57,49 @@ public final class LocalHandlerResult {
         return new LocalHandlerResult(true, value, null);
     }
 
+    /**
+     * Creates a handled result backed by the supplied asynchronous completion.
+     */
     @SuppressWarnings("unchecked")
     public static LocalHandlerResult asynchronous(CompletableFuture<?> future) {
         return new LocalHandlerResult(true, null, (CompletableFuture<Object>) future);
     }
 
+    /**
+     * Creates a handled result whose future has already failed with the supplied error.
+     */
     public static LocalHandlerResult failed(Throwable error) {
         CompletableFuture<Object> future = new CompletableFuture<>();
         future.completeExceptionally(error);
         return asynchronous(future);
     }
 
+    /**
+     * Returns whether a local handler accepted the invocation.
+     */
     public boolean isHandled() {
         return handled;
     }
 
+    /**
+     * Returns whether this is a handled synchronous success. An asynchronous result remains false even if its
+     * future has completed successfully.
+     */
     public boolean isCompletedSuccessfully() {
         return handled && future == null;
     }
 
+    /**
+     * Returns the stored synchronous result, which may be null; asynchronous values are obtained through {@link
+     * #asFuture()}.
+     */
     public Object getValue() {
         return value;
     }
 
+    /**
+     * Returns the asynchronous result future, or a completed future containing the stored synchronous value.
+     */
     public CompletableFuture<Object> asFuture() {
         return future == null ? CompletableFuture.completedFuture(value) : future;
     }

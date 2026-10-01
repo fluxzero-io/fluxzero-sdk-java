@@ -104,6 +104,9 @@ public class WebSocketClient extends AbstractClient {
         this.applicationClient = applicationClient;
     }
 
+    /**
+     * Creates a WebSocket client using the supplied connection configuration.
+     */
     public static WebSocketClient newInstance(ClientConfig clientConfig) {
         return new WebSocketClient(clientConfig, null);
     }

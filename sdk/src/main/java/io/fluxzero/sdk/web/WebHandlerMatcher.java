@@ -94,12 +94,18 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
     private final WebRouteRegistry routeRegistry;
     private final boolean hasAnyHandlers;
 
+    /**
+     * Creates a web handler matcher using the supplied handler, parameter resolvers, and handling configuration.
+     */
     public static WebHandlerMatcher create(
             Object handler, List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config) {
         return create(handler, ReflectionUtils.asClass(handler), parameterResolvers, config);
     }
 
+    /**
+     * Creates an opaque route registry that can be shared by matchers to coordinate route selection.
+     */
     public static Object createRouteRegistry() {
         return new WebRouteRegistry();
     }
@@ -110,6 +116,10 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
         return create(handler, type, parameterResolvers, config, new WebRouteRegistry());
     }
 
+    /**
+     * Creates a matcher using a shared route registry. The registry must come from {@link #createRouteRegistry()};
+     * other values cause {@link IllegalArgumentException}.
+     */
     public static WebHandlerMatcher create(
             Object handler, List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerConfiguration<DeserializingMessage> config, Object routeRegistry) {

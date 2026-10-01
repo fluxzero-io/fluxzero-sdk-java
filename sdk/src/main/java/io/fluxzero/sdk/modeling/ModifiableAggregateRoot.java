@@ -104,6 +104,9 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     private static final ThreadLocal<Map<Object, Map<String, ModifiableAggregateRoot<?>>>> activeAggregateContexts =
             ThreadLocal.withInitial(IdentityHashMap::new);
 
+    /**
+     * Finds an aggregate with the supplied identifier among the current thread's active aggregate contexts.
+     */
     @SuppressWarnings("unchecked")
     public static <T> Optional<ModifiableAggregateRoot<T>> getIfActive(Object aggregateId) {
         String id = aggregateId.toString();
@@ -119,6 +122,9 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                 : ofNullable((ModifiableAggregateRoot<T>) activeAggregates.get(aggregateId.toString()));
     }
 
+    /**
+     * Returns active aggregate identifiers and types that contain the supplied entity identifier.
+     */
     public static Map<String, Class<?>> getActiveAggregatesFor(@NonNull Object entityId) {
         return getActiveAggregatesFor(
                 activeAggregateContexts.get().values().stream().flatMap(m -> m.values().stream()).toList(), entityId);
@@ -149,6 +155,10 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                 .collect(toMap(e -> e.id().toString(), Entity::type, (a, b) -> b, LinkedHashMap::new));
     }
 
+    /**
+     * Loads or reuses an aggregate in the default active context with the supplied commit, publication, routing,
+     * serialization, and handler policies.
+     */
     public static <T> Entity<T> load(
             Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
             EventPublication eventPublication, EventPublicationStrategy publicationStrategy,

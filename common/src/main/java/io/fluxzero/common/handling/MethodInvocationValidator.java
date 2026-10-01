@@ -26,8 +26,15 @@ public interface MethodInvocationValidator<M> {
     MethodInvocationValidator<?> noOp = (message, target, executable, arguments) -> {
     };
 
+    /**
+     * Validates a prepared invocation before execution. Implementations may throw to reject the message, target,
+     * executable, or resolved arguments.
+     */
     void validate(M message, Object target, Executable executable, Object[] arguments);
 
+    /**
+     * Returns a shared validator that accepts every invocation without additional checks.
+     */
     @SuppressWarnings("unchecked")
     static <M> MethodInvocationValidator<M> noOp() {
         return (MethodInvocationValidator<M>) noOp;

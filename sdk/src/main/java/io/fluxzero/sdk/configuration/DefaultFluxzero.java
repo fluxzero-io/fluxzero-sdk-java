@@ -234,6 +234,9 @@ public class DefaultFluxzero implements Fluxzero {
     @Getter(lazy = true)
     private final Memoization memoization = new DefaultMemoization(clock());
 
+    /**
+     * Creates a new builder with the SDK's default component configuration.
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -254,6 +257,9 @@ public class DefaultFluxzero implements Fluxzero {
         this.clock.setDelegate(clock);
     }
 
+    /**
+     * Returns the clock currently configured for this Fluxzero instance.
+     */
     public Clock clock() {
         return clock;
     }

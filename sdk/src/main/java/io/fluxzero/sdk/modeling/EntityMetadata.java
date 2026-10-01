@@ -233,10 +233,16 @@ public final class EntityMetadata {
         return aggregate == null ? null : RootConfiguration.aggregate(aggregate);
     }
 
+    /**
+     * Returns the class described by this entity metadata.
+     */
     public Class<?> type() {
         return type;
     }
 
+    /**
+     * Returns whether the type carries Model configuration.
+     */
     public boolean isModel() {
         return model != null;
     }
@@ -261,6 +267,9 @@ public final class EntityMetadata {
         return Optional.ofNullable(rootConfiguration);
     }
 
+    /**
+     * Returns the entity identifier property, if one was discovered.
+     */
     public Optional<Property> entityId() {
         return Optional.ofNullable(entityId);
     }
@@ -474,6 +483,9 @@ public final class EntityMetadata {
         return entityId == null ? null : entityId.name();
     }
 
+    /**
+     * Returns the discovered parent-reference descriptors for this type.
+     */
     public List<ParentReference> parentReferences() {
         return parentReferences;
     }
@@ -735,6 +747,9 @@ public final class EntityMetadata {
                 modelType, new LinkedHashSet<>(), false, knownModelTypes.get()) : structural.values();
     }
 
+    /**
+     * Returns the discovered entity handler methods and their kinds.
+     */
     public List<HandlerMethod> handlerMethods() {
         return handlerMethods;
     }
@@ -797,6 +812,9 @@ public final class EntityMetadata {
                 .get(executable);
     }
 
+    /**
+     * Returns only the discovered methods classified as apply handlers.
+     */
     public List<HandlerMethod> applyMethods() {
         return handlerMethods.stream().filter(method -> method.kind() == HandlerKind.APPLY).toList();
     }
@@ -1366,6 +1384,9 @@ public final class EntityMetadata {
      */
     public record Property(
             String name, AccessibleObject member, Class<?> type, Type genericType, MemberInvoker reader) {
+        /**
+         * Reads this property from the supplied target using its prepared invoker.
+         */
         public Object read(Object target) {
             return reader.invoke(target);
         }
@@ -1397,6 +1418,9 @@ public final class EntityMetadata {
             parentModelTypes = List.copyOf(parentModelTypes);
         }
 
+        /**
+         * Reads the parent-reference value from the supplied target.
+         */
         public Object read(Object target) {
             return property.read(target);
         }
@@ -1449,6 +1473,9 @@ public final class EntityMetadata {
                     : EntityMetadata.of(parentModelType).repositoryId(parentId);
         }
 
+        /**
+         * Returns whether a non-empty path in the parent enables automatic Graph composition for this reference.
+         */
         public boolean automaticallyComposed() {
             return !pathInParent.isEmpty();
         }
@@ -1736,10 +1763,17 @@ public final class EntityMetadata {
     /** Shared immutable snapshot trigger and retention settings for Aggregate and Model roots. */
     public record SnapshotSettings(int period, int maxCount) {
 
+        /**
+         * Returns whether periodic snapshots are enabled by a positive period.
+         */
         public boolean enabled() {
             return period > 0;
         }
 
+        /**
+         * Returns whether the stored events cross a snapshot period boundary; disabled snapshots and batches with
+         * no stored events return false.
+         */
         public boolean due(long sequenceNumber, int storedEventCount) {
             return enabled() && storedEventCount > 0
                    && periodIndex(sequenceNumber) > periodIndex(sequenceNumber - storedEventCount);
@@ -1758,11 +1792,19 @@ public final class EntityMetadata {
             EventPublicationStrategy strategy,
             ModelConflictPolicy conflict) {
 
+        /**
+         * Returns whether the publication settings require treating the transition as modified, excluding
+         * publish-only transitions.
+         */
         public boolean forceModified() {
             return publication == EventPublication.ALWAYS
                    && strategy != EventPublicationStrategy.PUBLISH_ONLY;
         }
 
+        /**
+         * Resolves activity, event storage, publication, and state-update effects from the transition settings,
+         * modification flag, cascade status, and publish-only state policy.
+         */
         public TransitionDecision decide(
                 boolean modified, boolean cascadedDeletion,
                 boolean publishOnlyUpdatesState) {

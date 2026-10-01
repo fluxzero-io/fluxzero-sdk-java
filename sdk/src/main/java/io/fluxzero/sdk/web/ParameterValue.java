@@ -46,6 +46,9 @@ public class ParameterValue {
      */
     Object value;
 
+    /**
+     * Returns whether a non-null parameter value is present.
+     */
     public boolean hasValue() {
         return value != null;
     }

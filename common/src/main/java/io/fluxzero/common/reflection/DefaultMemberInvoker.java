@@ -67,10 +67,17 @@ import static java.lang.invoke.MethodType.methodType;
 @Slf4j
 public class DefaultMemberInvoker implements MemberInvoker {
 
+    /**
+     * Returns the class-scoped cached invoker for the member with reflective access enabled.
+     */
     public static MemberInvoker asInvoker(Member member) {
         return asInvoker(member, true);
     }
 
+    /**
+     * Returns the class-scoped cached invoker, using {@code forceAccess} to control suppression of Java access
+     * checks where permitted.
+     */
     public static MemberInvoker asInvoker(Member member, boolean forceAccess) {
         return ReflectionUtils.getTypeMetadata(member.getDeclaringClass()).invoker(member, forceAccess);
     }
@@ -500,111 +507,177 @@ public class DefaultMemberInvoker implements MemberInvoker {
 
     @FunctionalInterface
     public interface _Consumer0 {
+        /**
+         * Invokes the adapted member with 0 positional arguments, discarding any result.
+         */
         void accept();
     }
 
     @FunctionalInterface
     public interface _Consumer1 {
+        /**
+         * Invokes the adapted member with 1 positional argument, discarding any result.
+         */
         void accept(Object p1);
     }
 
     @FunctionalInterface
     public interface _Consumer2 {
+        /**
+         * Invokes the adapted member with 2 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2);
     }
 
     @FunctionalInterface
     public interface _Consumer3 {
+        /**
+         * Invokes the adapted member with 3 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3);
     }
 
     @FunctionalInterface
     public interface _Consumer4 {
+        /**
+         * Invokes the adapted member with 4 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4);
     }
 
     @FunctionalInterface
     public interface _Consumer5 {
+        /**
+         * Invokes the adapted member with 5 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4, Object p5);
     }
 
     @FunctionalInterface
     public interface _Consumer6 {
+        /**
+         * Invokes the adapted member with 6 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6);
     }
 
     @FunctionalInterface
     public interface _Consumer7 {
+        /**
+         * Invokes the adapted member with 7 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7);
     }
 
     @FunctionalInterface
     public interface _Consumer8 {
+        /**
+         * Invokes the adapted member with 8 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8);
     }
 
     @FunctionalInterface
     public interface _Consumer9 {
+        /**
+         * Invokes the adapted member with 9 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8, Object p9);
     }
 
     @FunctionalInterface
     public interface _Consumer10 {
+        /**
+         * Invokes the adapted member with 10 positional arguments, discarding any result.
+         */
         void accept(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8, Object p9, Object p10);
     }
 
     @FunctionalInterface
     public interface _Function0 {
+        /**
+         * Invokes the adapted member with 0 positional arguments and returns its result.
+         */
         Object apply();
     }
 
     @FunctionalInterface
     public interface _Function1 {
+        /**
+         * Invokes the adapted member with 1 positional argument and returns its result.
+         */
         Object apply(Object p1);
     }
 
     @FunctionalInterface
     public interface _Function2 {
+        /**
+         * Invokes the adapted member with 2 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2);
     }
 
     @FunctionalInterface
     public interface _Function3 {
+        /**
+         * Invokes the adapted member with 3 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3);
     }
 
     @FunctionalInterface
     public interface _Function4 {
+        /**
+         * Invokes the adapted member with 4 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4);
     }
 
     @FunctionalInterface
     public interface _Function5 {
+        /**
+         * Invokes the adapted member with 5 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4, Object p5);
     }
 
     @FunctionalInterface
     public interface _Function6 {
+        /**
+         * Invokes the adapted member with 6 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6);
     }
 
     @FunctionalInterface
     public interface _Function7 {
+        /**
+         * Invokes the adapted member with 7 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7);
     }
 
     @FunctionalInterface
     public interface _Function8 {
+        /**
+         * Invokes the adapted member with 8 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8);
     }
 
     @FunctionalInterface
     public interface _Function9 {
+        /**
+         * Invokes the adapted member with 9 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8, Object p9);
     }
 
     @FunctionalInterface
     public interface _Function10 {
+        /**
+         * Invokes the adapted member with 10 positional arguments and returns its result.
+         */
         Object apply(Object p1, Object p2, Object p3, Object p4, Object p5, Object p6, Object p7, Object p8, Object p9,
                      Object p10);
     }

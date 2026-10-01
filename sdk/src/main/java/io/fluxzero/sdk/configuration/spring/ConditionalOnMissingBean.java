@@ -51,6 +51,10 @@ import static org.springframework.util.ClassUtils.forName;
 @Conditional(ConditionalOnMissingBean.Condition.class)
 public @interface ConditionalOnMissingBean {
 
+    /**
+     * Returns the bean type that must be absent. The default {@code void.class} infers the annotated method's
+     * return type or the annotated class itself.
+     */
     Class<?> value() default void.class;
 
     @SuppressWarnings({"NullableProblems", "ConstantConditions"})

@@ -439,14 +439,23 @@ public class ChunkedDeserializingMessage extends DeserializingMessage {
             this.deadlineMillis = deadlineMillis;
         }
 
+        /**
+         * Queues content bytes for subsequent reads without copying the supplied array.
+         */
         public void append(byte[] bytes) {
             queue.add(new Chunk(bytes, null, false));
         }
 
+        /**
+         * Queues an end-of-stream marker after the previously queued chunks.
+         */
         public void complete() {
             queue.add(new Chunk(null, null, true));
         }
 
+        /**
+         * Queues a terminal failure after the previously queued chunks, to be observed by the reader.
+         */
         public void fail(Throwable error) {
             queue.add(new Chunk(null, error, true));
         }

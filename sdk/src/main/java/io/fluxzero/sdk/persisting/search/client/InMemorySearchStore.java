@@ -661,6 +661,9 @@ public class InMemorySearchStore implements SearchClient {
      */
     @FunctionalInterface
     public interface ModelRelationResolver {
+        /**
+         * Resolves Model identifiers related to the supplied identifiers according to the relation constraint.
+         */
         Set<String> resolve(
                 Set<String> relatedModelIds,
                 ModelRelationConstraint constraint);
@@ -671,6 +674,9 @@ public class InMemorySearchStore implements SearchClient {
      */
     @FunctionalInterface
     public interface ModelGraphResolver {
+        /**
+         * Resolves Graph edges for the supplied root Models using the requested composition rules.
+         */
         List<ModelGraphEdge> resolve(
                 Set<String> rootModelIds,
                 ModelGraphComposition composition);
@@ -681,6 +687,9 @@ public class InMemorySearchStore implements SearchClient {
      */
     @FunctionalInterface
     public interface ModelDocumentCollectionResolver {
+        /**
+         * Resolves document collection names indexed by the supplied Model identifiers.
+         */
         Map<String, String> resolve(
                 Set<String> modelIds);
     }
@@ -907,6 +916,10 @@ public class InMemorySearchStore implements SearchClient {
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Prepares and executes document materialization for the assigned Model commit, excluding the supplied Model
+     * identifiers.
+     */
     public void
             materializeModelCommit(
                     CommitModels commit,
@@ -1355,10 +1368,18 @@ public class InMemorySearchStore implements SearchClient {
                 .orElseThrow();
     }
 
+    /**
+     * Returns up to {@code maxSize} document messages after {@code lastIndex}, excluding tombstones; a null index
+     * starts from the beginning and an unknown collection yields an empty stream.
+     */
     public Stream<SerializedMessage> openStream(String collection, Long lastIndex, int maxSize) {
         return openStream(collection, lastIndex, maxSize, false);
     }
 
+    /**
+     * Returns up to {@code maxSize} document messages after {@code lastIndex}, optionally including tombstones. A
+     * null index starts from the beginning; an unknown collection yields an empty stream.
+     */
     public Stream<SerializedMessage> openStream(
             String collection, Long lastIndex, int maxSize,
             boolean includeDocumentTombstones) {
@@ -1374,6 +1395,10 @@ public class InMemorySearchStore implements SearchClient {
                 .limit(maxSize);
     }
 
+    /**
+     * Removes the collection's documents, indices, message log, and audit trail, then notifies its monitors with
+     * an empty batch.
+     */
     public void truncateCollection(String collection) {
         synchronized (this) {
             documents.entrySet().removeIf(entry -> {
@@ -1518,11 +1543,17 @@ public class InMemorySearchStore implements SearchClient {
         notifyAll();
     }
 
+    /**
+     * Registers a monitor for updates across collections and returns a registration that removes it.
+     */
     public synchronized Registration registerMonitor(BiConsumer<String, List<SerializedMessage>> monitor) {
         monitors.add(monitor);
         return () -> monitors.remove(monitor);
     }
 
+    /**
+     * Registers a monitor restricted to the supplied collection and returns a registration that removes it.
+     */
     public Registration registerMonitor(String collection, Consumer<List<SerializedMessage>> monitor) {
         return registerMonitor((c, messages) -> {
             if (Objects.equals(collection, c)) {

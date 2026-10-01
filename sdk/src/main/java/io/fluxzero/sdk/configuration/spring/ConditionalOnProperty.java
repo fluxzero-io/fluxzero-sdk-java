@@ -49,8 +49,14 @@ import java.lang.annotation.Target;
 @Conditional(ConditionalOnProperty.Condition.class)
 public @interface ConditionalOnProperty {
 
+    /**
+     * Returns the application property key whose value is tested.
+     */
     String value();
 
+    /**
+     * Returns the regular expression the property value must match; the default accepts any non-empty value.
+     */
     String pattern() default ".+";
 
     @Order(Ordered.HIGHEST_PRECEDENCE)

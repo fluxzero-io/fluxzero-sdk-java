@@ -63,6 +63,10 @@ public class StaticFileHandler implements Closeable {
     public static final String classpathPrefix = "classpath:";
     public static final String filePrefix = "file:";
 
+    /**
+     * Creates static-file handlers from the class or package's {@link ServeStatic} configuration, resolving
+     * relative web paths against the handler path; returns an empty list if no configuration exists.
+     */
     public static List<StaticFileHandler> forTargetClass(Class<?> targetClass) {
         ServeStatic serveStatic = ReflectionUtils.getAnnotation(targetClass, ServeStatic.class)
                 .or(() -> ReflectionUtils.getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
@@ -84,6 +88,9 @@ public class StaticFileHandler implements Closeable {
                         immutableFileExtensions, serveStatic.maxAgeSeconds(), serveStatic.cleanUrls())).toList();
     }
 
+    /**
+     * Returns whether the class or its package hierarchy carries {@link ServeStatic} configuration.
+     */
     public static boolean isHandler(Class<?> targetClass) {
         return ReflectionUtils.getAnnotation(targetClass, ServeStatic.class)
                 .or(() -> ReflectionUtils.getPackageAnnotation(targetClass.getPackage(), ServeStatic.class))
@@ -484,6 +491,10 @@ public class StaticFileHandler implements Closeable {
             this.extension = extension;
         }
 
+        /**
+         * Selects an available Brotli or gzip sibling file when the encoding header contains its token, preferring
+         * Brotli; otherwise selects uncompressed content. This helper does not interpret quality weights.
+         */
         public static Compression negotiate(String acceptEncoding, Path path) {
             if (acceptEncoding == null) {
                 return NONE;
@@ -499,6 +510,9 @@ public class StaticFileHandler implements Closeable {
     }
 
     protected record ByteRange(long start, long end) {
+        /**
+         * Returns the byte count between the range's inclusive start and end offsets.
+         */
         public long length() {
             return end - start + 1;
         }

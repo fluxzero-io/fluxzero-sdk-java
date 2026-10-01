@@ -139,11 +139,18 @@ public class InMemoryTaskScheduler implements TaskScheduler {
         return executedTask.get();
     }
 
+    /**
+     * Returns the currently scheduled deadlines in chronological order.
+     */
     public List<Instant> getScheduledDeadlines() {
         return tasks.stream().map(task -> Instant.ofEpochMilli(task.deadline)).sorted(Comparator.naturalOrder())
                 .toList();
     }
 
+    /**
+     * Removes tasks whose deadlines have passed and submits them to the worker pool without waiting for their
+     * completion.
+     */
     public void executeExpiredTasksAsync() {
         tasks.forEach(task -> {
             if (isMissedDeadline(clock(), task.deadline) && tasks.remove(task)) {

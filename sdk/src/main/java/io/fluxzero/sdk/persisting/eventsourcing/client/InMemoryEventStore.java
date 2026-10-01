@@ -2101,6 +2101,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
      */
     @FunctionalInterface
     public interface ModelCommitMaterializer {
+        /**
+         * Materializes direct Model documents and eligible snapshots, excluding the supplied Model identifiers.
+         * Returns the publication action to run after materialization and Graph-projection fences advance.
+         */
         Runnable materialize(
                 CommitModels commit,
                 List<ModelUpdate> assignedUpdates,
@@ -2113,6 +2117,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
      */
     @FunctionalInterface
     public interface ModelGraphProjectionMaterializer {
+        /**
+         * Materializes Graph documents for the supplied roots and state index, optionally rebuilding them. Returns
+         * the publication action to run after the Graph-projection fence advances.
+         */
         Runnable materialize(
                 ModelGraphProjectionConfiguration
                         configuration,

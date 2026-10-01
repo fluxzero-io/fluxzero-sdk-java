@@ -137,10 +137,18 @@ public class CronExpression {
     private static final BiFunction<String, Boolean, CronExpression> cache = memoize(
             (expression, withSeconds) -> new CronExpression(expression, withSeconds));
 
+    /**
+     * Parses and caches a five-field cron expression without an explicit seconds field; invalid expressions cause
+     * {@link IllegalArgumentException}.
+     */
     public static CronExpression parseCronExpression(String expression) {
         return cache.apply(expression, false);
     }
 
+    /**
+     * Parses and caches a cron expression, including a leading seconds field when {@code withSeconds} is true;
+     * invalid expressions cause {@link IllegalArgumentException}.
+     */
     public static CronExpression parseCronExpression(String expression, boolean withSeconds) {
         return cache.apply(expression, withSeconds);
     }
@@ -181,6 +189,10 @@ public class CronExpression {
         this.dayOfWeekField = new DayOfWeekField(parts[ix++]);
     }
 
+    /**
+     * Returns the first matching time strictly after the supplied instant, searching at most four years ahead.
+     * Throws {@link IllegalArgumentException} if no match is found within that limit.
+     */
     public ZonedDateTime nextTimeAfter(ZonedDateTime afterTime) {
         // will search for the next time within the next 4 years. If there is no
         // time matching, an InvalidArgumentException will be thrown (it is very
@@ -188,10 +200,17 @@ public class CronExpression {
         return nextTimeAfter(afterTime, afterTime.plusYears(4));
     }
 
+    /**
+     * Returns the next matching local date-time using the system default time zone and a four-year search limit.
+     */
     public LocalDateTime nextLocalDateTimeAfter(LocalDateTime dateTime) {
         return nextTimeAfter(ZonedDateTime.of(dateTime, ZoneId.systemDefault())).toLocalDateTime();
     }
 
+    /**
+     * Returns the next matching time strictly after {@code afterTime}, bounded by the supplied duration in
+     * milliseconds; throws {@link IllegalArgumentException} if no match is found within the limit.
+     */
     public ZonedDateTime nextTimeAfter(ZonedDateTime afterTime, long durationInMillis) {
         // will search for the next time within the next durationInMillis
         // millisecond. Be aware that the duration is specified in millis,
@@ -199,6 +218,10 @@ public class CronExpression {
         return nextTimeAfter(afterTime, afterTime.plus(Duration.ofMillis(durationInMillis)));
     }
 
+    /**
+     * Returns the first matching time strictly after {@code afterTime} and no later than {@code dateTimeBarrier}.
+     * Throws {@link IllegalArgumentException} when the search passes the barrier.
+     */
     public ZonedDateTime nextTimeAfter(ZonedDateTime afterTime, ZonedDateTime dateTimeBarrier) {
         ZonedDateTime[] nextDateTime = {afterTime.plusSeconds(1).withNano(0)};
 

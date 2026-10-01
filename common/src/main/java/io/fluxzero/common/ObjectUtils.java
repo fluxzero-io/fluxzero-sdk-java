@@ -345,22 +345,39 @@ public class ObjectUtils {
         return () -> tryRun(runnable);
     }
 
+    /**
+     * Adapts a callable to a supplier, propagating checked failures through {@link #call(Callable)}.
+     */
     public static <T> Supplier<T> asSupplier(Callable<T> callable) {
         return () -> call(callable);
     }
 
+    /**
+     * Adapts a throwing action to a runnable, propagating failures through {@link #run(ThrowingRunnable)}.
+     */
     public static Runnable asRunnable(ThrowingRunnable runnable) {
         return () -> run(runnable);
     }
 
+    /**
+     * Adapts a throwing function to a standard function, propagating failures through {@link #call(Callable)}.
+     */
     public static <T, R> Function<T, R> asFunction(ThrowingFunction<T, R> function) {
         return t -> call(() -> function.apply(t));
     }
 
+    /**
+     * Adapts a throwing consumer to a standard consumer, propagating failures through {@link
+     * #run(ThrowingRunnable)}.
+     */
     public static <T> Consumer<T> asConsumer(ThrowingConsumer<T> consumer) {
         return t -> run(() -> consumer.accept(t));
     }
 
+    /**
+     * Adapts a callable to a runnable that discards its result and propagates failures through {@link
+     * #call(Callable)}.
+     */
     public static Runnable asRunnable(Callable<?> callable) {
         return () -> call(callable);
     }
@@ -438,15 +455,26 @@ public class ObjectUtils {
         return result;
     }
 
+    /**
+     * Returns a memoizing supplier, reusing the supplied instance if it already implements {@link
+     * MemoizingSupplier}.
+     */
     public static <T> MemoizingSupplier<T> memoize(Supplier<T> supplier) {
         return supplier instanceof MemoizingSupplier<T> existing ? existing : new DefaultMemoizingSupplier<>(supplier);
     }
 
+    /**
+     * Returns a function that memoizes results by key, reusing an existing {@link MemoizingFunction} instance.
+     */
     public static <K, V> MemoizingFunction<K, V> memoize(Function<K, V> supplier) {
         return supplier instanceof MemoizingFunction<K, V> existing ? existing :
                 new DefaultMemoizingFunction<>(supplier);
     }
 
+    /**
+     * Returns a function that memoizes results by argument pair, reusing an existing {@link MemoizingBiFunction}
+     * instance.
+     */
     public static <T, U, R> MemoizingBiFunction<T, U, R> memoize(BiFunction<T, U, R> supplier) {
         return supplier instanceof MemoizingBiFunction<T, U, R> existing ? existing :
                 new DefaultMemoizingBiFunction<>(supplier);

@@ -285,60 +285,90 @@ public class FluxzeroSpringConfig implements BeanPostProcessor, DisposableBean {
         Optional.ofNullable(handlerRegistration.getAndSet(null)).ifPresent(Registration::cancel);
     }
 
+    /**
+     * Exposes this Fluxzero instance's aggregate repository as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public AggregateRepository aggregateRepository(Fluxzero fluxzero) {
         return fluxzero.aggregateRepository();
     }
 
+    /**
+     * Exposes this Fluxzero instance's message scheduler as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public MessageScheduler scheduler(Fluxzero fluxzero) {
         return fluxzero.messageScheduler();
     }
 
+    /**
+     * Exposes this Fluxzero instance's command gateway as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public CommandGateway commandGateway(Fluxzero fluxzero) {
         return fluxzero.commandGateway();
     }
 
+    /**
+     * Exposes this Fluxzero instance's event gateway as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public EventGateway eventGateway(Fluxzero fluxzero) {
         return fluxzero.eventGateway();
     }
 
+    /**
+     * Exposes this Fluxzero instance's query gateway as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public QueryGateway queryGateway(Fluxzero fluxzero) {
         return fluxzero.queryGateway();
     }
 
+    /**
+     * Exposes this Fluxzero instance's error gateway as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public ErrorGateway errorGateway(Fluxzero fluxzero) {
         return fluxzero.errorGateway();
     }
 
+    /**
+     * Exposes this Fluxzero instance's metrics gateway as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public MetricsGateway metricsGateway(Fluxzero fluxzero) {
         return fluxzero.metricsGateway();
     }
 
+    /**
+     * Exposes this Fluxzero instance's result gateway as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public ResultGateway resultGateway(Fluxzero fluxzero) {
         return fluxzero.resultGateway();
     }
 
+    /**
+     * Exposes this Fluxzero instance's key-value store as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public KeyValueStore keyValueStore(Fluxzero fluxzero) {
         return fluxzero.keyValueStore();
     }
 
+    /**
+     * Exposes this Fluxzero instance's document store as a Spring bean when no overriding bean exists.
+     */
     @Bean
     @ConditionalOnMissingBean
     public DocumentStore documentStore(Fluxzero fluxzero) {

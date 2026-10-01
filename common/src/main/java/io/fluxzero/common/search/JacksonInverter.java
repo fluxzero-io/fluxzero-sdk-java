@@ -160,6 +160,9 @@ public class JacksonInverter implements Inverter<JsonNode> {
         return entries.keySet().stream().map(Entry::asPhrase).distinct().collect(joining(" "));
     }
 
+    /**
+     * Produces the document summary using this inverter's configured summarizer.
+     */
     @SneakyThrows
     public String summarize(Object value) {
         return summarizer.apply(value);
@@ -305,14 +308,24 @@ public class JacksonInverter implements Inverter<JsonNode> {
         }
     }
 
+    /**
+     * Returns the reserved metadata path for the key, escaping it as a search field name.
+     */
     public static String metadataPath(String key) {
         return METADATA_PATH_PREFIX + "/" + SearchUtils.escapeFieldName(key);
     }
 
+    /**
+     * Returns whether the path is the reserved metadata root or one of its descendants; null returns false.
+     */
     public static boolean isMetadataPath(String path) {
         return path != null && (path.equals(METADATA_PATH_PREFIX) || path.startsWith(METADATA_PATH_PREFIX + "/"));
     }
 
+    /**
+     * Reconstructs metadata from entries beneath the reserved metadata root, preserving structured values as JSON
+     * strings.
+     */
     @SuppressWarnings("unchecked")
     public static Metadata extractMetadata(Map<Entry, List<Path>> entries) {
         SortedMap<Object, Object> tree = new TreeMap<>();
@@ -513,6 +526,9 @@ public class JacksonInverter implements Inverter<JsonNode> {
      * replacing or mapping the payload must drop it. Converters still process the ordinary Data envelope.
      */
     public interface DocumentBytes extends Data.ByteArrayView {
+        /**
+         * Returns the inverted entries and the document paths where each entry occurs.
+         */
         Map<Entry, List<Path>> entries();
     }
 
