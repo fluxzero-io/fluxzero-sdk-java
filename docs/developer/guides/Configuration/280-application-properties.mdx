@@ -122,13 +122,16 @@ Remote request/reply uses the same property, with a major-version fallback: `STO
 An explicit `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) value of
 `NONE`, `SENT`, or `STORED` overrides it. The defaults date has no effect on delivery guarantees.
 
+Proxy HTTP/2 response headers default to a 16 KiB maximum independently of the defaults date.
+Override it with `fluxzero.proxy.http2MaxResponseHeaderSize`
+(`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE`); HTTP/1 and incoming header limits are unaffected.
+
 | Defaults version | Equivalent property | What changes |
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
-| `>= 2026.10.03` | `fluxzero.proxy.http2MaxResponseHeaderSize = 16384` | Proxy HTTP/2 response headers use a 16 KiB maximum and pooled HPACK buffers. HTTP/1 and incoming request limits remain unchanged. Explicitly set `1048576` to retain the previous shared default maximum; the shared and peer limits still apply. |
 
 For example:
 

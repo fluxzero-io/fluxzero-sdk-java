@@ -237,13 +237,6 @@ public class ApplicationProperties {
      *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications
      *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
      *     </tr>
-     *     <tr>
-     *         <td>{@code >= 2026.10.03}</td>
-     *         <td>{@code fluxzero.proxy.http2MaxResponseHeaderSize = 16384}</td>
-     *         <td>Proxy HTTP/2 response headers use a 16 KiB maximum so small responses use pooled HPACK buffers.
-     *         HTTP/1 response and incoming request limits remain unchanged. Explicitly set the property to
-     *         {@code 1048576} to retain the previous shared default maximum; the shared and peer limits still apply.</td>
-     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with

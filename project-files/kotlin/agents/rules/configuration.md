@@ -309,10 +309,10 @@ initial capacity must be positive and no greater than the effective response cei
 
 For HTTP/2, set `fluxzero.proxy.http2MaxResponseHeaderSize=16384`
 (`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE=16384`) to cap response headers at 16 KiB.
-This is the default from `fluxzero.defaults.version=2026.10.03`; older or absent defaults retain
-the shared maximum. An explicit positive byte limit takes precedence regardless of the defaults
-version. Set `1048576` to retain the previous default maximum. The effective shared response
-maximum and the peer's advertised maximum can still lower the configured HTTP/2 limit.
+The default is 16 KiB regardless of `fluxzero.defaults.version`, including when that property is
+absent. An explicit positive byte limit overrides this default. Set `1048576` to retain the
+previous default maximum. The effective shared response maximum and the peer's advertised
+maximum can still lower the configured HTTP/2 limit.
 
 This limit covers the complete uncompressed header list, including HTTP/2 accounting overhead
 (32 bytes per field), rather than each individual header or just the compressed wire bytes.
