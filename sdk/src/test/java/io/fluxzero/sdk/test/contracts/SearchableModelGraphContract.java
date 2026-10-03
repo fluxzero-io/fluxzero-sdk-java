@@ -38,7 +38,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** The same search contract runs for all storage modes, against local and WebSocket clients. */
 @Timeout(30)
 @SuppressWarnings({"rawtypes", "unchecked"})
-public abstract class SearchableModelGraphContract {
+public abstract class SearchableModelGraphContract extends GraphSchemaMigrationContract {
     protected abstract Client client(String namespace);
 
     @ParameterizedTest @EnumSource(GraphProjectionMode.class)

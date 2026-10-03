@@ -488,10 +488,16 @@ public class InMemorySearchStore implements SearchClient {
                 request.getRequestId(), document, head, request.isVerifyModelState());
     }
 
-    private java.util.function.Consumer<String> modelSchemaInvalidation = ignored -> { };
+    private java.util.function.BiConsumer<String, String> modelSchemaInvalidation = (id, type) -> { };
 
     /** Binds schema-only source rewrites to the local worker's retained rebuild requests. */
     public void setModelSchemaInvalidation(java.util.function.Consumer<String> listener) {
+        java.util.Objects.requireNonNull(listener);
+        modelSchemaInvalidation = (id, type) -> listener.accept(type);
+    }
+
+    /** Binds schema rewrites to retained work for individual Model nodes. */
+    public void setModelNodeSchemaInvalidation(java.util.function.BiConsumer<String, String> listener) {
         modelSchemaInvalidation = java.util.Objects.requireNonNull(listener);
     }
 
@@ -514,7 +520,7 @@ public class InMemorySearchStore implements SearchClient {
             modelDocumentVersions.put(key, new DirectDocumentVersion(document.getCollection(), version.head(), document));
             publication = prepareMessages(Map.of(key, document));
         }
-        modelSchemaInvalidation.accept(request.getExpectedHead().getModelType());
+        modelSchemaInvalidation.accept(request.getDocument().getId(), request.getExpectedHead().getModelType());
         publication.run();
         return CompletableFuture.completedFuture(null);
     }
@@ -1125,8 +1131,14 @@ public class InMemorySearchStore implements SearchClient {
             boolean rebuild) {
         synchronized (this) {
             return prepareModelGraphProjectionSynchronized(
-                    configuration, rootIds, stateIndex, rebuild);
+                    configuration, rootIds, stateIndex, rebuild, false);
         }
+    }
+
+    /** Re-materializes only affected roots at the same business boundary after a source schema rewrite. */
+    public synchronized Runnable prepareModelGraphSchemaProjection(
+            ModelGraphProjectionConfiguration configuration, Set<String> rootIds, long stateIndex) {
+        return prepareModelGraphProjectionSynchronized(configuration, rootIds, stateIndex, false, true);
     }
 
     private Runnable prepareModelGraphProjectionSynchronized(
@@ -1134,7 +1146,7 @@ public class InMemorySearchStore implements SearchClient {
                     configuration,
             Set<String> rootIds,
             long stateIndex,
-            boolean rebuild) {
+            boolean rebuild, boolean schemaChange) {
         if (modelGraphResolver == null
             || modelDocumentCollectionResolver
                == null) {
@@ -1187,8 +1199,7 @@ public class InMemorySearchStore implements SearchClient {
                     modelGraphProjectionStateIndices
                             .getOrDefault(
                                     projectionKey, -1L);
-            if (!rebuild
-                && current >= stateIndex) {
+            if (!rebuild && (current > stateIndex || current == stateIndex && !schemaChange)) {
                 continue;
             }
             SerializedDocument root =

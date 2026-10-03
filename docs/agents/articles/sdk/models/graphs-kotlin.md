@@ -323,8 +323,10 @@ canonical sources. `searchable = false` means no independent request; participat
 
 Use `@HandleDocument` with a node value for node updates, or `Graph<T>` for root and included-descendant updates.
 `source = DocumentSource.MODEL_STATE` explicitly selects internal state, including non-searchable DOCUMENT Models.
-NONE handlers stitch current nodes after a durable notification; their `previous()` is unavailable and Graph returns
-are observational. ASYNC/AWAIT maintain a separate composed document whose schema can be conditionally evolved.
+NONE handlers stitch current nodes after a durable notification; their `previous()` is unavailable. Returning an
+unchanged Graph migrates evolved verified current nodes in every mode; affected projections follow durably. Set
+`graphMigration = GraphMigrationTarget.PROJECTION` for only an ASYNC/AWAIT composition; that option is observational
+at NONE. See `/docs/sdk/models/migration-testing` for concurrency and completion boundaries.
 Ancestor-only content changes do not trigger a child Graph handler.
 
 Identity-based Graph navigation needs neither searchability nor composition paths. Search Graphs follow composition

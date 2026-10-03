@@ -122,7 +122,7 @@ public class HandleDocumentTest {
     @Test
     void returnedMaterializedGraphMigratesThroughTheLocalRuntimeBoundary() {
         testFixture.registerHandlers(new Object() {
-                    @HandleDocument
+                    @HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)
                     Graph<GraphRoot> migrate(Graph<GraphRoot> graph) {
                         return graph;
                     }
@@ -400,7 +400,7 @@ public class HandleDocumentTest {
     }
 
     record GraphMigrationHandler(Graph<GraphRoot> graph) {
-        @HandleDocument
+        @HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)
         Graph<GraphRoot> migrate(Graph<GraphRoot> ignored) {
             return graph;
         }

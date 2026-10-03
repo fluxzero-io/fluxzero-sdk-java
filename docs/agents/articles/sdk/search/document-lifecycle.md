@@ -41,7 +41,7 @@ For ordinary read models, returning a higher-revision document can rewrite it in
 replay boundary, then verify final documents and public queries. Adding `@Facet`, `@Sortable`, `@SearchExclude`, or an
 upcaster does not backfill existing documents by itself.
 
-A typed Model handler observes the canonical searchable node and can only perform a state-preserving schema rewrite. Use `source = DocumentSource.MODEL_STATE` for the same maintenance on non-searchable DOCUMENT state. Model commands own business changes and deletion. A `Graph<T>` document handler observes logical Graph updates in every search mode; returning it rewrites only an existing ASYNC/AWAIT composition, never its nodes. NONE returns are observational. Read `/docs/sdk/models/configuration` and `/docs/sdk/models/migration-testing` before choosing the route.
+A typed Model handler observes the canonical searchable node and can only perform a state-preserving schema rewrite. Use `source = DocumentSource.MODEL_STATE` for the same maintenance on non-searchable DOCUMENT state. Model commands own business changes and deletion. A `Graph<T>` document handler observes logical Graph updates in every search mode; returning it migrates evolved verified current nodes, including at NONE. Affected projections follow durably without a full Modeltype scan. Use `graphMigration = GraphMigrationTarget.PROJECTION` for only the handled stored composition; that option is observational at NONE. Read `/docs/sdk/models/configuration` and `/docs/sdk/models/migration-testing` before choosing the route.
 
 ## Destructive maintenance
 

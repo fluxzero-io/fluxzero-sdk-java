@@ -24,6 +24,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration;
 import io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration;
 import io.fluxzero.sdk.persisting.search.ModelSourceDocumentMigration;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -50,7 +51,7 @@ import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
  *     <li>Delete the corresponding document if the return value is {@code null}.</li>
  * </ul>
  * Materialized Model Graph handlers use a separate result contract: returning their complete typed {@link Graph}
- * may migrate only the derived graph document and never invokes this ordinary document update path.
+ * migrates evolved canonical nodes by default, or only the derived projection when explicitly selected.
  * <p>
  * The collection name is derived from the {@code message topic}. Timestamps for indexing can be determined in two ways:
  * <ul>
@@ -147,12 +148,13 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                 };
             }
             if (DocumentHandlerTopics.graphType(annotation, method) != Void.class) {
-                if (io.fluxzero.sdk.persisting.search.DocumentMessageReader.isLiveGraph(message)
-                        || !Graph.class.isAssignableFrom(method.getReturnType())) {
+                if (!Graph.class.isAssignableFrom(method.getReturnType())
+                        || (annotation.graphMigration() == GraphMigrationTarget.PROJECTION
+                            && io.fluxzero.sdk.persisting.search.DocumentMessageReader.isLiveGraph(message))) {
                     return invoker;
                 }
                 return new ModelGraphDocumentHandlerInvoker(
-                        invoker, message);
+                        invoker, message, annotation.graphMigration());
             }
             String collection = DocumentHandlerTopics.resolve(annotation, method);
             return method.getReturnType().isAssignableFrom(message.getPayloadClass())
@@ -207,11 +209,14 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                 extends HandlerInvoker.DelegatingHandlerInvoker {
             private final DeserializingMessage message;
 
+            private final GraphMigrationTarget migrationTarget;
+
             public ModelGraphDocumentHandlerInvoker(
                     HandlerInvoker delegate,
-                    DeserializingMessage message) {
+                    DeserializingMessage message, GraphMigrationTarget migrationTarget) {
                 super(delegate);
                 this.message = message;
+                this.migrationTarget = migrationTarget;
             }
 
             @Override
@@ -219,6 +224,12 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                     BiFunction<Object, Object, Object> combiner) {
                 Object result = delegate.invoke(combiner);
                 if (result instanceof Graph<?> graph) {
+                    if (migrationTarget == GraphMigrationTarget.MODEL_STATE) {
+                        GraphSourceDocumentMigration.finish(message, getMethod(), graph,
+                                documentStoreSupplier.get().getSerializer(),
+                                searchClient == null ? null : searchClient.apply(message));
+                        return result;
+                    }
                     MaterializedGraphDocumentMigration.create(
                                     graph, message,
                                     documentStoreSupplier.get().getSerializer())
