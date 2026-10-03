@@ -171,6 +171,10 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - For every new or changed feature, review and update all relevant documentation surfaces together: the root `README.md`, human documentation under `docs/developer/`, and the graph under `docs/agents/`. Preserve both Java and Kotlin guidance and keep graph links/symbols discoverable. If a surface needs no change, verify that deliberately rather than overlooking it. Run `python3 .github/scripts/validate-agent-docs.py` after graph changes.
 - Never create a feature-specific property utility or resolve configuration by reading environment variables, system properties, or property files directly. Always use the `ApplicationProperties` infrastructure; at builder or configuration boundaries, read from that component's configured `PropertySource` so application-local overrides and tests remain isolated. This shared path owns source precedence, conventional environment-variable normalization, placeholders, and decryption. Document the property key and conventional environment-variable name prominently, with builder methods presented as programmatic overrides or alternatives.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
+- Prefer separate `@Model` types for new domain state: independent histories and evolving `@Parent` relationships
+  allow models to move, gain relationships, and participate in atomic operations without expanding a shared root.
+  `@Aggregate` is the legacy/migration API for existing applications; retain its behavior and plan data migrations
+  explicitly. `@Member` remains supported and is not deprecated, including within `@Stateful` handlers.
 - Choose `@Model` versus `@Member` by domain lifecycle before storage or object shape. State with independent creation,
   changes, history, retention, or deletion is a separate Model connected with `@Parent`, even when it appears in a
   parent collection; a parent-scoped identity is sufficient. Use `@Member` only when all of those concerns deliberately

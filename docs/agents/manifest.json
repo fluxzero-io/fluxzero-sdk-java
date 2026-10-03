@@ -2189,6 +2189,14 @@
         {
           "description": "Control event publication compatibility checks and reconstructed entity history",
           "path": "/docs/sdk/entities/publication-and-history"
+        },
+        {
+          "path": "/docs/sdk/entities/relationships",
+          "description": "Choose independent Models or deliberate embedded Members"
+        },
+        {
+          "path": "/docs/sdk/entities/legacy-migration",
+          "description": "Retain legacy Aggregates during a deliberate data migration"
         }
       ]
     },
@@ -7761,10 +7769,14 @@
         {
           "path": "/docs/sdk/models/state-java",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/sagas/members-and-lifecycle",
+          "description": "Use supported embedded Members in stateful handlers"
         }
       ],
       "title": "Independent Model Relationships",
-      "summary": "Independent Model Relationships for this SDK version."
+      "summary": "Prefer independent Models and evolving Parent relationships; choose supported Members for deliberate embedding."
     },
     {
       "path": "/docs/sdk/entities/graphs",
@@ -7872,7 +7884,10 @@
       "path": "/docs/sdk/entities/legacy-migration",
       "source": "articles/sdk/entities/legacy-migration.md",
       "symbols": [
-        "SDK upgrade"
+        "SDK upgrade",
+        "@Aggregate",
+        "io.fluxzero.sdk.modeling.Aggregate",
+        "Aggregate migration"
       ],
       "links": [
         {
@@ -7885,7 +7900,7 @@
         }
       ],
       "title": "SDK upgrade guidance",
-      "summary": "Find the dedicated SDK upgrade chapter and distinguish storage migration from schema evolution."
+      "summary": "Retain legacy Aggregate applications while planning a deliberate migration to independent Models."
     },
     {
       "path": "/docs/sdk/testing/model-transitions",

@@ -49,6 +49,7 @@ Use `@field:NotNull`, `@field:NotBlank` and `@field:Valid` for payload constrain
 types alone do not document every runtime request validation requirement. Put business invariants in `@AssertLegal`.
 
 `Fluxzero.loadModel(projectId).get()` reads a direct value. Use `Graph<Project>` when code needs relationships,
-historical boundaries or staged updates. An independent child uses its own `@Model` and `@Parent` relationship;
-an embedded `@Member` shares the root's complete lifecycle. Read the Model and Graph articles before choosing that
-boundary.
+historical boundaries or staged updates. Prefer separate `@Model` types for new domain state, connected through
+`@Parent`: their histories remain independent as relationships change. `@Member` remains supported and is not
+deprecated; use it for an embedded entity that deliberately shares the root's complete lifecycle, or for nested
+handlers stored with their `@Stateful` parent. Plain details values need neither annotation.

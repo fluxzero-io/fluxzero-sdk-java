@@ -30,7 +30,12 @@ import java.lang.annotation.Target;
 /**
  * Marks an independently identified and stored domain model.
  * <p>
- * Unlike an {@link Aggregate}, a model is its own persistence and lifecycle boundary. Loading or updating it does not
+ * Prefer separate models for new domain state. Each model keeps its own history as relationships change; a model
+ * can move to another parent or gain additional relationships without transferring a containing root's history.
+ * Several models can still participate in one atomic operation through {@link Graph}.
+ * <p>
+ * Unlike an embedded member in a legacy {@link Aggregate}, a model is its own persistence and lifecycle boundary.
+ * Loading or updating it does not
  * require loading a parent, sibling, child, or an artificial aggregate root. A model may still contain embedded
  * entities declared with {@link Member @Member}; those members share the model's stream, cache, search document,
  * snapshots, and lifecycle.

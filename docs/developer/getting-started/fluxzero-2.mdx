@@ -2668,13 +2668,15 @@ contract libraries so discovery works from a cold start.
 
 ### Aggregate is a migration API
 
-Treat `@Aggregate` as deprecated for application design, although the Java annotation does not yet carry
-`@Deprecated`. Use `@Model` for domain state. Keeping the Aggregate API available lets existing stored applications
-continue to work while their owners plan a data migration; it is not a second recommended modeling style.
+`@Aggregate` is the legacy/migration API. It remains supported in 2.x, is not annotated with `@Deprecated`,
+and has no specified removal version. Keeping this API available lets existing stored applications continue to work
+while their owners plan a data migration. Use independent `@Model` types for new domain state: each Model keeps
+its history as relationships evolve, and an operation can still commit changes across several Models atomically.
 
-`@Member` has a narrower role: embedded state whose creation, changes, history, retention and deletion all belong
-to its owner. Plain details values need no such annotation. Prefer independent Models joined by `@Parent` for
-recognizable child lifecycles; a collection field alone is not a reason to choose members.
+`@Member` remains supported and is not deprecated. Its role is deliberately embedded state whose creation,
+changes, history, retention and deletion all belong to its owner, including nested handlers in `@Stateful` objects.
+Plain details values need no such annotation. Prefer independent Models joined by `@Parent` for recognizable
+child lifecycles; a collection field alone is not a reason to choose members.
 
 Applications that used prerelease member handling should reconstruct affected Model state from events if snapshots
 were produced while member handlers were skipped. Correct replay does not retroactively repair those snapshots.

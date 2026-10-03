@@ -28,11 +28,15 @@ import java.lang.annotation.Target;
 /**
  * Marks a class as the root of a legacy aggregate in the domain model.
  * <p>
- * New applications should use {@link Model @Model}. A model can own embedded {@link Member @Member} entities when one
- * stream, document, cache and inseparable lifecycle are deliberately desired, while independently living models are
- * connected through {@link Parent @Parent}. This aggregate annotation remains supported throughout Fluxzero 1.x so
- * existing streams and applications do not require a forced persistence migration; it is scheduled for deprecation in
- * Fluxzero 2.0.
+ * Use independent {@link Model @Model} types for new domain state, connected through {@link Parent @Parent}.
+ * Their histories and relationships can evolve without expanding a shared persistence root. A model can still own
+ * embedded {@link Member @Member} entities when they deliberately share its entire lifecycle.
+ * <p>
+ * This legacy API remains supported in Fluxzero 2.x for existing applications and incremental migration. It is not
+ * annotated with {@link Deprecated}, and no removal version is specified. An SDK upgrade does not migrate aggregate
+ * data; replacing this annotation with {@link Model} alone does not migrate streams, snapshots, or embedded children.
+ * See the <a href="https://fluxzero.io/docs/fluxzero-2-deep-dive#upgrading-from-1x">2.x upgrade and migration guide</a>.
+ * {@link Member} remains supported and is not deprecated.
  * <p>
  * Legacy aggregates consist of a root entity (the annotated class) and any number of nested child entities registered
  * using {@link Member @Member}.
@@ -40,7 +44,7 @@ import java.lang.annotation.Target;
  * This annotation also allows fine-grained configuration of event sourcing, caching, snapshotting, and automatic
  * indexing in Fluxzero's document store.
  *
- * <h2>Usage</h2>
+ * <h2>Legacy usage</h2>
  * <pre>{@code
  * @Aggregate
  * public class Project {
