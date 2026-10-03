@@ -1,10 +1,12 @@
 # SDK upgrade guidance
 
-`@Aggregate` is the legacy/migration API for existing applications. It remains supported in SDK 2.x, is not
-annotated with `@Deprecated`, and has no specified removal version. Prefer independent `@Model` types for new
-domain state. `@Member` remains supported and is not deprecated, including within `@Stateful` handlers.
+`@Aggregate` is the legacy/migration API for existing applications, annotated with `@Deprecated(forRemoval = true)`.
+It remains supported in SDK 2.x and is scheduled for removal in SDK 3.0. Plan an explicit Model migration
+before upgrading to 3.0.
+Java and Kotlin callers receive deprecation warnings; builds treating warnings as errors may need adjustment.
+Prefer independent `@Model` types for new domain state. `@Member` remains supported and is not deprecated, including within `@Stateful` handlers.
 
-Upgrading the SDK does not force a data migration. Renaming `@Aggregate` to `@Model` does not transfer existing
+Upgrading to SDK 2.x does not force a data migration. Renaming `@Aggregate` to `@Model` does not transfer existing
 streams, snapshots or embedded children. Preserve existing Java/Kotlin handlers and serialized contracts until
 an explicitly qualified migration changes their ownership.
 

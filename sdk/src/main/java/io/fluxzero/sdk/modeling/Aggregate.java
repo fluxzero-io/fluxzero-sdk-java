@@ -32,8 +32,8 @@ import java.lang.annotation.Target;
  * Their histories and relationships can evolve without expanding a shared persistence root. A model can still own
  * embedded {@link Member @Member} entities when they deliberately share its entire lifecycle.
  * <p>
- * This legacy API remains supported in Fluxzero 2.x for existing applications and incremental migration. It is not
- * annotated with {@link Deprecated}, and no removal version is specified. An SDK upgrade does not migrate aggregate
+ * This legacy API remains supported in Fluxzero 2.x for existing applications and incremental migration, but is
+ * scheduled for removal in Fluxzero 3.0. An SDK upgrade does not migrate aggregate
  * data; replacing this annotation with {@link Model} alone does not migrate streams, snapshots, or embedded children.
  * See the <a href="https://fluxzero.io/docs/fluxzero-2-deep-dive#upgrading-from-1x">2.x upgrade and migration guide</a>.
  * {@link Member} remains supported and is not deprecated.
@@ -63,12 +63,17 @@ import java.lang.annotation.Target;
  * Use {@link Member} to define child, grandchild, or other descendant entities in the aggregate. These entities can
  * independently handle updates and be targeted via their {@link EntityId}.
  *
+ * @deprecated Scheduled for removal in Fluxzero 3.0. Use {@link Model @Model} for new domain state.
+ * Existing aggregate data requires a deliberate
+ * migration; changing this annotation alone does not migrate it. See the
+ * <a href="https://fluxzero.io/docs/fluxzero-2-deep-dive#upgrading-from-1x">upgrade and migration guide</a>.
  * @see Member
  * @see Apply
  * @see AssertLegal
  * @see Searchable
  * @see io.fluxzero.sdk.Fluxzero#loadAggregate
  */
+@Deprecated(forRemoval = true)
 @Documented
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)

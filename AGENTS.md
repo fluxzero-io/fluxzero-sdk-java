@@ -173,8 +173,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
 - Prefer separate `@Model` types for new domain state: independent histories and evolving `@Parent` relationships
   allow models to move, gain relationships, and participate in atomic operations without expanding a shared root.
-  `@Aggregate` is the legacy/migration API for existing applications; retain its behavior and plan data migrations
-  explicitly. `@Member` remains supported and is not deprecated, including within `@Stateful` handlers.
+  `@Aggregate` is the legacy/migration API, deprecated for removal in SDK 3.0; retain its 2.x behavior and plan
+  data migrations explicitly before upgrading to 3.0. `@Member` remains supported and is not deprecated,
+  including within `@Stateful` handlers.
 - Choose `@Model` versus `@Member` by domain lifecycle before storage or object shape. State with independent creation,
   changes, history, retention, or deletion is a separate Model connected with `@Parent`, even when it appears in a
   parent collection; a parent-scoped identity is sufficient. Use `@Member` only when all of those concerns deliberately

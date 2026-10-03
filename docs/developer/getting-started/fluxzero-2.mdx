@@ -2668,9 +2668,12 @@ contract libraries so discovery works from a cold start.
 
 ### Aggregate is a migration API
 
-`@Aggregate` is the legacy/migration API. It remains supported in 2.x, is not annotated with `@Deprecated`,
-and has no specified removal version. Keeping this API available lets existing stored applications continue to work
-while their owners plan a data migration. Use independent `@Model` types for new domain state: each Model keeps
+`@Aggregate` is the legacy/migration API and is annotated with `@Deprecated(forRemoval = true)`.
+It remains supported in 2.x and is scheduled for removal in SDK 3.0. Plan an explicit migration to Models
+before upgrading to 3.0.
+Java and Kotlin callers receive deprecation warnings, which can fail builds configured to treat warnings as errors.
+Keeping this API available in 2.x lets existing stored applications continue to work while their owners plan
+a data migration. Use independent `@Model` types for new domain state: each Model keeps
 its history as relationships evolve, and an operation can still commit changes across several Models atomically.
 
 `@Member` remains supported and is not deprecated. Its role is deliberately embedded state whose creation,
