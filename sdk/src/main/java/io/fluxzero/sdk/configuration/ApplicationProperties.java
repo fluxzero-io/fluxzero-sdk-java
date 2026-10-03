@@ -250,13 +250,6 @@ public class ApplicationProperties {
      *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
      *         Set the property to {@code false} to retain compatibility behavior.</td>
      *     </tr>
-     *     <tr>
-     *         <td>{@code >= 2026.10.03}</td>
-     *         <td>{@code fluxzero.proxy.http2MaxResponseHeaderSize = 16384}</td>
-     *         <td>Proxy HTTP/2 response headers use a 16 KiB maximum so small responses use pooled HPACK buffers.
-     *         HTTP/1 response and incoming request limits remain unchanged. Explicitly set the property to
-     *         {@code 1048576} to retain the previous shared default maximum; the shared and peer limits still apply.</td>
-     *     </tr>
      * </table>
      * <p>
      * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this

@@ -40,11 +40,11 @@ import static org.junit.jupiter.api.Assertions.*;
 class ProxyHttp2HeaderLimitTest {
     @ParameterizedTest
     @CsvSource(value = {
-            "null,null,1048576", "2026.10.02,null,1048576", "2026.10.03,null,16384", "2026.10.04,null,16384",
-            "null,16384,16384", "2026.10.02,16384,16384", "2026.10.03,1048576,1048576",
-            "2026.10.03,4096,4096", "2026.10.03,2097152,1048576"
+            "null,null,16384", "2026.10.02,null,16384", "2026.10.03,null,16384", "2026.10.04,null,16384",
+            "null,1048576,1048576", "2026.10.02,1048576,1048576", "2026.10.03,1048576,1048576",
+            "null,4096,4096", "null,2097152,1048576"
     }, nullValues = "null")
-    void responseLimitRespectsDefaultsAndExplicitOverrides(String version, String maximum, int expected) {
+    void responseLimitIgnoresDefaultsVersionAndRespectsExplicitOverrides(String version, String maximum, int expected) {
         var http1 = new HttpConfiguration();
         http1.setRequestHeaderSize(12345);
         ProxyServer.configureResponseHeaders(http1, 1048576, 32768);
@@ -81,12 +81,30 @@ class ProxyHttp2HeaderLimitTest {
     }
 
     @Test
-    void invalidDefaultsFailUnlessAnExplicitLimitTakesPrecedence() {
-        var invalid = Map.of(DEFAULTS_VERSION_PROPERTY, "invalid");
-        assertThrows(IllegalArgumentException.class,
-                     () -> ProxyServer.http2Configuration(new HttpConfiguration(), invalid::get));
-        var explicit = Map.of(DEFAULTS_VERSION_PROPERTY, "invalid", HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY, "16384");
-        assertEquals(16384, ProxyServer.http2Configuration(new HttpConfiguration(), explicit::get).getMaxResponseHeaderSize());
+    void headerConfigurationNeverReadsTheDefaultsVersion() {
+        var http2 = ProxyServer.http2Configuration(new HttpConfiguration(), key -> {
+            assertEquals(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY, key);
+            return null;
+        });
+        assertEquals(16384, http2.getMaxResponseHeaderSize());
+    }
+
+    @Test
+    void explicitHttp2LimitAllowsLargeResponseHeaders() throws Exception {
+        String previous = System.getProperty(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY);
+        try {
+            System.setProperty(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY, "1048576");
+            try (var support = new HeaderBufferTestSupport(false, true);
+                 var h2 = client(HttpClient.Version.HTTP_2)) {
+                var response = send(h2, support, 128 * 1024, false);
+                assertEquals(HttpClient.Version.HTTP_2, response.version());
+                assertEquals(200, response.statusCode());
+                assertEquals("h".repeat(128 * 1024), response.headers().firstValue("X-Padding").orElseThrow());
+            }
+        } finally {
+            if (previous == null) { System.clearProperty(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY); }
+            else { System.setProperty(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY, previous); }
+        }
     }
 
     @ParameterizedTest
@@ -97,7 +115,7 @@ class ProxyHttp2HeaderLimitTest {
                 .forEach(k -> saved.put(k, System.getProperty(k)));
         HeaderBufferPool pool;
         try {
-            System.setProperty(DEFAULTS_VERSION_PROPERTY, "2026.10.03");
+            System.clearProperty(DEFAULTS_VERSION_PROPERTY);
             System.clearProperty(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY);
             System.setProperty(USE_OUTPUT_DIRECT_BYTE_BUFFERS_PROPERTY, Boolean.toString(direct));
             try (var support = new HeaderBufferTestSupport(true, true);
