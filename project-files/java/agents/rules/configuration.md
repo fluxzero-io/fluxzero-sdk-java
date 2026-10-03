@@ -294,7 +294,7 @@ String apiKey = ApplicationProperties.getProperty("google.apikey");
 ## Proxy response header buffers
 
 The standalone and embedded SDK proxy accept `fluxzero.proxy.responseHeaderBufferSize`
-(environment variable `FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE`), an initial response **header**
+(environment variable `FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE`), an initial HTTP/1 response **header**
 buffer capacity in bytes. For example, `FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE=8192` starts
 with 8 KiB. Larger headers use Jetty's existing overflow path to the effective maximum; large
 response bodies do not require a larger header buffer. Frequent large headers can therefore make
@@ -307,10 +307,27 @@ upstream fix. Setting the initial capacity to the effective response maximum avo
 path, at the cost of larger buffers for small responses. HTTP/2 does not use this retry path.
 
 Without this property the initial capacity is 8192 bytes. `FLUXZERO_PROXY_MAX_HEADER_SIZE`
-continues to default to 1048576 bytes, so the existing request and response limits remain
+continues to default to 1048576 bytes, so the existing incoming request and HTTP/1 response limits remain
 unchanged. With the current Jetty configuration, a maximum configured below 16 KiB still retains
-Jetty's 16 KiB response ceiling, while the request limit follows the configured value. An explicit
+Jetty's 16 KiB HTTP/1 response ceiling, while the request limit follows the configured value. An explicit
 initial capacity must be positive and no greater than the effective response ceiling.
+
+For HTTP/2, set `fluxzero.proxy.http2MaxResponseHeaderSize=16384`
+(`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE=16384`) to cap response headers at 16 KiB.
+The default is 16 KiB regardless of `fluxzero.defaults.version`, including when that property is
+absent. An explicit positive byte limit overrides this default. Set `1048576` to retain the
+previous default maximum. The effective shared response maximum and the peer's advertised
+maximum can still lower the configured HTTP/2 limit.
+
+This limit covers the complete uncompressed header list, including HTTP/2 accounting overhead
+(32 bytes per field), rather than each individual header or just the compressed wire bytes.
+Jetty allocates its HPACK output buffer against that ceiling, including for tiny responses;
+16 KiB fits its buffer pool. Unlike HTTP/1, the initial response-buffer setting does not provide
+small-buffer growth for HTTP/2 (see Jetty [#15872](https://github.com/jetty/jetty.project/issues/15872)).
+An oversized response fails instead of being truncated or falling back to HTTP/1. Jetty 12.1.13
+closes the HTTP/2 session after this HPACK encoding failure, so other streams on that connection
+may be affected and subsequent requests need a new connection. Incoming request header limits
+are unchanged. Choose a larger explicit limit if the application's response headers require it.
 
 Jetty uses direct HTTP output buffers by default. Set
 `fluxzero.proxy.useOutputDirectByteBuffers=false`
@@ -320,7 +337,7 @@ or health endpoints. Heap buffers share the configured heap budget and can incre
 garbage collection; direct buffers use a separate native-memory budget. Benchmark the complete
 proxy workload when changing it.
 
-Both settings are resolved once at proxy startup through `ApplicationProperties`; restart after
+These settings are resolved once at proxy startup through `ApplicationProperties`; restart after
 changing them.
 
 The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixed bodies and use
