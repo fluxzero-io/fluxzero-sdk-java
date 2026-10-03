@@ -73,9 +73,9 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * handler object may declare separate complete-change methods for different {@code Graph<T>} root types; each changed
  * root is routed to its matching typed method. Cascaded deletions also reach a complete-change child-Graph handler,
  * with an empty current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
- * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions. Historical views can use current
- * document values through {@link #withDocumentFallback(boolean)} or the application property
- * {@code fluxzero.model.graph.documentFallback}, enabled by defaults version {@code 2026.10.03}.
+ * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions. Historical views use current
+ * DOCUMENT-only values when the historical version is unavailable. Use {@link #strict()} or the application property
+ * {@code fluxzero.model.graph.strict=true} to require exact historical values.
  * <p>
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
  * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or
@@ -167,15 +167,24 @@ public interface Graph<T> {
     }
 
     /**
-     * Returns a view that uses current DOCUMENT-only values when a historical value is unavailable.
-     * Historical relationships and proven historical absence remain pinned. The current value may belong to a
-     * recreated model with the same ID and is null after deletion. Each value is retained after its first read;
-     * different nodes do not form an atomic current snapshot. Event-sourced replay errors remain errors.
-     * Pass false for strict historical reads. This option never relaxes mutation, assertion or apply reads.
-     * The option follows parents, children and previous views without changing this view.
+     * Returns a view requiring exact historical values. Reading an unavailable DOCUMENT-only revision fails instead
+     * of returning its current value. The choice follows parents, children and previous views without changing this
+     * view. Use {@link #lenient()} to restore ordinary historical Graph reads.
      */
-    default Graph<T> withDocumentFallback(boolean enabled) {
-        return Graphs.withDocumentFallback(this, enabled);
+    default Graph<T> strict() {
+        return Graphs.withDocumentFallback(this, false);
+    }
+
+    /**
+     * Returns a view using ordinary historical Graph reads, overriding an explicit strict view or application default.
+     * An unavailable DOCUMENT-only revision uses the current value of the same ID, including a recreation, or null
+     * after deletion. Historical relationships and proven historical absence remain pinned. Each value is retained
+     * after its first read; different nodes do not form an atomic current snapshot. Event-sourced replay errors remain
+     * errors. Mutations, assertions and replay always stay strict. The choice follows parents, children and previous
+     * views without changing this view.
+     */
+    default Graph<T> lenient() {
+        return Graphs.withDocumentFallback(this, true);
     }
 
     /** Returns the current model value or the supplied fallback. */
@@ -836,8 +845,8 @@ public interface Graph<T> {
      * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
      * stores current state, not document versions: it does not provide durable prior values after overwrite. A
      * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.
-     * With {@link #withDocumentFallback(boolean) document fallback}, preceding DOCUMENT-only coordination revisions
-     * can be traversed using the current value; their values are not historical document versions.</p>
+     * Ordinary historical Graph reads traverse preceding DOCUMENT-only coordination revisions
+     * using the current value when an old version is unavailable; their values are not historical document versions.</p>
      * <p>If an event-sourced revision has no cached predecessor, the repository reconstructs its historical
      * before-state lazily, including when the current revision was loaded from a snapshot. Custom repositories
      * must support historical Graph reads for this fallback.</p>

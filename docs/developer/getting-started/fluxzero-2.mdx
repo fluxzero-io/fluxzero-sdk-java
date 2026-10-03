@@ -1245,13 +1245,12 @@ Read each row as one Model's history. The vertical line selects boundary 30. Pro
 State indexes encode time in the same way as message indexes. `IndexUtils.timestampFromIndex(index)` decodes the timestamp. For a time-based view, use `graph.atStateIndex(IndexUtils.maxIndexFromMillis(instant.toEpochMilli()))` to include the commits through that millisecond. This requires retained reconstructible history; it cannot undo physical erasure.
 
 A mixed Graph can contain event-sourced Project/Task nodes and a DOCUMENT-only status node. Historical values use
-retained event history where available. With `fluxzero.model.graph.documentFallback=true` (enabled from defaults
-version `2026.10.03`), an overwritten DOCUMENT-only value falls back to the current value of the same ID. It becomes
+retained event history where available. An overwritten DOCUMENT-only value normally uses the current value of the same ID. It becomes
 `null` after current deletion and may come from a recreation. Historical absence and relationships remain pinned.
 This also applies to `previous()`; fallback values do not represent exact before/after document versions.
 
-Use `graph.withDocumentFallback(false)` for a strict view, or `true` to opt in for one Graph. Without a defaults
-version, the application default remains strict. Assertions, applies and replay stay strict in either mode. Fallback
+Use `graph.strict()` for exact historical values and `graph.lenient()` to return to ordinary reads.
+Set `fluxzero.model.graph.strict=true` for a strict application default; this is independent of defaults versions. Assertions, applies and replay stay strict in either mode. Fallback
 values are retained per view after reading, but separate nodes do not form an atomic current snapshot. See
 [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for configuration, Java/Kotlin examples and Runtime compatibility.
 

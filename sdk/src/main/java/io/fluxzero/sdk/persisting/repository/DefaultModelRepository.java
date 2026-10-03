@@ -162,10 +162,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
     private boolean automaticModelRouting;
-    private boolean documentFallback;
+    private boolean documentFallback = true;
 
     /** Configures the application default before this repository is used. Namespace views inherit it. */
-    public void configureDocumentFallback(boolean enabled) { documentFallback = enabled; }
+    public void configureGraphStrict(boolean strict) { documentFallback = !strict; }
 
     @Override
     public boolean documentFallbackEnabled() { return documentFallback; }
@@ -281,7 +281,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName, cacheOwner, owningApplication);
         result.configureModelTypes(modelTypes);
         result.configureAutomaticModelRouting(automaticModelRouting);
-        result.configureDocumentFallback(documentFallback);
+        result.configureGraphStrict(!documentFallback);
         result.configureReplayRestoration(replayRestoration);
         return result;
     }

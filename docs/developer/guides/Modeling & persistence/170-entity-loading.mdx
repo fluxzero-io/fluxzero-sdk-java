@@ -282,9 +282,9 @@ document versions. Neither a before-boundary nor a larger cache can reconstruct 
 This requirement applies to each Graph node whose exact historical value you require. Event sourcing plus `DOCUMENT`
 retains history; ordinary snapshot/cache settings do not prune Model events automatically.
 
-Historical Graph views can instead use current DOCUMENT-only values with `withDocumentFallback(true)` or the
-application property `fluxzero.model.graph.documentFallback` (default from `2026.10.03`). This also applies to
-`previous()`, preserves historical relationships and absence, and never relaxes mutations. See
+Historical Graph views normally use current DOCUMENT-only values when a historical revision is unavailable.
+This also applies to `previous()`, preserves historical relationships and absence, and never relaxes mutations.
+Use `graph.strict()` or `fluxzero.model.graph.strict=true` for exact history; `graph.lenient()` restores ordinary reads. See
 [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for the complete fallback contract.
 
 ## Loading a complete model graph

@@ -1201,7 +1201,7 @@ public class DefaultFluxzero implements Fluxzero {
                             runtimeParameterResolvers,
                             propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY));
             commandModelRepository.configureReplayRestoration(modelReplayRestoration);
-            commandModelRepository.configureDocumentFallback(ApplicationProperties.graphDocumentFallbackEnabled(propertySource));
+            commandModelRepository.configureGraphStrict(ApplicationProperties.graphStrict(propertySource));
             graphRepository.set(commandModelRepository);
             modelCommitHandlerRegistry = new ModelCommitHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),

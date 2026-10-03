@@ -694,7 +694,7 @@ public abstract class DocumentGraphContract {
             write(h.writer, new SetDocument("later", "root", "later", 3));
             h.reader.apply(fc -> {
                 assertThrows(EventSourcingException.class,
-                             () -> Fluxzero.loadGraph("root", Root.class).atStateIndex(boundary));
+                             () -> Fluxzero.loadGraph("root", Root.class).strict().atStateIndex(boundary));
                 return null;
             });
         }
@@ -736,8 +736,7 @@ public abstract class DocumentGraphContract {
                 }
             };
             var reader = new TestFixture(
-                    DefaultFluxzero.builder().replacePropertySource(ignored -> key ->
-                            key.equals("fluxzero.model.graph.documentFallback") ? "true" : null),
+                    DefaultFluxzero.builder(),
                     fc -> List.of(handler), clients[1], !async) {};
             ((DefaultModelRepository) reader.getFluxzero().modelRepository())
                     .configureModelTypes(() -> List.of(Root.class, Document.class, EventChild.class));
@@ -758,7 +757,7 @@ public abstract class DocumentGraphContract {
                                     : new Document("one", change.equals("move") ? "other" : "root", "alias", 2);
                             assertEquals(expected, children.getFirst().get());
                             assertThrows(EventSourcingException.class,
-                                         () -> children.getFirst().withDocumentFallback(false).get());
+                                         () -> children.getFirst().strict().get());
                         }
                         write(writer, new SetDocument("one", "root", "alias", 4));
                         assertEquals(change.equals("delete") ? null : 2,
@@ -767,9 +766,11 @@ public abstract class DocumentGraphContract {
         }
     }
 
-    @Test
-    void explicitDocumentFallbackRetainsAbsenceAndPreviousBoundaries() {
-        try (var h = new Harness()) {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void graphStrictnessRetainsAbsenceAndPreviousBoundaries(boolean strictDefault) {
+        try (var h = new Harness(builder -> builder.replacePropertySource(ignored -> key ->
+                key.equals("fluxzero.model.graph.strict") ? Boolean.toString(strictDefault) : null))) {
             h.set(1);
             long created = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
             h.set(2);
@@ -778,16 +779,23 @@ public abstract class DocumentGraphContract {
             long deleted = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
             h.set(3);
             h.reader.apply(fc -> {
-                var current = graph(true, "one").withDocumentFallback(true);
+                var applicationView = graph(true, "one");
+                if (strictDefault) {
+                    assertThrows(EventSourcingException.class, () -> applicationView.atStateIndex(updated).get());
+                } else {
+                    assertEquals(3, applicationView.atStateIndex(updated).get().version());
+                }
+                var current = applicationView.lenient();
                 assertNull(current.atStateIndex(created - 1).get());
                 assertNull(current.atStateIndex(deleted).get());
                 var historical = current.atStateIndex(updated);
                 assertEquals(3, historical.get().version());
+                assertEquals(3, historical.strict().lenient().get().version());
                 var mapped = historical.filterNodes(ignored -> true);
                 assertEquals(3, mapped.get().version());
-                assertThrows(EventSourcingException.class, () -> mapped.withDocumentFallback(false).get());
+                assertThrows(EventSourcingException.class, () -> mapped.strict().get());
                 assertThrows(EventSourcingException.class,
-                             () -> historical.withDocumentFallback(false).filterNodes(ignored -> true).get());
+                             () -> historical.strict().filterNodes(ignored -> true).get());
                 assertEquals(updated, historical.revisionStateIndex());
                 var previous = historical.previous();
                 assertNotNull(previous);
@@ -795,7 +803,7 @@ public abstract class DocumentGraphContract {
                 assertEquals(created, previous.revisionStateIndex());
                 assertEquals(3, previous.get().version());
                 assertNull(previous.previous());
-                assertThrows(EventSourcingException.class, () -> historical.withDocumentFallback(false).get());
+                assertThrows(EventSourcingException.class, () -> historical.strict().get());
                 return null;
             });
         }
@@ -804,8 +812,7 @@ public abstract class DocumentGraphContract {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void escapedFallbackCannotSupplyAnAssertionOrApply(boolean assertion) {
-        try (var h = new Harness(builder -> builder.replacePropertySource(ignored -> key ->
-                key.equals("fluxzero.model.graph.documentFallback") ? "true" : null))) {
+        try (var h = new Harness()) {
             h.set(1);
             long historical = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
             h.set(2);
@@ -824,7 +831,7 @@ public abstract class DocumentGraphContract {
     public record ReadHistoricalGraph(String receiptId,
                                       @JsonIgnore Graph<Document> graph,
                                       boolean assertion) {
-        @AssertLegal void check() { if (assertion) { graph.withDocumentFallback(true).get(); } }
+        @AssertLegal void check() { if (assertion) { graph.lenient().get(); } }
         @Apply Receipt apply(@Nullable Receipt previous) { return new Receipt(receiptId, graph.get().version()); }
     }
 
@@ -875,8 +882,7 @@ public abstract class DocumentGraphContract {
                 }
             };
             var reader = new TestFixture(
-                    DefaultFluxzero.builder().replacePropertySource(ignored -> key ->
-                            key.equals("fluxzero.model.graph.documentFallback") ? "true" : null),
+                    DefaultFluxzero.builder(),
                     fc -> List.of(handler), countHeadRequests(clients[1], headRequests, largestHeadBatch), !async) {};
             for (Object event : List.of(new ObserveDocument("one"), new ObserveDocuments(List.of("one", "two")),
                                         new ObserveDocumentChild(new DocumentChildId("child")),
@@ -889,7 +895,7 @@ public abstract class DocumentGraphContract {
                     .expectNoErrors().expectThat(fc -> {
                         assertEquals(2, retained.get().get().version());
                         assertEquals("doc-one", retained.get().id());
-                        assertThrows(EventSourcingException.class, () -> retained.get().withDocumentFallback(false).get());
+                        assertThrows(EventSourcingException.class, () -> retained.get().strict().get());
                         assertNull(Fluxzero.loadGraph("missing").previous());
                     });
             }
@@ -914,9 +920,7 @@ public abstract class DocumentGraphContract {
                     assertEquals(2, graph.get().getVersion());
                 }
             };
-            var reader = new TestFixture(DefaultFluxzero.builder()
-                    .replacePropertySource(ignored -> key ->
-                            key.equals("fluxzero.model.graph.documentFallback") ? "true" : null),
+            var reader = new TestFixture(DefaultFluxzero.builder(),
                     fc -> List.of(handler), clients[1], true) {};
             ((DefaultModelRepository) reader.getFluxzero().modelRepository())
                     .configureModelTypes(() -> List.of(SpecialDocument.class, BaseDocument.class));

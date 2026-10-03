@@ -513,7 +513,7 @@ public final class Graphs {
     }
 
     /** Applies a view-local historical document fallback policy. */
-    public static <T> Graph<T> withDocumentFallback(Graph<T> graph, boolean enabled) {
+    static <T> Graph<T> withDocumentFallback(Graph<T> graph, boolean enabled) {
         if (!enabled && !(graph instanceof GraphView<?>)) { return graph; }
         GraphView<T> source = adapt(graph);
         return source.context().withDocumentFallback(enabled).view(source.node());
@@ -1919,10 +1919,16 @@ final class GraphState {
         }
 
         Object readValue(Node node) {
-            if (documentFallback && node == state.root && state.identity != null && state.metadataNavigation()
-                && Graphs.documentOnly(node.data().type())) {
-                // Pin a handler boundary before a value-first document read can fail; escaped views retain it.
-                state.sourceIdentity(node.data());
+            if (documentFallback && node == state.root && node.data().resolution instanceof NodeData.LazyIdentity
+                && state.metadataNavigation() && Graphs.documentOnly(node.data().type())) {
+                DeserializingMessage message = DeserializingMessage.getCurrent();
+                if (state.historicalValues || message != null
+                    && (message.getMessageType() == MessageType.EVENT || message.getMessageType() == MessageType.NOTIFICATION)
+                    && ModelEventMetadata.readBoundary(message.getMetadata(), message.getMessageType(), message.getIndex()) != null) {
+                    // Historical value-first reads retain their handler boundary even when the document is gone.
+                    // Ordinary current reads keep their existing coherent retry path; loaded roots need no discovery.
+                    state.sourceIdentity(node.data());
+                }
             }
             try {
                 return node.data().value();

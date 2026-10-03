@@ -73,13 +73,14 @@ and replay checkpoints are rejected on DOCUMENT-only Models.
 In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` and nested annotations
 omit `@`, for example `searchSettings = SearchSettings(includeDescendants = false)`.
 
-## Historical document fallback
+## Historical Graph strictness
 
-`fluxzero.model.graph.documentFallback` (`FLUXZERO_MODEL_GRAPH_DOCUMENT_FALLBACK`) controls current DOCUMENT-only
-values in historical Graphs. It defaults to true from `fluxzero.defaults.version=2026.10.03`, and to false in
-compatibility mode; an explicit true/false wins. `graph.withDocumentFallback(...)` overrides one view. Historical
-relationships and absence stay pinned, while a fallback value may come from a recreation or be null after deletion.
-Assertions, applies and replay remain strict. See `/docs/sdk/models/temporal-graphs` for the complete read contract.
+`fluxzero.model.graph.strict` (`FLUXZERO_MODEL_GRAPH_STRICT`) defaults to false, independently of
+`fluxzero.defaults.version`. Ordinary historical Graphs use current DOCUMENT-only values when their historical
+revision is unavailable. Set the property to true for strict historical reads, or use `graph.strict()` for one
+view. `graph.lenient()` restores ordinary reads even under a strict application default. Historical absence and
+relationships remain pinned; mutations, assertions and replay always stay strict. Read
+`/docs/sdk/models/temporal-graphs` for Runtime compatibility and the complete contract.
 
 ## Document handler scope
 

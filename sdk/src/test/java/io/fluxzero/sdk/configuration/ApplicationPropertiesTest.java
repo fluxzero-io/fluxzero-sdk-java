@@ -82,22 +82,17 @@ class ApplicationPropertiesTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource(value = {
-            "null,null,false", "2026.10.02,null,false", "2026.10.03,null,true", "2026.10.04,null,true",
-            "null,true,true", "2026.10.02,true,true", "2026.10.03,false,false", "2026.10.04,false,false"
+            "null,null,false", "2026.01.01,null,false", "2030.01.01,null,false",
+            "null,true,true", "2026.01.01,true,true", "2030.01.01,true,true",
+            "null,false,false", "2030.01.01,false,false"
     }, nullValues = "null")
-    void historicalGraphDocumentFallbackRespectsDefaultsAndOverrides(String version, String configured, boolean expected) {
+    void graphStrictnessIsIndependentOfDefaultsVersion(String version, String configured, boolean expected) {
         PropertySource properties = key -> switch (key) {
             case ApplicationProperties.DEFAULTS_VERSION_PROPERTY -> version;
-            case ApplicationProperties.GRAPH_DOCUMENT_FALLBACK_PROPERTY -> configured;
+            case ApplicationProperties.GRAPH_STRICT_PROPERTY -> configured;
             default -> null;
         };
-        assertEquals(expected, ApplicationProperties.graphDocumentFallbackEnabled(properties));
-    }
-
-    @Test
-    void historicalGraphDocumentFallbackRejectsInvalidDefaults() {
-        assertThrows(IllegalArgumentException.class,
-                     () -> ApplicationProperties.graphDocumentFallbackEnabled(defaultsVersion("invalid")));
+        assertEquals(expected, ApplicationProperties.graphStrict(properties));
     }
 
     private static PropertySource defaultsVersion(String value) {
