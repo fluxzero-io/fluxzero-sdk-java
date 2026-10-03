@@ -38,6 +38,17 @@
     "varArgs" : false,
     "documentation" : " Checks whether a pending undecorated alias may supply a missing prefixed root at this boundary.\n An unrelated durable primary identity must retain precedence over the pending alias. Custom resolvers\n keep their existing overlay behavior by default; metadata-aware implementations can reject such collisions.\n Called only when a pending alias candidate exists, not on ordinary reads.\n"
   }, {
+    "name" : "documentFallbackEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#documentFallbackEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Application default for current DOCUMENT-only fallback in historical Graph views. "
+  }, {
     "name" : "graphStagedValues",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#graphStagedValues",
     "returnType" : "io.fluxzero.sdk.modeling.ModelBatchScope.Snapshot",
@@ -53,6 +64,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Captures this repository's message-batch overlay once for a new navigation view. Another application's pending\n writes must never enter this snapshot, even when its batch is active on the calling thread.\n"
+  }, {
+    "name" : "historicalDocumentFallback",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#historicalDocumentFallback",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.RuntimeException",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Recovers only an unavailable historical document value. Implementations must preserve historical absence,\n resolve the exact canonical identity, and rethrow unrelated failures. The default preserves strict behavior.\n"
   }, {
     "name" : "loadCurrentGraphValue",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#loadCurrentGraphValue",
@@ -275,6 +317,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Reconstructs explicitly requested values together; unrelated metadata nodes must remain unloaded. "
+  }, {
+    "name" : "resolveBoundGraphIdentities",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveBoundGraphIdentities",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves already bound handler references together without applying ID affixes again. Unlike exact canonical\n reads, these references may still be aliases. An empty map preserves existing eager parameter injection.\n"
   }, {
     "name" : "resolveCurrentGraphIdentity",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver#resolveCurrentGraphIdentity",

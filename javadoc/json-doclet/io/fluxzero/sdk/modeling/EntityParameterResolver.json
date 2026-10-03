@@ -176,6 +176,27 @@
     "varArgs" : false,
     "documentation" : " Indicates that this resolver contributes to disambiguating handler methods when multiple handlers are present in\n the same target class.\n\n <p>This is useful when more than one method matches a message, and the framework must\n decide which method is more specific. If this returns {@code true}, the resolver's presence and compatibility\n with the parameter may influence which handler is selected.\n\n @return true, signaling that this resolver helps determine method specificity\n"
   }, {
+    "name" : "documentFallbackResolver",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#documentFallbackResolver",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getEntityParameterType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver#getEntityParameterType",
     "returnType" : "java.lang.Class<?>",

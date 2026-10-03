@@ -18,6 +18,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "graphs",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding.graphs",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "identities",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding.identities",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "resolution",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding.resolution",
     "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
@@ -52,6 +68,84 @@
     "parameters" : [ {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "graph",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding#graph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "references",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "graphs",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding#graphs",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "strictEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityParameterResolver$ModelBinding#strictEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

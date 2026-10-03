@@ -82,6 +82,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "documentFallback",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.documentFallback",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "documentStore",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.documentStore",
     "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
@@ -730,6 +738,22 @@
     "varArgs" : false,
     "documentation" : "Configures the single-Model event-routing fallback before this repository starts handling commits. "
   }, {
+    "name" : "configureGraphStrict",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#configureGraphStrict",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "strict",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures the application default before this repository is used. Namespace views inherit it. "
+  }, {
     "name" : "configureModelTypes",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#configureModelTypes",
     "returnType" : "void",
@@ -913,6 +937,20 @@
         "values" : {}
       } ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentFallbackEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#documentFallbackEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1140,6 +1178,40 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "historicalDocumentFallback",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#historicalDocumentFallback",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.RuntimeException",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -2862,6 +2934,25 @@
     }, {
       "name" : "maxModels",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveBoundGraphIdentities",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveBoundGraphIdentities",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.Identity>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

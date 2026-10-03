@@ -455,6 +455,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "documentOnly",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#documentOnly",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "filterBranches",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#filterBranches",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
@@ -1110,6 +1126,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns an immutable graph view carrying response-wide typed context. "
+  }, {
+    "name" : "withDocumentFallback",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#withDocumentFallback",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "enabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies a view-local historical document fallback policy. "
   }, {
     "name" : "withPrevious",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#withPrevious",

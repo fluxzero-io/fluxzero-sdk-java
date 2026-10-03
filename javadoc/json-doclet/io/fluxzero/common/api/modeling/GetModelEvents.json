@@ -8,7 +8,7 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   } ],
-  "documentation" : " Batch-loads independent model stream memberships at one namespace-wide state boundary.\n <p>\n A current {@link #boundary} pins the committed boundary atomically with the model-head read. State, commit and event\n selectors perform the corresponding as-of load. A stream request with\n {@code maxSize == 0} requests only its head.\n {@link #maxBytes} bounds the total deduplicated complete event messages selected by the runtime. The oldest single\n event message is always allowed through to guarantee progress, even when it exceeds that bound.\n",
+  "documentation" : " Batch-loads independent model stream memberships at one namespace-wide state boundary.\n <p>\n A current {@link #boundary} pins the committed boundary atomically with the model-head read. State, commit and event\n selectors perform the corresponding as-of load. A stream request with\n {@code maxSize == 0} requests only its head. Retained historical head metadata can be read even when the\n corresponding event history is incomplete; requesting event membership still requires that history.\n Older Runtimes may reject these historical head-only reads; this does not prevent existing current reads or writes.\n {@link #maxBytes} bounds the total deduplicated complete event messages selected by the runtime. The oldest single\n event message is always allowed through to guarantee progress, even when it exceeds that bound.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.common.api.Request",
   "interfaces" : [ ],

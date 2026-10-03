@@ -30,29 +30,8 @@
     "documentation" : null
   } ],
   "methods" : [ {
-    "name" : "addRoots",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#addRoots",
-    "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
-    "annotations" : [ ],
-    "typeParameters" : [ "T" ],
-    "parameters" : [ {
-      "name" : "roots",
-      "type" : "java.util.Map<java.lang.String,java.lang.Class<? extends T>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "additions",
-      "type" : "java.util.List<io.fluxzero.sdk.modeling.Graph<T>>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "addUnknownTargetAncestors",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#addUnknownTargetAncestors",
+    "name" : "addMetadataAncestors",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#addMetadataAncestors",
     "returnType" : "void",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
@@ -80,6 +59,27 @@
     }, {
       "name" : "stateIndex",
       "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addRoots",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator#addRoots",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<? extends T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "additions",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Graph<T>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
