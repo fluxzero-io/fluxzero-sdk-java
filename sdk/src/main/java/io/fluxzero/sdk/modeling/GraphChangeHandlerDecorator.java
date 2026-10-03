@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
@@ -27,6 +28,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
@@ -66,7 +68,7 @@ public final class GraphChangeHandlerDecorator {
     private static final ThreadLocal<GraphArgument> graphArgument =
             ThreadLocalContext.create();
 
-    /** Wraps event and notification handlers whose sole argument observes complete graph changes. */
+    /** Wraps event and notification handlers that observe complete graph changes with optional Message/Metadata context. */
     public static Handler<DeserializingMessage> wrapGraphChanges(
             Handler<DeserializingMessage> handler,
             MessageType messageType) {
@@ -381,12 +383,22 @@ public final class GraphChangeHandlerDecorator {
     }
 
     private static Parameter graphParameter(Executable method) {
-        if (method.getParameterCount() != 1) {
+        Parameter graphParameter = null;
+        for (Parameter parameter : method.getParameters()) {
+            if (parameter.getType() == Message.class || parameter.getType() == Metadata.class) {
+                continue;
+            }
+            // Keep payload, qualified, and multiple-Graph signatures on ordinary handler selection.
+            if (!Graph.class.isAssignableFrom(parameter.getType()) || graphParameter != null) {
+                return null;
+            }
+            graphParameter = parameter;
+        }
+        if (graphParameter == null) {
             return null;
         }
-        Parameter parameter = method.getParameters()[0];
-        EntityMetadata.ModelParameter model = EntityMetadata.inspectModelParameter(parameter).orElse(null);
-        return model != null && model.graphWrapped() && model.associationProperty() == null ? parameter : null;
+        EntityMetadata.ModelParameter model = EntityMetadata.inspectModelParameter(graphParameter).orElse(null);
+        return model != null && model.graphWrapped() && model.associationProperty() == null ? graphParameter : null;
     }
 
     private record GraphArgument(

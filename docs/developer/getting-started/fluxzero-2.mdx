@@ -1254,14 +1254,16 @@ In the project-management example, the overview should change when a Task change
 Project itself receives an update.
 You should not have to maintain a list of every command or event that might affect that overview.
 
-Use an unqualified `Graph<Project>` as the single parameter for complete Graph-change delivery. In the current SDK, adding a `Message`, `Metadata` or payload parameter makes this a different handler signature; the complete-change selector currently requires exactly one parameter. Read message context through `DeserializingMessage.getCurrent()` inside this handler when needed:
+Use one unqualified `Graph<Project>` parameter for complete Graph-change delivery. You can add `Message` and
+`Metadata` context parameters in any order. Adding an explicit payload parameter, an association-qualified Graph
+or another Graph keeps the method on ordinary handler selection:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
 @HandleEvent
-void projectChanged(Graph<Project> project) {
+void projectChanged(Graph<Project> project, Message message, Metadata metadata) {
     Graph<Project> before = project.previous();
     // React to this Graph transition, whether the root or a descendant changed.
 }
@@ -1272,7 +1274,7 @@ void projectChanged(Graph<Project> project) {
 
 ```kotlin
 @HandleEvent
-fun projectChanged(project: Graph<Project>) {
+fun projectChanged(metadata: Metadata, project: Graph<Project>, message: Message) {
     val before = project.previous()
     // React to this Graph transition, whether the root or a descendant changed.
 }

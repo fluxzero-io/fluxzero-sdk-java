@@ -44,10 +44,12 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
- * <p>A method whose sole parameter is an unqualified
- * {@link io.fluxzero.sdk.modeling.Graph Graph&lt;T&gt;} subscribes to every durable change of that model graph. It is
- * invoked once per affected root and can inspect the complete before-state through
- * {@link io.fluxzero.sdk.modeling.Graph#previous()}.</p>
+ * <p>A method with one unqualified
+ * {@link io.fluxzero.sdk.modeling.Graph Graph&lt;T&gt;} subscribes to every durable change of that model graph. Optional
+ * {@link io.fluxzero.sdk.common.Message} and {@link io.fluxzero.common.api.Metadata} parameters may appear in any order.
+ * The complete-change handler is invoked once per affected root and can inspect the complete before-state through
+ * {@link io.fluxzero.sdk.modeling.Graph#previous()}. An explicit payload parameter, association-qualified Graph,
+ * or second Graph keeps ordinary handler selection.</p>
  *
  * @see HandleMessage
  * @see MessageType#EVENT

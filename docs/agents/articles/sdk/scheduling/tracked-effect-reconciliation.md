@@ -25,7 +25,7 @@ record DeleteProject(ProjectId projectId) {
 }
 ```
 
-A registered tracked post-commit consumer reconciles the desired active schedule. A sole `Graph<Reminder>` parameter
+A registered tracked post-commit consumer reconciles the desired active schedule. One unqualified `Graph<Reminder>` parameter
 receives direct changes **and cascaded deletion**. No parent-specific cleanup handler is needed for new commits that
 record cascade notifications.
 
