@@ -82,7 +82,7 @@ the complete Graph from a dedicated replaying document consumer:
 ```java
 @Consumer(name = "project-graph-schema-2", minIndex = 0)
 class RematerializeProjects {
-    @HandleDocument
+    @HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)
     Graph<Project> migrate(Graph<Project> graph) { return graph; }
 }
 ```
@@ -102,6 +102,15 @@ window so old components cannot reintroduce old paths unnoticed on subsequent pr
 
 ## Reindex canonical nodes and optional stored Graphs
 
+The projection-only walkthrough above opts into the earlier behavior. By default, returning the unchanged injected
+Graph migrates only evolved canonical nodes, including at NONE. The SDK upcasts each verified **current** source;
+it never copies stale Graph business values into it. Full-head/proof checks and bounded re-reads guard concurrent
+updates and deletion. In-place value changes and topology edits are rejected. Shared nodes are migrated once.
+Node storage completes before handling completes, while affected projections follow durably. AWAIT retains its
+ordinary Model-commit guarantee and is not a schema-migration barrier. Test current queries after catch-up, stale
+Graphs against newer state, retry after partial progress, and unchanged unrelated roots.
+
+
 A searchable Model has one canonical indexed node document. DOCUMENT persistence can maintain that state without
 searchability. ASYNC/AWAIT additionally store the composed Graph. Schema rewrites do not advance Model history.
 
@@ -109,7 +118,8 @@ searchability. ASYNC/AWAIT additionally store the composed Graph. Schema rewrite
 | --- | --- | --- |
 | `@HandleDocument` with `Project` | Canonical searchable node | Node searches, live composition and related-content predicates |
 | `@HandleDocument(source = DocumentSource.MODEL_STATE)` with `Project` | Maintained internal state, including non-searchable DOCUMENT Models | The same canonical source; does not activate search |
-| `@HandleDocument` with `Graph<Project>` | Logical Graph updates in every mode | Return may migrate only a stored ASYNC/AWAIT composition; NONE returns are observational |
+| `@HandleDocument` with `Graph<Project>` | Logical Graph updates in every mode | Return migrates evolved canonical nodes, then affected stored Graphs or NONE markers follow durably |
+| `@HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)` with `Graph<Project>` | Handled projection only | Stored ASYNC/AWAIT composition; NONE returns are observational |
 
 After registering the value-preserving upcasters above and raising the Model schema revision, use explicit consumers:
 

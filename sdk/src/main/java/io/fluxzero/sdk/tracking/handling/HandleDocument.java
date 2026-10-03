@@ -120,11 +120,25 @@ public @interface HandleDocument {
      * be combined with an explicit collection. There is no automatic fallback between sources.
      * <p>
      * Returning an injected Model value may persist a higher-revision schema upcast, but must preserve identity and
-     * business state. Use Model commands for business changes. Returning a stored Graph can migrate only its
-     * aggregate projection under a concurrency guard; returning a live Graph never writes its nodes. A void handler
-     * only observes. Neither route creates historical Graph snapshots that the selected storage does not maintain.
+     * business state. Use Model commands for business changes. Returning the injected Graph migrates evolved
+     * canonical nodes by default, including live Graphs in projection mode NONE; see {@link #graphMigration()}.
+     * A void handler only observes. Neither route creates historical Graph snapshots that the selected storage does not maintain.
      */
     DocumentSource source() default DocumentSource.SEARCH;
+
+    /**
+     * Migration target when this handler returns its complete injected Graph. The default upcasts the verified
+     * current source of each evolved node, preserving business state, identity, relationships and history. Returning
+     * a Graph with modified values or topology is rejected. Nodes are migrated individually and idempotently;
+     * concurrent changes are re-read, and persistent contention fails handling so the consumer can retry.
+     * Custom serializers must implement {@link io.fluxzero.sdk.persisting.search.DocumentSerializer#modelStateSnapshot(Object)}
+     * for this default route; the PROJECTION override retains the previous serializer contract.
+     * <p>
+     * Completion confirms node storage. Affected projections follow durably, including for Models configured with
+     * AWAIT, whose waiting guarantee applies to ordinary Model commits. Select {@link GraphMigrationTarget#PROJECTION}
+     * to retain projection-only migration; this does not write canonical nodes and is observational for live Graphs.
+     */
+    GraphMigrationTarget graphMigration() default GraphMigrationTarget.MODEL_STATE;
 
     /**
      * If {@code true}, disables this handler during discovery.

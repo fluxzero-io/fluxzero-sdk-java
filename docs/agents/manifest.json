@@ -7475,7 +7475,8 @@
         "Model.searchable",
         "SearchSettings",
         "GraphProjectionMode",
-        "DocumentSource"
+        "DocumentSource",
+        "GraphMigrationTarget"
       ],
       "links": [
         {
@@ -7718,7 +7719,8 @@
         "Model.searchable",
         "SearchSettings",
         "GraphProjectionMode",
-        "DocumentSource"
+        "DocumentSource",
+        "GraphMigrationTarget"
       ],
       "links": [
         {
@@ -7852,6 +7854,7 @@
         "GraphProjectionMode",
         "SearchSettings.includeDescendants",
         "DocumentSource",
+        "GraphMigrationTarget",
         "@HandleDocument",
         "coordinated 2.x upgrade"
       ],
@@ -8016,6 +8019,7 @@
         "Parent.propagateSearch",
         "propagateSearch",
         "DocumentSource",
+        "GraphMigrationTarget",
         "GraphProjectionMode",
         "GraphProjection",
         "snapshotPeriod",

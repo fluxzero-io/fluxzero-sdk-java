@@ -226,7 +226,7 @@ class ModelMigrationDocumentationTest {
 
     @Consumer(name = "migration-project-graph-revision-2", minIndex = 0)
     static class RematerializeProjects {
-        @HandleDocument
+        @HandleDocument(graphMigration = io.fluxzero.sdk.tracking.handling.GraphMigrationTarget.PROJECTION)
         Graph<Project> migrate(Graph<Project> graph) { return graph; }
     }
 

@@ -804,7 +804,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     configuration);
             if (previous == null
                 || request.isRebuild()
-                || !previous.equals(configuration)) {
+                || !previous.hasSameComposition(configuration)) {
                 modelGraphProjectionRebuilds.put(configuration.getCollection(), ++modelGraphProjectionRebuildGeneration);
             }
         }
@@ -1116,6 +1116,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                       || selected.contains(
                                               relation.relationship
                                                       .getParentId()));
+            selected.forEach(modelNodeSchemaInvalidations::remove);
             selected.forEach(modelHeads::remove);
             selected.forEach(modelHeadHistory::remove);
             selected.forEach(modelStreams::remove);
@@ -1254,7 +1255,21 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         .containsKey(collection));
     }
 
-    /** Retains affected projection rebuilds when a source schema changes without a Model commit. */
+    private final Map<String, Long> modelNodeSchemaInvalidations = new LinkedHashMap<>();
+    private long modelNodeSchemaGeneration;
+
+    /** Retains individual node rewrites until all affected projections have accepted the new schema. */
+    public void invalidateModelGraphSchema(String modelId, String modelType) {
+        synchronized (this) {
+            if (erasedModelTokens.contains(protectedToken(modelId))) {
+                return;
+            }
+            modelNodeSchemaInvalidations.put(modelId, ++modelNodeSchemaGeneration);
+        }
+        drainModelGraphProjections();
+    }
+
+    /** Retains affected projection rebuilds for legacy type-only invalidations. */
     public void invalidateModelGraphSchema(String modelType) {
         synchronized (this) {
             modelGraphProjections.values().stream()
@@ -1275,6 +1290,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             boolean publishNotifications) {
         while (true) {
             List<ModelGraphProjectionSignal> signals;
+            Map<String, Long> schemaInvalidations;
             List<ModelGraphProjectionWork> work =
                     new ArrayList<>();
             ModelGraphProjectionMaterializer materializer;
@@ -1288,6 +1304,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 }
                 if (modelGraphProjections.isEmpty()) {
                     modelGraphProjectionSignals.clear();
+                    modelNodeSchemaInvalidations.clear();
                     return;
                 }
                 modelGraphProjectionDrainActive = true;
@@ -1295,6 +1312,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 signals = List.copyOf(
                         modelGraphProjectionSignals);
                 boundary = modelStateIndex;
+                schemaInvalidations = Map.copyOf(modelNodeSchemaInvalidations);
                 for (ModelGraphProjectionConfiguration configuration :
                         modelGraphProjections.values()) {
                     String collection =
@@ -1303,6 +1321,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     boolean rebuild = rebuildGeneration != null;
                     if (!rebuild
                         && signals.isEmpty()
+                        && schemaInvalidations.isEmpty()
                         && modelGraphProjectionPositions
                                    .getOrDefault(
                                            collection, -1L)
@@ -1322,24 +1341,37 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                                                 configuration,
                                                                 signal)));
                     }
+                    Set<String> schemaRoots = new LinkedHashSet<>(schemaInvalidations.keySet());
+                    if (configuration.getComposition().isIncludeDescendants()) {
+                        schemaRoots.addAll(modelAncestorsAt(List.copyOf(schemaInvalidations.keySet()), boundary,
+                                configuration.getComposition().getMaxDepth()));
+                    }
+                    schemaRoots.removeIf(id -> {
+                        ModelStreamHead head = modelHeadAt(id, boundary);
+                        return head == null || head.deleted()
+                                || !configuration.getRootModelType().equals(head.modelType());
+                    });
                     work.add(new ModelGraphProjectionWork(
-                            configuration, Set.copyOf(roots), rebuildGeneration));
+                            configuration, Set.copyOf(roots), rebuildGeneration, Set.copyOf(schemaRoots)));
                 }
             }
 
             Map<String, Throwable> failures =
                     new LinkedHashMap<>();
-            Map<String, Runnable> publications =
+            Map<String, List<Runnable>> publications =
                     new LinkedHashMap<>();
             for (ModelGraphProjectionWork projection : work) {
+                List<Runnable> callbacks = new ArrayList<>();
+                publications.put(projection.configuration().getCollection(), callbacks);
                 try {
-                    publications.put(
-                            projection.configuration()
-                                    .getCollection(),
-                            materializer.materialize(
-                                    projection.configuration(),
-                                    projection.roots(), boundary,
-                                    projection.rebuildGeneration() != null));
+                    Runnable ordinary = materializer.materialize(projection.configuration(), projection.roots(),
+                            boundary, projection.rebuildGeneration() != null);
+                    if (ordinary != null) { callbacks.add(ordinary); }
+                    if (!projection.schemaRoots().isEmpty()) {
+                        Runnable schema = materializer.materializeSchema(
+                                projection.configuration(), projection.schemaRoots(), boundary);
+                        if (schema != null) { callbacks.add(schema); }
+                    }
                 } catch (Throwable failure) {
                     failures.put(
                             projection.configuration()
@@ -1362,26 +1394,24 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         modelGraphProjectionFailures.remove(
                                 collection);
                         modelGraphProjectionRebuilds.remove(collection, projection.rebuildGeneration());
-                        Runnable publication =
-                                publications.get(collection);
-                        if (publication != null) {
-                            modelMaterializationPublications.add(
-                                    publication);
-                        }
                     } else {
                         modelGraphProjectionFailures.put(
                                 collection, failure);
                     }
+                    // Preparing a search write already advances its document fence. Retain its publication even
+                    // when a subsequent schema write fails, because retrying the ordinary write can be a no-op.
+                    modelMaterializationPublications.addAll(publications.get(collection));
                 }
                 if (failures.isEmpty()) {
-                    modelGraphProjectionSignals.removeAll(
-                            signals);
+                    modelGraphProjectionSignals.removeAll(signals);
+                    schemaInvalidations.forEach((id, generation) -> modelNodeSchemaInvalidations.remove(id, generation));
                 }
                 modelGraphProjectionDrainActive = false;
                 completed = takeCompletedModelGraphProjectionWaiters();
                 repeat = failures.isEmpty()
                          && modelCommitMaterializations.isEmpty()
-                         && (!modelGraphProjectionSignals.isEmpty() || !modelGraphProjectionRebuilds.isEmpty());
+                         && (!modelGraphProjectionSignals.isEmpty() || !modelGraphProjectionRebuilds.isEmpty()
+                             || !modelNodeSchemaInvalidations.isEmpty());
             }
             completeModelGraphProjectionWaiters(completed);
             if (publishNotifications) {
@@ -1434,7 +1464,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private record ModelGraphProjectionWork(
             ModelGraphProjectionConfiguration configuration,
-            Set<String> roots, Long rebuildGeneration) {
+            Set<String> roots, Long rebuildGeneration, Set<String> schemaRoots) {
     }
 
     private Set<String> currentProjectionRoots(
@@ -2127,6 +2157,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 Set<String> rootIds,
                 long stateIndex,
                 boolean rebuild);
+
+        /** Materializes schema changes without removing unrelated roots or bypassing newer business boundaries. */
+        default Runnable materializeSchema(ModelGraphProjectionConfiguration configuration, Set<String> rootIds,
+                                           long stateIndex) {
+            throw new UnsupportedOperationException("This materializer does not support targeted schema updates");
+        }
     }
 
     private static final class MutableModelRelationship

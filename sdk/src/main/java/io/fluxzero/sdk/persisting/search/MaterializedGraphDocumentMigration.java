@@ -127,7 +127,7 @@ public final class MaterializedGraphDocumentMigration {
         return Optional.of(new Migration(expectedManifest, replacement));
     }
 
-    private static void validateRoot(
+    static void validateRoot(
             Graph<?> graph,
             DeserializingMessage message,
             ModelGraphDocumentManifest manifest) {
@@ -140,7 +140,7 @@ public final class MaterializedGraphDocumentMigration {
         }
     }
 
-    private static void validatePlacement(
+    static void validatePlacement(
             Placement placement,
             ModelGraphDocumentManifest.Node source,
             ModelGraphDocumentManifest manifest,
@@ -158,7 +158,7 @@ public final class MaterializedGraphDocumentMigration {
         }
     }
 
-    private static void addPlacements(
+    static void addPlacements(
             Graph<?> graph,
             int parent,
             String path,
@@ -203,7 +203,7 @@ public final class MaterializedGraphDocumentMigration {
             SerializedDocument replacement) {
     }
 
-    private record Placement(
+    record Placement(
             Graph<?> graph,
             int parent,
             String path,

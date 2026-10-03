@@ -1329,7 +1329,7 @@ fun projectViewChanged(project: Graph<Project>) {
 </TabItem>
 </Tabs>
 
-This route can skip superseded intermediate versions. NONE retains durable update markers and composes current indexed nodes when handled; ASYNC/AWAIT read the stored composition. Neither supplies historical `previous()` values. An ancestor-only content change does not wake a child-root handler, and `@GraphProperty` does not add subscriptions. Use events for individual published transitions and documents to reconcile current search state. Returning a Graph can migrate only an ASYNC/AWAIT composition; a NONE return has no storage side effect. See [document handlers](/docs/guides/modeling-and-persistence/tracking-and-updating-documents#handler-configuration) and [schema evolution](#evolving-stored-graphs-with-handledocument).
+This route can skip superseded intermediate versions. NONE retains durable update markers and composes current indexed nodes when handled; ASYNC/AWAIT read the stored composition. Neither supplies historical `previous()` values. An ancestor-only content change does not wake a child-root handler, and `@GraphProperty` does not add subscriptions. Use events for individual published transitions and documents to reconcile current search state. Returning the unchanged Graph migrates evolved canonical nodes in every mode, including NONE; affected projections follow durably. Use `graphMigration = GraphMigrationTarget.PROJECTION` for only a stored composition. See [document handlers](/docs/guides/modeling-and-persistence/tracking-and-updating-documents#handler-configuration) and [schema evolution](#evolving-stored-graphs-with-handledocument).
 
 ### Watch the Graph evolve
 
@@ -2279,7 +2279,7 @@ and caster chains. See [Model migration tests](/docs/guides/modeling-and-persist
 Read-time upcasting gives application code the new shape, but it does not change the paths already indexed
 for search. A predicate on `details/name` cannot match a stored document that still has only `name`.
 
-For the Project variant with `graphProjection.mode = ASYNC` or AWAIT, register the caster and this consumer:
+Register the caster and this consumer for NONE, ASYNC or AWAIT:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2309,17 +2309,19 @@ class EvolveProjectGraphs {
 </Tabs>
 
 The bare annotation infers the Graph subscription from `Graph<Project>`. It works for NONE as well as ASYNC/AWAIT.
-The stored-projection schema rewrite shown here applies to ASYNC/AWAIT. NONE hydrates current canonical nodes and
-ignores Graph returns; migrate the source schemas instead. It does not provide a retained previous Graph.
+NONE hydrates current canonical nodes and does not retain previous Graphs.
 
-**The handler returns the Graph it received.** The SDK applies the registered node upcasters and
-serializes the complete evolved Graph. When a node's serialized type or revision changed, it conditionally
-replaces the stored projection. Returning an already-current Graph is a no-op. Use a higher `@Revision`
-for a schema change; changing JSON without advancing the type or revision does not trigger this migration.
+**The handler returns the Graph it received.** The SDK identifies evolved nodes, then upcasts each verified current
+canonical source and checks its full head/proof before storing it. It does not copy potentially stale Graph business
+values. Contention is re-read with bounded retries; a persistent race fails handling. Already-current sources are
+no-ops. Raise `@Revision` for a schema change; JSON changes alone do not trigger migration.
+
+Node storage completes before the handler completes. Affected stored Graphs or NONE markers follow durably, without
+restarting scans for unrelated roots. AWAIT continues to wait for ordinary Model commits, not schema handlers.
 
 The consumer starts at the beginning of the document stream to process existing projections as well as new
-ones. It sees retained current documents, not every intermediate version. After catch-up, the new stored
-Graph supports the new query path:
+ones. It sees retained current documents, not every intermediate version. After both the consumer and affected
+projections catch up, the new Graph supports the new query path:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2354,7 +2356,8 @@ that choice explicit:
 
 | Handler | Representation it evolves | What that enables |
 | --- | --- | --- |
-| `@HandleDocument` with `Graph<Project>` (ASYNC/AWAIT) | The complete materialized Graph | New root and nested paths in stored Graph searches |
+| `@HandleDocument` with `Graph<Project>` | Evolved verified current nodes in every mode, then affected projections | Updated node, live Graph and stored Graph paths |
+| `@HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)` with `Graph<Project>` | Only the handled ASYNC/AWAIT composition; observational at NONE | A deliberate derived-only migration |
 | `@HandleDocument(source = DocumentSource.MODEL_STATE)` | The verified internal current Model source | Updated source paths for live composition and related-content searches |
 | `@HandleDocument` with `Project` | The same canonical source, requiring effective searchability | Updated paths for node and live Graph queries |
 

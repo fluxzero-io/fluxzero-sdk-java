@@ -89,7 +89,10 @@ Use `source = DocumentSource.MODEL_STATE` with a Model value for internal schema
 DOCUMENT state. There is no fallback and no implicit activation. Ancestor-only content changes do not trigger a Task
 Graph; `@GraphProperty` adds no subscriptions. Moves update old and new ancestor Graphs.
 
-NONE retains small durable root update markers and hydrates indexed nodes on read. Its Graph returns never rewrite
-nodes or store a composition, and `previous()` is unavailable. ASYNC/AWAIT returns can conditionally migrate only the
-stored aggregate. Node schema rewrites preserve state/head and durably schedule affected definitions for rebuilding;
-that maintenance can also notify other roots in those definitions.
+NONE retains small durable root update markers and hydrates indexed nodes on read; `previous()` is unavailable.
+Returning the unchanged injected Graph migrates evolved canonical nodes in every mode. Each write upcasts the
+verified current source and preserves business state/head/history. Only affected roots receive durable projection
+updates or NONE markers. Revision-only registration preserves rebuild cursors; composition/type-scope changes still
+require rebuilding. Use `graphMigration = GraphMigrationTarget.PROJECTION` to migrate only an existing ASYNC/AWAIT
+composition; this option is observational at NONE. Handler completion confirms node storage, while projections follow
+asynchronously; AWAIT applies to ordinary Model commits.
