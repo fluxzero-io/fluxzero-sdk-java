@@ -726,24 +726,28 @@ public abstract class DocumentGraphContract {
             write(writer, new SetDocument("two", "root", "alias-two", 2));
             write(writer, new SetDocument("later", "root", "later", 3));
             write(writer, new SetRoot("root", 3));
-            AtomicReference<Graph<Root>> retained = new AtomicReference<>();
+            CompletableFuture<Graph<Root>> retained = new CompletableFuture<>();
             Object handler = new Object() {
                 @HandleEvent
                 void changed(Graph<Root> graph, Message message) {
                     if (stored.getMetadata().get("$modelCommitId").equals(message.getMetadata().get("$modelCommitId"))) {
-                        retained.set(graph);
+                        retained.complete(graph);
                     }
                 }
             };
             var reader = new TestFixture(
                     DefaultFluxzero.builder(),
-                    fc -> List.of(handler), clients[1], !async) {};
+                    fc -> List.of(), clients[1], !async) {};
             ((DefaultModelRepository) reader.getFluxzero().modelRepository())
                     .configureModelTypes(() -> List.of(Root.class, Document.class, EventChild.class));
-            reader.whenEvent(new Message(descendantChange ? new SetEventChild("event-child", "root", 2)
-                    : new SetRoot("root", 2), stored.getMetadata()))
-                    .expectNoErrors().expectThat(fc -> {
-                        Graph<Root> graph = retained.get();
+            reader.registerHandlers(handler);
+            // Async tracking must consume the original event: republishing its commit metadata gives it a new,
+            // invalid membership index and can hide the failure behind the successful original delivery.
+            var result = async ? reader.whenExecuting(fc -> retained.get(10, TimeUnit.SECONDS))
+                    : reader.whenEvent(new Message(descendantChange ? new SetEventChild("event-child", "root", 2)
+                            : new SetRoot("root", 2), stored.getMetadata()));
+            result.expectNoErrors().expectThat(fc -> {
+                        Graph<Root> graph = retained.getNow(null);
                         assertNotNull(graph);
                         assertEquals(2, graph.get().version());
                         assertEquals(descendantChange ? 2 : 1, graph.previous().get().version());
