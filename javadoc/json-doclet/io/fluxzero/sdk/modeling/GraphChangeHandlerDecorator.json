@@ -368,7 +368,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Wraps event and notification handlers whose sole argument observes complete graph changes. "
+    "documentation" : "Wraps event and notification handlers that observe complete graph changes with optional Message/Metadata context. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
