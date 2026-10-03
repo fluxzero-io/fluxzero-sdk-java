@@ -80,6 +80,21 @@ class ApplicationPropertiesTest {
                      () -> ApplicationProperties.getDefaultsVersion(defaultsVersion("2026-06-09")));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource(value = {
+            "null,null,false", "2026.01.01,null,false", "2030.01.01,null,false",
+            "null,true,true", "2026.01.01,true,true", "2030.01.01,true,true",
+            "null,false,false", "2030.01.01,false,false"
+    }, nullValues = "null")
+    void graphStrictnessIsIndependentOfDefaultsVersion(String version, String configured, boolean expected) {
+        PropertySource properties = key -> switch (key) {
+            case ApplicationProperties.DEFAULTS_VERSION_PROPERTY -> version;
+            case ApplicationProperties.GRAPH_STRICT_PROPERTY -> configured;
+            default -> null;
+        };
+        assertEquals(expected, ApplicationProperties.graphStrict(properties));
+    }
+
     private static PropertySource defaultsVersion(String value) {
         return name -> ApplicationProperties.DEFAULTS_VERSION_PROPERTY.equals(name) ? value : null;
     }

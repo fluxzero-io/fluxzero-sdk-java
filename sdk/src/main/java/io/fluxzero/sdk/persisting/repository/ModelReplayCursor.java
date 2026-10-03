@@ -1250,6 +1250,17 @@ final class ModelReplayCursor {
                 : new CurrentProjection(sharedValidThrough, Map.copyOf(entities));
     }
 
+    Map<String, ModelGraphResolver.Identity> boundGraphIdentities(
+            Map<String, Class<?>> modelTypes, ModelReadBoundary boundary, ModelCacheTracker cacheTracker) {
+        if (modelTypes.isEmpty()) { return Map.of(); }
+        LoadResult heads = loadHeads(List.copyOf(modelTypes.keySet()), boundary);
+        ModelReadBoundary pinned = boundary.resolved(heads.stateIndex());
+        Map<String, ModelGraphResolver.Identity> result = new LinkedHashMap<>();
+        modelTypes.forEach((id, type) -> result.put(id, graphIdentity(
+                id, type, pinned, boundary.historical(), cacheTracker, false, false, heads)));
+        return result;
+    }
+
     ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
                                                boolean historical, ModelCacheTracker cacheTracker) {
         return graphIdentity(requestedId, type, boundary, historical, cacheTracker, false);

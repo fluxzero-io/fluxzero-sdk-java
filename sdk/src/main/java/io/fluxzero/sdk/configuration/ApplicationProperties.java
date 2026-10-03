@@ -153,6 +153,18 @@ public class ApplicationProperties {
         return Guarantee.STORED;
     }
 
+    /**
+     * Requires exact historical values in Graph views instead of using current DOCUMENT-only values when history
+     * is unavailable. Environment variable: {@code FLUXZERO_MODEL_GRAPH_STRICT}. Defaults to false, independently
+     * of {@code fluxzero.defaults.version}. Mutations, assertions and replay always remain strict.
+     */
+    public static final String GRAPH_STRICT_PROPERTY = "fluxzero.model.graph.strict";
+
+    /** Resolves Graph strictness from the application's own property source. */
+    public static boolean graphStrict(PropertySource propertySource) {
+        return propertySource.getBoolean(GRAPH_STRICT_PROPERTY);
+    }
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**

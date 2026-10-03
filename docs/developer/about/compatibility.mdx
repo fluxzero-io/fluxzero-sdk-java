@@ -24,6 +24,13 @@ Upgrade the Runtime first before enabling a newly introduced Model protocol capa
 that capability remain compatible and can upgrade the two components independently within their supported release
 ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
+Historical DOCUMENT-only Graph fallback uses the existing Model protocol, with expanded Runtime support for
+historical head-only metadata. The SDK can be upgraded first without changing its strict-property default.
+Current reads, writes and reconstructible histories retain their behavior. An older Runtime can still reject
+historical reads for which it cannot supply that metadata, as it did before the SDK upgrade. The new fallback
+becomes available after the Runtime update; no application setting or storage migration is required. See
+[Historical Graphs and strict reads](/docs/guides/modeling-and-persistence/temporal-graphs#historical-graphs-and-strict-reads).
+
 Compact Model-event reads accept historical MessagePack and binary message records within the same storage block,
 including compressed blocks. No application-side conversion or storage rewrite is required. This reader support
 does not remove the Runtime’s responsibility to serve compatible responses to older SDK clients.

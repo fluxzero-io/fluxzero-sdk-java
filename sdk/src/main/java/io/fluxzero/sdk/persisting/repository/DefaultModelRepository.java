@@ -162,6 +162,30 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
     private boolean automaticModelRouting;
+    private boolean documentFallback = true;
+
+    /** Configures the application default before this repository is used. Namespace views inherit it. */
+    public void configureGraphStrict(boolean strict) { documentFallback = !strict; }
+
+    @Override
+    public boolean documentFallbackEnabled() { return documentFallback; }
+
+    @Override
+    public Object historicalDocumentFallback(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                              RuntimeException failure) {
+        if (!(failure instanceof ModelReplayCursor.GraphBoundaryMovedException moved)
+            || !modelId.equals(moved.documentModelId) || !boundary.historical()
+            || EntityMetadata.validate(modelType).rootConfiguration().orElseThrow().eventSourced()) {
+            throw failure;
+        }
+        ModelReadBoundary selected = boundary.before()
+                ? ModelReadBoundary.at(boundary.stateIndex() - 1) : boundary;
+        ModelGraphResolver.Identity identity = graphIdentity(modelId, true, modelType, selected);
+        if (!identity.present()) { return null; }
+        // Exact persisted ID: an alias reassignment must never redirect a historical node's fallback.
+        return resolveCurrentGraphIdentity(modelId, true, modelType, ModelBatchScope.Snapshot.EMPTY).entity().get().get();
+    }
+
     private UnaryOperator<DeserializingMessage> replayRestoration = UnaryOperator.identity();
 
     public DefaultModelRepository(
@@ -257,6 +281,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName, cacheOwner, owningApplication);
         result.configureModelTypes(modelTypes);
         result.configureAutomaticModelRouting(automaticModelRouting);
+        result.configureGraphStrict(!documentFallback);
         result.configureReplayRestoration(replayRestoration);
         return result;
     }
@@ -970,6 +995,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
         ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected);
         pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public Map<String, ModelGraphResolver.Identity> resolveBoundGraphIdentities(Map<String, Class<?>> modelTypes) {
+        modelTypes.values().forEach(this::modelName);
+        PinnedBoundary handler = handlerBoundary();
+        ModelReadBoundary selected = handler == null ? ModelReadBoundary.current() : boundary(handler);
+        var result = replayCursor.boundGraphIdentities(modelTypes, selected, modelCacheTracker);
+        result.values().stream().findFirst().ifPresent(identity -> pin(handler, identity.boundary().stateIndex()));
         return result;
     }
 

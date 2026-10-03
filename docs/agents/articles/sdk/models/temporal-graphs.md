@@ -238,9 +238,61 @@ Inside a Model mutation, current reads join that attempt's boundary and staged c
 snapshot halfway through a business decision. Use injected Models/Graphs and their tracked dependencies for invariants;
 an arbitrary search result or detached historical Graph is not a transaction readset.
 
+## Historical Graphs and strict reads
+
+`EVENT_SOURCED` reconstructs historical values. `DOCUMENT` alone stores the current value. When an old document
+version is no longer available, a historical Graph uses the current value of the same persisted ID instead.
+If it has been deleted, `get()` returns `null`; if it has been recreated, the fallback may return that new value.
+A node proven absent or deleted **at the historical boundary** stays absent. Relationships stay historical:
+a moved child remains under its historical parent, and children added later do not enter the Graph.
+
+This is the normal behavior, independent of `fluxzero.defaults.version`. Set `fluxzero.model.graph.strict=true`
+(`FLUXZERO_MODEL_GRAPH_STRICT`) to require exact historical values application-wide. Its default is `false`.
+Strict reads fail when a required historical document revision is unavailable.
+
+The SDK and Runtime can be upgraded independently. Existing current reads, writes and reconstructible histories
+continue to work with a compatible older Runtime; no strict-property override is required just to upgrade the SDK.
+The new fallback needs Runtime support for historical head-only metadata reads. Until the Runtime supports those
+reads, historical DOCUMENT-only reads that it previously rejected can still fail, including on a non-strict view.
+The SDK does not replace missing historical presence or relationships with current metadata. Once the Runtime is
+updated, the fallback works without application configuration changes. On an older Runtime, `previous()` keeps
+using a retained predecessor, or returns `null` when none is retained, if the historical head is unavailable.
+No storage migration is required.
+
+Choose a view in Java:
+
+```java
+Graph<Project> strict = graph.strict(true);
+Graph<Project> ordinary = strict.strict(false);
+boolean exactHistory = strict.isStrict(); // true
+```
+
+Kotlin:
+
+```kotlin
+val strict = graph.strict(true)
+val ordinary = strict.strict(false)
+val exactHistory = strict.isStrict // true
+```
+
+`strict(boolean)` leaves the source view unchanged. `isStrict()` reads its configured policy without loading state.
+`strict(false)` restores ordinary reads even when the application property requests strict reads.
+
+The choice follows parents, children and `previous()`, including Graphs retained after an event or notification
+handler finishes. `atStateIndex(...)` on a lenient view resolves values lazily. A fallback value is retained after
+its first read in that view; later reads of the same view do not refresh it. Different nodes may observe different
+current instants, so this does not promise an atomic current snapshot. `stateIndex()` and `revisionStateIndex()`
+continue to describe the historical selection, not the age of a fallback value. Current scalar fields such as a
+child's parent ID may therefore differ from its historical Graph placement.
+
+Assertions, applies and replay remain strict, even when they receive a previously read fallback Graph. Strictness
+is a read policy, not durable document history or a way around conflict checking. Event-sourced replay failures,
+unknown contracts, unavailable keys and physical-erasure failures remain errors. Keep `EVENT_SOURCED` when exact
+historical values are required. Use `current()` when both current values and current relationships are intended.
+
 ## Retain the history you intend to inspect
 
-Every node whose historical value you inspect needs reconstructible event-sourced history. Plain `@Model` supplies
+Every node whose exact historical value you require needs reconstructible event-sourced history. Plain `@Model` supplies
 that. Adding `DOCUMENT` alongside `EVENT_SOURCED` keeps it; choosing only `DOCUMENT` retains current state rather than
 durable document versions. A larger cache cannot supply missing historical data after restart.
 

@@ -73,6 +73,15 @@ and replay checkpoints are rejected on DOCUMENT-only Models.
 In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` and nested annotations
 omit `@`, for example `searchSettings = SearchSettings(includeDescendants = false)`.
 
+## Historical Graph strictness
+
+`fluxzero.model.graph.strict` (`FLUXZERO_MODEL_GRAPH_STRICT`) defaults to false, independently of
+`fluxzero.defaults.version`. Ordinary historical Graphs use current DOCUMENT-only values when their historical
+revision is unavailable. Set the property to true for strict historical reads, or use `graph.strict(true)` for one
+view. `graph.strict(false)` restores ordinary reads even under a strict application default. Historical absence and
+relationships remain pinned; mutations, assertions and replay always stay strict. Read
+`/docs/sdk/models/temporal-graphs` for Runtime compatibility and the complete contract.
+
 ## Document handler scope
 
 `@HandleDocument` infers the searchable node from `Task` and logical root-plus-descendants scope from `Graph<Task>`.

@@ -105,6 +105,14 @@ complete behavior.
 
 ---
 
+## Historical Graph strictness
+
+`fluxzero.model.graph.strict` (`FLUXZERO_MODEL_GRAPH_STRICT`) defaults to `false`. Historical Graphs normally use
+current DOCUMENT-only values when the historical document revision is unavailable, while retaining historical
+relationships and proven absence. Set it to `true` for exact historical reads, or use `graph.strict(true)` for one view.
+`graph.strict(false)` restores ordinary reads for that view. This property is independent of `fluxzero.defaults.version`;
+assertions, applies and replay remain strict. See [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs).
+
 ## Versioned defaults
 
 `fluxzero.defaults.version` lets new applications opt into newer SDK defaults while existing applications keep

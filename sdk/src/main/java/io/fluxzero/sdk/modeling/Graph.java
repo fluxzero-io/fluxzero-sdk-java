@@ -73,7 +73,9 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * handler object may declare separate complete-change methods for different {@code Graph<T>} root types; each changed
  * root is routed to its matching typed method. Cascaded deletions also reach a complete-change child-Graph handler,
  * with an empty current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
- * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions.
+ * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions. Historical views use current
+ * DOCUMENT-only values when the historical version is unavailable. Use {@link #strict(boolean) strict(true)} or the application property
+ * {@code fluxzero.model.graph.strict=true} to require exact historical values.
  * <p>
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
  * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or
@@ -162,6 +164,32 @@ public interface Graph<T> {
     /** Maps the current model value when present without loading relationship context. */
     default <R> Optional<R> map(Function<? super T, ? extends R> mapper) {
         return optional().map(mapper);
+    }
+
+    /**
+     * Returns a view with the requested historical read policy, leaving this view unchanged. True requires exact
+     * historical values and fails if a DOCUMENT-only revision is unavailable. False uses the current value of that
+     * ID when its historical revision is unavailable, including a recreation, or null after deletion.
+     * Historical relationships and proven absence remain pinned. Each value is retained after its first read;
+     * different nodes do not form an atomic current snapshot. The choice follows parents, children and previous
+     * views. Event-sourced replay errors remain errors; mutations, assertions and replay always stay strict.
+     * An older Runtime may still reject a historical read when it cannot return the required head metadata,
+     * regardless of this policy. Upgrading the SDK first does not require changing this view setting.
+     *
+     * @param strict whether the returned view requires exact historical values
+     * @return a view with the requested policy
+     */
+    default Graph<T> strict(boolean strict) {
+        return Graphs.withDocumentFallback(this, !strict);
+    }
+
+    /**
+     * Returns this view's configured historical read policy without loading values or relationships.
+     * Mutations, assertions and replay always require strict reads, regardless of this view setting.
+     * Custom Graph implementations without a configurable policy remain strict by default.
+     */
+    default boolean isStrict() {
+        return true;
     }
 
     /** Returns the current model value or the supplied fallback. */
@@ -821,7 +849,11 @@ public interface Graph<T> {
      * has no previous graph, including when a deleted identity is recreated or a node is absent at that boundary.
      * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
      * stores current state, not document versions: it does not provide durable prior values after overwrite. A
-     * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.</p>
+     * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.
+     * Ordinary historical Graph reads traverse preceding DOCUMENT-only coordination revisions
+     * using the current value when an old version is unavailable; their values are not historical document versions.
+     * When an older Runtime reports that this preceding head is unavailable, the retained predecessor is used,
+     * or null when none is retained, preserving the behavior before metadata-based traversal.</p>
      * <p>If an event-sourced revision has no cached predecessor, the repository reconstructs its historical
      * before-state lazily, including when the current revision was loaded from a snapshot. Custom repositories
      * must support historical Graph reads for this fallback.</p>
