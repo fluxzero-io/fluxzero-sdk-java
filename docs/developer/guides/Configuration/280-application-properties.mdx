@@ -130,6 +130,10 @@ An explicit `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT
 Independent Model conflict handling is not version-gated: it defaults to `RETRY` for updates and creations.
 Use `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`) for an explicit `ACCEPT` or `FAIL` policy.
 
+Proxy HTTP/2 response headers default to a 16 KiB maximum independently of the defaults date.
+Override it with `fluxzero.proxy.http2MaxResponseHeaderSize`
+(`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE`); HTTP/1 and incoming header limits are unaffected.
+
 | Defaults version | Equivalent property | What changes |
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
