@@ -74,6 +74,12 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    CompletableFuture<io.fluxzero.common.api.BooleanResult> handle(io.fluxzero.common.api.modeling.ReindexModel request) {
+        return eventStore.reindexModel(request).thenApply(success ->
+                new io.fluxzero.common.api.BooleanResult(request.getRequestId(), success));
+    }
+
+    @Handle
     CompletableFuture<Void> handle(AppendEvents appendEvents) {
         return CompletableFuture.allOf(appendEvents.getEventBatches().stream().map(b -> eventStore
                 .storeEvents(b.getAggregateId(), b.getEvents(), b.isStoreOnly(), appendEvents.getGuarantee()))

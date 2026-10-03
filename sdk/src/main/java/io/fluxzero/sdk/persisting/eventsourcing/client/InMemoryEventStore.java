@@ -299,6 +299,46 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return super.append(events);
     }
 
+    private java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> modelReindexer;
+    private Object modelReindexLock;
+
+    /** Binds guarded reindex writes to the local canonical search store. */
+    public synchronized void setModelReindexer(Object searchLock,
+            java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> reindexer) {
+        modelReindexer = Objects.requireNonNull(reindexer);
+        modelReindexLock = Objects.requireNonNull(searchLock);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> reindexModel(io.fluxzero.common.api.modeling.ReindexModel request) {
+        try {
+            request.validate();
+            Runnable publish;
+            Object searchLock;
+            java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> reindexer;
+            synchronized (this) {
+                searchLock = modelReindexLock;
+                reindexer = modelReindexer;
+            }
+            if (reindexer == null) { throw new UnsupportedOperationException("No Model reindex store"); }
+            // Match Graph composition's search -> event lock order. The head remains fixed through source storage.
+            synchronized (searchLock) {
+                synchronized (this) {
+                    var expected = request.getExpectedHead();
+                    var head = modelHeads.get(expected.getModelId());
+                    if (head == null || erasedModelTokens.contains(protectedToken(expected.getModelId()))
+                        || !expected.equals(new io.fluxzero.common.api.modeling.ModelHeadState(expected.getModelId(),
+                            head.modelType(), head.sequenceNumber(), head.stateIndex(), head.historyComplete(), head.deleted()))) {
+                        return CompletableFuture.completedFuture(false);
+                    }
+                    publish = reindexer.apply(request);
+                }
+            }
+            if (publish != null) { publish.run(); }
+            return CompletableFuture.completedFuture(publish != null);
+        } catch (Exception e) { return CompletableFuture.failedFuture(e); }
+    }
+
     @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {

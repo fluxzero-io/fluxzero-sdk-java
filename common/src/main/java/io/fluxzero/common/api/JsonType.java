@@ -187,6 +187,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //search
         @JsonSubTypes.Type(value = IndexDocuments.class, name = "indexDocuments"),
         @JsonSubTypes.Type(value = RewriteModelGraphDocument.class, name = "rewriteModelGraphDocument"),
+        @JsonSubTypes.Type(value = io.fluxzero.common.api.modeling.ReindexModel.class, name = "reindexModel"),
         @JsonSubTypes.Type(value = io.fluxzero.common.api.search.RewriteModelSourceDocument.class, name = "rewriteModelSourceDocument"),
         @JsonSubTypes.Type(value = io.fluxzero.common.api.search.AdoptModelMigrationWithSource.class, name = "adoptModelMigrationWithSource"),
         @JsonSubTypes.Type(value = SearchDocuments.class, name = "searchDocuments"),

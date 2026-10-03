@@ -2793,6 +2793,11 @@ final class GraphView<T> implements Graph<T> {
     }
 
     @Override
+    public void reindex() {
+        state.repository().reindex(node.data().id(true), knownType().orElseThrow());
+    }
+
+    @Override
     public Graph<T> current() {
         if (node.data().type() == null) {
             throw node.data().unknownType();

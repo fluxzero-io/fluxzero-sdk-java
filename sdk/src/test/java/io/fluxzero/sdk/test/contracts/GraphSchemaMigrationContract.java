@@ -33,7 +33,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Shared schema-migration behavior for local, TestServer and JDBC Runtime clients. */
-public abstract class GraphSchemaMigrationContract {
+public abstract class GraphSchemaMigrationContract extends GraphReindexContract {
     protected abstract Client client(String namespace);
 
     @ParameterizedTest

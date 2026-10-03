@@ -237,6 +237,7 @@ public class LocalClient extends AbstractClient {
                 .setModelCommitMaterializer(
                         result::prepareModelCommit);
         eventStore.getMessageStore().setModelErasureMaterializer(result::eraseModels);
+        eventStore.getMessageStore().setModelReindexer(result, result::prepareModelReindex);
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(
                         new io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionMaterializer() {

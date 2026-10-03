@@ -164,8 +164,56 @@ separately for nodes and stored Graphs. Reindex each affected child's source too
 child predicates. Verify a fresh reader can still load current state and historical `previous()` values afterward.
 
 Storage/configuration changes are separate migrations. Schema upcasters do not rename collections, change
-persistence/name/path settings, or create missing source documents. Qualify these changes separately.
+persistence/name/path settings. For missing canonical sources use the explicit operation below; collection or identity
+changes still require a separate migration.
 
+
+## Explicit current-state reindexing
+
+Call `graph.reindex()` to rebuild the canonical search source of **that Model node** with the current document
+serializer, indexed fields, exclusions and summary. This can create a missing source from complete event-sourced
+history. It preserves the Model head, events, aliases, relationships and history. A historical or event-bound Graph
+selects the identity only: reconstruction uses the latest committed state, never that view's old values or staged
+updates. Reindex each selected child separately; the call does not enumerate descendants or select Models for you.
+DOCUMENT-only state still requires its existing verified source. Missing/deleted Models are no-ops; erased Models
+cannot be resurrected. Untrusted source bytes and incomplete reconstruction fail instead of creating provenance.
+
+The customer owns selection, replay and progress. A bounded event consumer can invoke this operation repeatedly:
+
+```java
+// Replace this example with the fixed cutover time for this migration, in millis << 16.
+@Consumer(name = "project-search-reindex", minIndex = 0,
+          maxIndexExclusive = 1791058000000L << 16, exclusiveAfterMaxIndex = false)
+class ReindexProjects {
+    @HandleEvent
+    void reindex(Object event, Graph<Project> project) { project.reindex(); }
+}
+```
+
+```kotlin
+@Consumer(name = "project-search-reindex", minIndex = 0,
+          maxIndexExclusive = 117378777088000000L, exclusiveAfterMaxIndex = false)
+class ReindexProjects {
+    @HandleEvent
+    fun reindex(event: Any, project: Graph<Project>) { project.reindex() }
+}
+```
+
+Use one fixed, positive `maxIndexExclusive` time boundary for the run, after stopping old writers **and draining
+pending old materializations**, and before starting writers with the new search configuration. Keep consumer and
+storage clocks comparable. A later configuration change needs a new boundary. This is a coordinated cutover, not
+mixed-writer migration. Source storage records an atomic durable storage-time index, distinct from Model state,
+functional timestamps and document tracking indexes. A verified source stored on or after the cutoff skips before
+Model replay and any write; ordinary writes under the new configuration count too. Old sources without this evidence
+are refreshed. Future or nonpositive cutoffs fail. Without a bounded consumer, each call refreshes unconditionally.
+A restarted replay must retain its original cutoff; do not calculate a new cutoff for every event.
+
+The operation retries bounded head/proof conflicts. An exhausted conflict or storage failure may be retried by the
+customer. Concurrent writes, deletion and erasure retain their normal fences. Completion confirms the source write
+and durable targeted invalidation. Affected NONE notifications and ASYNC/AWAIT compositions follow through the
+existing worker; this operation is not an AWAIT projection-completion barrier. Observe projection catch-up separately.
+No new Model event or automatic migration job is produced. Event replay can select only retained published events;
+use another authoritative ID inventory for Models absent from that log.
 
 ## Preserve historical meaning and name the remaining limits
 
