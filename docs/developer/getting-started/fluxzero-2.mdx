@@ -2933,7 +2933,7 @@ additional behavior alongside the resolved policy.
 | `publicationStrategy` | `DEFAULT` | Where produced events are stored/published. Event-sourced changes must retain reconstructing events. |
 | `ignoreUnknownEvents` | `false` | Explicit replay compatibility policy; ignoring an event is not generally a safe solution to a missing contract. |
 | `snapshotPeriod` | `0` | Opt into periodic snapshots after measuring replay cost. Zero disables periodic snapshots. |
-| `maxSnapshotCount` | `1` | How many snapshots to retain; not how much event history to keep. |
+| `maxSnapshotCount` | `1` | How many snapshots to retain: negative means unlimited, zero keeps one. Does not limit event history. |
 | `cached` | `true` | Shared application caching of the latest Model state. Commit-local state is a separate concern. |
 | `cachingDepth` | `1` | Older versions retained in cache: `0` keeps only current; `-1` retains all available cached versions. This is not durable history retention. |
 | `checkpointPeriod` | `100` | Intermediate replay checkpoints within a reconstruction session, not extra stored document versions. |

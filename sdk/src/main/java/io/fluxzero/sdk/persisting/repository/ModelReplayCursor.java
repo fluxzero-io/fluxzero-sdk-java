@@ -1837,6 +1837,14 @@ final class ModelReplayCursor {
             return entity;
         }
         Entity<?> previous = root.previous();
+        if (previous == null && root.sequenceNumber() > 0 && stateIndex >= 0
+            && root.rootConfiguration().eventSourced()) {
+            // Snapshot seeds and bounded caches do not retain every predecessor. Resolve the exclusive
+            // state boundary from storage instead of treating absent in-memory history as creation.
+            var target = new MutationPlan.ResolvedModel(entity.id().toString(), entity.type(),
+                    MutationPlan.Access.READ_ONLY, List.of(entity.idProperty()));
+            previous = reconstructProjection(List.of(target), Map.of(), stateIndex - 1, true).get(target.modelId());
+        }
         return previous != null ? previous : ImmutableModelRoot.initial(
                 entity.id(), (Class) entity.type(),
                 EntityMetadata.validate(entity.type()).entityId().orElseThrow().name(), null,

@@ -162,7 +162,10 @@ public @interface Model {
     int snapshotPeriod() default 0;
 
     /**
-     * Maximum number of snapshots retained for this model. Values below {@code 1} are treated as {@code 1}.
+     * Maximum number of snapshots retained for this model. Any negative value retains all periodic snapshots;
+     * {@code 0} is treated as {@code 1}. This does not enable snapshots: {@link #snapshotPeriod()} must be positive.
+     * Unlimited retention does not prevent explicit physical erasure and does not change event-history retention.
+     * Enable negative values only after upgrading the Runtime to support unlimited Model snapshot retention.
      */
     int maxSnapshotCount() default 1;
 

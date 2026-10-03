@@ -1756,7 +1756,8 @@ public final class EntityMetadata {
 
         /** Resolves the shared periodic snapshot policy for this persisted root. */
         public SnapshotSettings snapshotSettings(boolean documentFallback) {
-            return new SnapshotSettings(documentFallback ? 1 : snapshotPeriod, Math.max(1, maxSnapshotCount));
+            return new SnapshotSettings(documentFallback ? 1 : snapshotPeriod,
+                    kind == RootKind.MODEL && maxSnapshotCount < 0 ? maxSnapshotCount : Math.max(1, maxSnapshotCount));
         }
     }
 
