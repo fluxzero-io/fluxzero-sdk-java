@@ -1,4 +1,4 @@
-The Fluxzero SDK connects Java and Kotlin application code to Fluxzero, the cloud for AI-built apps. Local development and tests use the same programming model before the application is published on Fluxzero.
+The Fluxzero SDK lets coding agents and developers build product behavior in Java or Kotlin on Fluxzero, the product cloud. Local development and tests use the same programming model before the application is published on Fluxzero.
 
 The Fluxzero Java SDK treats commands, queries, events, and web requests as messages. Most application code is plain
 Java records or Kotlin data classes, immutable state, and annotated handler methods. Fluxzero supplies the messaging,

@@ -1,0 +1,54 @@
+---
+title: Local and live environments
+description: Understand projects, profiles, organizations, clusters, applications and their separate data.
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+Local development and cloud operation use the same application code for different purposes. Local development lets you change and test it quickly. Cloud deployment runs a chosen version for your users.
+
+<div className="guide-cards">
+<CardGrid>
+  <Card title="Local" icon="laptop">Your working copy, fast feedback and a preview you and your agent can inspect.</Card>
+  <Card title="Live" icon="setting">A chosen version running for your users, with its own data, settings and access.</Card>
+</CardGrid>
+</div>
+
+<details>
+<summary>Environment terms at a glance</summary>
+
+| Term | Meaning |
+| --- | --- |
+| Project | The local repository containing your code, tests and development configuration |
+| Profile | A named development setup, such as a local demo or an external-provider sandbox |
+| Dev Server | The process managing the local app, services, builds, tests and feedback |
+| Devboard | The browser view of that local workspace |
+| Organization | The cloud account context for people, integrations, billing and environments |
+| Cluster | A managed cloud environment containing applications and their runtime data |
+| Application | A deployed workload with its configuration and selected version |
+| Task | A running instance of an application workload |
+
+</details>
+
+## Code can move; environment state is separate
+
+Publishing ships an artifact built from your code. It does not copy local sign-in users, demo reservations, in-memory data or development secrets into production. Configure the live identity provider and external services for that environment.
+
+A local profile can connect to external services. “Local” therefore describes where development runs, not a promise that every action is isolated. The profile's configuration determines the actual connections. A full local restart can discard ephemeral runtime state; an app-only restart and a full environment restart have different scope.
+
+## A deployment is a sequence
+
+<GuideFlow label="From checked code to a live app" stages={[
+  { title: "Build + check", description: "Create an application image from the reviewed code." },
+  { title: "Publish + request", description: "Store the versioned image and request its deployment." },
+  { title: "Run + try", description: "Check the running version and use the live app." },
+]} />
+
+A successful deployment request and a running task are separate observations. You finish verification by checking the intended version and exercising the app at its live address.
+
+## History has different owners
+
+Git records source changes. Progress records agreed and completed work. Application history and monitoring describe runtime behavior. Backups support recovery of runtime data. Returning to an old Git commit does not reverse purchases, sent emails or stored data changes.
+
+See [publish an update](/docs/building/publish-updates), [recover a version or data](/docs/building/recovery), and the [dashboard reference](/docs/building/dashboard).

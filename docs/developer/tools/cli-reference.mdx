@@ -1,0 +1,74 @@
+---
+title: CLI command reference
+description: Look up Fluxzero project, environment, configuration and update commands.
+---
+
+import { LinkCard } from '@astrojs/starlight/components';
+
+This page describes the CLI 1.x command families. The installed version's `fz --help`, `fz init --help`, `fz dev --help` and `fz mcp --help` are the exact reference for that installation. Use [CLI](/docs/tools/cli) for a first terminal session.
+
+## Commands
+
+<div className="guide-options">
+  <LinkCard title="Create a project" description="Template and project options." href="#project-creation" />
+  <LinkCard title="Control development" description="Start, inspect, attach and stop." href="#development-actions" />
+  <LinkCard title="Choose options" description="Profiles, processes and invocation overrides." href="#common-options" />
+</div>
+
+| Command | Purpose |
+| --- | --- |
+| `fz version` | Show installed version information |
+| `fz init` | Create a new project from a template |
+| `fz templates list` | List available project templates |
+| `fz dev` | Start or attach to this project's development environment |
+| `fz mcp` | Launch the MCP stdio connection for an agent client |
+| `fz upgrade` | Upgrade a directly installed CLI; prefer the package manager for managed installations |
+
+## Project creation
+
+| `fz init` option | Meaning |
+| --- | --- |
+| `--name` | Project name |
+| `--template`, `--template-path` | Named template, or local template directory/ZIP |
+| `--dir` | Parent directory for the named project |
+| `--in-place` | Generate directly in the target directory; inspect existing contents first |
+| `--package`, `--group-id`, `--artifact-id` | Package and build coordinates |
+| `--build` | `maven` or `gradle` |
+| `--application-id` | Application identifier for package publishing |
+| `--git` | Initialize a Git repository for the generated project |
+
+## Development actions
+
+| Action | Effect |
+| --- | --- |
+| `fz dev start` | Start/reuse the current project's environment; default action |
+| `fz dev list` | List known environments across projects |
+| `fz dev status` | Read current project status |
+| `fz dev attach` | Attach the live terminal view |
+| `fz dev logs` | Read recent logs; `--follow` streams them, `--errors` narrows them |
+| `fz dev config` | Print the version-aligned `.fluxzero/dev.yaml` reference |
+| `fz dev restart` | Reinitialize the full environment and managed processes |
+| `fz dev stop` | Stop the targeted environment |
+| `fz dev check-update` | Inspect compatible Dev Server update availability |
+| `fz dev prepare-update` | Prepare an update for the selected version; use the installed help for its required inputs |
+
+## Common options
+
+| Option | Meaning |
+| --- | --- |
+| `--project-dir` | Explicit project directory |
+| `--profile` | Named profile from `.fluxzero/dev.yaml` |
+| `--app` | Application/module selection; repeatable |
+| `--background` | Start detached from the terminal view |
+| `--json` | Machine-readable status/list output |
+| `--port` | Preferred gateway port; otherwise allocated dynamically |
+| `--frontend-url` | Use an externally managed frontend |
+| `--frontend-command`, `--frontend-directory` | Start a managed frontend command in its directory |
+| `--idp` | Managed or external identity provider |
+| `--no-tests`, `--no-watch` | Disable automatic tests or source watching for this invocation |
+| `--dev-server-version` | Override the selected server distribution |
+| `--idle-timeout` | Configure inactivity shutdown |
+| `--force` | Force termination for stop/restart |
+| `--all` | With stop, target all registered environments rather than one project |
+
+Shared defaults belong in `.fluxzero/dev.yaml`; invocation-specific flags are overrides. For all flags and lifecycle details, consult [the owning CLI reference](https://github.com/fluxzero-io/fluxzero-cli#local-development). Do not infer the effect of a full restart from the similarly named app-only controls in Devboard.

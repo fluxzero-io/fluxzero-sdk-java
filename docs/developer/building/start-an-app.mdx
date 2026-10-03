@@ -1,0 +1,68 @@
+---
+title: Start an app from your idea
+description: Give your agent a product idea, try the first version and put it live.
+---
+
+import { Steps, Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import AgentPrompt from '~/components/docs/AgentPrompt.astro';
+
+Turn your idea into a first version people can use. Your agent builds the product and its behavior tests; Fluxzero provides the foundation to run it live.
+
+<div className="guide-context"><span>From idea to first release</span><span>One agent + the Fluxzero plugin</span></div>
+
+[Set up your agent](/docs/tools/agent-plugin) and open an empty project directory.
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Describe the first useful flow
+
+   Tell your agent who the product is for, what they should be able to do and the rules that matter. For example:
+
+   <AgentPrompt text={"Build a workshop booking app. Visitors can see dates and available places, reserve a place and cancel their own bookings. Organizers manage their workshops. Never overbook."} />
+
+   Answer product questions as they come up, such as who may cancel a booking or when booking closes.
+
+2. ## Open your app
+
+   <span id="build-from-the-inside-out"></span>
+   <span id="build-one-complete-slice"></span>
+
+   The agent creates the project and starts its development environment. Ask for the Devboard link when the app is ready to try. Check that it opens your new project and startup has completed.
+
+   <div className="guide-result"><strong>You should see</strong><p>Your app running in App preview, with a first flow you can complete and behavior checks your agent can explain.</p></div>
+
+   <details>
+   <summary>The preview is not ready yet</summary>
+
+   Let the agent inspect startup problems and logs before adding features. A failed build can leave an earlier working version visible. Confirm which version is running before reviewing the change.
+
+   </details>
+
+3. ## Check and keep the result
+
+   Try a successful booking, then a refusal such as reserving a full workshop. Refresh the screen and find the booking again. Check the experience on your phone and ask your agent to show the tests behind the rules.
+
+   Give concrete feedback on what you want to change. When the result is right, ask the agent to save a Git checkpoint and record the agreed decisions in **Progress**.
+
+4. ## Put your first version live
+
+   A first useful version can go live quickly. Fluxzero already provides the hardened cloud foundation, and your agent builds behavior tests alongside the product. You can take the same code from the first working version into production.
+
+   Follow [Publish your app](/docs/tutorials/cloud-deployment) to set up its live access and any external services, deploy the checked version and try the key flow at its live address. Then improve it as people use it.
+
+</Steps>
+</div>
+
+<Aside type="tip" title="Aim for a useful first version">
+For a focused product with the environment ready, aim for working logic and a usable UI in about an hour. From there, you can move quickly to a first release. Scope and external services affect the time needed.
+</Aside>
+
+## Keep building
+
+<CardGrid>
+  <LinkCard title="Check and improve a feature" description="Take the next product change through the same loop." href="/docs/building/test-and-improve" />
+  <LinkCard title="Open an existing project" description="Continue building where you left off." href="/docs/building/resume-a-project" />
+</CardGrid>
+
+Read [You, your agent and Fluxzero](/docs/building/working-with-your-agent) for why this approach works. Prefer a guided example first? [Explore Ticketing](/docs/building/local-development).

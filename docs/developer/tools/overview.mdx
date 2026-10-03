@@ -1,0 +1,57 @@
+---
+title: Tools & automation
+description: Choose the tools to start building, develop locally and deliver your Fluxzero app.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+Start with your agent, inspect the product locally, then deliver a checked version to your users. Choose the part you need today.
+
+## Start building
+
+<CardGrid>
+  <LinkCard title="Set up your agent" description="Activate the Fluxzero workflow and MCP tools in your coding agent." href="/docs/tools/agent-plugin" />
+  <LinkCard title="Install and update" description="Install the CLI with Homebrew, WinGet or the Linux installer." href="/docs/tools/install" />
+</CardGrid>
+
+Building for the first time? Follow [Explore a working app](/docs/building/local-development). Working directly in the code? Use [SDK installation](/docs/getting-started/installation).
+
+## Develop locally
+
+<CardGrid>
+  <LinkCard title="CLI & Dev Server" description="Create a project and manage the environment that builds and tests it." href="/docs/tools/cli" />
+  <LinkCard title="Devboard" description="Try the app, inspect tests and follow work in progress." href="/docs/building/devboard" />
+</CardGrid>
+
+<span id="one-development-environment"></span>
+
+The [MCP connection](/docs/tools/mcp) gives your agent documentation and project feedback. The [Dev Server](/docs/tools/dev-server) owns the build/test/application loop. Devboard shows that same environment to you.
+
+## Deliver your app
+
+<CardGrid>
+  <LinkCard title="Build and publish" description="Package the application and publish its image." href="/docs/tools/build-and-publish" />
+  <LinkCard title="GitHub Actions" description="Authenticate your workflow and request a cloud deployment." href="/docs/tools/github-actions" />
+</CardGrid>
+
+<span id="a-separate-delivery-path"></span>
+
+<GuideFlow label="From local development to a live product" stages={[
+  { title: 'Build locally', description: 'Your agent, MCP and CLI work with the managed Dev Server.' },
+  { title: 'Deliver a version', description: 'Your pipeline publishes an image and calls the System API.' },
+  { title: 'Check it live', description: 'The dashboard shows the workload. Try the app at its live address.' },
+]} />
+
+A local preview and a cloud application have separate data, configuration and access. Use the [System API](/docs/tools/system-api) for a custom delivery client, and [Publishing your app](/docs/tutorials/cloud-deployment) for the complete release procedure.
+
+## Find a reference
+
+[CLI commands](/docs/tools/cli-reference) · [Dev Server](/docs/tools/dev-server) · [MCP tools](/docs/tools/mcp) · [System API](/docs/tools/system-api) · [Cloud dashboard](/docs/building/dashboard)
+
+<details>
+<summary id="versions-belong-to-components">Which component does an update change?</summary>
+
+CLI, Dev Server, SDK and agent plugin have separate release versions. A CLI update does not migrate your app to a new SDK. Use project pins and version-matched documentation, and check the installed tool's help when options differ. See [Install and update](/docs/tools/install).
+
+</details>

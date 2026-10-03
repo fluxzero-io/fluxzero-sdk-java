@@ -1,94 +1,65 @@
 ---
-title: Build your first feature
-description: Take a workshop booking idea from an instruction to a working flow you can try, without writing code.
+title: Make your first change
+description: Improve the Ticketing reservation screen with your agent, then check the experience and its tests.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Steps } from '@astrojs/starlight/components';
+import AgentPrompt from '~/components/docs/AgentPrompt.astro';
 
-In this tutorial, you build the first part of a workshop booking app with your coding agent. At the end, a visitor
-can find a workshop, book a place, and cancel it. You will try that flow locally and check its rules in Devboard.
-You do not need to read code or the Developer Guides.
+Make the reservation time limit clear before a visitor books. Complete [Explore a working app](/docs/building/local-development) first, then keep that Ticketing copy and its local Devboard open.
 
-<Aside type="tip" title="Build locally, run on Fluxzero">
-This is an application for Fluxzero, the cloud that provides its data, messaging, security, and execution.
-The local tools let you build and check the whole product before publishing it for real users.
-</Aside>
+Before editing, inspect the current test results with your agent. Establish any existing failures separately so they are not mistaken for a result of your change.
 
-Prefer exploring something that already works? Start with one of the [example apps](/docs/building/example-apps).
+<span id="1-set-up-your-agent"></span>
+<span id="2-describe-one-useful-flow"></span>
 
-## 1. Set up your agent
+<div className="guide-context"><span>Ticketing tutorial</span><span>Continue from Explore a working app</span></div>
 
-Open [Get started](/get-started), choose your coding agent, and follow the setup instruction. This gives the agent
-the Fluxzero plugin, development tools, and its own documentation. Work in a folder for your new project.
+<div className="guide-steps">
+<Steps>
 
-## 2. Describe one useful flow
+1. ## Agree on one visible result
 
-Tell the agent who the app is for, what they should be able to do, and which rules matter. For this app, use:
+   <span id="1-agree-on-one-visible-result"></span>
 
-> Build a workshop booking app with Fluxzero. Start with one complete flow: a visitor sees upcoming workshops,
-> signs in, books one place, and can cancel their own booking. Show their bookings on a “My bookings” page.
-> Each workshop has a title, date, and maximum number of places. A person can have only one active booking per
-> workshop, and the app must never accept more bookings than available places. Cancelling makes that place available
-> again. Prepare local demo workshops, including one with only two places. Add automated tests for these rules.
-> Start the app and open it in Devboard. We will add payments and reminders later.
+   <AgentPrompt text={"Show “Your places are held for up to 15 minutes while you complete your booking.” just before Reserve tickets, replacing the old guidance. Keep it readable on a phone and keep the booking rules unchanged."} />
 
-Your agent may ask about a choice that changes the product, such as whether visitors can browse before signing in.
-Answer in terms of what the visitor should experience. Ask the agent to handle technical setup using Fluxzero's
-usual defaults and explain any product decision that still needs your input.
+   The app already has this reservation limit. Keep one clear explanation of it. If your copy already contains the sentence, improve its placement instead of adding it twice. Let the agent implement the change and show the result in Devboard.
 
-The first useful result is the whole booking flow: screens, saved bookings, enforced rules, and tests. You can
-improve the visual design as you try it.
+   <span id="3-use-the-app-yourself"></span>
+   <span id="5-make-one-improvement"></span>
 
-## 3. Use the app yourself
+2. ## Inspect the change
 
-When the agent reports that the app is running, open its **App preview** link. Devboard runs locally on your computer;
-you have not published the app yet. If you need the link again, ask “Open Devboard” or use `/fluxzero:devboard` in an
-agent that supports the plugin's slash commands.
+   <span id="2-inspect-the-change"></span>
 
-Try this sequence:
+   Wait for the agent to confirm the new build is running. A failed build can leave the previous working version in the preview.
 
-1. Open the workshop with two places and check that its date and availability are clear.
-2. Sign in with a local demo user and book a place. Find it on **My bookings**, then refresh the page.
-3. Try booking the same workshop again. The app should explain that you already have a booking.
-4. Cancel the booking. Check that it disappears from your active bookings and the place becomes available again.
+   Return to **Night Lights**, open its performance and select places. Read the sentence before reserving. Narrow the browser window: the text should remain readable and the reservation action should remain reachable. Reserve a group and check that the existing temporary hold still works.
 
-Ask your agent which demo accounts it prepared and how to switch between them. These are local test users; you will
-choose the live sign-in setup before publishing.
+   If the wording is hard to find, describe the screen and what you expected. For example: “The sentence wraps well, but I only see it after scrolling past the Reserve button. Put it immediately before that action.”
 
-If the screen does something different from the rules you described, tell the agent what you did, what happened,
-and what you expected. For example:
+   <span id="4-check-the-rules-you-cannot-see-in-one-visit"></span>
 
-> I cancelled my booking, but the workshop still says one place is taken after I refresh. Please investigate the
-> complete flow, add a test for the problem, and show me the corrected result.
+   <div className="guide-result"><strong>You should see</strong><p>The hold explanation appears immediately before Reserve tickets, stays readable on a phone, and the temporary reservation still works.</p></div>
 
-## 4. Check the rules you cannot see in one visit
+3. ## Check the evidence with your agent
 
-Open Devboard's **Tests** page. Ask your agent to point out the scenarios for a full workshop, duplicate bookings,
-cancellation, and a user trying to cancel someone else's booking. Request any missing scenario:
+   <span id="3-check-the-evidence-with-your-agent"></span>
 
-> Show me the tests proving these booking rules. Also test two people trying to book the last place at the same
-> time: exactly one should succeed. Explain the result without requiring me to read code.
+   Ask the agent to show the check for the new text and the relevant existing reservation scenarios. The managed environment selects and runs affected tests as files change. The agent should inspect those results and identify any additional verification needed, rather than starting a second competing build loop.
 
-You can try the two demo accounts yourself to check what each person sees. Automated tests complement that manual
-check: they exercise rules repeatedly, including competing actions that are hard to reproduce by clicking.
+   Some checks may belong to a frontend test runner or a browser inspection instead of the Devboard scenario list. Ask where each result can be found. Confirm that the check covers the actual displayed behavior, and that reservation expiry has not been changed just to match the copy.
 
-## 5. Make one improvement
+   <span id="6-keep-a-working-version"></span>
 
-Now change the app based on what you learned. For example:
+4. ## Save a reviewed checkpoint
 
-> Show “Fully booked” when no places remain and make the booking button unavailable. Keep the availability check
-> when accepting a booking too, because another person may take the last place while I am looking at the page.
-> Update the tests and show me the result in App preview.
+   <span id="4-save-a-reviewed-checkpoint"></span>
 
-Try the change with both an available workshop and a full one. Use **Progress** to see what was delivered and what
-is still planned. You decide when the feature does what you need.
+   Once the result is right, ask the agent to summarize the change, record the completed work in **Progress** and save a Git commit in your tutorial copy. A commit records the code change; it does not publish the app or save the local demo's reservations.
 
-## 6. Keep a working version
+</Steps>
+</div>
 
-Once the flow works, ask your agent to save a Git commit and summarize what that version includes. A commit is a
-checkpoint of the application's code, so you can review later changes and return to a known version. It does not
-back up the app's data or publish it.
-
-Next you might add a waiting list, organizer tools, or reminders. Add each around a concrete scenario and keep
-checking the booking rules you already rely on. Use [Test and improve your app](/docs/building/test-and-improve)
-for that loop, or continue to [Publishing your app](/docs/tutorials/cloud-deployment) when it is ready to share.
+You have taken one change through a complete loop: describe → implement → inspect → verify → save. For a larger product feature, follow [Check and improve a feature](/docs/building/test-and-improve). To start a different product, use [Start an app from your idea](/docs/building/start-an-app).

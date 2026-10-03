@@ -1,56 +1,49 @@
 ---
-title: The Fluxzero toolkit
-description: How the SDK, agent plugins, CLI, Dev Server, and identity provider help you build and run apps on Fluxzero.
+title: How the toolkit fits together
+description: Understand how the plugin, MCP, CLI, Dev Server, Devboard and cloud delivery support one product.
 ---
 
-import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
 
-**Fluxzero is the cloud that runs your product.** It hosts your frontend and backend and brings data, messaging,
-security, recovery, and observability together. You and your agent use the tools below to build for that cloud,
-try the complete application locally, and publish it when it is ready.
+**Your agent builds the product. Fluxzero runs it.** The local tools give you and your agent a working environment and evidence. Cloud delivery makes a checked version available to users.
 
-<Card title="Your product runs on Fluxzero" icon="rocket">
-Publish your checked application from GitHub. Fluxzero runs it for your users, stores its data, routes requests,
-and records what happens. You manage the product through the [Fluxzero dashboard](https://dashboard.fluxzero.io).
-The [publishing guide](/docs/tutorials/cloud-deployment) takes you through the steps.
-</Card>
+<span id="tools-for-building-your-app"></span>
 
-## Tools for building your app
+## From an instruction to a working app
 
-<CardGrid>
-  <Card title="Agent plugins" icon="pencil">
-Give your coding agent Fluxzero instructions, SDK documentation, and tools to build and inspect your app.
+<GuideFlow label="One shared development environment" stages={[
+  { title: "Your agent", description: "The plugin and MCP supply guidance and project tools." },
+  { title: "Dev Server", description: "One environment manages apps, builds, tests and services." },
+  { title: "Devboard", description: "You see the preview and the same development feedback." },
+]} />
 
-[Set up your agent](/get-started) · [Repository](https://github.com/fluxzero-io/fluxzero-agent-plugins)
-  </Card>
-  <Card title="SDK" icon="document">
-Connect your Java or Kotlin application to Fluxzero. Your agent writes product rules, actions, data, and tests using
-the cloud's programming model.
+The **agent plugin** gives your coding agent the Fluxzero workflow. Its **MCP connection** retrieves SDK guidance matched to the project and exposes development tools. The **CLI** creates projects and launches or manages their environment.
 
-[Developer Guides](/docs/guides) · [Repository](https://github.com/fluxzero-io/fluxzero-sdk-java)
-  </Card>
-  <Card title="CLI" icon="laptop">
-Create a project and start or manage its local environment. The `fz` command gives you and your agent the same tools
-for working on an app for Fluxzero.
+The **Dev Server** manages backend and frontend processes, local services, builds, affected tests and startup actions. **Devboard** is your browser view of that work: the app, tested scenarios, recorded progress and monitoring.
 
-[CLI repository](https://github.com/fluxzero-io/fluxzero-cli)
-  </Card>
-  <Card title="Dev Server and Devboard" icon="laptop">
-Build changes, run tests, and preview the whole app on your computer. Devboard shows the running app, progress,
-tests, and monitoring in your browser.
+The **SDK** supplies the programming model used by application code. Developers can work directly in the same code; using an agent does not create a separate kind of application.
 
-[Local development](/docs/building/local-development) · [Repository](https://github.com/fluxzero-io/fluxzero-dev-server)
-  </Card>
-</CardGrid>
+| What you want | Where to go |
+| --- | --- |
+| Prepare your coding agent | [Agent plugin](/docs/tools/agent-plugin) |
+| Connect a client to Fluxzero tools | [MCP](/docs/tools/mcp) |
+| Use a terminal | [CLI](/docs/tools/cli) |
+| Configure the development environment | [Dev Server](/docs/tools/dev-server) |
+| Inspect the local application | [Devboard](/docs/building/devboard) |
+| Implement application code | [Developer Guides](/docs/getting-started/core-concepts) |
 
-## Identity for your users
+<span id="identity-for-your-users"></span>
 
-Fluxzero's **identity provider (IDP)** supplies sign-in so your application can recognize people. You define what each
-person may see or do; the application enforces those rules using the SDK. The local development environment supports
-trying sign-in flows before you publish. Developers can find the details in the
-[authentication guide](/docs/guides/messaging/role-based-access-control).
+## From a checked change to a live product
 
-<Aside type="tip" title="One route from idea to live product">
-Describe a feature → build and test locally → try it in Devboard → publish on Fluxzero.
-You can follow that route on your own or with a team. Developers can work directly in the same codebase at any point.
-</Aside>
+<GuideFlow label="Deliver the same product to users" stages={[
+  { title: "Build tooling", description: "Package the application and publish its image." },
+  { title: "Delivery workflow", description: "Request deployment through the Deploy Action or System API." },
+  { title: "Cloud dashboard", description: "See the version, tasks, configuration and runtime evidence." },
+]} />
+
+A GitHub workflow authenticates to Fluxzero before requesting deployment. The dashboard lets you and your agent inspect the result and the product’s behavior after release.
+
+Your local project and live application have separate data and configuration. The plugin does not automatically grant production access. Identity for app users is also separate from the permissions used by a deployment workflow.
+
+Use [Tools & automation](/docs/tools/overview) for installation and reference, [Local and live environments](/docs/building/environments) for the boundaries, and [Publishing your app](/docs/tutorials/cloud-deployment) for the release procedure.

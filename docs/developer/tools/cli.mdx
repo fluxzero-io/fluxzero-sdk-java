@@ -1,0 +1,60 @@
+---
+title: Fluxzero CLI
+description: Create a project and manage its local development environment with the fz command.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+The `fz` command creates Fluxzero projects and controls their local development environments. Your agent uses the same tooling through MCP. The CLI is useful when you prefer a terminal or need to inspect which environments are running.
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Create a project
+
+   [Install the CLI](/docs/tools/install), then run:
+
+   ```sh
+   fz init --name my-app
+   ```
+
+   Follow the prompts to choose a template and project settings. Open the generated directory in your agent or editor. The template determines its Maven/Gradle build and frontend requirements; follow its README rather than assuming every project uses the same wrapper.
+
+   `fz templates list` lists templates. For an existing project, open that directory instead of generating over it.
+
+2. ## Start or resume local development
+
+   From the project directory:
+
+   ```sh
+   fz dev
+   ```
+
+   This starts the managed development environment, or attaches to the existing environment for that project. Use its current URL to open the app and Devboard. The Dev Server manages source changes, builds, tests and services. Keep it as the owner of that loop while it is active.
+
+   For detached operation:
+
+   ```sh
+   fz dev --background
+   fz dev status
+   fz dev logs --follow --errors
+   ```
+
+   Detached processes continue using resources until stopped or their configured idle timeout expires. The [Dev Server page](/docs/tools/dev-server) explains profiles and lifecycle.
+
+   <div className="guide-result"><strong>Environment ready</strong><p>A current Devboard URL and status for this project, with one environment managing builds and tests.</p></div>
+
+3. ## Find and stop an environment
+
+   ```sh
+   fz dev list
+   fz dev attach
+   fz dev stop
+   ```
+
+   `list` is global; `attach` and `stop` target the current project unless you specify another project directory. Check the target before stopping. `fz dev restart` reinitializes the entire environment and can replace ephemeral local data; use an app-only restart in Devboard when that is the intended scope.
+
+   Use [CLI command reference](/docs/tools/cli-reference) for options, [MCP](/docs/tools/mcp) for client integration, and [GitHub Actions](/docs/tools/github-actions) for cloud delivery. Deployment is handled by the delivery pipeline and System API, not a `fz deploy` command.
+
+</Steps>
+</div>

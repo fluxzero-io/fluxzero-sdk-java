@@ -1,160 +1,56 @@
 ---
 title: Introduction
-description: Build your product with AI, from the first idea to an application people rely on.
-sidebar:
-    order: 10
+description: Build, check, publish and improve a product with your coding agent and Fluxzero.
 ---
 
-import { Aside, Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { LinkCard, CardGrid } from '@astrojs/starlight/components';
 
-**Fluxzero is the European cloud for AI-built apps.**
+**Fluxzero is the product cloud for you and your coding agent.** Describe what your product should do. Your agent builds its features, rules and user experience. Fluxzero provides and operates the foundation underneath: hosting, data, message delivery, security, recovery and observability.
 
-A ticket must not be sold twice when two people buy it at once. A payment arriving after a restart must still reach
-the right booking. Private customer details must stay private, and a failed action must leave enough evidence to
-find the cause and recover. These requirements belong to your first real customer as much as your millionth.
+You decide what a good result looks like, try the application and choose when to release it. Your agent can inspect the code, tests and recorded behavior to implement and check each change. Developers can work directly in the same code at any point.
 
-Fluxzero provides and operates the foundation for that work: frontend and backend hosting, data, reliable message
-delivery, security, recovery, and observability in one cloud. You can build a serious product without assembling
-and maintaining that infrastructure yourself.
+<span id="1-give-your-agent-the-fluxzero-instruction"></span>
+<span id="2-build-and-try-the-whole-app-locally"></span>
+<span id="from-an-idea-to-working-behavior"></span>
 
-You describe the product and decide how it should work. Your agent builds it, you try it locally, and together you
-improve it. Publish the app on Fluxzero, where its data, messages, scheduled work, and execution are managed together.
-The SDK, agent plugins, and development tools help you build for that cloud from your first feature.
+For an effective way to build, [keep prompts about the product and work from the inside out](/docs/building/working-with-your-agent): logic and behavior tests, then integrations, then APIs and UI. The Fluxzero plugin provides the framework guidance, so one agent and a clear product idea are enough to start.
 
-<CardGrid>
-  <LinkCard title="Build your first feature" description="Describe a booking app, try it locally, and make your first improvement." href="/docs/building/first-feature" />
-  <LinkCard title="Start with an example" description="Explore Home or Ticketing with your agent and make it your own." href="/docs/building/example-apps" />
-</CardGrid>
+## Start with a working app
 
-## Why we built Fluxzero
-
-Our team kept seeing the same work repeated in product after product. Before a team could focus on what made its
-application useful, it had to connect databases, arrange background jobs, secure requests, handle failures, and find
-out what happened when something went wrong. As products grew, more time went into keeping those pieces together.
-
-We built Fluxzero to solve that recurring work once and operate it as a shared cloud foundation for every product,
-from a small tool to a demanding enterprise system. The people building an app should be able to spend their attention on its purpose.
-A booking app should be about bookings. A ticketing app should be about tickets, payments, and getting people into a show.
-
-AI makes that ambition available to more people. You can now describe a product without being the person who writes
-its code. But generated code still needs a dependable place to store information, enforce rules, and run. Fluxzero
-brings those capabilities together, with consistent patterns and documentation that your agent can use throughout
-the application. Your agent spends its context and tokens on your product instead of rebuilding infrastructure.
-As we improve the cloud's security, recovery, performance, and operational tools, every product benefits from the
-same maintained foundation. [Our story](/about) explains where that commitment came from.
-
-## From an idea to working behavior
-
-Suppose you're building a booking app. You might start with:
-
-> Let people book a place in a workshop. Don't allow more bookings than available places.
-> Send a reminder the day before, and let people cancel their booking.
-
-Those are the rules of your product. Your agent turns them into actions, stored information, and tests:
-reserve a place, check capacity, remember the booking, schedule the reminder, and release the place after cancellation.
-Fluxzero provides these building blocks together, so adding a reminder doesn't mean setting up another service.
-
-As you try the app, you can refine the rules. Perhaps cancelled places should go to a waiting list, or different
-workshops need different cancellation policies. Your agent can extend the existing application around those needs.
-
-## Start small, grow with your product
-
-You can use Fluxzero as a solo builder, in a small team, or within a large organization.
-You don't need a development team to get started. If developers are involved, they can work directly in the same
-Java or Kotlin codebase, review changes, and extend what your agent builds.
-
-Your first version can grow into the product you need. Add features, connect other services, and scale its execution
-on Fluxzero while continuing to work in the same application. The foundation for storage, background work, access, and
-visibility is already there as your product takes on more responsibility.
-
-The product remains ordinary application code in your repository. Its rules, tests, and history can be inspected.
-That matters whether you're checking your first feature yourself or collaborating with people responsible for
-security, operations, and delivery across an enterprise.
-
-## A foundation for the whole application
-
-Fluxzero supplies the common capabilities underneath your product:
+[Set up your agent](/docs/tools/agent-plugin), then try the Ticketing example. The first two tutorials take you through one local flow and one small change. You do not need a cloud subscription, payment account or coding experience to follow them.
 
 <CardGrid>
-  <Card title="Rules hold under pressure" icon="approve-check">
-    Define the booking rule once. Fluxzero coordinates competing changes so two buyers cannot both reserve the
-    last place, and related updates succeed together.
-  </Card>
-  <Card title="Work survives interruptions" icon="rocket">
-    Accepted work is recorded before it is handled. Restarts preserve progress; failed work stays available to
-    investigate and replay after its cause is fixed.
-  </Card>
-  <Card title="Protect access and data" icon="document">
-    Fluxzero receives public traffic while your backend stays private. Your app defines access rules and marks
-    sensitive data for protection and erasure.
-  </Card>
-  <Card title="See and check the result" icon="magnifier">
-    Follow a request through its messages, data changes, and failures. Your agent can turn the recorded evidence
-    into a test and verify a fix locally.
-  </Card>
+  <LinkCard title="Explore a working app" description="Reserve places in Ticketing and find the evidence in Devboard." href="/docs/building/local-development" />
+  <LinkCard title="Make your first change" description="Improve a screen with your agent and check the result." href="/docs/building/first-feature" />
 </CardGrid>
 
-Your application defines how these capabilities serve your product. For example, Fluxzero can enforce an access
-rule, but you decide whether cancelling a workshop is allowed for its organizer, an administrator, or both.
+Already know what you want to build? [Start an app from your idea](/docs/building/start-an-app). Prefer a home automation example? [Explore Home](/docs/building/example-apps#fluxzero-home).
 
-For the mechanisms behind these guarantees, explore [Technical foundation](/technical-foundation).
-[Product insight](/product-insight) shows the evidence available to you and your agent.
+<span id="choose-the-documentation-you-need"></span>
+<span id="why-we-built-fluxzero"></span>
+<span id="start-small-grow-with-your-product"></span>
+<span id="a-foundation-for-the-whole-application"></span>
 
-## From your first instruction to a live app
+## Choose the help you need
 
-### 1. Give your agent the Fluxzero instruction
+| Your goal | Start here |
+| --- | --- |
+| Learn by doing | [Explore an app](/docs/building/local-development), then [make a change](/docs/building/first-feature) |
+| Complete a task | [Check a feature](/docs/building/test-and-improve), [investigate a problem](/docs/building/investigate), or [publish](/docs/tutorials/cloud-deployment) |
+| Understand the approach | [You, your agent and Fluxzero](/docs/building/working-with-your-agent) and [the toolkit](/docs/building/fluxzero-toolkit) |
+| Look up a screen | [Devboard](/docs/building/devboard), [cloud dashboard](/docs/building/dashboard), or [monitoring](/docs/building/monitoring) |
+| Install or automate something | [Tools & automation](/docs/tools/overview) |
+| Work directly in the code | [Developer Guides](/docs/getting-started/core-concepts) and [SDK installation](/docs/getting-started/installation) |
 
-Open [Get started](https://fluxzero.io/get-started), copy the instruction, and give it to your coding agent.
-It sets up the Fluxzero tools and gives your agent access to its own documentation, matched to your project's SDK.
-Then describe what you want to build, who will use it, and the first thing they should be able to do.
+<span id="from-your-first-instruction-to-a-live-app"></span>
+<span id="3-publish-your-app-on-fluxzero"></span>
 
-You could start with the workshop booking example above. Ask for a small, complete flow you can try, including its
-screens, rules, and tests. You don't need to choose databases, design message handling, or learn Java first.
+## From local work to a live product
 
-### 2. Build and try the whole app locally
-
-Your agent creates the project on your computer and uses the Fluxzero CLI and Dev Server to run it.
-The Dev Server builds changes, runs tests automatically, and manages the backend, UI, and local services together.
-Your agent gives you a link to **Devboard**, where you can use the app in **App preview**.
-
-<Aside type="tip" title="Your local workshop">
-The CLI and Dev Server let you build and test for Fluxzero on your own computer. Local development prepares the
-application you will publish on the cloud; your live users will not depend on this computer staying on.
-</Aside>
-
-Try booking a workshop, filling its last place, and cancelling a booking. Describe what should change:
-“Show the remaining places before I book” or “Let me join a waiting list when the workshop is full.”
-Your agent updates the app and its tests; you return to the same preview to try the result.
-
-Devboard also shows the project's progress, tested scenarios, and running services. You can follow the work without
-reading the code or a terminal. The [Local development guide](/docs/building/local-development) shows this with a ticketing app.
+Local development runs on your computer. Devboard gives you a shared view of the app, tested scenarios and work in progress. Your agent can use the same environment to diagnose problems and check fixes.
 
 <span id="3-connect-your-github-repository-to-fluxzero-cloud"></span>
 
-### 3. Publish your app on Fluxzero
+Publishing delivers a checked version to Fluxzero, where your users can reach it without your computer running. The live application has its own data, configuration and access rules. Follow [Publishing your app](/docs/tutorials/cloud-deployment), then [publish updates](/docs/building/publish-updates) and [manage the live app](/docs/building/dashboard).
 
-When you're ready to share the app, ask your agent to prepare its GitHub repository and deployment workflow.
-In Fluxzero, connect GitHub and authorize that repository to deploy to your Fluxzero organization.
-Your agent can prepare the files and explain the choices; you control access and when to deploy.
-
-Deploy the checked version and open the app at its live address. Your users can now use it without your computer
-running. Continue building and testing locally, then deploy the next version when it is ready.
-The [Publishing your app guide](/docs/tutorials/cloud-deployment) explains the steps.
-
-## Choose the documentation you need
-
-**Building with Fluxzero** follows the work you do as a builder:
-
-- [Build your first feature](/docs/building/first-feature) — take one idea through a complete local flow.
-- [Example apps](/docs/building/example-apps) — try Home or Ticketing and build on a working product.
-- [The Fluxzero toolkit](/docs/building/fluxzero-toolkit) — understand what the tools do for you.
-- [Understand your app](/docs/building/monitoring) — follow actions, inspect saved data, and investigate with your agent.
-- [Test and improve your app](/docs/building/test-and-improve) — turn feedback into changes you can check.
-- [Publishing your app](/docs/tutorials/cloud-deployment) — make a checked version available to other people.
-
-**Developer Guides** are optional technical reading for people who want to work in the code or understand a particular
-capability. You do not need them to build with an agent. Agents have their own documentation set covering Fluxzero's
-concepts, APIs, and development workflows; you don't have to read or teach those concepts to your agent.
-
-If you want to explore the code yourself, start with [Core concepts](/docs/getting-started/core-concepts) or the
-[to-do app tutorial](/docs/tutorials/first-app).
+For the wider product story, see [How it works](/how-it-works), [Product code](/product-code) and [Product insight](/product-insight).

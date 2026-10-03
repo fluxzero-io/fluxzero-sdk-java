@@ -3,13 +3,14 @@ title: Example apps
 description: Try Fluxzero Home and Ticketing locally, explore their behavior, and build on them with your agent.
 ---
 
-import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
+import AgentPrompt from '~/components/docs/AgentPrompt.astro';
+import { Card, CardGrid } from '@astrojs/starlight/components';
 
 An existing app gives you something concrete to try before deciding what you want to build. These public examples
 include a working UI, application rules, tests, and instructions for your agent. You can explore them or use them as
-the starting point for your own changes. They use Fluxzero's SDK to build apps for the cloud; you can explore them
-locally before publishing your own version on Fluxzero.
+the starting point for your own changes. You can explore them locally before publishing your own version on Fluxzero.
 
+<div className="guide-cards">
 <CardGrid>
   <Card title="Home" icon="laptop">
 
@@ -26,8 +27,9 @@ Find an event, reserve places, and follow tickets through to admission.
 
   </Card>
 </CardGrid>
+</div>
 
-[Set up your agent with Fluxzero](/get-started), then use one of the requests below. “Clone” means making a local
+[Set up your agent with Fluxzero](/docs/tools/agent-plugin), then use one of the requests below. “Clone” means making a local
 copy of the repository on your computer; your changes there do not change the public example.
 
 ## Fluxzero Home
@@ -42,16 +44,12 @@ Home Assistant installation; connecting real devices is a separate step document
 
 *From Home's GitHub repository, shown with its optional Home Assistant connection.*
 
-> Clone https://github.com/fluxzero-io/fluxzero-sample-home and run this existing example locally. Follow its project
-> instructions and use the Fluxzero tools. Open Devboard and help me try a scene with the demo devices.
+<AgentPrompt text={"Clone https://github.com/fluxzero-io/fluxzero-sample-home and run this existing example locally. Follow its project instructions and use the Fluxzero tools. Open Devboard and help me try a scene with the demo devices."} />
 
 Try a scene, look at the devices it affects, and explore the routines. Then ask your agent to explain one of the
 scenarios in **Tests** in terms of what someone living in the home would experience.
 
-<Aside type="tip" title="Make it yours">
-Add a “Leaving home” scene for the demo home. Let me choose which lights it turns off, show what it will change,
-and test that devices I did not select keep their current state.
-</Aside>
+<AgentPrompt label="Try your own change" text={"Add a “Leaving home” scene for the demo home. Let me choose which lights it turns off, show what it will change, and test that devices I did not select keep their current state."} />
 
 ## Fluxzero Ticketing
 
@@ -65,17 +63,13 @@ useful example when your product has limited availability, deadlines, money, or 
 
 *From Ticketing's GitHub repository, showing its demo events.*
 
-> Clone https://github.com/fluxzero-io/fluxzero-sample-ticketing and run it locally using its local demo profile.
-> Follow its project instructions and open Devboard. Help me reserve two places, then show me the organizer workspace.
+<AgentPrompt text={"Clone https://github.com/fluxzero-io/fluxzero-sample-ticketing and run it locally using its local demo profile. Follow its project instructions and open Devboard. Help me reserve two places, then show me the organizer workspace."} />
 
 Start by browsing an event and reserving places. Ask your agent to show how a reservation expires and how the tests
-check that a ticket cannot be admitted twice. The [Local development guide](/docs/building/local-development) uses
+check that a ticket cannot be admitted twice. The [Explore a working app tutorial](/docs/building/local-development) uses
 this app and shows where to find the preview, progress, and tests.
 
-<Aside type="tip" title="Make it yours">
-Let a visitor save favorite events and find them again after signing in. Keep each person's favorites private,
-and show me the tests for that rule.
-</Aside>
+<AgentPrompt label="Try your own change" text={"Let a visitor save favorite events and find them again after signing in. Keep each person's favorites private, and show me the tests for that rule."} />
 
 Use the local demo setup to explore first. Connecting an actual payment provider or installing tickets in a phone's
 wallet requires the provider or issuer configuration described in the repository.

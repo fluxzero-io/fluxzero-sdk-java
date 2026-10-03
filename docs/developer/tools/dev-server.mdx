@@ -1,0 +1,59 @@
+---
+title: Dev Server
+description: Understand the managed local development loop, profiles, services, startup and configuration.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+The Dev Server coordinates a local Fluxzero environment. It starts the runtime, request proxy and configured identity provider, manages backend and frontend processes, watches changes and runs affected tests. It makes the results available to your agent and to [Devboard](/docs/building/devboard).
+
+## The development loop
+
+<GuideFlow label="The local feedback loop" stages={[
+  { title: "Change the code", description: "Your agent edits the product in the current project." },
+  { title: "Build + test", description: "The server updates affected parts and runs relevant tests." },
+  { title: "Try + refine", description: "Inspect the preview and feedback, then make the next change." },
+]} />
+
+On startup, the server resolves the project's setup, prepares services, builds and launches applications, and runs configured startup actions. During development it watches relevant changes and updates the affected parts. A failing new build can leave the last working application available; a responding preview therefore does not prove that the newest edit is running.
+
+Use the status and problem tools to distinguish compilation, service readiness, application startup and test failures. Starting a second Maven/Gradle watcher beside the managed loop produces competing work and makes the source of feedback harder to identify.
+
+## Project configuration
+
+Shared configuration belongs in `.fluxzero/dev.yaml`. It can describe named profiles, apps, application settings, frontend commands, additional services and startup commands. A profile selects a complete setup, such as a self-contained local demo or an external-service sandbox.
+
+From the project directory, inspect the reference for the selected distribution:
+
+```sh
+fz dev config
+```
+
+Use this version-aligned output when adding settings rather than copying configuration from an unrelated project's server version. Start a named profile with `fz dev --profile profile-name`, replacing the name with one actually defined by the project.
+
+## Managed and external components
+
+The frontend can be managed by the server or provided as an external URL. Identity can use the managed local provider or application-owned external configuration. Projects can include multiple backend apps and additional services with readiness checks.
+
+External components retain their own lifecycle and credentials. A local profile that connects to a real service can produce real effects there. Keep local demo data and credentials out of live configuration.
+
+## Restart scope and local data
+
+| Action | Scope |
+| --- | --- |
+| Reload preview | Reload the browser view |
+| Restart an app in Workspace | Restart the selected application process |
+| Restart apps | Restart backend apps/UI servers while retaining shared services |
+| `fz dev restart` | Reinitialize the complete environment and managed processes |
+| Stop workspace/environment | Stop the scope selected by the control; read its description before confirming |
+
+<Aside type="note" title="Choose the restart scope">
+Ephemeral runtime data can be lost during a full restart. Progress records and retained monitoring have their own storage/lifecycle; do not assume every restart clears every history. Startup commands can seed data again, so their ordering and result are part of the environment's readiness.
+</Aside>
+
+## When something fails
+
+Start with **Workspace** and the agent's status/problems. If the app is missing its demo data, inspect **Startup**. If only one change fails to appear, inspect the latest build. If a behavior fails despite a running app, follow [Investigate unexpected behavior](/docs/building/investigate).
+
+For full configuration, lifecycle and testing behavior, use the [Dev Server reference](https://github.com/fluxzero-io/fluxzero-dev-server). For human-readable screen controls, use [Devboard reference](/docs/building/devboard).
