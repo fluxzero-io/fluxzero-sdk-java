@@ -573,7 +573,7 @@ class ProxyServerTest {
         }
 
         @Test
-        void largeResponseHeadersAreServed() {
+        void largeResponseHeadersAreServedOverHttp1() {
             String largeHeader = "y".repeat(128 * 1024);
             testFixture.registerHandlers(new Object() {
                         @HandleGet("/large-response-header")
@@ -586,8 +586,9 @@ class ProxyServerTest {
                     })
                     .whenApplying(fc -> httpClient.send(
                             newBuilder(URI.create(format("http://localhost:%s/large-response-header", proxyPort)))
-                                    .GET().build(), BodyHandlers.ofString()))
+                                    .version(HttpClient.Version.HTTP_1_1).GET().build(), BodyHandlers.ofString()))
                     .verifyResult(response -> {
+                        assertEquals(HttpClient.Version.HTTP_1_1, response.version());
                         assertEquals(200, response.statusCode());
                         assertEquals("large-header", response.body());
                         assertEquals(largeHeader.length(),
