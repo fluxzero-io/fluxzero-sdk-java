@@ -181,7 +181,9 @@ class GraphReadTrackingTest {
         assertEquals(AliasedNode.class, read(() -> graph.knownType().orElseThrow()));
         assertEquals("AliasedNode", read(graph::modelName));
         assertTrue(attempt.readAliasIds(ModelConflictPolicy.RETRY).isEmpty());
-        org.mockito.Mockito.verifyNoInteractions(source);
+        // Capturing a view reads its application policy, but static metadata must not resolve model state.
+        verify(source).documentFallbackEnabled();
+        org.mockito.Mockito.verifyNoMoreInteractions(source);
     }
 
     @Model(searchable = false) record AliasedNode(@EntityId String id, @Alias String name) {}

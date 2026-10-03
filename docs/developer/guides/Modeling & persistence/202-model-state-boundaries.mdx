@@ -13,7 +13,7 @@ query visibility, authorization and protection of secrets are different decision
 | --- | --- | --- |
 | Create or change related state atomically | One Model action with multiple `@Apply` targets, including parent/child creation | External calls, schedules and unrelated repositories are not in that transaction |
 | Load by identity | `Fluxzero.loadModel(id)` | Uses the Model's authoritative load path; identity knowledge is not authorization |
-| Persist current state without Model events | `DOCUMENT` plus `eventPublication = NEVER` | No Model history or `previous()`; does not suppress incoming command/webrequest logs, results or application logs |
+| Persist current state without Model events | `DOCUMENT` plus `eventPublication = NEVER` | No stored historical document values; Graphs may use [current-value fallback](/docs/guides/modeling-and-persistence/temporal-graphs); does not suppress incoming command/webrequest logs, results or application logs |
 | Keep DOCUMENT state internal | No effective searchability (the default unless an ancestor activates it) | Identity reads remain possible; search and search-based parent/ancestor selection require effective searchability |
 | Check concurrent changes | `RETRY` or `FAIL` and injected Models/Graphs | Use assertions within the action; a separate query/read followed by a write is not an atomic check |
 | Delete from current state | Return `null` from `@Apply` | Does not erase retained history; follows configured parent ownership |

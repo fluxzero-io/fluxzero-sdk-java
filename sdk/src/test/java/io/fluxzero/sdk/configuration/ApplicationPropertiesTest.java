@@ -80,6 +80,26 @@ class ApplicationPropertiesTest {
                      () -> ApplicationProperties.getDefaultsVersion(defaultsVersion("2026-06-09")));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource(value = {
+            "null,null,false", "2026.10.02,null,false", "2026.10.03,null,true", "2026.10.04,null,true",
+            "null,true,true", "2026.10.02,true,true", "2026.10.03,false,false", "2026.10.04,false,false"
+    }, nullValues = "null")
+    void historicalGraphDocumentFallbackRespectsDefaultsAndOverrides(String version, String configured, boolean expected) {
+        PropertySource properties = key -> switch (key) {
+            case ApplicationProperties.DEFAULTS_VERSION_PROPERTY -> version;
+            case ApplicationProperties.GRAPH_DOCUMENT_FALLBACK_PROPERTY -> configured;
+            default -> null;
+        };
+        assertEquals(expected, ApplicationProperties.graphDocumentFallbackEnabled(properties));
+    }
+
+    @Test
+    void historicalGraphDocumentFallbackRejectsInvalidDefaults() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> ApplicationProperties.graphDocumentFallbackEnabled(defaultsVersion("invalid")));
+    }
+
     private static PropertySource defaultsVersion(String value) {
         return name -> ApplicationProperties.DEFAULTS_VERSION_PROPERTY.equals(name) ? value : null;
     }

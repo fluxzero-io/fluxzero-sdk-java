@@ -73,7 +73,9 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * handler object may declare separate complete-change methods for different {@code Graph<T>} root types; each changed
  * root is routed to its matching typed method. Cascaded deletions also reach a complete-change child-Graph handler,
  * with an empty current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
- * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions.
+ * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions. Historical views can use current
+ * document values through {@link #withDocumentFallback(boolean)} or the application property
+ * {@code fluxzero.model.graph.documentFallback}, enabled by defaults version {@code 2026.10.03}.
  * <p>
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
  * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or
@@ -162,6 +164,18 @@ public interface Graph<T> {
     /** Maps the current model value when present without loading relationship context. */
     default <R> Optional<R> map(Function<? super T, ? extends R> mapper) {
         return optional().map(mapper);
+    }
+
+    /**
+     * Returns a view that uses current DOCUMENT-only values when a historical value is unavailable.
+     * Historical relationships and proven historical absence remain pinned. The current value may belong to a
+     * recreated model with the same ID and is null after deletion. Each value is retained after its first read;
+     * different nodes do not form an atomic current snapshot. Event-sourced replay errors remain errors.
+     * Pass false for strict historical reads. This option never relaxes mutation, assertion or apply reads.
+     * The option follows parents, children and previous views without changing this view.
+     */
+    default Graph<T> withDocumentFallback(boolean enabled) {
+        return Graphs.withDocumentFallback(this, enabled);
     }
 
     /** Returns the current model value or the supplied fallback. */
@@ -821,7 +835,9 @@ public interface Graph<T> {
      * has no previous graph, including when a deleted identity is recreated or a node is absent at that boundary.
      * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
      * stores current state, not document versions: it does not provide durable prior values after overwrite. A
-     * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.</p>
+     * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.
+     * With {@link #withDocumentFallback(boolean) document fallback}, preceding DOCUMENT-only coordination revisions
+     * can be traversed using the current value; their values are not historical document versions.</p>
      * <p>If an event-sourced revision has no cached predecessor, the repository reconstructs its historical
      * before-state lazily, including when the current revision was loaded from a snapshot. Custom repositories
      * must support historical Graph reads for this fallback.</p>

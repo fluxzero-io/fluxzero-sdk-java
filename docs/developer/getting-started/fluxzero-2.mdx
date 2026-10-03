@@ -1061,7 +1061,7 @@ data class TaskStatus(
 
 For Task `task-a`, the status has storage ID `task-status-task-a`. Its identity scheme allows one status per Task without merging their state. Load it with `Fluxzero.loadModel(taskId, TaskStatus.class)` (Kotlin: `TaskStatus::class.java`). The parent edge follows Task's lifecycle; its `status` composition path is still a collection.
 
-Updating status does not append to Task's stream. Task history also does not provide old status values: a historical Graph that consumes an overwritten DOCUMENT-only value may fail to reconstruct it. Choose both persistence modes for the status when durable historical processing is required. The [mixed-persistence contract](#state-indexes-and-mixed-persistence) explains that boundary.
+Updating status does not append to Task's stream. Task history also does not provide old status values: a strict historical Graph that consumes an overwritten DOCUMENT-only value fails to reconstruct it; a fallback view can use its current value. Choose both persistence modes for the status when durable historical processing is required. The [mixed-persistence contract](#state-indexes-and-mixed-persistence) explains that boundary.
 
 #### Which documents are stored?
 
@@ -1244,9 +1244,16 @@ Read each row as one Model's history. The vertical line selects boundary 30. Pro
 
 State indexes encode time in the same way as message indexes. `IndexUtils.timestampFromIndex(index)` decodes the timestamp. For a time-based view, use `graph.atStateIndex(IndexUtils.maxIndexFromMillis(instant.toEpochMilli()))` to include the commits through that millisecond. This requires retained reconstructible history; it cannot undo physical erasure.
 
-A mixed Graph can contain event-sourced Project/Task nodes and a DOCUMENT-only status node. If the status at 10:00 was overwritten at 10:05, reading that node in the 10:00 Graph cannot silently return the newer status. The SDK keeps the historical boundary and fails the value read if it cannot reconstruct the requested revision. Lazy navigation means a handler that never reads that status may still use the reconstructible parts of the Graph.
+A mixed Graph can contain event-sourced Project/Task nodes and a DOCUMENT-only status node. Historical values use
+retained event history where available. With `fluxzero.model.graph.documentFallback=true` (enabled from defaults
+version `2026.10.03`), an overwritten DOCUMENT-only value falls back to the current value of the same ID. It becomes
+`null` after current deletion and may come from a recreation. Historical absence and relationships remain pinned.
+This also applies to `previous()`; fallback values do not represent exact before/after document versions.
 
-`previous()` does not make a DOCUMENT-only node stay current inside an otherwise historical Graph. A standalone current DOCUMENT-only Model may have no previous value (`previous() == null` after cache loss); a complete Graph-change handler's explicit before-boundary still cannot manufacture missing document history. Event injection has the same restriction. Keep `EVENT_SOURCED` when historical processing is required and enable `searchable` separately for search. Add `DOCUMENT` only when internal current-document state is also required. Use an explicitly separate current read when current status is the actual question.
+Use `graph.withDocumentFallback(false)` for a strict view, or `true` to opt in for one Graph. Without a defaults
+version, the application default remains strict. Assertions, applies and replay stay strict in either mode. Fallback
+values are retained per view after reading, but separate nodes do not form an atomic current snapshot. See
+[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for configuration, Java/Kotlin examples and Runtime compatibility.
 
 ### 5. React to the whole Graph, without enumerating its events
 

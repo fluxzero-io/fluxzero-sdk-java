@@ -23,6 +23,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
@@ -37,6 +38,7 @@ import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -214,6 +216,20 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         if (references.present() && references.modelId() == null && isNullable(parameter)) {
             return null;
         }
+        ModelGraphResolver fallback = documentFallbackResolver(input, plan);
+        if (fallback != null && input instanceof DeserializingMessage message) {
+            ModelBinding binding = modelBinding(message, plan);
+            Graph<?> graph = binding.graph(parameter, model, references, fallback, modelRepository(input));
+            if (graph != null) {
+                if (model.graphWrapped()) { return graph; }
+                // Ordinary Model/Entity parameters keep strict values, without materializing unrelated Graph targets.
+                Entity<?> entity = binding.strictEntity(graph, fallback);
+                if (model.entityWrapped()) { return entity; }
+                if (entity.isPresent() || isNullable(parameter)) { return entity.get(); }
+                throw new IllegalStateException("Model parameter %s resolved to a missing or deleted model"
+                                                        .formatted(parameter));
+            }
+        }
         CommitAttempt context = modelContext(input).orElseGet(() ->
                 input instanceof DeserializingMessage message ? modelContext(message, plan) : null);
         Entity<?> entity = context == null ? null
@@ -254,6 +270,14 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         if (references.modelIds().isEmpty()) {
             return List.of();
         }
+        ModelGraphResolver fallback = documentFallbackResolver(input, plan);
+        if (fallback != null && input instanceof DeserializingMessage message) {
+            ModelBinding binding = modelBinding(message, plan);
+            Map<String, Graph<?>> graphs = binding.graphs(fallback, modelRepository(input));
+            if (graphs.keySet().containsAll(references.modelIds())) {
+                return references.modelIds().stream().map(graphs::get).toList();
+            }
+        }
         CommitAttempt context = modelContext(input).orElseGet(() ->
                 input instanceof DeserializingMessage message ? modelContext(message, plan) : null);
         if (context == null) {
@@ -272,6 +296,18 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             result.add(Graphs.lazy(entity, context, repository));
         }
         return List.copyOf(result);
+    }
+
+    private static ModelGraphResolver documentFallbackResolver(Object input, EntityMetadata.ExecutableParameters plan) {
+        if (plan.values().stream().noneMatch(model -> model.graphWrapped() && Graphs.documentOnly(model.modelType()))
+            || modelContext(input).isPresent() || Entity.isLoading()
+            || !(input instanceof DeserializingMessage message)
+            || message.getMessageType() != MessageType.EVENT && message.getMessageType() != MessageType.NOTIFICATION) {
+            return null;
+        }
+        ModelRepository repository = modelRepository(input);
+        return repository instanceof ModelGraphResolver resolver && resolver.documentFallbackEnabled()
+               && CommitAttempt.currentReadContext(repository) == null ? resolver : null;
     }
 
     private static MutationPlan.DirectReferences modelReferences(
@@ -348,6 +384,48 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     private static final class ModelBinding {
         private final MutationPlan.Resolution resolution;
         private volatile CommitAttempt context;
+        private Map<String, ModelGraphResolver.Identity> identities;
+        private Map<String, Graph<?>> graphs;
+
+        private synchronized Map<String, Graph<?>> graphs(ModelGraphResolver resolver, ModelRepository repository) {
+            if (graphs == null) {
+                Map<String, Class<?>> types = new LinkedHashMap<>();
+                resolution.models().forEach(model -> types.put(model.modelId(), model.modelType()));
+                identities = resolver.resolveBoundGraphIdentities(types);
+                graphs = new LinkedHashMap<>();
+                identities.forEach((requested, identity) -> {
+                    Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue head
+                            ? head.type() : types.get(requested);
+                    graphs.put(requested, GraphState.identity(
+                            identity.modelId(), identity.modelId(), true, type, repository)
+                            .retainIdentity(identity).valueHistory(identity.historical()).root());
+                });
+            }
+            return graphs;
+        }
+
+        private Graph<?> graph(Parameter parameter, EntityMetadata.ModelParameter model,
+                               MutationPlan.DirectReferences references, ModelGraphResolver resolver,
+                               ModelRepository repository) {
+            Map<String, Graph<?>> bound = graphs(resolver, repository);
+            if (references.present()) { return bound.get(references.modelId()); }
+            Map<String, Graph<?>> ancestors = new LinkedHashMap<>();
+            bound.values().forEach(source -> source.ancestor(model.modelType())
+                    .ifPresent(parent -> ancestors.put(parent.id().toString(), parent)));
+            if (ancestors.size() > 1) {
+                throw new IllegalStateException("Multiple ancestors match model parameter " + parameter);
+            }
+            return ancestors.isEmpty() ? null : ancestors.values().iterator().next();
+        }
+
+        private Entity<?> strictEntity(Graph<?> graph, ModelGraphResolver resolver) {
+            String id = graph.id().toString();
+            ModelGraphResolver.Identity identity = identities.values().stream()
+                    .filter(value -> id.equals(value.modelId())).findFirst().orElseGet(() ->
+                            resolver.resolveBoundGraphIdentities(Map.of(id, graph.type())).get(id));
+            return identity.entity().get();
+        }
+
 
         private ModelBinding(MutationPlan.Resolution resolution) {
             this.resolution = resolution;

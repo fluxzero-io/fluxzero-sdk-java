@@ -39,6 +39,18 @@ import java.util.function.Supplier;
  * Repositories without this capability retain their existing fully loaded Graph navigation.
  */
 public interface ModelGraphResolver {
+    /** Application default for current DOCUMENT-only fallback in historical Graph views. */
+    default boolean documentFallbackEnabled() { return false; }
+
+    /**
+     * Recovers only an unavailable historical document value. Implementations must preserve historical absence,
+     * resolve the exact canonical identity, and rethrow unrelated failures. The default preserves strict behavior.
+     */
+    default Object historicalDocumentFallback(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                              RuntimeException failure) {
+        throw failure;
+    }
+
     /**
      * Checks whether a pending undecorated alias may supply a missing prefixed root at this boundary.
      * An unrelated durable primary identity must retain precedence over the pending alias. Custom resolvers
@@ -54,6 +66,12 @@ public interface ModelGraphResolver {
      * writes must never enter this snapshot, even when its batch is active on the calling thread.
      */
     ModelBatchScope.Snapshot graphStagedValues(ModelReadBoundary boundary);
+
+    /**
+     * Resolves already bound handler references together without applying ID affixes again. Unlike exact canonical
+     * reads, these references may still be aliases. An empty map preserves existing eager parameter injection.
+     */
+    default Map<String, Identity> resolveBoundGraphIdentities(Map<String, Class<?>> modelTypes) { return Map.of(); }
 
     /** Loads deliberately current state with its namespace boundary, ignoring any active handler boundary. */
     Value loadCurrentGraphValue(Object modelId, Class<?> modelType);

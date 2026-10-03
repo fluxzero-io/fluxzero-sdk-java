@@ -300,13 +300,14 @@ an ancestor already deleted in an earlier substep is no longer reachable. It doe
 This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
 physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
 
-Historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with `DOCUMENT`),
-previous values can be replayed after a cache clear; cache depth and snapshots do not automatically prune Model events.
-`DOCUMENT` alone maintains current state, not document versions: a normal loaded Model has no durable `previous()`,
-and an event-boundary read cannot recover an overwritten document. Historical Graph values must be available for
-every node you actually inspect. Use event sourcing when before/after processing is required, not duplicated
-`previous...` fields as a general workaround. Explicit physical erasure or intentionally incomplete history remains
-a separate limit; there is no general automatic event-retention policy implied here.
+Exact historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with
+`DOCUMENT`), previous values can be replayed after a cache clear; cache depth and snapshots do not automatically
+prune Model events. `DOCUMENT` alone maintains current state, not document versions. Historical Graph views can
+opt into `withDocumentFallback(true)` or the application default described in `/docs/sdk/models/temporal-graphs`.
+An unavailable document then uses the current value of the same canonical ID, including a recreation, or `null`
+after current deletion. Historical relationships and proven historical absence stay pinned. `previous()` can
+therefore retain a historical boundary without providing an old document value. Use event sourcing when exact
+before/after values are required. Physical erasure and unrelated replay failures remain strict.
 
 ## Search and graph composition
 

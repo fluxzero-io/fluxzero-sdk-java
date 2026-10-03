@@ -277,10 +277,15 @@ deleted ancestor is not notified twice for that deletion. The cascaded child's `
 an ancestor already deleted in an earlier substep is no longer reachable. It does not rewind the whole commit.
 Suppressed publication and physical erasure do not manufacture domain notifications. Normal delivery retry rules apply.
 
-**Want to use `previous()`? Keep `EVENT_SOURCED` enabled.** `DOCUMENT` alone stores current state, not historical
+**Need exact previous values? Keep `EVENT_SOURCED` enabled.** `DOCUMENT` alone stores current state, not historical
 document versions. Neither a before-boundary nor a larger cache can reconstruct an overwritten document durably.
-This requirement applies to each historical Graph node whose value you inspect. Event sourcing plus `DOCUMENT`
+This requirement applies to each Graph node whose exact historical value you require. Event sourcing plus `DOCUMENT`
 retains history; ordinary snapshot/cache settings do not prune Model events automatically.
+
+Historical Graph views can instead use current DOCUMENT-only values with `withDocumentFallback(true)` or the
+application property `fluxzero.model.graph.documentFallback` (default from `2026.10.03`). This also applies to
+`previous()`, preserves historical relationships and absence, and never relaxes mutations. See
+[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for the complete fallback contract.
 
 ## Loading a complete model graph
 

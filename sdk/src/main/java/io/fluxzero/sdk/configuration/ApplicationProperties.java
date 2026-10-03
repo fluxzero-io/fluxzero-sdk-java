@@ -153,6 +153,19 @@ public class ApplicationProperties {
         return Guarantee.STORED;
     }
 
+    /**
+     * Enables current DOCUMENT-only fallback in historical Graph reads. Environment variable:
+     * {@code FLUXZERO_MODEL_GRAPH_DOCUMENT_FALLBACK}. Defaults to true from defaults version 2026.10.03.
+     */
+    public static final String GRAPH_DOCUMENT_FALLBACK_PROPERTY = "fluxzero.model.graph.documentFallback";
+
+    /** Resolves the historical Graph document fallback once from the application's own property source. */
+    public static boolean graphDocumentFallbackEnabled(PropertySource propertySource) {
+        String configured = propertySource.get(GRAPH_DOCUMENT_FALLBACK_PROPERTY);
+        return configured == null ? defaultsVersionAtLeast(propertySource, LocalDate.of(2026, 10, 3))
+                : Boolean.parseBoolean(configured.trim());
+    }
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**
@@ -249,6 +262,13 @@ public class ApplicationProperties {
      *         <td>Commands with one statically unambiguous Model apply and single-Model events use the canonical
      *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
      *         Set the property to {@code false} to retain compatibility behavior.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.10.03}</td>
+     *         <td>{@code fluxzero.model.graph.documentFallback = true}</td>
+     *         <td>Historical Graphs use current DOCUMENT-only values when a historical value is unavailable.
+     *         Historical absence and relationships remain pinned; assertions and applies stay strict.
+     *         Set the property to {@code false} to retain strict historical reads.</td>
      *     </tr>
      * </table>
      * <p>

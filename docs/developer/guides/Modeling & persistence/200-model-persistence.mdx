@@ -61,10 +61,15 @@ is insufficient):
 
 ## Event-sourced models
 
-**Want to use `previous()`? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
+**Need exact previous values? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
 stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
 replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
-substitutes for a durable event history. Every historical Graph node whose value you inspect needs that history.
+substitutes for a durable event history. Every Graph node whose exact historical value you require needs that history.
+
+Historical Graph views can instead use current DOCUMENT-only values with `withDocumentFallback(true)` or the
+application property `fluxzero.model.graph.documentFallback` (default from `2026.10.03`). This also applies to
+`previous()`, preserves historical relationships and absence, and never relaxes mutations. See
+[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for the complete fallback contract.
 
 Event sourcing is the default:
 

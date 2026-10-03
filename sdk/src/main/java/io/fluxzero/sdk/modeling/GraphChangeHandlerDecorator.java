@@ -252,15 +252,23 @@ public final class GraphChangeHandlerDecorator {
             Class<?> targetType = targetType(
                     target, payloadTypes, repository);
             if (targetType == null) {
-                addUnknownTargetAncestors(roots, target.getModelId(), rootType, repository, currentState);
+                addMetadataAncestors(roots, target.getModelId(), rootType, repository, currentState);
                 if (previousState >= -1L) {
-                    addUnknownTargetAncestors(roots, target.getModelId(), rootType, repository, previousState);
+                    addMetadataAncestors(roots, target.getModelId(), rootType, repository, previousState);
                 }
                 continue;
             }
             if (rootType.isAssignableFrom(targetType)) {
                 roots.putIfAbsent(
                         target.getModelId(), targetType.asSubclass(rootType));
+                continue;
+            }
+            if (repository instanceof ModelGraphResolver resolver && resolver.documentFallbackEnabled()) {
+                // Discover affected roots without materializing unavailable historical document values.
+                addMetadataAncestors(roots, target.getModelId(), rootType, repository, currentState);
+                if (previousState >= -1L) {
+                    addMetadataAncestors(roots, target.getModelId(), rootType, repository, previousState);
+                }
                 continue;
             }
             addRoots(roots, ancestors.loadAncestorGraphs(
@@ -295,7 +303,7 @@ public final class GraphChangeHandlerDecorator {
         return List.copyOf(result);
     }
 
-    private static <T> void addUnknownTargetAncestors(Map<String, Class<? extends T>> roots, String targetId,
+    private static <T> void addMetadataAncestors(Map<String, Class<? extends T>> roots, String targetId,
                                                      Class<T> rootType, ModelRepository repository, long stateIndex) {
         if (!(repository instanceof ModelGraphResolver resolver)) {
             throw new UnsupportedOperationException("Unknown Graph-change targets require metadata-only ancestor resolution");

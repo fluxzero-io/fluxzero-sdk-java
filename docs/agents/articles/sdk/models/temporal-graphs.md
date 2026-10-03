@@ -238,9 +238,49 @@ Inside a Model mutation, current reads join that attempt's boundary and staged c
 snapshot halfway through a business decision. Use injected Models/Graphs and their tracked dependencies for invariants;
 an arbitrary search result or detached historical Graph is not a transaction readset.
 
+## Mixed historical Graphs with current document values
+
+`EVENT_SOURCED` reconstructs historical values. `DOCUMENT` alone stores the current value. When an old document
+version is no longer available, a historical Graph can use the current value of the same persisted ID instead.
+If it has been deleted, `get()` returns `null`; if it has been recreated, the fallback may return that new value.
+A node proven absent or deleted **at the historical boundary** stays absent. Relationships stay historical:
+a moved child remains under its historical parent, and children added later do not enter the Graph.
+
+Set `fluxzero.model.graph.documentFallback=true` (`FLUXZERO_MODEL_GRAPH_DOCUMENT_FALLBACK`) to enable this
+application default, or opt into `fluxzero.defaults.version=2026.10.03` or later. An explicit `false` retains
+strict historical reads, including failures when a required document revision is unavailable. Applications
+without a defaults version retain strict behavior. The Runtime must support historical head-only metadata
+reads for DOCUMENT-only Models; upgrade the SDK and Runtime together for this capability.
+
+Override the policy on an individual view in Java:
+
+```java
+Graph<Project> readable = graph.withDocumentFallback(true);
+Graph<Project> strict = readable.withDocumentFallback(false);
+```
+
+Kotlin:
+
+```kotlin
+val readable = graph.withDocumentFallback(true)
+val strict = readable.withDocumentFallback(false)
+```
+
+The choice follows parents, children and `previous()`, including Graphs retained after an event or notification
+handler finishes. `atStateIndex(...)` on a fallback view resolves values lazily. A fallback value is retained after
+its first read in that view; later reads of the same view do not refresh it. Different nodes may observe different
+current instants, so this does not promise an atomic current snapshot. `stateIndex()` and `revisionStateIndex()`
+continue to describe the historical selection, not the age of a fallback value. Current scalar fields such as a
+child's parent ID may therefore differ from its historical Graph placement.
+
+Assertions, applies and replay remain strict, even when they receive a previously read fallback Graph. This option
+is a read policy, not durable document history or a way around conflict checking. Event-sourced replay failures,
+unknown contracts, unavailable keys and physical-erasure failures remain errors. Keep `EVENT_SOURCED` when exact
+historical values are required. Use `current()` when both current values and current relationships are intended.
+
 ## Retain the history you intend to inspect
 
-Every node whose historical value you inspect needs reconstructible event-sourced history. Plain `@Model` supplies
+Every node whose exact historical value you require needs reconstructible event-sourced history. Plain `@Model` supplies
 that. Adding `DOCUMENT` alongside `EVENT_SOURCED` keeps it; choosing only `DOCUMENT` retains current state rather than
 durable document versions. A larger cache cannot supply missing historical data after restart.
 
