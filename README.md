@@ -40,9 +40,14 @@ See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility)
 ## Proxy response header buffers
 
 Set `fluxzero.proxy.responseHeaderBufferSize` (`FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE`)
-to select the initial response header buffer capacity. The default is 8192 bytes; the separate
+to select the initial HTTP/1 response header buffer capacity. The default is 8192 bytes; the separate
 `FLUXZERO_PROXY_MAX_HEADER_SIZE` remains 1 MiB. Large headers can trigger a second allocation,
 whereas large response bodies do not require larger header buffers.
+
+HTTP/2 response headers default to a separate 16 KiB maximum from `fluxzero.defaults.version=2026.10.03`.
+Set `fluxzero.proxy.http2MaxResponseHeaderSize` (`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE`) explicitly
+to select the limit regardless of the defaults version; `1048576` retains the previous shared default maximum.
+Incoming request and HTTP/1 limits are unchanged. The buffering guidance below covers oversized responses.
 
 HTTP/1.1 header growth has a known connection-close limitation tracked in
 [Jetty #15840](https://github.com/jetty/jetty.project/issues/15840); see the

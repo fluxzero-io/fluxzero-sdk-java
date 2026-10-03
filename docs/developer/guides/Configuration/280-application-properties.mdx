@@ -128,6 +128,7 @@ An explicit `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
+| `>= 2026.10.03` | `fluxzero.proxy.http2MaxResponseHeaderSize = 16384` | Proxy HTTP/2 response headers use a 16 KiB maximum and pooled HPACK buffers. HTTP/1 and incoming request limits remain unchanged. Explicitly set `1048576` to retain the previous shared default maximum; the shared and peer limits still apply. |
 
 For example:
 

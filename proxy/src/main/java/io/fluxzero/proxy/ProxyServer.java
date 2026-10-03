@@ -16,8 +16,10 @@
 package io.fluxzero.proxy;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -42,6 +44,7 @@ import org.eclipse.jetty.websocket.server.WebSocketUpgradeHandler;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -147,6 +150,18 @@ public class ProxyServer implements Registration {
      */
     public static final String USE_OUTPUT_DIRECT_BYTE_BUFFERS_PROPERTY =
             "fluxzero.proxy.useOutputDirectByteBuffers";
+
+    /**
+     * Maximum HTTP/2 response-header list size in bytes. The environment variable is
+     * {@code FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE}. From defaults version {@code 2026.10.03},
+     * the default is 16 KiB; older or absent defaults retain the shared header maximum.
+     * An explicit positive value overrides the versioned default. The shared response maximum and the peer's
+     * advertised maximum still cap this value. HTTP/1 headers and incoming requests are unaffected.
+     */
+    public static final String HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY = "fluxzero.proxy.http2MaxResponseHeaderSize";
+
+    private static final LocalDate HTTP2_HEADER_LIMIT_DEFAULTS_VERSION = LocalDate.of(2026, 10, 3);
+    private static final int DEFAULT_HTTP2_MAX_RESPONSE_HEADER_SIZE = 16 << 10;
 
     static final String MAX_HEADER_SIZE_PROPERTY = "FLUXZERO_PROXY_MAX_HEADER_SIZE";
     static final String IDLE_TIMEOUT_MILLIS_PROPERTY = "FLUXZERO_PROXY_IDLE_TIMEOUT_MILLIS";
@@ -310,7 +325,7 @@ public class ProxyServer implements Registration {
         ServerConnector connector = new ServerConnector(
                 server,
                 new HttpConnectionFactory(httpConfiguration),
-                new HTTP2CServerConnectionFactory(httpConfiguration));
+                new HTTP2CServerConnectionFactory(http2Configuration(httpConfiguration, ApplicationProperties::getProperty)));
         connector.setHost(host);
         connector.setPort(port);
         connector.setIdleTimeout(getLongProperty(IDLE_TIMEOUT_MILLIS_PROPERTY, DEFAULT_IDLE_TIMEOUT_MILLIS));
@@ -362,6 +377,22 @@ public class ProxyServer implements Registration {
         if (configuredInitialSize < configuration.getMaxResponseHeaderSize()) {
             configuration.addCustomizer(new HeaderBufferConnectionCloseCustomizer());
         }
+    }
+
+    static HttpConfiguration http2Configuration(HttpConfiguration http1, PropertySource properties) {
+        HttpConfiguration http2 = new HttpConfiguration(http1);
+        Integer maximum = properties.getInteger(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY);
+        if (maximum == null && ApplicationProperties.defaultsVersionAtLeast(properties, HTTP2_HEADER_LIMIT_DEFAULTS_VERSION)) {
+            maximum = DEFAULT_HTTP2_MAX_RESPONSE_HEADER_SIZE;
+        }
+        if (maximum != null) {
+            if (maximum <= 0) {
+                throw new IllegalArgumentException(HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY + " must be positive");
+            }
+            // Jetty allocates the HPACK output buffer against this ceiling, including after peer SETTINGS updates.
+            http2.setMaxResponseHeaderSize(Math.min(maximum, http1.getMaxResponseHeaderSize()));
+        }
+        return http2;
     }
 
     private static QueuedThreadPool createThreadPool() {
