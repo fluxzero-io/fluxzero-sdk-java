@@ -275,12 +275,12 @@ Persistent instability fails with an explicit platform error.
 
 ## Complete graph-change handlers
 
-Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one
-of its descendants:
+Use one unqualified `Graph<T>` parameter to subscribe to every durable change of that root or one
+of its descendants. Optional `Message` and `Metadata` context parameters may appear in any order:
 
 ```java
 @HandleEvent
-void projectChanged(Graph<Project> graph) {
+void projectChanged(Graph<Project> graph, Message message, Metadata metadata) {
     Graph<Project> before = graph.previous();
 }
 ```
@@ -290,7 +290,7 @@ Creation has no previous graph; deletion supplies an empty current graph and the
 cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
 payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
 
-Cascade deletions use the same contract: a sole `Graph<Task>` handler sees an empty Task and its previous value even
+Cascade deletions use the same contract: a complete-change `Graph<Task>` handler sees an empty Task and its previous value even
 when a Project deletion caused it. No parent-specific cleanup handler or extra public technical event is required.
 The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
 boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving

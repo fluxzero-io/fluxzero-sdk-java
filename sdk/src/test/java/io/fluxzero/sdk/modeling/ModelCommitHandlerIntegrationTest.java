@@ -48,6 +48,8 @@ import lombok.extern.jackson.Jacksonized;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -614,6 +616,148 @@ class ModelCommitHandlerIntegrationTest {
                     assertMovedChildGraphs(
                             notifications, firstRootId, secondRootId, childId);
                 });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void graphChangeContextIsIndependentOfParameterOrder(boolean async) {
+        FamilyRootId firstRootId = new FamilyRootId("context-first");
+        FamilyRootId secondRootId = new FamilyRootId("context-second");
+        FamilyChildId childId = new FamilyChildId("context-child");
+        List<List<Graph<FamilyRoot>>> observations = java.util.stream.IntStream.range(0, 12)
+                .mapToObj(ignored -> (List<Graph<FamilyRoot>>) new CopyOnWriteArrayList<Graph<FamilyRoot>>())
+                .toList();
+        TestFixture fixture = TestFixture.create();
+        if (async) {
+            fixture = fixture.async();
+        }
+        fixture.registerHandlers(
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Graph<FamilyRoot> graph, Message message, Metadata metadata) {
+                                recordGraphContext(observations.get(0), graph, message, metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Graph<FamilyRoot> graph, Message message, Metadata metadata) {
+                                recordGraphContext(observations.get(6), graph, message, metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Message message, Graph<FamilyRoot> graph, Metadata metadata) {
+                                recordGraphContext(observations.get(1), graph, message, metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Message message, Graph<FamilyRoot> graph, Metadata metadata) {
+                                recordGraphContext(observations.get(7), graph, message, metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Message message, Metadata metadata, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(2), graph, message, metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Message message, Metadata metadata, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(8), graph, message, metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Graph<FamilyRoot> graph, Metadata metadata, Message message) {
+                                recordGraphContext(observations.get(3), graph, message, metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Graph<FamilyRoot> graph, Metadata metadata, Message message) {
+                                recordGraphContext(observations.get(9), graph, message, metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Metadata metadata, Graph<FamilyRoot> graph, Message message) {
+                                recordGraphContext(observations.get(4), graph, message, metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Metadata metadata, Graph<FamilyRoot> graph, Message message) {
+                                recordGraphContext(observations.get(10), graph, message, metadata);
+                            }
+                        },
+                        new Object() {
+                            @HandleEvent
+                            void onEvent(Metadata metadata, Message message, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(5), graph, message, metadata);
+                            }
+
+                            @HandleNotification
+                            void onNotification(Metadata metadata, Message message, Graph<FamilyRoot> graph) {
+                                recordGraphContext(observations.get(11), graph, message, metadata);
+                            }
+                        })
+                .givenCommands(new CreateFamilyRoot(firstRootId, "first"),
+                               new CreateFamilyRoot(secondRootId, "second"),
+                               new CreateFamilyChild(childId, firstRootId, "child"))
+                .whenCommand(new Message(new MoveFamilyChild(childId, secondRootId),
+                                         Metadata.of("context", "context-token")))
+                .expectNoErrors()
+                .expectThat(ignored -> observations.forEach(graphs -> {
+                    assertMovedChildGraphs(graphs, firstRootId, secondRootId, childId);
+                }));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void contextPreservesPayloadPrecedenceAndAllowedClasses(boolean async) {
+        FamilyRootId first = new FamilyRootId("filtered-first");
+        FamilyRootId second = new FamilyRootId("filtered-second");
+        FamilyChildId child = new FamilyChildId("filtered-child");
+        List<String> selected = new CopyOnWriteArrayList<>();
+        List<Graph<FamilyRoot>> filtered = new CopyOnWriteArrayList<>();
+        TestFixture fixture = async ? TestFixture.createAsync() : TestFixture.create();
+        fixture.registerHandlers(new Object() {
+                    @HandleEvent
+                    void changed(Graph<FamilyRoot> graph, Message message) {
+                        selected.add("graph");
+                    }
+
+                    @HandleEvent
+                    void created(CreateFamilyRoot event, Metadata metadata, Graph<FamilyRoot> graph) {
+                        selected.add("payload");
+                    }
+                }, new Object() {
+                    @HandleEvent(allowedClasses = MoveFamilyChild.class)
+                    void moved(Metadata metadata, Graph<FamilyRoot> graph) {
+                        filtered.add(graph);
+                    }
+                })
+                .givenCommands(new CreateFamilyRoot(first, "first"), new CreateFamilyRoot(second, "second"),
+                               new CreateFamilyChild(child, first, "child"))
+                .whenCommand(new MoveFamilyChild(child, second))
+                .expectNoErrors()
+                .expectThat(ignored -> {
+                    assertEquals(2, Collections.frequency(selected, "payload"));
+                    assertEquals(3, Collections.frequency(selected, "graph"));
+                    assertMovedChildGraphs(filtered, first, second, child);
+                })
+                .andThen().whenEvent("unrelated")
+                .expectNoErrors()
+                .expectThat(ignored -> {
+                    assertEquals(5, selected.size());
+                    assertEquals(2, filtered.size());
+                });
+    }
+
+    private static void recordGraphContext(List<Graph<FamilyRoot>> observations, Graph<FamilyRoot> graph,
+                                           Message message, Metadata metadata) {
+        if (message.getPayload() instanceof MoveFamilyChild) {
+            assertEquals(message.getMetadata(), metadata);
+            assertEquals("context-token", metadata.get("context"));
+            observations.add(graph);
+        }
     }
 
     @Test

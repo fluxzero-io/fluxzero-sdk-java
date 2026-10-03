@@ -242,8 +242,8 @@ repository I/O.
 
 ## Handling complete graph changes
 
-Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one of
-its descendants:
+Use one unqualified `Graph<T>` parameter to subscribe to every durable change of that root or one of
+its descendants. Optional `Message` and `Metadata` context parameters may appear in any order:
 
 ```java
 @HandleEvent
@@ -269,7 +269,7 @@ the matching typed `Graph<T>` method, so no per-type adapter objects are needed.
 A handler that also declares the explicit event payload remains an ordinary payload handler. Its `Graph<T>` parameter
 keeps the direct or ancestor-injection semantics described above.
 
-Cascaded logical deletions also notify the deleted child's sole-`Graph<T>` handler through the original domain event.
+Cascaded logical deletions also notify the deleted child's complete-change `Graph<T>` handler through the original domain event.
 It receives an empty current graph and the previous value; no extra public technical event or parent-specific cleanup
 handler is needed. Cascades retain their own internal change boundary. A child updated and then cascaded in one
 commit can therefore produce both observations; surviving shared ancestors observe removal as well. An already

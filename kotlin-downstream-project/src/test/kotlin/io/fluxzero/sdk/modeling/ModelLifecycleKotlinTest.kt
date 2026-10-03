@@ -12,7 +12,9 @@
  */
 package io.fluxzero.sdk.modeling
 
+import io.fluxzero.common.api.Metadata
 import io.fluxzero.sdk.Fluxzero
+import io.fluxzero.sdk.common.Message
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply
 import io.fluxzero.sdk.scheduling.ScheduleId
@@ -100,6 +102,32 @@ class ModelLifecycleKotlinTest {
             .expectThat {
                 it.cache().clear()
                 assertEquals(true, Fluxzero.loadModel(reminderId).get().completed)
+            }
+    }
+
+    @ParameterizedTest @ValueSource(booleans = [false, true])
+    fun graphHandlerReceivesMessageAndMetadata(async: Boolean) {
+        val projectId = ProjectId("context-project")
+        val changes = java.util.concurrent.CopyOnWriteArrayList<Graph<Project>>()
+        val handler = object {
+            @HandleEvent
+            fun changed(metadata: Metadata, graph: Graph<Project>, message: Message) {
+                assertEquals(message.metadata, metadata)
+                if (message.getPayload<Any>() is PlanReminder) {
+                    assertEquals("kotlin-context", metadata.get("context"))
+                    changes.add(graph)
+                }
+            }
+        }
+        fixture(async).registerHandlers(handler).givenCommands(CreateProject(projectId))
+            .whenCommand(Message(
+                PlanReminder(ReminderId("context-reminder"), projectId, Instant.parse("2026-01-01T00:00:00Z")),
+                Metadata.of("context", "kotlin-context")
+            ))
+            .expectNoErrors().expectThat {
+                assertEquals(1, changes.size)
+                assertEquals(projectId, changes.single().get()!!.projectId)
+                assertEquals(projectId, changes.single().previous()!!.get()!!.projectId)
             }
     }
 

@@ -19,7 +19,7 @@ supported historical archive.
 
 Use injected `Graph<T>` to inspect an event's before/after state. `previous()` returns a preceding view or `null`;
 `previousValue(...)` selects a prior field and `hasChanged(...)` compares it. Retain `EVENT_SOURCED` for every historical
-node you inspect. A sole-Graph change handler receives a before boundary for the whole affected graph; ordinary
+node you inspect. A complete Graph-change handler receives a before boundary for the whole affected graph; ordinary
 `revisions()` follows the selected Model's own revisions, not every descendant's update.
 
 Test state reconstruction separately from global publication. Include unchanged results, first creation, logical

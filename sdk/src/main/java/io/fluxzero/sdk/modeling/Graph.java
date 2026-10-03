@@ -66,12 +66,13 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * io.fluxzero.sdk.persisting.repository.ModelRepository, boolean)}) for transactional navigation. Opaque custom Graph
  * implementations fail explicitly on that path; ordinary non-transactional reads remain supported.
  * <p>
- * As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and
- * any descendant. The handler runs once per affected root and change boundary. {@link #previous()} returns the graph directly
+ * As the single unqualified Graph parameter of an event or notification handler, optionally accompanied by
+ * {@link io.fluxzero.sdk.common.Message} and {@link io.fluxzero.common.api.Metadata} in any order, a graph subscribes to
+ * durable changes of that root and any descendant. The handler runs once per affected root and change boundary. {@link #previous()} returns the graph directly
  * before the change; a child move therefore invokes the handler once for the old root and once for the new root. One
- * handler object may declare separate sole-parameter methods for different {@code Graph<T>} root types; each changed
- * root is routed to its matching typed method. Cascaded deletions also reach a sole child-Graph handler, with an empty
- * current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
+ * handler object may declare separate complete-change methods for different {@code Graph<T>} root types; each changed
+ * root is routed to its matching typed method. Cascaded deletions also reach a complete-change child-Graph handler,
+ * with an empty current root and its pre-deletion graph. Historical values require {@link ModelPersistence#EVENT_SOURCED};
  * {@link ModelPersistence#DOCUMENT} alone does not retain previous versions.
  * <p>
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary

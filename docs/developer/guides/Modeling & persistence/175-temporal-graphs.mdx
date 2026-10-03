@@ -95,7 +95,8 @@ fun on(event: CompleteTask, task: Graph<Task>) {
 A deleted Model can still arrive as an empty `Graph<T>`; a required bare `T` parameter would not match its absence.
 
 A handler that explicitly names `CompleteTask` only receives that payload type. To observe every published change in
-a Project and its descendants, use a Graph as the **sole** parameter:
+a Project and its descendants, use one unqualified Graph parameter, optionally accompanied by `Message` and
+`Metadata` in any order:
 
 <Tabs>
   <TabItem label="Java">
@@ -188,7 +189,7 @@ val selected = task.atStateIndex(savedStateIndex)
 follows those preceding revisions. Limit traversal for an interactive screen; a long history can require replay and I/O.
 
 A root's revision stream does **not** enumerate every descendant change. Adding Task B need not create another
-Project value revision. The sole-Graph event handler above supplies a special before boundary for the whole affected
+Project value revision. The complete Graph-change event handler above supplies a special before boundary for the whole affected
 graph. For arbitrary recorded points, `atStateIndex(savedStateIndex)` reconstructs values and relationships at the
 requested durable boundary, without overlaying pending current writes.
 
