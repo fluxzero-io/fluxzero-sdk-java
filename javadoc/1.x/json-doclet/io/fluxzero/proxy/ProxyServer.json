@@ -29,6 +29,14 @@
     "documentation" : null,
     "constantValue" : 0
   }, {
+    "name" : "DEFAULT_HTTP2_MAX_RESPONSE_HEADER_SIZE",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_HTTP2_MAX_RESPONSE_HEADER_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16384
+  }, {
     "name" : "DEFAULT_IDLE_TIMEOUT_MILLIS",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.DEFAULT_IDLE_TIMEOUT_MILLIS",
     "type" : "long",
@@ -172,6 +180,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer.HTTP2_MAX_RESPONSE_HEADER_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Maximum HTTP/2 response-header list size in bytes. The environment variable is\n {@code FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE}. The default is 16 KiB, independently of\n {@code fluxzero.defaults.version}. An explicit positive value overrides this default.\n The shared response maximum and the peer's advertised maximum still cap this value.\n HTTP/1 headers and incoming requests are unaffected.\n",
+    "constantValue" : "fluxzero.proxy.http2MaxResponseHeaderSize"
   }, {
     "name" : "IDLE_TIMEOUT_MILLIS_PROPERTY",
     "qualifiedName" : "io.fluxzero.proxy.ProxyServer.IDLE_TIMEOUT_MILLIS_PROPERTY",
@@ -827,6 +843,27 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "http2Configuration",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyServer#http2Configuration",
+    "returnType" : "org.eclipse.jetty.server.HttpConfiguration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "http1",
+      "type" : "org.eclipse.jetty.server.HttpConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "properties",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
