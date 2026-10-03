@@ -136,7 +136,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Maximum number of snapshots retained for this model. Values below {@code 1} are treated as {@code 1}.\n"
+    "documentation" : " Maximum number of snapshots retained for this model. Any negative value retains all periodic snapshots;\n {@code 0} is treated as {@code 1}. This does not enable snapshots: {@link #snapshotPeriod()} must be positive.\n Unlimited retention does not prevent explicit physical erasure and does not change event-history retention.\n Enable negative values only after upgrading the Runtime to support unlimited Model snapshot retention.\n"
   }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Model#name",

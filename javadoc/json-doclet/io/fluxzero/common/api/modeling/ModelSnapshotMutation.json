@@ -50,7 +50,7 @@
     "type" : "int",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Configured maximum number of snapshots retained for this model.\n",
+    "documentation" : " Configured maximum number of snapshots retained for this model. Positive values bound retention;\n any negative value retains all snapshots until explicit erasure. Zero is invalid on the wire\n (the SDK resolves an annotation value of zero to one).\n",
     "constantValue" : null
   }, {
     "name" : "snapshotPeriod",
