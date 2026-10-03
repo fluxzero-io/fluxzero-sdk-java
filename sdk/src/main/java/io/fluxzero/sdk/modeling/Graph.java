@@ -821,6 +821,11 @@ public interface Graph<T> {
      * <p>Event-sourced history can reconstruct prior values independently of cache depth. DOCUMENT-only persistence
      * stores current state, not document versions: it does not provide durable prior values after overwrite. A
      * complete-change handler's explicit before-boundary cannot create missing history for any inspected node.</p>
+     * <p>If an event-sourced revision has no cached predecessor, the repository reconstructs its historical
+     * before-state lazily, including when the current revision was loaded from a snapshot. Custom repositories
+     * must support historical Graph reads for this fallback.</p>
+     *
+     * @throws UnsupportedOperationException if reconstruction is needed but the repository does not support it
      */
     @Nullable
     Graph<T> previous();

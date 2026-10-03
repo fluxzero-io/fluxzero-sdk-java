@@ -1323,6 +1323,9 @@ public class InMemorySearchStore implements SearchClient {
     private void trimModelSnapshots(
             String modelId,
             int configuredMaximum) {
+        if (configuredMaximum < 0) {
+            return;
+        }
         int maximum =
                 Math.max(1, configuredMaximum);
         List<SerializedDocument> snapshots =

@@ -2754,6 +2754,13 @@ final class GraphView<T> implements Graph<T> {
         }
         Entity<T> previous = entity.previous();
         if (previous == null) {
+            if (entity instanceof ModelRoot<?> root && root.sequenceNumber() > 0 && root.stateIndex() >= 0
+                && root.rootConfiguration().eventSourced() && state.repository() != null) {
+                // Snapshot loads and bounded caches need not retain an in-memory predecessor.
+                return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(
+                        state.repository().loadGraphBefore(id().toString(), type(), root.stateIndex(),
+                                Graph.Options.DEFAULT))));
+            }
             return null;
         }
         long currentStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= -1L

@@ -49,7 +49,11 @@ Important settings:
   internal state maintenance for a non-searchable DOCUMENT Model. Use normal Model commands for business changes.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
-- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
+- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations. A positive `snapshotPeriod` enables
+  periodic snapshots. Positive `maxSnapshotCount` values bound retention, zero keeps one, and **any negative value**
+  retains all periodic snapshots. Explicit physical erasure still removes them; event-history retention is separate.
+  Upgrade the Runtime before enabling negative counts; older Runtime versions reject them. Existing snapshots are
+  retained from activation onward; snapshots already removed by an earlier limit are not recovered.
 - `checkpointPeriod`: bounds repeated replay work within one reconstruction session.
 - `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
 - `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
