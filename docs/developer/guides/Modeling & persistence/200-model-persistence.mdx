@@ -68,7 +68,7 @@ substitutes for a durable event history. Every Graph node whose exact historical
 
 Historical Graph views normally use current DOCUMENT-only values when a historical revision is unavailable.
 This also applies to `previous()`, preserves historical relationships and absence, and never relaxes mutations.
-Use `graph.strict()` or `fluxzero.model.graph.strict=true` for exact history; `graph.lenient()` restores ordinary reads. See
+Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history; `graph.strict(false)` restores ordinary reads. See
 [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for the complete fallback contract.
 
 Event sourcing is the default:

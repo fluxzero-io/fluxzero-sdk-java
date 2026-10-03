@@ -2226,6 +2226,11 @@ final class GraphView<T> implements Graph<T> {
     }
 
     @Override
+    public boolean isStrict() {
+        return !context.documentFallbackEnabled();
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public T get() {
         if (context.documentFallbackEnabled()

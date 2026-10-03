@@ -327,7 +327,7 @@ class ModelLifecycleContractTest {
                     // This DOCUMENT model also stores its events, so the exact older value remains reconstructible.
                     assertEquals(1, graph.previous().get().value());
                     assertTrue(graph.previous().revisionStateIndex() < graph.revisionStateIndex());
-                    assertNull(graph.strict().previous());
+                    assertNull(graph.strict(true).previous());
                 });
     }
 

@@ -253,19 +253,21 @@ No storage migration is required.
 Choose a view in Java:
 
 ```java
-Graph<Project> strict = graph.strict();
-Graph<Project> ordinary = strict.lenient();
+Graph<Project> strict = graph.strict(true);
+Graph<Project> ordinary = strict.strict(false);
+boolean exactHistory = strict.isStrict(); // true
 ```
 
 Kotlin:
 
 ```kotlin
-val strict = graph.strict()
-val ordinary = strict.lenient()
+val strict = graph.strict(true)
+val ordinary = strict.strict(false)
+val exactHistory = strict.isStrict // true
 ```
 
-Both methods leave the source view unchanged. `lenient()` restores ordinary reads even when the application
-property requests strict reads.
+`strict(boolean)` leaves the source view unchanged. `isStrict()` reads its configured policy without loading state.
+`strict(false)` restores ordinary reads even when the application property requests strict reads.
 
 The choice follows parents, children and `previous()`, including Graphs retained after an event or notification
 handler finishes. `atStateIndex(...)` on a lenient view resolves values lazily. A fallback value is retained after

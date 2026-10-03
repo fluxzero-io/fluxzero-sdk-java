@@ -77,8 +77,8 @@ omit `@`, for example `searchSettings = SearchSettings(includeDescendants = fals
 
 `fluxzero.model.graph.strict` (`FLUXZERO_MODEL_GRAPH_STRICT`) defaults to false, independently of
 `fluxzero.defaults.version`. Ordinary historical Graphs use current DOCUMENT-only values when their historical
-revision is unavailable. Set the property to true for strict historical reads, or use `graph.strict()` for one
-view. `graph.lenient()` restores ordinary reads even under a strict application default. Historical absence and
+revision is unavailable. Set the property to true for strict historical reads, or use `graph.strict(true)` for one
+view. `graph.strict(false)` restores ordinary reads even under a strict application default. Historical absence and
 relationships remain pinned; mutations, assertions and replay always stay strict. Read
 `/docs/sdk/models/temporal-graphs` for Runtime compatibility and the complete contract.
 

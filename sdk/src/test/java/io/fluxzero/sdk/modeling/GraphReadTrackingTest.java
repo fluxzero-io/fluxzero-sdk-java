@@ -180,6 +180,9 @@ class GraphReadTrackingTest {
                 .trackLookup("selected", "selected", AliasedNode.class).root(), source);
         assertEquals(AliasedNode.class, read(() -> graph.knownType().orElseThrow()));
         assertEquals("AliasedNode", read(graph::modelName));
+        assertTrue(graph.isStrict());
+        assertFalse(graph.strict(false).isStrict());
+        assertTrue(graph.isStrict());
         assertTrue(attempt.readAliasIds(ModelConflictPolicy.RETRY).isEmpty());
         // Capturing a view reads its application policy, but static metadata must not resolve model state.
         verify(source).documentFallbackEnabled();

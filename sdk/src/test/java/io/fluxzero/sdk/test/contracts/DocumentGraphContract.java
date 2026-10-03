@@ -694,7 +694,7 @@ public abstract class DocumentGraphContract {
             write(h.writer, new SetDocument("later", "root", "later", 3));
             h.reader.apply(fc -> {
                 assertThrows(EventSourcingException.class,
-                             () -> Fluxzero.loadGraph("root", Root.class).strict().atStateIndex(boundary));
+                             () -> Fluxzero.loadGraph("root", Root.class).strict(true).atStateIndex(boundary));
                 return null;
             });
         }
@@ -751,13 +751,16 @@ public abstract class DocumentGraphContract {
                             var models = view.childModels(Document.class);
                             assertEquals(change.equals("delete") ? 1 : 2, models.size());
                             assertTrue(models.stream().allMatch(document -> document.version() == 2));
+                            assertFalse(view.isStrict());
                             var children = view.children("children", Document.class);
+                            assertTrue(children.stream().noneMatch(Graph::isStrict));
+                            assertTrue(view.strict(true).children("children", Document.class).stream().allMatch(Graph::isStrict));
                             assertEquals(List.of("doc-one", "doc-two"), children.stream().map(Graph::id).toList());
                             Document expected = change.equals("delete") ? null
                                     : new Document("one", change.equals("move") ? "other" : "root", "alias", 2);
                             assertEquals(expected, children.getFirst().get());
                             assertThrows(EventSourcingException.class,
-                                         () -> children.getFirst().strict().get());
+                                         () -> children.getFirst().strict(true).get());
                         }
                         write(writer, new SetDocument("one", "root", "alias", 4));
                         assertEquals(change.equals("delete") ? null : 2,
@@ -780,30 +783,38 @@ public abstract class DocumentGraphContract {
             h.set(3);
             h.reader.apply(fc -> {
                 var applicationView = graph(true, "one");
+                assertEquals(strictDefault, applicationView.isStrict());
                 if (strictDefault) {
                     assertThrows(EventSourcingException.class, () -> applicationView.atStateIndex(updated).get());
                 } else {
                     assertEquals(3, applicationView.atStateIndex(updated).get().version());
                 }
-                var current = applicationView.lenient();
+                var current = applicationView.strict(false);
+                assertFalse(current.isStrict());
+                assertEquals(strictDefault, applicationView.isStrict());
+                var strictView = current.strict(true);
+                assertTrue(strictView.isStrict());
+                assertFalse(current.isStrict());
                 assertNull(current.atStateIndex(created - 1).get());
                 assertNull(current.atStateIndex(deleted).get());
                 var historical = current.atStateIndex(updated);
                 assertEquals(3, historical.get().version());
-                assertEquals(3, historical.strict().lenient().get().version());
+                assertEquals(3, historical.strict(true).strict(false).get().version());
                 var mapped = historical.filterNodes(ignored -> true);
                 assertEquals(3, mapped.get().version());
-                assertThrows(EventSourcingException.class, () -> mapped.strict().get());
+                assertThrows(EventSourcingException.class, () -> mapped.strict(true).get());
                 assertThrows(EventSourcingException.class,
-                             () -> historical.strict().filterNodes(ignored -> true).get());
+                             () -> historical.strict(true).filterNodes(ignored -> true).get());
                 assertEquals(updated, historical.revisionStateIndex());
                 var previous = historical.previous();
                 assertNotNull(previous);
+                assertFalse(previous.isStrict());
+                assertTrue(previous.strict(true).isStrict());
                 assertSame(previous, historical.previous());
                 assertEquals(created, previous.revisionStateIndex());
                 assertEquals(3, previous.get().version());
                 assertNull(previous.previous());
-                assertThrows(EventSourcingException.class, () -> historical.strict().get());
+                assertThrows(EventSourcingException.class, () -> historical.strict(true).get());
                 return null;
             });
         }
@@ -831,7 +842,7 @@ public abstract class DocumentGraphContract {
     public record ReadHistoricalGraph(String receiptId,
                                       @JsonIgnore Graph<Document> graph,
                                       boolean assertion) {
-        @AssertLegal void check() { if (assertion) { graph.lenient().get(); } }
+        @AssertLegal void check() { if (assertion) { graph.strict(false).get(); } }
         @Apply Receipt apply(@Nullable Receipt previous) { return new Receipt(receiptId, graph.get().version()); }
     }
 
@@ -895,7 +906,7 @@ public abstract class DocumentGraphContract {
                     .expectNoErrors().expectThat(fc -> {
                         assertEquals(2, retained.get().get().version());
                         assertEquals("doc-one", retained.get().id());
-                        assertThrows(EventSourcingException.class, () -> retained.get().strict().get());
+                        assertThrows(EventSourcingException.class, () -> retained.get().strict(true).get());
                         assertNull(Fluxzero.loadGraph("missing").previous());
                     });
             }

@@ -303,8 +303,8 @@ physical erasure are not new domain-event notifications. Handlers remain subject
 Exact historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with
 `DOCUMENT`), previous values can be replayed after a cache clear; cache depth and snapshots do not automatically
 prune Model events. `DOCUMENT` alone maintains current state, not document versions. Historical Graph views normally
-use current DOCUMENT-only values when history is unavailable. Use `graph.strict()` or the application property
-`fluxzero.model.graph.strict=true` to require exact history; `graph.lenient()` restores ordinary reads. See
+use current DOCUMENT-only values when history is unavailable. Use `graph.strict(true)` or the application property
+`fluxzero.model.graph.strict=true` to require exact history; `graph.strict(false)` restores ordinary reads. See
 `/docs/sdk/models/temporal-graphs`.
 An unavailable document then uses the current value of the same canonical ID, including a recreation, or `null`
 after current deletion. Historical relationships and proven historical absence stay pinned. `previous()` can

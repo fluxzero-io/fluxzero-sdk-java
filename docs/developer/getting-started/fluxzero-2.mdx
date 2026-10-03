@@ -1249,7 +1249,7 @@ retained event history where available. An overwritten DOCUMENT-only value norma
 `null` after current deletion and may come from a recreation. Historical absence and relationships remain pinned.
 This also applies to `previous()`; fallback values do not represent exact before/after document versions.
 
-Use `graph.strict()` for exact historical values and `graph.lenient()` to return to ordinary reads.
+Use `graph.strict(true)` for exact historical values and `graph.strict(false)` to return to ordinary reads.
 Set `fluxzero.model.graph.strict=true` for a strict application default; this is independent of defaults versions. Assertions, applies and replay stay strict in either mode. Fallback
 values are retained per view after reading, but separate nodes do not form an atomic current snapshot. See
 [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for configuration, Java/Kotlin examples and Runtime compatibility.
