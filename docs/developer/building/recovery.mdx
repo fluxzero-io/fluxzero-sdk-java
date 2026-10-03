@@ -1,0 +1,52 @@
+---
+title: Recover a version or data
+description: Choose between code rollback, configuration repair and restoring runtime data to a new cluster.
+---
+
+import { LinkCard, Steps, Aside } from '@astrojs/starlight/components';
+
+First identify what needs recovery. A bad application version, incorrect configuration and damaged or missing runtime data require different actions. Record the affected environment, time and expected result before making another change.
+
+<div className="guide-options">
+  <LinkCard title="Earlier code" description="Run a compatible previous application version." href="#return-to-an-earlier-application-version" />
+  <LinkCard title="Runtime data" description="Restore database state into a new cluster." href="#restore-database-state-to-a-new-cluster" />
+  <LinkCard title="Configuration" description="Repair a setting or restore a previous value." href="/docs/building/configuration" />
+</div>
+
+## Return to an earlier application version
+
+Identify the earlier immutable image and confirm it can read the current data and configuration. Use the established deployment workflow to select that artifact; do not rebuild a supposedly identical old version with different dependencies unless that is intentional.
+
+Check the resulting version and Tasks, then try the affected user flow. Redeploying code does not restore deleted records or reverse external side effects. If configuration changed too, restore the required values through [Variables](/docs/building/configuration).
+
+## Restore database state to a new cluster
+
+You need the relevant backup access and capacity to create the recovery destination. Review the current plan/capacity and any additional storage costs shown by the dashboard.
+
+<div className="guide-steps">
+<Steps>
+
+1. Open **Organisation → Backups** and find the source cluster. Read its **Recovery window** and, when useful, open the recovery timeline.
+2. Choose **Restore to a new cluster**. Give the destination a distinct name and review its capacity.
+3. Choose the restore point: latest available state, a completed base backup, or a time within the available recovery window. Confirm the timestamp and timezone displayed by the UI.
+4. Review the source and new destination, then choose **Restore cluster**. Follow the new cluster's status and history until recovery is ready for inspection.
+5. Verify representative records and the required application behavior in the recovered environment before changing public traffic.
+
+</Steps>
+</div>
+
+<Aside type="note" title="What the restore includes">
+The recovery operation restores database state. Do not assume it also restores every application image, configuration secret, DNS record, external account or action already performed outside Fluxzero. Check the destination's applications/configuration and have your agent identify what must be prepared to run against that data. If the recovery scope is unclear, use Support before switching traffic.
+</Aside>
+
+## Decide when to switch
+
+Keep the original environment identifiable while validating the recovered one. Reconcile any new work accepted after the chosen restore point, including provider-side payments or messages. Prevent background integrations in the recovered environment from unintentionally repeating external effects.
+
+Only after verification should you move the intended traffic/domain and repeat the main user flow. Keep the old environment until the recovery has been accepted and its retention is deliberately decided. Restoring to a new cluster does not by itself switch users over.
+
+<div className="guide-result"><strong>Recovery accepted</strong><p>The recovered environment has been checked and the intended traffic reaches it. Creating the cluster alone does not switch users over.</p></div>
+
+## Create a recovery point before a planned change
+
+In **Backups**, choose the source cluster under **Create a recovery point** and use **Request backup**. Track the request until its status says **completed**. A submitted request is not yet a completed backup. Read the available window again before relying on it for a future recovery.

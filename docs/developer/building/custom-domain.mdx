@@ -1,0 +1,38 @@
+---
+title: Connect a custom domain
+description: Point a hostname at the intended Fluxzero cluster and check DNS, certificate readiness and sign-in.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+You need a running app, permission to manage its cluster's domains and access to the hostname's DNS configuration. Identify the exact public address your users should open, including any application path.
+
+<div className="guide-context"><span>Running app</span><span>Dashboard + DNS provider</span></div>
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Connect the hostname
+
+   In the dashboard, select the target cluster and open **Domains → Connect domain**. Enter the hostname and verify the destination. Copy the CNAME target displayed by Fluxzero; do not construct a target from an example cluster identifier.
+
+   Save the domain connection and add the displayed CNAME record at your DNS provider. The provider's name field may expect only the subdomain or the whole hostname. Use its instructions, especially for root domains and any existing conflicting record.
+
+   Fluxzero verifies the DNS destination and requests the certificate automatically once the CNAME is active. Wait for the domain's status to become **Ready**, then open the intended HTTPS address.
+
+2. ## Check the full user flow
+
+   Confirm that the correct app loads. Test sign-in and the main action. A valid certificate does not prove that the identity provider's callback/return URLs match the new address. Have your agent identify and update the trusted URLs required by your application's sign-in configuration.
+
+   If the frontend uses a separate web origin, review **Additional web origins** for the appropriate cluster. Follow the field's hostname format; adding a web origin does not create a DNS record or register an identity-provider callback.
+
+   <div className="guide-result"><strong>Domain connected</strong><p>Your hostname is Ready, HTTPS opens the intended app, and sign-in and the main action work.</p></div>
+
+</Steps>
+</div>
+
+## If the address does not become ready
+
+Compare the public DNS answer with the exact target shown in the dashboard. Check the selected cluster, conflicting DNS records and whether changes have propagated. If DNS is correct but the domain remains configuring, inspect the domain's status/error and use Support with the hostname and timing.
+
+When moving an existing domain between clusters, plan for the DNS and certificate transition. Keep the previous destination available until you have verified the new one. The dashboard warns that a changed destination can be unavailable while the certificate is prepared.

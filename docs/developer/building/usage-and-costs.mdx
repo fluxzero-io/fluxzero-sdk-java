@@ -1,0 +1,36 @@
+---
+title: Review usage and costs
+description: Compare runtime resource usage with configured capacity and understand where to review charges.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use this guide when you want to understand resource pressure or the cost of a running app. You need access to the application's usage views and, for charges, the organization's Billing area.
+
+<div className="guide-context"><span>Live application</span><span>Usage + Billing</span></div>
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Inspect the right period
+
+   Select the organization, cluster and application. Open **Usage** or **Monitoring → Resources** and choose the period you want to understand. Compare CPU, memory and storage with configured capacity, and separate individual tasks from the application total.
+
+   A short CPU peak, sustained memory pressure and retained storage growth are different observations. Use **Insights** for the same period to see which operations account for work. [Monitoring reference](/docs/building/monitoring) explains those measurements.
+
+2. ## Connect the usage to a decision
+
+   Ask your agent to relate the change to a release, workload or product flow. Compare a representative period before and after it. If an operation is unexpectedly expensive, investigate its behavior before assuming that increasing capacity is the only remedy.
+
+   Review the current plan and capacity in the dashboard and [pricing](/pricing). Billing and usage answer different questions: a local Devboard memory graph is not a cloud invoice, and a configured resource allowance is not necessarily a measurement of consumption.
+
+3. ## Check the effect of a change
+
+   Before changing capacity or pausing a cluster, read the dashboard's current quote and consequences. Pausing compute preserves data/configuration; retained storage, backups or plan charges may still apply. Treat the displayed billing terms as the source for your organization rather than inferring a zero bill from stopped workloads.
+
+   After a change, repeat the same usage comparison and check that the application's response and main flows remain acceptable. Use Billing for the resulting charges. If a charge is unclear, contact Support with the period and billing item, without sharing unrelated application records.
+
+   <div className="guide-result"><strong>Decision checked</strong><p>A comparison over the same kind of workload and period, with usage, app behavior and resulting charges understood.</p></div>
+
+</Steps>
+</div>

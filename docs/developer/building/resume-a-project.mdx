@@ -1,0 +1,39 @@
+---
+title: Open an existing project
+description: Resume the correct project and local environment without losing track of its state.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+import AgentPrompt from '~/components/docs/AgentPrompt.astro';
+
+Open the project's directory in your coding agent. Use this guide after a break, when changing projects, or when an old Devboard link stops working.
+
+<div className="guide-context"><span>Existing project</span><span>Reuse its development environment</span></div>
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Find the current environment
+
+   Ask:
+
+   <AgentPrompt text={"Open this existing project with the Fluxzero tools. Check its directory, active profile and current status. Reuse its running environment if available; otherwise start the intended local profile. Open App preview and summarize the latest build, tests and Progress."} />
+
+   Use the returned live URL. Do not infer the project from an old localhost port. In Devboard, check the project selector and **Workspace** before trying the app.
+
+2. ## Establish the starting point
+
+   Read the latest work in **Progress** and ask the agent to inspect any uncommitted changes. Confirm which change you are continuing. A completed historical item does not prove that the currently checked-out code has just been tested.
+
+   If the app is running but looks old, ask whether the latest build succeeded. If startup is incomplete, inspect **Startup** and let the agent diagnose its failed or blocked actions. See [Devboard](/docs/building/devboard) for the meaning of these views.
+
+   <div className="guide-result"><strong>Ready to continue</strong><p>The intended project and profile, its current preview and a clear account of the work you are continuing.</p></div>
+
+</Steps>
+</div>
+
+## Choose a profile deliberately
+
+A profile selects the services and configuration used for development. The example's local demo and an external-provider profile can behave differently. Before switching, establish which data and external systems the profile uses and what a restart will discard.
+
+The [CLI](/docs/tools/cli) provides the terminal equivalent: `fz dev list`, `fz dev status` and `fz dev attach`. Use [Investigate unexpected behavior](/docs/building/investigate) when the environment is running but a product flow fails.

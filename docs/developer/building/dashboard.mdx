@@ -1,0 +1,76 @@
+---
+title: Cloud dashboard reference
+description: Find organizations, clusters, applications, tasks, configuration, monitoring and recovery in Fluxzero.
+---
+
+import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+Open the [Fluxzero dashboard](https://dashboard.fluxzero.io) for the operational view of a published app. The navigation reflects your selected organization, cluster and permissions. It is separate from the local [Devboard](/docs/building/devboard).
+
+<GuideFlow label="Cloud navigation and scope" stages={[
+  { title: "Organization", description: "People, integrations, billing and environments." },
+  { title: "Cluster", description: "Applications, runtime data and shared settings." },
+  { title: "Application", description: "The deployed version, running tasks and app settings." },
+]} caption="Check the selected scope before reading results or changing settings." />
+
+## Organization
+
+| Area | What it contains |
+| --- | --- |
+| Overview | The organization and its available environments |
+| Users | People with access to manage the organization |
+| Integrations | GitHub/OIDC/API-key authentication and authorizations for automation |
+| Variables | Configuration shared at organization scope |
+| Domains | Organization-level domain management |
+| Backups | Recoverable sources, recovery windows and requests to restore to a new cluster |
+| History | Organization configuration and lifecycle changes |
+| Billing | Plan, charges and billing information available to your role |
+| Support | Support requests and assistance |
+
+These users are cloud collaborators, not the end users signing into your application. See [Identity and access](/docs/building/identity-and-access). Internal administration menus visible to platform administrators are outside the ordinary customer workflow.
+
+## Cluster
+
+A cluster is a managed environment containing applications and their runtime data. Its overview links to applications, tasks, variables, domains, history, usage and settings.
+
+| Area | What to check |
+| --- | --- |
+| Applications | Configured workloads and the app you intend to inspect |
+| Tasks | Running instances and deployment/task state |
+| Variables | Settings and secrets at cluster scope |
+| Domains | Connected hostnames, target domain and readiness; additional web origins |
+| History | Which configuration or lifecycle change occurred and when |
+| Usage | Resource usage over time |
+| Settings | Name/capacity and separate pause or destruction actions |
+
+<Aside type="note" title="Pause and destruction have different effects">
+Pausing and destroying are different operations. The pause flow describes retained data/configuration; destruction removes resources. Use the UI's current scope and consequences, not an assumption that either is simply logging out.
+</Aside>
+
+## Application
+
+Open **Applications**, then the application. Its overview shows the selected version and tasks, with links to configuration, usage and history. A configured application can exist without a successfully running task.
+
+![A demo application overview, showing version, tasks, variables and history.](../tutorials/images/cloud-application.png)
+
+*The screenshot uses the dashboard demo. Choose your own application's equivalents.*
+
+After delivery, compare the expected version with this overview, inspect Tasks and try a real flow at the application's address. A successful CI step is only one part of that check.
+
+## Monitoring and recovery
+
+Monitoring includes Audit trail, Logs, Traces, Issues, Documents, Resources and Insights. Select the intended cluster/application and time range; [Monitoring views](/docs/building/monitoring) describes them.
+
+Backups display a recovery window and base backups for each available source. The restore action creates a new cluster. It does not itself mean traffic has moved or every external service has been restored. Follow [Recover a version or data](/docs/building/recovery).
+
+## Complete a task
+
+<CardGrid>
+  <LinkCard title="Publish your app" description="Deliver the first checked version." href="/docs/tutorials/cloud-deployment" />
+  <LinkCard title="Settings and secrets" description="Configure the intended running app." href="/docs/building/configuration" />
+  <LinkCard title="Users and access" description="Manage product, teammate and workflow permissions." href="/docs/building/manage-access" />
+  <LinkCard title="Usage and costs" description="Relate workload and capacity to charges." href="/docs/building/usage-and-costs" />
+</CardGrid>
+
+Use [Connect a custom domain](/docs/building/custom-domain) for your own hostname.

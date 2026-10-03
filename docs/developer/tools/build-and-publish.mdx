@@ -1,0 +1,44 @@
+---
+title: Build and publish an application
+description: Understand the artifact between your source code and a cloud deployment, including Fluxzero build plugins.
+---
+
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+Deployment runs a published application image. The build must therefore include the code and assets your users need: backend classes and dependencies, frontend assets where applicable, and the correct entry point. A running frontend development server is not automatically included in a production package.
+
+## Choose the project's packaging path
+
+<GuideFlow label="The artifact delivery path" stages={[
+  { title: "Build", description: "Compile and test the app, including its production frontend." },
+  { title: "Publish", description: "Store one versioned image in the registry." },
+  { title: "Deploy", description: "Select that published image for the cloud application." },
+]} />
+
+Follow the project's configured build. Two common paths are a container image built from a Dockerfile and an OCI package published by the Fluxzero build plugin. Use one intentional path for each application; do not add a second packaging mechanism just because an example workflow uses another one.
+
+| Tool | Responsibility |
+| --- | --- |
+| Maven/Gradle build | Compile, test and produce the application's artifacts |
+| Fluxzero build plugin | Project-file support, development entry point and configured package publication |
+| Container build | Build an OCI image from the project's Dockerfile when that is its packaging path |
+| Registry | Store the versioned image that deployment will request |
+| Deploy Action / System API | Select an already published image for a cloud application |
+
+## Fluxzero build plugins
+
+The [Maven plugin](https://github.com/fluxzero-io/fluxzero-cli/tree/main/maven-plugin#readme) includes `sync-project-files`, `dev` and `publish-package`. A publishing module declares its package name, image destination and entry point. Multi-module publishing opts modules in through their configuration; a reactor module is not automatically a deployable app.
+
+The [Gradle plugin](https://github.com/fluxzero-io/fluxzero-cli/tree/main/gradle-plugin#readme) provides the corresponding project/build integration. Use its documented tasks and properties for your pinned plugin version. Configure the [Fluxzero Packages repositories](/docs/getting-started/installation) for plugin and dependency resolution.
+
+In GitHub Actions, the Maven publisher can use its configured `github-oidc` registry authentication. This publication credential is separate from the deployment credential used by the Deploy Action. Keep credentials out of the POM and source repository.
+
+## Identify exactly what will run
+
+Publish an immutable version, such as a release tag or commit SHA, and record the full registry reference. When the pipeline applies more than one tag to the same build, preserve the same underlying image instead of rebuilding between publication steps.
+
+Check that the package includes the production frontend or that the frontend has its own explicit delivery path. Verify required live settings and identity configuration before deployment. Local demo seed actions should not become production initialization accidentally.
+
+The [GitHub Actions guide](/docs/tools/github-actions) gives a complete Dockerfile-based Maven example. Projects using the Fluxzero publisher should retain their publisher configuration and use the same authentication/deployment boundaries. [Publishing your app](/docs/tutorials/cloud-deployment) covers the builder's release checks.
+
+<div className="guide-result"><strong>Ready for deployment</strong><p>One recorded image reference, the required frontend assets and entry point, and the intended live configuration.</p></div>
