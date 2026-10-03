@@ -1,5 +1,8 @@
 Use this article when `@Stateful` persistence depends on handler return values or nested `@Member` workflow objects.
 These semantics are storage operations; test create, update, split, rekey, and delete independently.
+`@Member` remains supported and is not deprecated. A nested workflow object can own handlers and an identity while
+its persisted state and retention belong to the parent. Use separate Models for domain state needing independent
+history, retention or deletion; ordinary nested values without entity handling need no `@Member`.
 
 ## Parent state return semantics
 

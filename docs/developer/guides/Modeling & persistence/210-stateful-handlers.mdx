@@ -218,8 +218,11 @@ Collections allow a stateful handler to fan out into multiple stateful instances
 A `@Stateful` parent can also own `@Member` children. Members can declare their own `@Handle...` methods and
 `@Association` fields; Fluxzero loads the parent, invokes every matching member, and stores the updated parent.
 
-Use this when a child has its own lifecycle but should remain inside the parent document, for example payments inside a
-customer.
+`@Member` remains supported and is not deprecated. Use it when the child needs its own handlers and identity,
+while its persisted state and retention deliberately belong to the parent document. In the example below, payment
+workflow entries are stored as part of the customer handler. They are not independently persisted payment records.
+Use a separate `@Model` for domain state that needs its own history, retention or deletion; plain nested values
+without entity handling need no `@Member`.
 
 <Tabs>
   <TabItem label="Java">

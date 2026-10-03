@@ -1,7 +1,9 @@
 # Domain Models and identity
 
 Use immutable `@Model` state for a domain concept with its own creation, changes, history, retention or deletion.
-Connect independent lifecycles with `@Parent`; use ordinary value objects for details replaced with their owner.
+Prefer separate Models for new domain state. Connect independent lifecycles with `@Parent`: relationships can
+change while each Model keeps its own history, and new relationships do not require a larger shared root.
+Use ordinary value objects for details replaced with their owner.
 
 ```java
 @Model
