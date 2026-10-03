@@ -1,0 +1,32 @@
+---
+title: Identity and access
+description: Distinguish application users, cloud collaborators, service integrations and the rules each needs.
+---
+
+import { Card, Aside } from '@astrojs/starlight/components';
+
+Sign-in establishes an identity. Authorization decides what that identity may do. Fluxzero supplies mechanisms for both, while your application defines its product-specific rules.
+
+<div className="guide-roles">
+  <Card title="App user" icon="pencil">Acts inside your product. A visitor can view their own reservation.</Card>
+  <Card title="Cloud teammate" icon="laptop">Manages the Fluxzero environment within the scope you grant.</Card>
+  <Card title="Integration" icon="setting">Lets a matching automation workflow deploy to its authorized destination.</Card>
+</div>
+
+A local demo user belongs to a development profile. It lets you try a role, such as an organizer, before configuring real sign-in.
+
+## A product role is not an infrastructure role
+
+Giving someone dashboard access does not define their permissions inside your app. An organizer in Ticketing can manage events because the application gives that identity those capabilities; it is not a consequence of being a Fluxzero organization owner.
+
+Likewise, a GitHub integration should receive the permissions needed for publishing/deployment. It is not a replacement for user sign-in. Its repository, workflow or environment restrictions determine which external identities can use it.
+
+## Authentication is not the whole rule
+
+<Aside type="note" title="Who may cancel this reservation?">
+“Signed in” is rarely sufficient for a product action. A reservation may require the same owner, a staff member assigned to that event, or a specific organization membership. The server must enforce the rule even when a request bypasses the visible button.
+</Aside>
+
+For each rule, check the allowed identity, another identity and an unauthenticated request where relevant. A local demo username is a development convenience; live identity needs its own provider/client configuration and registered URLs.
+
+Use [Manage users and access](/docs/building/manage-access) for a task-oriented checklist and [GitHub Actions](/docs/tools/github-actions) for deployment authentication. Developers can continue with [Role-based access control](/docs/guides/messaging/role-based-access-control).

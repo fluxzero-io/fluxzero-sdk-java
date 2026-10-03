@@ -1,0 +1,60 @@
+---
+title: MCP connection and tools
+description: Understand the local Fluxzero MCP connection, versioned documentation, project tools and troubleshooting.
+---
+
+import { Aside, Card } from '@astrojs/starlight/components';
+
+The Model Context Protocol (MCP) lets your coding agent call Fluxzero tools. The [agent plugin](/docs/tools/agent-plugin) configures one local `fluxzero-dev` connection for documentation and development feedback. Its capabilities depend on the selected project and running Dev Server version.
+
+## Connection
+
+The plugin runs `fz mcp`. For a manually configured MCP client, use the executable `fz` with these arguments:
+
+```text
+mcp --project-dir /absolute/path/to/your/project
+```
+
+This is a **stdio** server: the client launches it and communicates over standard input/output. The path must exist on the machine running the process. Verify `fz mcp --help` there. Do not wrap the command in Maven or another launcher that writes build output into the protocol stream.
+
+<Aside type="note" title="One connection for the intended project">
+If the plugin already manages the connection, use that connection instead of registering a duplicate. Project selection must match the intended repository before starting services or reading project-specific evidence.
+</Aside>
+
+## Tool groups
+
+| Group | Purpose | Behavior |
+| --- | --- | --- |
+| Versioned documentation, `docs_*` | Select SDK version, find symbols and read focused articles | Available without starting the app; selected from the project's version |
+| `get_workflow` | Read current development, preview, monitoring and progress guidance | Explains the workflow supported by that server version |
+| Status and problems | Find the current project, services, build state and failures | Inspect the active environment and its diagnostics |
+| `start_dev` and lifecycle tools | Start/reuse or control development | Can start processes or change local environment state |
+| Tests and progress | Inspect scenarios and recorded work; update work through supported tools | Read operations and mutations have different effects |
+| Monitoring | Investigate messages, logs, traces, issues, documents and measurements | Available when exposed by the running environment and its permissions |
+
+Use the connection's live tool catalogue for exact names, inputs and availability. A project pinned to an older server can have a different tool surface; this page is not a substitute for those schemas.
+
+## Documentation version versus runtime version
+
+<div className="guide-roles">
+  <Card title="SDK version" icon="document">Selects documentation for your application code.</Card>
+  <Card title="Dev Server version" icon="setting">Determines development tools and workflows.</Card>
+  <Card title="CLI + plugin" icon="laptop">Launch the tools and supply agent instructions.</Card>
+</div>
+
+These versions need not have the same number. Match each component to the project rather than assuming one update changes them all.
+
+A useful startup check is: correct directory → correct SDK documentation → supported workflow → status → start/reuse environment → inspect readiness. Seeing a gateway URL does not prove the application has finished compiling or starting.
+
+## When the connection does not work
+
+| Symptom | Check |
+| --- | --- |
+| `fz` is not found | CLI installation and the client process's PATH; verify in a fresh terminal |
+| Package installed, no tools | Client activation/reload and enabled MCP connection |
+| Docs work, project tools unavailable | Whether the project has a running environment; call `start_dev` when needed |
+| Unexpected project or documentation | Selected directory, SDK dependency and explicit version overrides |
+| App unavailable | Status, problems, startup results and required services; avoid a second build loop |
+| Production evidence unavailable | Whether a supported, authorized production connection exists; local tools do not imply that access |
+
+See the [plugin source](https://github.com/fluxzero-io/fluxzero-agent-plugins) and [Dev Server reference](https://github.com/fluxzero-io/fluxzero-dev-server) for the owning implementation and current workflow contracts.

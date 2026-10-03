@@ -1,0 +1,43 @@
+---
+title: Investigate a failed deployment
+description: Find the failed delivery stage before retrying a release or changing the running application.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Start with the workflow run, intended commit/image and target cluster/application. Inspect the failed stage before rerunning the entire pipeline.
+
+| Stage | Evidence to inspect | Next step |
+| --- | --- | --- |
+| Build or tests | Failed command and its output | Fix the build/scenario; do not bypass it merely to deploy |
+| Authentication | JWT-action failure or 401/403 | Check integration matching, workflow permissions, audience and destination authorization |
+| Image publication | Registry response and exact image reference | Check namespace, publication permission and token timing |
+| Deployment request | System API response | Check request fields, image reference and authorized destination |
+| Workload startup | Application Tasks, History and Logs | Check image startup, entry point, required configuration and dependencies |
+| App reachable but flow fails | Live URL, identity flow and monitoring | Trace the failed user action and compare configuration with the checked version |
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Establish the current live state
+
+   Open the application's overview and Tasks. Record the version that is actually running; a failed update can leave an earlier version serving users. Do not infer the live state solely from the last GitHub step.
+
+   A System API success means the command completed. Deployment execution continues asynchronously. If the expected version does not become ready, inspect the platform/task error before repeatedly submitting the same request.
+
+2. ## Check authentication precisely
+
+   For GitHub OIDC, the job needs `id-token: write` and a matching Fluxzero Integration. Repository, workflow and environment restrictions must match that run. Registry credentials and deployment credentials have different uses; the [Actions reference](/docs/tools/github-actions) identifies their outputs.
+
+   If authentication expired during a long build/push, acquire credentials near the operation that needs them. Fix a scope mismatch in the integration or request rather than broadening unrelated access.
+
+3. ## Retry or recover deliberately
+
+   After correcting the cause, retry the appropriate stage with the same intended artifact where possible. Check the resulting version, task state and one complete user flow. If you need a rollback, first check code/data compatibility and follow [recovery](/docs/building/recovery).
+
+   For support, provide the application/environment, workflow run, intended version, failed stage, time and a minimal redacted error. Do not include tokens or secret values.
+
+   <div className="guide-result"><strong>Recovery checked</strong><p>The intended version is running, its tasks are ready, and the original user flow succeeds.</p></div>
+
+</Steps>
+</div>

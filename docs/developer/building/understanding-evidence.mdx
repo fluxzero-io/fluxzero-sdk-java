@@ -1,0 +1,39 @@
+---
+title: What the evidence tells you
+description: Distinguish a working preview, tested scenarios, recorded progress and live deployment state.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+You and your agent can inspect the same application from several angles. Each view has a specific purpose; confidence comes from connecting it to the behavior you care about.
+
+| Signal | What it supports | What it does not establish on its own |
+| --- | --- | --- |
+| App preview responds | A version of the local app is reachable | That the newest edit compiled or every flow works |
+| A test passes | The checked scenario met its assertions in that run | That untested rules, screens or live providers work |
+| Progress says Done | The item has been recorded as completed, with its history | A fresh test run, remaining build time or release readiness |
+| Startup says Completed | That preparation action completed | That every later user action will succeed |
+| No matching issues | No issue matches the selected scope and filters | The absence of all bugs |
+| Deployment request succeeds | The system command completed | That the new workload has started successfully |
+| The expected version is running | Runtime state matches the intended deployment | That its full user experience and integrations work |
+
+## Connect a rule to a scenario
+
+<GuideFlow label="Evidence for a cancellation rule" stages={[
+  { title: "State the rule", description: "Only the reservation owner may cancel." },
+  { title: "Check both cases", description: "The owner succeeds. Another visitor is refused." },
+  { title: "Try the experience", description: "The screen shows the correct result for each person." },
+]} />
+
+For “only the owner may cancel,” inspect both the successful cancellation and the refusal for another user. For expiry, the test can advance time instead of waiting in real time. The scenario matters more than the total number of green tests.
+
+The managed development environment selects affected tests as code changes. Some projects also have browser or frontend checks outside the backend scenario list. Your agent should explain the scope of the results it reports and any checks that were skipped.
+
+## Recorded history needs context
+
+<Aside type="note" title="Read the date and version">
+Progress can include work imported from an earlier project history. Read the item's explanation and date before treating it as new verification. Similarly, an earlier successful build can keep serving the preview while a later build fails.
+</Aside>
+
+Monitoring also has a selected environment, application, period and filters. A missing result can mean you are looking in the wrong scope. Use [Investigate unexpected behavior](/docs/building/investigate) to follow one occurrence from the screen to recorded actions and saved data.

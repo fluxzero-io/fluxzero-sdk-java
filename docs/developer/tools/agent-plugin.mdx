@@ -1,0 +1,56 @@
+---
+title: Set up your agent
+description: Install and activate the Fluxzero workflow in your coding agent and verify its MCP connection.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+import AgentPrompt from '~/components/docs/AgentPrompt.astro';
+
+The Fluxzero plugin gives your coding agent instructions for building applications, version-matched SDK documentation and tools for inspecting the local project. Gemini CLI calls this package an extension. You install the package in the coding agent; it is not a dependency inside your application.
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Install and activate
+
+   Give your agent the [Get started](/#get-started) instruction:
+
+   <AgentPrompt text={"Build my app with Fluxzero. Start at plugins.fluxzero.io"} />
+
+   [The official plugin guidance](https://plugins.fluxzero.io) supplies the setup for your client. The agent checks for an existing installation, prepares the required CLI/runtime and follows its client's activation procedure.
+
+   Installation and activation are different steps. Complete prerequisites before refreshing the client session. An installed package that has not been activated may not expose its tools yet.
+
+   <details>
+   <summary>Client-specific installation and activation</summary>
+
+   | Client | Installation and activation guidance |
+   | --- | --- |
+   | Codex | [Codex plugin instructions](https://github.com/fluxzero-io/fluxzero-agent-plugins#codex) |
+   | Claude Code | [Claude Code instructions](https://github.com/fluxzero-io/fluxzero-agent-plugins#claude-code) |
+   | Cursor | [Cursor availability and installation](https://github.com/fluxzero-io/fluxzero-agent-plugins#cursor) |
+   | Gemini CLI | [Gemini extension instructions](https://github.com/fluxzero-io/fluxzero-agent-plugins#gemini-cli) |
+   | GitHub Copilot CLI | [Copilot instructions](https://github.com/fluxzero-io/fluxzero-agent-plugins#github-copilot-cli) |
+
+   The linked instructions describe current distribution availability. Client command prefixes differ; a slash command from one agent is not a universal command.
+
+   </details>
+
+2. ## Verify the connection
+
+   Open your intended project and ask the agent to confirm that the Fluxzero package is enabled, the `fluxzero-dev` MCP connection exposes documentation tools and `start_dev`, and the project directory is correct.
+
+   Documentation can be available before the local app starts. Ask the agent to select your project's SDK version rather than upgrading the project to match whatever documentation it first finds. Then ask it to open Devboard; it should reuse the project's active environment or start one if necessary.
+
+   A convenient request is “Open Devboard for this project.” Where supported, use the client's skill picker, `$devboard` in Codex or `/fluxzero:devboard` in Claude Code.
+
+   <div className="guide-result"><strong>Connection ready</strong><p>Your agent can retrieve the matching documentation and open Devboard for the intended project.</p></div>
+
+</Steps>
+</div>
+
+## Continue building
+
+Follow [Explore a working app](/docs/building/local-development) or [Start an app from your idea](/docs/building/start-an-app). The agent uses the environment's build/test loop and reads its feedback. You do not need to maintain a second collection of SDK manuals in your project.
+
+For manual connections and tool groups, see [MCP](/docs/tools/mcp). The plugin's local connection does not automatically authorize deployments or access to your live organization's data.

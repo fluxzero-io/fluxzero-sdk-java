@@ -1,0 +1,65 @@
+---
+title: Manage users and access
+description: Define app-user permissions and manage the separate access used by collaborators and integrations.
+---
+
+import { LinkCard, Steps } from '@astrojs/starlight/components';
+
+Use this guide to give the right people and automations access. Decide first whether you mean access **inside your product**, access to **the Fluxzero dashboard**, or access for **a deployment workflow**. They are separate rules.
+
+<div className="guide-options">
+  <LinkCard title="App users" description="Who can do what inside your product." href="#define-application-user-access" />
+  <LinkCard title="Teammates" description="Who can manage the cloud environment." href="#give-a-teammate-dashboard-access" />
+  <LinkCard title="Deployment workflows" description="Which automation may deliver an app." href="#authorize-a-deployment-integration" />
+</div>
+
+## Define application-user access
+
+<div className="guide-steps">
+<Steps>
+
+1. List each kind of user and the records/actions they may access. For Ticketing, a visitor sees their own reservations; an organizer manages only the performances assigned to them. Include whether anonymous visitors can browse and how new users become organizers.
+
+2. Ask your agent to implement these rules in the application handlers as well as the UI. Have it demonstrate an allowed action, refusal for another user, and refusal after access is revoked. Check direct requests too: hiding a button does not enforce the rule.
+
+3. Use local demo identities while developing. Before release, configure the live identity provider/client, allowed URLs and the way real identities receive app roles. Try sign-in, sign-out and the important role boundaries at the live address. Use [configuration](/docs/building/configuration) for environment-specific settings.
+
+</Steps>
+</div>
+
+## Give a teammate dashboard access
+
+<div className="guide-steps">
+<Steps>
+
+1. Select the organization and open **Users**. For a new collaborator, choose **Invite user** and enter the intended person. For an existing collaborator, open their authorization.
+
+2. Choose the required **Role**. Review **Organisation-wide access**; to limit access, select the intended **Cluster** instead.
+
+3. Review the recipient and scope, then choose **Add authorisation** or **Update authorisation**.
+
+4. Have the teammate verify the intended view or task in their own session. Check that the role excludes unrelated environments or management actions as intended. Dashboard access does not automatically create application-user roles.
+
+</Steps>
+</div>
+
+<details>
+<summary>The teammate cannot see the destination</summary>
+
+Check the selected organization/team, their authorization and the page's required role. An existing organization owner can correct the intended scope; keep each person in their own session.
+
+</details>
+
+## Authorize a deployment integration
+
+<div className="guide-steps">
+<Steps>
+
+1. Open **Organisation → Integrations** and select or create the GitHub integration for the repository. Restrict its repository and, where appropriate, workflow and GitHub environment. Review the deployment role and destination scope. [Publishing your app](/docs/tutorials/cloud-deployment) walks through that setup.
+
+2. Verify with a workflow from the intended context. An OIDC token from a different repository, branch/environment or unmatched workflow should not be treated as the same authorization. Keep registry publication and deployment permissions aligned with the pipeline's actual tasks.
+
+</Steps>
+</div>
+
+For the conceptual model, see [Identity and access](/docs/building/identity-and-access); developers can read [Role-based access control](/docs/guides/messaging/role-based-access-control).
