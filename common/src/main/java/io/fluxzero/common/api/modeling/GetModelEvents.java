@@ -30,6 +30,7 @@ import java.util.Objects;
  * selectors perform the corresponding as-of load. A stream request with
  * {@code maxSize == 0} requests only its head. Retained historical head metadata can be read even when the
  * corresponding event history is incomplete; requesting event membership still requires that history.
+ * Older Runtimes may reject these historical head-only reads; this does not prevent existing current reads or writes.
  * {@link #maxBytes} bounds the total deduplicated complete event messages selected by the runtime. The oldest single
  * event message is always allowed through to guarantee progress, even when it exceeds that bound.
  */

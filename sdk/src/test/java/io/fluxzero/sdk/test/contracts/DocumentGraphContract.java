@@ -11,6 +11,7 @@ package io.fluxzero.sdk.test.contracts;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.ErrorResult;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -19,6 +20,7 @@ import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.ServiceException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
@@ -701,6 +703,51 @@ public abstract class DocumentGraphContract {
     }
 
     @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void olderRuntimePreservesColdDocumentPrevious(boolean wrapped) {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.set(2);
+            h.reader.apply(fc -> {
+                var graph = graph(true, "one");
+                assertEquals(2, graph.get().version());
+                long boundary = graph.revisionStateIndex() - 1;
+                var refusal = new ServiceException("Historical head unavailable",
+                        new ErrorResult.ModelHistoryUnavailable("doc-one", boundary));
+                h.refusedHistoricalBoundary = boundary;
+                h.historicalHeadFailure = wrapped ? new java.util.concurrent.ExecutionException(refusal) : refusal;
+                assertNull(graph.previous());
+                assertNull(graph.previous());
+                assertEquals(1, h.refusedHistoricalReads.get(), "The view retains its legacy previous result");
+                assertThrows(Exception.class, () -> graph.atStateIndex(boundary).get());
+                assertEquals(2, h.refusedHistoricalReads.get(), "Explicit historical reads must still reach storage");
+                assertEquals(2, graph.get().version());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"unrelated", "other-model", "other-boundary"})
+    void previousDoesNotHideOtherMetadataFailures(String reason) {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.set(2);
+            h.reader.apply(fc -> {
+                var graph = graph(true, "one");
+                assertEquals(2, graph.get().version());
+                long boundary = graph.revisionStateIndex() - 1;
+                h.refusedHistoricalBoundary = boundary;
+                h.historicalHeadFailure = new ServiceException(reason, reason.equals("unrelated") ? null
+                        : new ErrorResult.ModelHistoryUnavailable(reason.equals("other-model") ? "other" : "doc-one",
+                                reason.equals("other-boundary") ? boundary - 1 : boundary));
+                assertSame(h.historicalHeadFailure, assertThrows(ServiceException.class, graph::previous));
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
     @CsvSource({"false,replace", "true,replace", "false,delete", "true,delete",
                 "false,recreate", "true,recreate", "false,move", "true,move"})
     void historicalChangeGraphsUseCurrentDocumentsWithPinnedRelationships(boolean async, String change) {
@@ -1069,6 +1116,9 @@ public abstract class DocumentGraphContract {
         volatile CompletableFuture<Void> commitGate;
         final CompletableFuture<Void> commitEntered = new CompletableFuture<>();
         boolean forbidReplay;
+        long refusedHistoricalBoundary = -2;
+        Exception historicalHeadFailure;
+        final AtomicInteger refusedHistoricalReads = new AtomicInteger();
         final Fluxzero writer, reader;
 
         Harness() {
@@ -1088,6 +1138,12 @@ public abstract class DocumentGraphContract {
                 case "forNamespace" -> instrument((Client) invoke.get());
                 case "getEventStoreClient" -> proxy(EventStoreClient.class, (EventStoreClient) invoke.get(),
                         (operation, parameters, call) -> {
+                            if (operation.equals("getModelEvents") && historicalHeadFailure != null
+                                && java.util.Objects.equals(((GetModelEvents) parameters[0]).getBoundary().stateIndex(),
+                                                           refusedHistoricalBoundary)) {
+                                refusedHistoricalReads.incrementAndGet();
+                                throw historicalHeadFailure;
+                            }
                             if (operation.equals("getModelEvents") && ((GetModelEvents) parameters[0]).getRequests()
                                     .stream().anyMatch(request -> request.getModelId().equals("receipt"))) {
                                 receiptHeads.incrementAndGet();

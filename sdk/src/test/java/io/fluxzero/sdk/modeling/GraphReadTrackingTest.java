@@ -15,10 +15,12 @@
  */
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.ErrorResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.sdk.common.exception.ServiceException;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,27 @@ import static org.mockito.Mockito.when;
 
 class GraphReadTrackingTest {
     interface NavigableRepository extends ModelRepository, ModelGraphResolver {}
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void olderRuntimeRetainsAnAvailableDocumentPredecessor() {
+        NavigableRepository source = mock(NavigableRepository.class);
+        Entity<StoredDocument> current = mock(Entity.class);
+        var previous = ImmutableEntity.<StoredDocument>builder().id("one").type(StoredDocument.class)
+                .value(new StoredDocument("one", 1)).build();
+        when(current.id()).thenReturn("one");
+        when(current.type()).thenReturn(StoredDocument.class);
+        when(current.get()).thenReturn(new StoredDocument("one", 2));
+        when(current.previous()).thenReturn(previous);
+        when(source.documentFallbackEnabled()).thenReturn(true);
+        when(source.resolveGraphIdentity("one", true, StoredDocument.class, ModelReadBoundary.at(41L)))
+                .thenThrow(new ServiceException("Historical head unavailable",
+                        new ErrorResult.ModelHistoryUnavailable("one", 41L)));
+        Graph<StoredDocument> graph = Graphs.lazy(current, 42L, source);
+        assertEquals(previous.get(), graph.previous().get());
+        assertEquals(previous.get(), graph.previous().get());
+        verify(source).resolveGraphIdentity("one", true, StoredDocument.class, ModelReadBoundary.at(41L));
+    }
 
     @Test
     void pinnedCurrentExactValueRetainsCustomResolverWithoutIdentityMetadata() {
@@ -405,4 +428,7 @@ class GraphReadTrackingTest {
     @Model(searchable = false)
     record Node(@EntityId String id, String label) {
     }
+
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
+    record StoredDocument(@EntityId String id, int version) {}
 }

@@ -246,8 +246,13 @@ This is the normal behavior, independent of `fluxzero.defaults.version`. Set `fl
 (`FLUXZERO_MODEL_GRAPH_STRICT`) to require exact historical values application-wide. Its default is `false`.
 Strict reads fail when a required historical document revision is unavailable.
 
-The Runtime must support historical head-only metadata reads for DOCUMENT-only Models. Upgrade Runtime before
-upgrading to this SDK behavior; applications that retain an older Runtime can keep strict reads with the property.
+The SDK and Runtime can be upgraded independently. Existing current reads, writes and reconstructible histories
+continue to work with a compatible older Runtime; no strict-property override is required just to upgrade the SDK.
+The new fallback needs Runtime support for historical head-only metadata reads. Until the Runtime supports those
+reads, historical DOCUMENT-only reads that it previously rejected can still fail, including on a non-strict view.
+The SDK does not replace missing historical presence or relationships with current metadata. Once the Runtime is
+updated, the fallback works without application configuration changes. On an older Runtime, `previous()` keeps
+using a retained predecessor, or returns `null` when none is retained, if the historical head is unavailable.
 No storage migration is required.
 
 Choose a view in Java:

@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
@@ -26,6 +27,7 @@ import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.ServiceException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
@@ -2826,13 +2828,32 @@ final class GraphView<T> implements Graph<T> {
             && state.repository() instanceof ModelGraphResolver resolver) {
             long revision = revisionStateIndex();
             if (revision < 0) { return null; }
-            ModelGraphResolver.Identity identity = resolver.resolveGraphIdentity(
-                    id(), true, type(), ModelReadBoundary.at(revision - 1));
+            ModelGraphResolver.Identity identity;
+            try {
+                identity = resolver.resolveGraphIdentity(id(), true, type(), ModelReadBoundary.at(revision - 1));
+            } catch (Exception failure) {
+                Throwable cause = ObjectUtils.unwrapException(failure);
+                while (cause instanceof java.lang.reflect.UndeclaredThrowableException wrapper) {
+                    cause = ObjectUtils.unwrapException(wrapper.getUndeclaredThrowable());
+                }
+                if (cause instanceof ServiceException service && service.getModelHistoryUnavailable() != null
+                    && id().toString().equals(service.getModelHistoryUnavailable().modelId())
+                    && revision - 1 == service.getModelHistoryUnavailable().readStateIndex()) {
+                    // Older Runtimes reject DOCUMENT-only historical heads. Preserve the retained predecessor
+                    // (or null) that previous() supplied before metadata-based traversal was introduced.
+                    return previousRetained();
+                }
+                throw failure;
+            }
             if (identity == null || !identity.hasIdentity()) { return null; }
             Graph<T> previous = GraphState.identity(identity.modelId(), identity.modelId(), true, type(), state.repository())
                     .retainIdentity(identity).valueHistory(true).root();
             return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(previous)));
         }
+        return previousRetained();
+    }
+
+    private Graph<T> previousRetained() {
         if (node.data().previousStateIndex() != null && node == state.rootNode()) {
             return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
                     id().toString(), node.data().type(), node.data().previousStateIndex(), Graph.Options.DEFAULT))));
