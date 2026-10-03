@@ -25,7 +25,7 @@
     "name" : "addPlacements",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration#addPlacements",
     "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -124,7 +124,7 @@
     "name" : "validatePlacement",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration#validatePlacement",
     "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -160,7 +160,7 @@
     "name" : "validateRoot",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration#validateRoot",
     "returnType" : "void",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -195,7 +195,7 @@
     "name" : "Placement",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration$Placement",
     "kind" : "record",
-    "modifiers" : [ "final", "private", "static" ],
+    "modifiers" : [ "final", "static" ],
     "annotations" : [ ]
   } ]
 }

@@ -17,6 +17,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "migrationTarget",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentHandlerDecorator$DocumentHandler$ModelGraphDocumentHandlerInvoker.migrationTarget",
+    "type" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ModelGraphDocumentHandlerInvoker",
@@ -32,6 +40,11 @@
     }, {
       "name" : "message",
       "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migrationTarget",
+      "type" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

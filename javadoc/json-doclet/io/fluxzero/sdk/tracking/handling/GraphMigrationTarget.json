@@ -1,0 +1,65 @@
+{
+  "name" : "GraphMigrationTarget",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "The durable representation migrated by a returned {@code Graph} in a {@link HandleDocument} handler. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.tracking.handling.GraphMigrationTarget>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "GraphMigrationTarget",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget#GraphMigrationTarget",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget#valueOf",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget#values",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "MODEL_STATE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget.MODEL_STATE",
+    "annotations" : [ ],
+    "documentation" : "Upcast verified current Model nodes; affected Graph projections subsequently follow their maintained sources. "
+  }, {
+    "name" : "PROJECTION",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget.PROJECTION",
+    "annotations" : [ ],
+    "documentation" : "Migrate only the handled stored projection. Live Graphs in projection mode NONE remain observational. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

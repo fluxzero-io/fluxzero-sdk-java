@@ -132,7 +132,7 @@
   }, {
     "name" : "modelSchemaInvalidation",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelSchemaInvalidation",
-    "type" : "java.util.function.Consumer<java.lang.String>",
+    "type" : "java.util.function.BiConsumer<java.lang.String,java.lang.String>",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -1198,10 +1198,41 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "schemaChange",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "prepareModelGraphSchemaProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareModelGraphSchemaProjection",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Re-materializes only affected roots at the same business boundary after a source schema rewrite. "
   }, {
     "name" : "purgeExpiredMessages",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#purgeExpiredMessages",
@@ -1444,6 +1475,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "setModelNodeSchemaInvalidation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#setModelNodeSchemaInvalidation",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.util.function.BiConsumer<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Binds schema rewrites to retained work for individual Model nodes. "
   }, {
     "name" : "setModelSchemaInvalidation",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#setModelSchemaInvalidation",

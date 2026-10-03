@@ -3,7 +3,7 @@
   "qualifiedName" : "io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration$Placement",
   "packageName" : "io.fluxzero.sdk.persisting.search",
   "kind" : "record",
-  "modifiers" : [ "final", "private", "static" ],
+  "modifiers" : [ "final", "static" ],
   "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
@@ -45,7 +45,7 @@
   "constructors" : [ {
     "name" : "Placement",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration$Placement#Placement",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {

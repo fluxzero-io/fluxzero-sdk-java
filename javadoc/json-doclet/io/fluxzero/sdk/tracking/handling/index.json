@@ -60,6 +60,11 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.DocumentSource",
     "kind" : "enum"
   }, {
+    "file" : "GraphMigrationTarget.json",
+    "name" : "GraphMigrationTarget",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget",
+    "kind" : "enum"
+  }, {
     "file" : "HandleCommand.json",
     "name" : "HandleCommand",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleCommand",

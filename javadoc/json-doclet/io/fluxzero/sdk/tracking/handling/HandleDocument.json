@@ -52,6 +52,17 @@
     "varArgs" : false,
     "documentation" : " Optional class of the documents to handle. If annotated with {@link Searchable}, the annotation defines the\n collection; otherwise the class name is used.\n <p>\n If neither documentClass nor value are specified, the first parameter of the method is used to determine the\n collection:\n\n <pre>{@code\n class OrganisationHandler {\n     @HandleDocument\n     void on(Organisation organisation, Metadata metadata) { ... }\n }\n }</pre>\n\n @see Searchable\n"
   }, {
+    "name" : "graphMigration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocument#graphMigration",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.GraphMigrationTarget",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Migration target when this handler returns its complete injected Graph. The default upcasts the verified\n current source of each evolved node, preserving business state, identity, relationships and history. Returning\n a Graph with modified values or topology is rejected. Nodes are migrated individually and idempotently;\n concurrent changes are re-read, and persistent contention fails handling so the consumer can retry.\n Custom serializers must implement {@link io.fluxzero.sdk.persisting.search.DocumentSerializer#modelStateSnapshot(Object)}\n for this default route; the PROJECTION override retains the previous serializer contract.\n <p>\n Completion confirms node storage. Affected projections follow durably, including for Models configured with\n AWAIT, whose waiting guarantee applies to ordinary Model commits. Select {@link GraphMigrationTarget#PROJECTION}\n to retain projection-only migration; this does not write canonical nodes and is observational for live Graphs.\n"
+  }, {
     "name" : "onMissingProtectedData",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocument#onMissingProtectedData",
     "returnType" : "io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy",
@@ -72,7 +83,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Document source to observe. {@link DocumentSource#SEARCH} is the default: a Model parameter selects its\n canonical searchable node, and {@code Graph<Model>} selects that root and its included descendants. Ancestor\n content alone does not trigger the latter. Graph handling works with every projection mode; {@code NONE}\n composes the latest indexed nodes when reading an update and does not retain previous Graph snapshots.\n <p>\n {@link DocumentSource#MODEL_STATE} explicitly selects maintained internal Model state for observation or\n schema migration, including non-searchable DOCUMENT Models. It requires a Model value, not a Graph, and cannot\n be combined with an explicit collection. There is no automatic fallback between sources.\n <p>\n Returning an injected Model value may persist a higher-revision schema upcast, but must preserve identity and\n business state. Use Model commands for business changes. Returning a stored Graph can migrate only its\n aggregate projection under a concurrency guard; returning a live Graph never writes its nodes. A void handler\n only observes. Neither route creates historical Graph snapshots that the selected storage does not maintain.\n"
+    "documentation" : " Document source to observe. {@link DocumentSource#SEARCH} is the default: a Model parameter selects its\n canonical searchable node, and {@code Graph<Model>} selects that root and its included descendants. Ancestor\n content alone does not trigger the latter. Graph handling works with every projection mode; {@code NONE}\n composes the latest indexed nodes when reading an update and does not retain previous Graph snapshots.\n <p>\n {@link DocumentSource#MODEL_STATE} explicitly selects maintained internal Model state for observation or\n schema migration, including non-searchable DOCUMENT Models. It requires a Model value, not a Graph, and cannot\n be combined with an explicit collection. There is no automatic fallback between sources.\n <p>\n Returning an injected Model value may persist a higher-revision schema upcast, but must preserve identity and\n business state. Use Model commands for business changes. Returning the injected Graph migrates evolved\n canonical nodes by default, including live Graphs in projection mode NONE; see {@link #graphMigration()}.\n A void handler only observes. Neither route creates historical Graph snapshots that the selected storage does not maintain.\n"
   }, {
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandleDocument#value",

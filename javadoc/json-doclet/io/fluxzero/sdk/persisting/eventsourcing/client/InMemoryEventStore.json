@@ -202,6 +202,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelNodeSchemaGeneration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelNodeSchemaGeneration",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelNodeSchemaInvalidations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelNodeSchemaInvalidations",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelRelationStateIndices",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelRelationStateIndices",
     "type" : "java.util.Map<java.lang.String,java.lang.Long>",
@@ -919,7 +935,28 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "Retains affected projection rebuilds when a source schema changes without a Model commit. "
+    "documentation" : "Retains affected projection rebuilds for legacy type-only invalidations. "
+  }, {
+    "name" : "invalidateModelGraphSchema",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#invalidateModelGraphSchema",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Retains individual node rewrites until all affected projections have accepted the new schema. "
   }, {
     "name" : "invalidateScheduleParent",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#invalidateScheduleParent",

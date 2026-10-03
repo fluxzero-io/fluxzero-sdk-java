@@ -1,0 +1,206 @@
+{
+  "name" : "GraphSourceDocumentMigration",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Internal schema-only migration of the current canonical nodes selected by an injected Graph. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "GraphSourceDocumentMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#GraphSourceDocumentMigration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "capture",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#capture",
+    "returnType" : "void",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Captures values during parameter injection, before application code can mutate any node. "
+  }, {
+    "name" : "finish",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#finish",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Validates the returned Graph and migrates only evolved nodes using their latest verified source state. "
+  }, {
+    "name" : "inspect",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#inspect",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration.Node>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "instant",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#instant",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "millis",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "migrate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#migrate",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration.Node",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.persisting.search.client.SearchClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateIdentity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration#validateIdentity",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Captures",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Captures",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Node",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Node",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

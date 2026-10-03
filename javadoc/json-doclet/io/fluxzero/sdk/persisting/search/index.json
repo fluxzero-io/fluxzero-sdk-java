@@ -65,6 +65,21 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentStoreException",
     "kind" : "class"
   }, {
+    "file" : "GraphSourceDocumentMigration.json",
+    "name" : "GraphSourceDocumentMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration",
+    "kind" : "class"
+  }, {
+    "file" : "GraphSourceDocumentMigration.Captures.json",
+    "name" : "GraphSourceDocumentMigration.Captures",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Captures",
+    "kind" : "class"
+  }, {
+    "file" : "GraphSourceDocumentMigration.Node.json",
+    "name" : "GraphSourceDocumentMigration.Node",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Node",
+    "kind" : "record"
+  }, {
     "file" : "GroupSearch.json",
     "name" : "GroupSearch",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.GroupSearch",

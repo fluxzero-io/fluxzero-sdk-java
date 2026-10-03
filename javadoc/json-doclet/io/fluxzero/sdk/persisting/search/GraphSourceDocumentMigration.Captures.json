@@ -1,0 +1,36 @@
+{
+  "name" : "Captures",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Captures",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Captures.values",
+    "type" : "java.util.Map<java.lang.reflect.Executable,java.util.List<io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration.Node>>",
+    "modifiers" : [ "final" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Captures",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.GraphSourceDocumentMigration$Captures#Captures",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

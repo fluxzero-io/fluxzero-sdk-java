@@ -34,7 +34,7 @@
     "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision>",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Logical Model names that can occur in this projection and the revision of their direct document schema.\n <p>\n The ordered list is part of the durable projection definition. Changing any participating model revision\n therefore advances the Runtime's existing configuration fence and triggers a complete rebuild.\n",
+    "documentation" : " Logical Model names that can occur in this projection and the revision of their direct document schema.\n <p>\n Participating Model types define the projection scope. Revision changes alone do not require a complete\n rebuild: schema rewrites of individual sources update only affected roots.\n",
     "constantValue" : null
   }, {
     "name" : "pathOverrides",
@@ -154,6 +154,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "hasSameComposition",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration#hasSameComposition",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Tests whether composition, scope or storage changed, ignoring individual source schema revisions. "
+  }, {
     "name" : "requireText",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration#requireText",
     "returnType" : "java.lang.String",

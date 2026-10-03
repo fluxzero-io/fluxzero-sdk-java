@@ -45,6 +45,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Materializes Graph documents for the supplied roots and state index, optionally rebuilding them. Returns\n the publication action to run after the Graph-projection fence advances.\n"
+  }, {
+    "name" : "materializeSchema",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionMaterializer#materializeSchema",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Materializes schema changes without removing unrelated roots or bypassing newer business boundaries. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
