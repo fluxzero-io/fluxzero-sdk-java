@@ -6009,7 +6009,10 @@
         "autoHead",
         "autoOptions",
         "forwardWebRequestsToLocalServer",
-        "content negotiation"
+        "content negotiation",
+        "fluxzero.proxy.http2MaxResponseHeaderSize",
+        "FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE",
+        "HTTP/2 response header limit HPACK buffer pool"
       ],
       "links": [
         {
