@@ -66,7 +66,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " A predicate that determines whether a caught exception is eligible for retry.\n <p>\n If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest} is set\n to true).\n <p>\n Defaults to always returning true (retry any exception).\n",
+    "documentation" : " A predicate that determines whether a caught exception is eligible for retry.\n <p>\n If the predicate returns {@code false}, the retry loop returns {@code null}, or throws the caught exception\n when {@link #throwOnFailingErrorTest} is {@code true}.\n <p>\n Defaults to retrying failures other than {@link Error}. The predicate receives the caught throwable as-is;\n it does not unwrap causes.\n",
     "constantValue" : null
   }, {
     "name" : "exceptionLogger",
