@@ -150,11 +150,26 @@ Fluxzero supports secure storage of secrets using its built-in encryption utilit
 
 1. **Generate a new key** with:
 
+   <Tabs>
+   <TabItem label="Java">
+
    ```java
    String key = DefaultEncryption.generateNewEncryptionKey();
    System.out.println(key);
    // => ChaCha20|KJh832h1f7shDFb...  -> Save and use as ENCRYPTION_KEY
    ```
+
+   </TabItem>
+   <TabItem label="Kotlin">
+
+   ```kotlin
+   val key = DefaultEncryption.generateNewEncryptionKey()
+   println(key)
+   // => ChaCha20|KJh832h1f7shDFb...  -> Save and use as ENCRYPTION_KEY
+   ```
+
+   </TabItem>
+   </Tabs>
 
 2. **Set the encryption key** via an environment variable or system property:
 
@@ -164,11 +179,26 @@ Fluxzero supports secure storage of secrets using its built-in encryption utilit
 
 3. **Encrypt values** at build/deploy time:
 
+   <Tabs>
+   <TabItem label="Java">
+
    ```java
    String encrypted = ApplicationProperties.encryptValue("secret-google-key");
    System.out.println(encrypted);
    // => encrypted|ChaCha20|mm8yeY8TXtNpdrwO:REdej56zvFXc:b7oQdmnpQpUzagKtma9JLQ==
    ```
+
+   </TabItem>
+   <TabItem label="Kotlin">
+
+   ```kotlin
+   val encrypted = ApplicationProperties.encryptValue("secret-google-key")
+   println(encrypted)
+   // => encrypted|ChaCha20|mm8yeY8TXtNpdrwO:REdej56zvFXc:b7oQdmnpQpUzagKtma9JLQ==
+   ```
+
+   </TabItem>
+   </Tabs>
 
 4. **Add encrypted values to your config**:
 
@@ -178,10 +208,24 @@ Fluxzero supports secure storage of secrets using its built-in encryption utilit
 
 5. **Resolve them normally in code**:
 
+   <Tabs>
+   <TabItem label="Java">
+
    ```java
    String apiKey = ApplicationProperties.getProperty("google.apikey");
    // -> "secret-google-key"
    ```
+
+   </TabItem>
+   <TabItem label="Kotlin">
+
+   ```kotlin
+   val apiKey = ApplicationProperties.getProperty("google.apikey")
+   // -> "secret-google-key"
+   ```
+
+   </TabItem>
+   </Tabs>
 
 Decryption is transparent. Fluxzero detects encrypted values and decrypts them automatically.
 

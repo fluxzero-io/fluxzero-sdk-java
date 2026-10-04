@@ -230,6 +230,22 @@ public class UserHandler {
 ```
 
   </TabItem>
+  <TabItem label="Kotlin">
+
+Kotlin has no package annotations, so declare the prefix on the class:
+
+```kotlin
+package my.example.api
+
+@Path("api/users")
+class UserHandler {
+    @Path("{id}")
+    @HandleGet
+    fun getUser(@PathParam id: String): User { ... }
+}
+```
+
+  </TabItem>
 </Tabs>
 
 This matches `/api/users/{id}`. If `@Path("/users")` had been used on the class instead, it would reset the prefix and match `/users/{id}`.
@@ -250,6 +266,14 @@ public class WebAssets {
 ```
 
   </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@ServeStatic(value = ["/web"], resourcePath = "/static")
+class WebAssets
+```
+
+  </TabItem>
 </Tabs>
 
 This serves files from `/static` (in classpath or filesystem) under the URI path `/web/**`.
@@ -264,6 +288,9 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
 
 ### Full annotation example
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @ServeStatic(
     value = "/assets",
@@ -274,6 +301,23 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
     maxAgeSeconds = 86400
 )
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@ServeStatic(
+    value = ["/assets"],
+    resourcePath = "/public",
+    fallbackFile = "index.html",
+    cleanUrls = true,
+    immutableCandidateExtensions = ["js", "css", "svg"],
+    maxAgeSeconds = 86400
+)
+```
+
+</TabItem>
+</Tabs>
 
 #### Parameters:
 
@@ -286,11 +330,25 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
 
 ### Example: serving a React app
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @ServeStatic(value = "/app", resourcePath = "/static", fallbackFile = "index.html")
 public class WebFrontend {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@ServeStatic(value = ["/app"], resourcePath = "/static", fallbackFile = "index.html")
+class WebFrontend
+```
+
+</TabItem>
+</Tabs>
 
 This serves:
 
@@ -313,6 +371,9 @@ To restrict resolution:
 
 You can mix `@ServeStatic` with dynamic handlers:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Path("/app")
 @ServeStatic("static")
@@ -329,6 +390,24 @@ public class AppController {
     }
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Path("/app")
+@ServeStatic("static")
+class AppController {
+    @HandleGet("/status")
+    fun getStatus(): Status = Status("OK", Instant.now())
+
+    @HandlePost("/submit")
+    fun submitForm(data: FormData): SubmissionResult = formService.handle(data)
+}
+```
+
+</TabItem>
+</Tabs>
 
 This will:
 

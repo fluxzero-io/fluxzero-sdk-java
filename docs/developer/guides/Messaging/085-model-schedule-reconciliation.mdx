@@ -6,6 +6,8 @@ sidebar:
    order: 85
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 For delayed work derived directly from Model state, use [declarative Model deadlines](./087-model-deadlines.mdx).
 They combine intent changes and stale-delivery guards with the Model commit.
 
@@ -22,6 +24,9 @@ and delivered commands still need guards.
 Start with ordinary event-sourced Models. A reminder has its own lifecycle and belongs to a project through `@Parent`;
 deleting the project also deletes the reminder. The deadline and completion flag are execution state, not descriptive
 details. ID types below extend `Id<Project>` and `Id<Reminder>`.
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Model record Project(@EntityId ProjectId projectId) {}
@@ -41,9 +46,38 @@ record DeleteProject(ProjectId projectId) {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model data class Project(@EntityId val projectId: ProjectId)
+@Model data class Reminder(
+    @EntityId val reminderId: ReminderId,
+    @Parent val projectId: ProjectId,
+    val deadline: Instant,
+    val completed: Boolean
+)
+
+data class PlanReminder(val reminderId: ReminderId, val projectId: ProjectId, val deadline: Instant) {
+    @Apply fun apply() = Reminder(reminderId, projectId, deadline, false)
+}
+data class RescheduleReminder(val reminderId: ReminderId, val deadline: Instant) {
+    @Apply fun apply(current: Reminder) = current.copy(deadline = deadline, completed = false)
+}
+data class DeleteProject(val projectId: ProjectId) {
+    @Apply fun apply(current: Project): Project? = null
+}
+```
+
+</TabItem>
+</Tabs>
+
 A registered tracked post-commit consumer reconciles the desired active schedule. A sole `Graph<Reminder>` parameter
 receives direct changes **and cascaded deletion**. No parent-specific cleanup handler is needed for new commits that
 record cascade notifications.
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Consumer(name = "reminder-schedules", singleTracker = true,
@@ -63,7 +97,8 @@ final class ReminderSchedules {
 }
 ```
 
-The Kotlin equivalent uses the same contract:
+</TabItem>
+<TabItem label="Kotlin">
 
 ```kotlin
 @Consumer(name = "reminder-schedules", singleTracker = true,
@@ -82,6 +117,9 @@ class ReminderSchedules {
 }
 ```
 
+</TabItem>
+</Tabs>
+
 Register this consumer with the application. `singleTracker = true` serializes its reconciliation work, including
 parent-triggered deletion and direct reminder events that may have different routing segments. Do not independently
 write the same schedule from another consumer. Failures propagate to tracked retry through `ThrowingErrorHandler`;
@@ -97,6 +135,9 @@ inside `@Apply` or `@AssertLegal`. They are an eventually reconciled effect, not
 Cancellation cannot recall a command already delivered. An early or stale command must recheck current intent before
 applying. Keep clock-dependent decisions in evaluation, not in replayed `@Apply` logic:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 record RunReminder(ReminderId reminderId, Instant expectedDeadline) {
     @InterceptApply RunReminder applicable(@Nullable Reminder current) {
@@ -109,6 +150,9 @@ record RunReminder(ReminderId reminderId, Instant expectedDeadline) {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
 ```kotlin
 data class RunReminder(val reminderId: ReminderId, val expectedDeadline: Instant) {
     @InterceptApply
@@ -120,6 +164,9 @@ data class RunReminder(val reminderId: ReminderId, val expectedDeadline: Instant
     fun apply(current: Reminder) = current.copy(completed = true)
 }
 ```
+
+</TabItem>
+</Tabs>
 
 This example marks the work completed; any external side effect still needs its own retry/idempotency contract.
 If a logical reminder ID can be deleted and recreated with the same deadline, add a generation token to its persisted
@@ -137,6 +184,9 @@ state prevents creation.
 `expectOnlyScheduledCommands(...)` checks only commands **dispatched for scheduling during When**. It can pass while an older
 schedule is still active. The local fixture's `expectOnlyActiveScheduledCommands(...)` checks all active scheduled
 commands and unwraps their payloads. Use a `Predicate<Schedule>` to include ID, deadline **and** command contents:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 record RunTask(String taskId, Instant expectedDeadline) {}
@@ -160,12 +210,38 @@ void replacementLeavesExactlyOneActiveCommand() {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class RunTask(val taskId: String, val expectedDeadline: Instant)
+
+@Test
+fun replacementLeavesExactlyOneActiveCommand() {
+    val start = Instant.parse("2026-01-01T00:00:00Z")
+    val oldDeadline = start.plusSeconds(3600)
+    val deadline = oldDeadline.plusSeconds(600)
+    val command = RunTask("task-1", deadline)
+
+    TestFixture.create().atFixedTime(start)
+        .givenScheduledCommands(Schedule(RunTask("task-1", oldDeadline), "task-1", oldDeadline))
+        .whenExecuting { Fluxzero.scheduleCommand(command, "task-1", deadline) }
+        .expectOnlyActiveScheduledCommands(Predicate<Schedule> {
+            it.scheduleId == "task-1" && it.deadline == deadline && it.getPayload<Any>() == command
+        })
+        .andThen().whenExecuting { Fluxzero.cancelSchedule("task-1") }
+        .expectOnlyActiveScheduledCommands().expectNoSchedules()
+}
+```
+
+</TabItem>
+</Tabs>
+
 If replacement accidentally uses another ID, the assertion fails because both commands remain active.
 In an application test, replace `whenExecuting` with the real reschedule/delete command and register its reconciliation
 handler; the assertion stays the same. Run the scenario asynchronously too when tracked handlers own reconciliation.
 
-Kotlin uses `Predicate<Schedule> { it.scheduleId == "task-1" && it.deadline == deadline &&
-it.getPayload<Any>() == command }`. A plain `Schedule` expectation does **not** compare ID; the predicate does.
+A plain `Schedule` expectation does **not** compare ID; the predicate does.
 This new assertion excludes ordinary `@HandleSchedule` payloads. Use `expectNoSchedules()` for absence of both kinds.
 It requires a local scheduling client and fails explicitly for remote clients: observing remote writes is not a
 complete inventory. For a retained remote store, verify known IDs through `messageScheduler().getSchedule(id)`

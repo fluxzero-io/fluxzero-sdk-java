@@ -477,11 +477,26 @@ inspect or persist the object as it would appear in an earlier revision.
 
 In standalone tests, register casters before the first conversion or historical Given step:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 TestFixture.create().registerCasters(new CreateUserUpcaster())
         .whenUpcasting("/users/create-user-rev0.json")
         .expectResult(expectedCurrentCommand);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+TestFixture.create().registerCasters(CreateUserUpcaster())
+    .whenUpcasting("/users/create-user-rev0.json")
+    .expectResult(expectedCurrentCommand)
+```
+
+</TabItem>
+</Tabs>
 
 The resource's type and revision must match that caster; `expectedCurrentCommand` must retain the old ID and business
 values. `TestFixture.create(caster)` registers a handler, not a caster. Kotlin uses

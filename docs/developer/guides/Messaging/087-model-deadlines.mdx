@@ -6,8 +6,13 @@ sidebar:
    order: 87
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 Use `@Deadline` for delayed work derived from a Model. A pure instance method declares its desired payload and
 execution time. The Model commit carries changes to that intent; the existing scheduler delivers the work.
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Model
@@ -19,39 +24,8 @@ record BookingHold(@EntityId HoldId holdId, Instant expiresAt, boolean confirmed
 }
 ```
 
-`HoldId` extends `Id<BookingHold>`. Returning `null` means there is no desired deadline. Commands are the default
-and receive the configured system user. When authentication supplies a caller, a missing system user rejects
-the Model change before commit rather than inheriting that caller. Applications without user authentication remain supported. `@Deadline(command = false)` instead uses ordinary `@HandleSchedule`
-handling. Give methods distinct categories such as `@Deadline("warning")` and `@Deadline("expiry")`.
-
-## One-shot cron and delay
-
-When the annotation supplies timing, return the payload directly:
-
-```java
-@Deadline(cron = "${booking.expiry.cron}", timeZone = "Europe/Amsterdam")
-ExpireBookingHold expiry() {
-    return confirmed ? null : new ExpireBookingHold(holdId);
-}
-```
-
-Cron uses the same parser and `ApplicationProperties` substitution as `@Periodic`. For example configure
-`booking.expiry.cron=0 9 * * *` (environment variable `BOOKING_EXPIRY_CRON`) for the next 09:00 in the selected zone.
-Set the property to `-` (`Deadline.DISABLED`) to disable it. Configuration must be consistent across writers.
-Property values are resolved during evaluation. New or changed declarations use the current value; changing a
-property alone does not reconcile existing deadlines, and an unrelated Model write does not renew them.
-
-For elapsed time use `@Deadline(delay = 2, timeUnit = TimeUnit.HOURS)`. There is no implicit zero-delay default:
-a plain payload requires cron or a nonnegative delay. Cron takes precedence when both are specified; a returned
-`Schedule` supplies its own timestamp. A `Message` return value preserves its application metadata.
-
-These are **one-shot deadlines**. Cron selects the first match after the change; it does not repeat automatically.
-Delay is measured from the change that creates or changes the desired payload. Both sides of the Model change are
-evaluated with the same reference clock. An unrelated write does not move the deadline, and an unchanged declaration
-does not revive a consumed or externally canceled schedule. To start new work, change the logical payload (for
-example a domain cycle identifier) or transition from no deadline to an active deadline.
-
-Kotlin follows the same contract:
+</TabItem>
+<TabItem label="Kotlin">
 
 ```kotlin
 @Model
@@ -63,12 +37,81 @@ data class BookingHold(
     @Deadline
     fun expiry(): Schedule? =
         if (confirmed) null else Schedule(ExpireBookingHold(holdId), expiresAt)
-
-    @Deadline("warning", delay = 1, timeUnit = TimeUnit.HOURS)
-    fun warning(): WarnBookingHold? =
-        if (confirmed) null else WarnBookingHold(holdId)
 }
 ```
+
+</TabItem>
+</Tabs>
+
+`HoldId` extends `Id<BookingHold>`. Returning `null` means there is no desired deadline. Commands are the default
+and receive the configured system user. When authentication supplies a caller, a missing system user rejects
+the Model change before commit rather than inheriting that caller. Applications without user authentication remain supported. `@Deadline(command = false)` instead uses ordinary `@HandleSchedule`
+handling. Give methods distinct categories such as `@Deadline("warning")` and `@Deadline("expiry")`.
+
+## One-shot cron and delay
+
+When the annotation supplies timing, return the payload directly:
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+@Deadline(cron = "${booking.expiry.cron}", timeZone = "Europe/Amsterdam")
+ExpireBookingHold expiry() {
+    return confirmed ? null : new ExpireBookingHold(holdId);
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Deadline(cron = "\${booking.expiry.cron}", timeZone = "Europe/Amsterdam")
+fun expiry(): ExpireBookingHold? =
+    if (confirmed) null else ExpireBookingHold(holdId)
+```
+
+</TabItem>
+</Tabs>
+
+Cron uses the same parser and `ApplicationProperties` substitution as `@Periodic`. For example configure
+`booking.expiry.cron=0 9 * * *` (environment variable `BOOKING_EXPIRY_CRON`) for the next 09:00 in the selected zone.
+Set the property to `-` (`Deadline.DISABLED`) to disable it. Configuration must be consistent across writers.
+Property values are resolved during evaluation. New or changed declarations use the current value; changing a
+property alone does not reconcile existing deadlines, and an unrelated Model write does not renew them.
+
+For elapsed time, configure a delay:
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+@Deadline(value = "warning", delay = 1, timeUnit = TimeUnit.HOURS)
+WarnBookingHold warning() {
+    return confirmed ? null : new WarnBookingHold(holdId);
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Deadline("warning", delay = 1, timeUnit = TimeUnit.HOURS)
+fun warning(): WarnBookingHold? =
+    if (confirmed) null else WarnBookingHold(holdId)
+```
+
+</TabItem>
+</Tabs>
+
+There is no implicit zero-delay default: a plain payload requires cron or a nonnegative delay. Cron takes precedence when both are specified; a returned
+`Schedule` supplies its own timestamp. A `Message` return value preserves its application metadata.
+
+These are **one-shot deadlines**. Cron selects the first match after the change; it does not repeat automatically.
+Delay is measured from the change that creates or changes the desired payload. Both sides of the Model change are
+evaluated with the same reference clock. An unrelated write does not move the deadline, and an unchanged declaration
+does not revive a consumed or externally canceled schedule. To start new work, change the logical payload (for
+example a domain cycle identifier) or transition from no deadline to an active deadline.
 
 ## Comparison, identity and deletion
 
@@ -91,6 +134,9 @@ parent-owned scheduling for independent schedules with payload-based lifetime bi
 
 A method can receive a typed Model ancestor or a `Graph<T>` view:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Deadline
 Schedule expiry(BookingPolicy policy) {
@@ -98,6 +144,19 @@ Schedule expiry(BookingPolicy policy) {
         : new Schedule(new ExpireBookingHold(holdId), createdAt.plus(policy.holdDuration()));
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Deadline
+fun expiry(policy: BookingPolicy?): Schedule? =
+    if (confirmed || policy == null) null
+    else Schedule(ExpireBookingHold(holdId), createdAt.plus(policy.holdDuration))
+```
+
+</TabItem>
+</Tabs>
 
 Ancestor changes and relationship changes reevaluate affected declarations in the same Model operation. A Graph
 parameter also supports dependencies on descendants and siblings. Relation navigation selects connected candidates,

@@ -621,9 +621,22 @@ class AsyncAppTest {
 ⚠️ If you're using plain Spring (non-Boot), you must import the test config manually:
 </Aside>
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Import(FluxzeroTestConfig.class)
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Import(FluxzeroTestConfig::class)
+```
+
+</TabItem>
+</Tabs>
 
 ---
 

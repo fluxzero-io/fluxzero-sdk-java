@@ -26,6 +26,9 @@ A typed ID alone does not create a Graph edge. Adding `@Parent` makes the relati
 
 For example, an order line belongs to an order and has a non-owning relation to a product:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Order(
@@ -42,6 +45,25 @@ record LineItem(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Order(@EntityId val orderId: OrderId, val customerName: String)
+
+@Model
+data class LineItem(
+    @EntityId val lineItemId: LineItemId,
+    @Parent(pathInParent = "lines") val orderId: OrderId?,
+    @Parent(deleteOnParentDeletion = false) val productId: ProductId,
+    val quantity: Int
+)
+```
+
+</TabItem>
+</Tabs>
+
 Here `LineItemId`, `OrderId` and `ProductId` are typed `Id<T>` values for their respective Models.
 The same line belongs to its order and has a non-owning Graph relation to its product. Deleting the order cascades
 to the line; deleting the product does not. Both relations support typed Graph navigation. The product edge has no
@@ -57,6 +79,9 @@ The named parent path lets Fluxzero include it in the order’s composed Graph.
 
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Folder(
@@ -66,12 +91,30 @@ record Folder(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Folder(
+    @EntityId val folderId: FolderId,
+    @Parent(pathInParent = "folders") val parentFolderId: FolderId?,
+    val details: FolderDetails
+)
+```
+
+</TabItem>
+</Tabs>
+
 This is a relation between independently stored `Folder` Models, not an embedded recursive value. Fluxzero permits an
 arbitrarily deep concrete tree and rejects a write atomically if it would introduce a cycle.
 
 ## Attach, detach and move
 
 The relation is ordinary model state:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 record MoveLine(
@@ -89,6 +132,19 @@ record MoveLine(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class MoveLine(val lineItemId: LineItemId, val newOrderId: OrderId?) {
+    @Apply
+    fun apply(line: LineItem) = line.copy(orderId = newOrderId)
+}
+```
+
+</TabItem>
+</Tabs>
+
 Changing only `orderId` moves the line and its descendants. Returning a model with a `null` parent ID detaches it.
 Neither the old nor new parent needs to be loaded.
 
@@ -100,20 +156,51 @@ today.
 
 With `Id<Parent>`, Fluxzero infers the parent type:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Parent(pathInParent = "lines")
 OrderId orderId
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Parent(pathInParent = "lines")
+val orderId: OrderId
+```
+
+</TabItem>
+</Tabs>
+
 For a string or another untyped ID, declare the type when graph features need it:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Parent(value = Order.class, pathInParent = "lines")
 String orderId
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Parent(value = Order::class, pathInParent = "lines")
+val orderId: String
+```
+
+</TabItem>
+</Tabs>
+
 For one polymorphic typed relation, enumerate the statically allowed parent types. The concrete typed ID selects one of
 them at runtime:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Parent(
@@ -121,6 +208,17 @@ them at runtime:
     pathInParent = "items")
 Id<?> containerId
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Parent(types = [Project::class, Folder::class], pathInParent = "items")
+val containerId: Id<*>
+```
+
+</TabItem>
+</Tabs>
 
 Use separate properties when the relations have different domain roles, paths or deletion ownership.
 
@@ -152,10 +250,24 @@ concatenated into the persisted key.
 
 `pathInParent` is an explicit durable placement contract. It is intentionally not derived from a Java class name:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Parent(pathInParent = "shipping/lines")
 OrderId orderId
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Parent(pathInParent = "shipping/lines")
+val orderId: OrderId
+```
+
+</TabItem>
+</Tabs>
 
 When `pathInParent` is omitted, Fluxzero still stores and traverses the relation, but it does not automatically stitch
 that edge into a search or serialized graph document. Typed `Graph` traversal and parent-deletion lifecycle handling
@@ -163,10 +275,24 @@ still follow it. This keeps package and class renames from silently changing pub
 
 When you need to find whole order Graphs, enable `@Model(searchable = true)` on Order; optionally store the composed result with GraphProjection ASYNC/AWAIT:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Graph<Order> order = Fluxzero.searchGraph(Order.class)
         .fetchFirstOrNull();
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val order: Graph<Order>? = Fluxzero.searchGraph(Order::class.java)
+    .fetchFirstOrNull()
+```
+
+</TabItem>
+</Tabs>
 
 If `Order` configures a graph projection, the default search reads that materialized view. Without one, it stitches
 the graph live. Pass `true` as the second argument to force live stitching. Constraints, sorting, field selection and
@@ -175,10 +301,24 @@ pagination apply to the complete graph view in either route. Use an explicit ter
 
 Or reconstructed as typed models:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Graph<Order> graph = Fluxzero.loadGraph(orderId);
 List<LineItem> lines = graph.childModels("lines", LineItem.class);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val graph: Graph<Order> = Fluxzero.loadGraph(orderId)
+val lines: List<LineItem> = graph.childModels("lines", LineItem::class.java)
+```
+
+</TabItem>
+</Tabs>
 
 The root is available immediately. Relationships are loaded lazily on first traversal, with all returned nodes and
 edges pinned to one `stateIndex`.
@@ -186,6 +326,9 @@ edges pinned to one `stateIndex`.
 ## Injecting parents and grandparents
 
 Assertions, interceptors and applies load only the ancestors they declare:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 record ChangeLineQuantity(
@@ -209,10 +352,33 @@ record ChangeLineQuantity(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class ChangeLineQuantity(val lineItemId: LineItemId, val quantity: Int) {
+    @AssertLegal
+    fun assertOrderOpen(line: LineItem, order: Order, customer: Customer) {
+        if (order.closed) {
+            throw IllegalStateException("Order is closed")
+        }
+    }
+
+    @Apply
+    fun apply(line: LineItem) = line.copy(quantity = quantity)
+}
+```
+
+</TabItem>
+</Tabs>
+
 The command needs only the direct `lineItemId`. Fluxzero follows the temporal parent graph for `Order` and `Customer`.
 Siblings and descendants remain unloaded.
 
 When more than one compatible ancestor edge exists, qualify it by path:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 void assertBillingOrder(
@@ -221,12 +387,26 @@ void assertBillingOrder(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+fun assertBillingOrder(line: LineItem, @Association("billingLines") order: Order) {
+}
+```
+
+</TabItem>
+</Tabs>
+
 ## Searching across relations
 
 For the searches below, enable `searchable` on the result types and the related types whose contents are filtered, or include them in a searchable ancestor's composed scope. Ancestor-ID filtering needs only searchable result nodes and relationships; the ancestor itself need not be searchable. Persistence is a separate choice, and identity-based Graph navigation needs no search activation. See the
 [query guide](../model-query-guide) for the storage requirements.
 
 Current relation-backed search can match children using parent or grandparent documents:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 List<LineItem> lines = Fluxzero.search(LineItem.class)
@@ -239,7 +419,22 @@ List<LineItem> lines = Fluxzero.search(LineItem.class)
         .fetchAll();
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val lines: List<LineItem> = Fluxzero.search(LineItem::class.java)
+    .whereAncestor(Customer::class.java, 2, 2, MatchConstraint.match("Acme", true, "name"))
+    .fetchAll()
+```
+
+</TabItem>
+</Tabs>
+
 The reverse is also possible:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 List<Order> orders = Fluxzero.search(Order.class)
@@ -254,12 +449,30 @@ List<Order> orders = Fluxzero.search(Order.class)
         .fetchAll();
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val orders: List<Order> = Fluxzero.search(Order::class.java)
+    .whereDescendant(
+        LineItem::class.java, 1, 1,
+        MatchConstraint.match(productId.toString(), true, "productId")
+    )
+    .fetchAll()
+```
+
+</TabItem>
+</Tabs>
+
 These current searches use relational joins between direct model documents and current edges. They do not require an
 asynchronously materialized root document.
 
 ## Materialized root projections
 
 For repeated whole-root queries, opt in to a durable graph projection:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Model(
@@ -270,6 +483,20 @@ For repeated whole-root queries, opt in to a durable graph projection:
 record Order(@EntityId OrderId orderId, String customerName) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(
+    searchable = true,
+    graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC, collection = "order-graphs")
+)
+data class Order(@EntityId val orderId: OrderId, val customerName: String)
+```
+
+</TabItem>
+</Tabs>
 
 The runtime consumes durable projection signals, coalesces affected roots, composes each complete graph and writes it
 with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root. Adding `DOCUMENT` to the
@@ -296,6 +523,9 @@ root, state boundary, nodes or placements, and never modifies direct Models or r
 
 Use `@Member` inside a model when the nested value intentionally shares everything with its owner:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Invoice(
@@ -303,6 +533,17 @@ record Invoice(
         @Member List<InvoiceNote> notes) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Invoice(@EntityId val invoiceId: InvoiceId, @Member val notes: List<InvoiceNote>)
+```
+
+</TabItem>
+</Tabs>
 
 This produces the compact one-stream, one-document behavior historically associated with aggregates, without
 introducing a second root concept. Embedded members are appropriate when they:
@@ -321,10 +562,24 @@ whose relevant `@Parent` keeps `deleteOnParentDeletion = true`. This ownership r
 shared-DAG descendants too. Choose `false` for non-owning relations, such as the product relation above, or for
 independently retained children such as audit entries:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Parent(pathInParent = "auditEntries", deleteOnParentDeletion = false)
 OrderId orderId
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Parent(pathInParent = "auditEntries", deleteOnParentDeletion = false)
+val orderId: OrderId
+```
+
+</TabItem>
+</Tabs>
 
 `false` leaves the child alive; it does not block deletion of the order or product. A deletion-blocking invariant
 belongs in the application's domain rules. With multiple parents, each edge has its own policy: a non-owning
@@ -337,6 +592,9 @@ Explicit hard deletion removes the selected model's stream, cache, snapshots and
 
 Descendant hard deletion is never guessed:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 ModelDeletionPlan plan = Fluxzero.get()
         .modelRepository()
@@ -344,6 +602,20 @@ ModelDeletionPlan plan = Fluxzero.get()
 
 Fluxzero.get().modelRepository().deleteModel(plan).join();
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val plan: ModelDeletionPlan = Fluxzero.get()
+    .modelRepository()
+    .planDeletion(orderId, ModelDeletionCascade.DESCENDANTS)
+
+Fluxzero.get().modelRepository().deleteModel(plan).join()
+```
+
+</TabItem>
+</Tabs>
 
 Detached descendants retain enough former-parent information for lifecycle and GDPR cleanup even after their parent
 has been deleted. Globally published audit events are outside the model-stream hard-delete boundary.

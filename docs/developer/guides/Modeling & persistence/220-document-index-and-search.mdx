@@ -273,11 +273,26 @@ pass its already loaded `Graph` so Fluxzero can use the exact persisted identity
 
 When the related identity must instead be discovered from its current content, pass the Model type and constraints:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 List<Task> activeProjectTasks = Fluxzero.search(Task.class)
         .whereParent(Project.class, MatchConstraint.match("ACTIVE", "status"))
         .fetch(100);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val activeProjectTasks: List<Task> = Fluxzero.search(Task::class.java)
+    .whereParent(Project::class.java, MatchConstraint.match("ACTIVE", "status"))
+    .fetch(100)
+```
+
+</TabItem>
+</Tabs>
 
 Use the class-and-constraint overload to select related Models by their own indexed content. Both the returned
 Model and the related Model must be effectively searchable. They use their canonical node documents; a composed Graph

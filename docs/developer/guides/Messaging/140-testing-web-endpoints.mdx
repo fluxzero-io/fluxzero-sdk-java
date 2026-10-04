@@ -274,6 +274,9 @@ Keep the application's configured consumers unchanged. Otherwise `perPackage` ca
 and stub on one single-threaded consumer. The synchronous fixture detects that potential production deadlock;
 the async fixture really uses tracking and can wait for work the occupied consumer cannot execute.
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 class AppEndpoint {
     @HandleGet("/app")
@@ -300,6 +303,9 @@ void callsExternalApi() {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
 ```kotlin
 class AppEndpoint {
     @HandleGet("/app")
@@ -321,6 +327,9 @@ fun callsExternalApi() {
         .expectNoErrors()
 }
 ```
+
+</TabItem>
+</Tabs>
 
 Repeat with `createAsync` when consumer/tracking behavior is relevant. A builder-level
 `ConsumerConfiguration` with an exact handler filter is the alternative when the stub cannot be annotated.

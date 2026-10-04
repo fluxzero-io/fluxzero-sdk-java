@@ -6,17 +6,34 @@ sidebar:
    order: 86
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 For delayed work derived directly from Model state, use [declarative Model deadlines](./087-model-deadlines.mdx).
 They combine intent changes and stale-delivery guards with the Model commit.
 
 A schedule can belong to the lifetime of one or more **already committed Models**. Declare ownership on its payload
 with `@Parent`, or select parents explicitly on `Schedule`. This works for schedule messages and scheduled commands.
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 record RunReminder(@Parent ReminderId reminderId, Instant expectedDeadline) {}
 
 Fluxzero.scheduleCommand(new RunReminder(reminderId, deadline), "reminder-" + reminderId, deadline);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class RunReminder(@Parent val reminderId: ReminderId, val expectedDeadline: Instant)
+
+Fluxzero.scheduleCommand(RunReminder(reminderId, deadline), "reminder-$reminderId", deadline)
+```
+
+</TabItem>
+</Tabs>
 
 Here `ReminderId extends Id<Reminder>`. Plan this from a tracked post-commit handler: the parent must exist in the
 schedule's namespace when planning starts. Do not schedule before its creation commit, or inside replayed `@Apply`
@@ -41,11 +58,26 @@ For a parent-scoped identity supply its complete canonical repository ID, not ju
 
 ## Explicit selection, replacements and retries
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 var message = new Schedule(new SendReminder(), "reminder-" + reminderId, deadline);
 Fluxzero.get().messageScheduler().schedule(message.withParents(reminderId));
 Fluxzero.get().messageScheduler().schedule(message.withParents()); // deliberately unowned
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val message = Schedule(SendReminder(), "reminder-$reminderId", deadline)
+Fluxzero.get().messageScheduler().schedule(message.withParents(reminderId))
+Fluxzero.get().messageScheduler().schedule(message.withParents()) // deliberately unowned
+```
+
+</TabItem>
+</Tabs>
 
 `withParents(...)` replaces, rather than adds to, payload declarations. An empty argument list opts out.
 Its typed IDs use Model identity mapping; plain strings must already be canonical. Explicit parent IDs are stored in
@@ -79,6 +111,9 @@ can lose telemetry; this is not an exactly-once audit log.
 LocalClient performs cancellation deterministically after the Model commit. Test both direct and cascade deletion,
 and assert the **entire active set**, not only schedules created during the When phase:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 fixture.givenCommands(new CreateReminder(reminderId))
        .given(fc -> fc.messageScheduler().scheduleCommand(
@@ -89,6 +124,23 @@ fixture.givenCommands(new CreateReminder(reminderId))
        .expectMetrics(ScheduleAutoCancelled.class)
        .expectNoErrors();
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+fixture.givenCommands(CreateReminder(reminderId))
+    .given { fc -> fc.messageScheduler().scheduleCommand(
+        Schedule(RunReminder(reminderId, deadline), "reminder", deadline)) }
+    .whenCommand(DeleteReminder(reminderId)) // @Apply fun apply(current: Reminder): Reminder? = null
+    .expectSuccessfulResult()
+    .expectOnlyActiveScheduledCommands()
+    .expectMetrics(ScheduleAutoCancelled::class.java)
+    .expectNoErrors()
+```
+
+</TabItem>
+</Tabs>
 
 Test in-flight/stale commands separately. A persistence-backed integration test must await eventual cancellation.
 The asynchronous local fixture waits for accepted schedules, not rejected old-lifetime attempts or ignored `ifAbsent`
