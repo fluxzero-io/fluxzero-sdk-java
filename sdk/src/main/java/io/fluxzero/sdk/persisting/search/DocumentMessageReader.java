@@ -26,8 +26,6 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.search.DefaultDocumentSerializer;
-import io.fluxzero.common.search.Document;
-import io.fluxzero.common.search.JacksonInverter;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.common.search.ModelGraphInvalidation;
 import io.fluxzero.common.search.ModelSearchDocument;
@@ -248,15 +246,21 @@ public final class DocumentMessageReader {
      * Decoding is deferred until a replacement is actually needed. Non-document inputs have no stored metadata.
      */
     public static Metadata sourceMetadata(DeserializingMessage message) {
-        return JacksonInverter.extractMetadata(sourceEntries(message))
-                .without(SearchExclusions.METADATA_KEY).without(ModelSearchDocument.SUMMARY);
+        Metadata metadata = storedMetadata(message);
+        if (metadata.containsKey(SearchExclusions.METADATA_KEY)) {
+            metadata = metadata.without(SearchExclusions.METADATA_KEY);
+        }
+        if (metadata.containsKey(ModelSearchDocument.SUMMARY)) {
+            metadata = metadata.without(ModelSearchDocument.SUMMARY);
+        }
+        return metadata;
     }
 
-    private static Map<Document.Entry, List<Document.Path>> sourceEntries(DeserializingMessage message) {
+    private static Metadata storedMetadata(DeserializingMessage message) {
         Data<byte[]> data = message.getContext(DocumentSource.class).map(DocumentSource::data)
                 .orElseGet(() -> message.getSerializedObject().getData());
         return DefaultDocumentSerializer.INSTANCE.canDeserialize(data)
-                ? DefaultDocumentSerializer.INSTANCE.deserialize(data) : Map.of();
+                ? DefaultDocumentSerializer.INSTANCE.deserializeMetadata(data) : Metadata.empty();
     }
 
     private record DocumentSource(Data<byte[]> data) { }

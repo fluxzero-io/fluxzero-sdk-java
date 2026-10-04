@@ -316,6 +316,16 @@ public final class MessagePackIO {
             return result;
         }
 
+        /**
+         * Skips one string with the same framing, binary acceptance and bounds checks as {@link #unpackString()},
+         * without allocating the discarded text. Neither operation rejects malformed UTF-8.
+         */
+        public void skipString() throws IOException {
+            int length = unpackBinaryHeader();
+            require(length);
+            position += length;
+        }
+
         /** Reads an array header, rejecting counts outside the Java collection size range. */
         public int unpackArrayHeader() throws IOException {
             int tag = readByte();
