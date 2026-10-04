@@ -41,6 +41,16 @@ import static java.lang.String.format;
  *     <li>Whether functional errors should be logged</li>
  * </ul>
  *
+ * <p>Start with the default {@link LoggingErrorHandler}; opt into retries for recoverable failures with idempotent
+ * effects. The no-argument policy retries up to five times, then returns the original error and lets tracking
+ * continue. The first retry is immediate; later attempts have a two-second delay. An initial
+ * {@link FunctionalException} is excluded by default. The initial filter is not reapplied to later failures;
+ * {@link RetryConfiguration}'s separate error test controls failures during retries.
+ *
+ * <p><strong>Warning:</strong> with {@code stopConsumerOnFailure = true}, an exhausted or excluded failure can stop
+ * the affected tracker until explicit restart, just like {@link ThrowingErrorHandler}. Other trackers may continue.
+ * Retrying holds up progress on the affected tracker/batch and does not roll back already completed effects.
+ *
  * <p><strong>Retry Logic:</strong>
  * <ul>
  *     <li>If the error matches {@code errorFilter}, the {@code retryFunction} is invoked repeatedly up to {@code maxRetries}.</li>
@@ -123,8 +133,8 @@ public class RetryingErrorHandler implements ErrorHandler {
     }
 
     /**
-     * Constructs a handler that retries on technical exceptions up to 5 times with a 2-second delay. Consumer is not
-     * stopped on failure.
+     * Constructs a handler that retries on technical exceptions up to 5 times, immediately first and with a 2-second
+     * delay after failed retries. The consumer is not stopped on failure.
      */
     public RetryingErrorHandler() {
         this(false);

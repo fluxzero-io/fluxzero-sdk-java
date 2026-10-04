@@ -24,16 +24,15 @@ import java.util.concurrent.Callable;
 /**
  * An {@link ErrorHandler} implementation that forcefully halts message tracking by throwing any encountered errors.
  * <p>
- * This handler is designed for critical scenarios where continuation after an error is not acceptable, such as:
- * <ul>
- *     <li>Data integrity violations</li>
- *     <li>Irrecoverable technical failures</li>
- *     <li>Strict consistency or audit requirements</li>
- * </ul>
- * <p>
- * Upon encountering an error, this handler logs the issue (if configured to do so) and rethrows the original
- * {@code Throwable}. This causes message tracking to stop until it is explicitly restarted—typically after resolving
- * the failure or redeploying the application.
+ * <strong>Warning: this handler does not retry or automatically resume.</strong> It logs the error (if configured)
+ * and rethrows the original {@code Throwable}, which can stop the affected tracker until explicit restart, typically
+ * application restart or redeployment after repair. This includes {@link FunctionalException}: an ordinary business
+ * rejection can stop further processing by that tracker. Other trackers or application instances may continue.
+ *
+ * <p>Start with the default {@link LoggingErrorHandler}. Use this policy only for a deliberate operator-controlled
+ * stop, with alerts and a repair/restart procedure. When recoverable failures should be retried automatically and all
+ * repeated effects are safe, consider {@link RetryingErrorHandler} or {@link ForeverRetryingErrorHandler} instead.
+ * Stopping does not roll back effects already completed; recovery may deliver the failed work again.
  *
  * <p><strong>Logging Behavior:</strong>
  * <ul>
@@ -45,11 +44,11 @@ import java.util.concurrent.Callable;
  * <p><strong>Usage:</strong> Can be registered via {@link Consumer#errorHandler()} or programmatically via {@link ConsumerConfiguration}.
  *
  * <pre>{@code
- * @Consumer(name = "criticalConsumer", errorHandler = ThrowingErrorHandler.class)
- * public class CriticalHandler {
- *     @HandleCommand
- *     void handle(UpdateBankBalance command) {
- *         // Fails fast on any error
+ * @Consumer(name = "operator-controlled-projection", errorHandler = ThrowingErrorHandler.class)
+ * public class OperatorControlledProjection {
+ *     @HandleEvent
+ *     void on(ProjectionUpdated event) {
+ *         // On failure: alert, repair, then explicitly restart tracking
  *     }
  * }
  * }</pre>

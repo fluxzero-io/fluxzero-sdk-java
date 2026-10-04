@@ -22,6 +22,12 @@ class OrderProjection {
 
 Handlers without explicit consumer configuration use the unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class a generated default consumer. `defaultAppConsumer` shares the application default consumer. With `fluxzero.defaults.version >= 2026.05.20`, `perHandler` is the default.
 
+Start with the default `LoggingErrorHandler`: log failures and continue without retry, with monitoring and recovery
+for skipped effects where needed. **`ThrowingErrorHandler` can stop the affected tracker until explicit restart,
+even for functional rejection; it does not automatically retry or resume.** Unlimited retries are appropriate only
+for recoverable failures with safely repeatable effects, acceptable blocked progress and lag alerts. Read
+`/docs/sdk/tracking/error-policy` before changing the policy.
+
 Replay is a code/configuration decision, not a casual runtime action:
 
 ```java

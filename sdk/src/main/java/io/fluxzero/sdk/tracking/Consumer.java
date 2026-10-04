@@ -157,7 +157,10 @@ public @interface Consumer {
 
     /**
      * Error handler invoked when a message processing error occurs. Default is {@link LoggingErrorHandler} which logs
-     * errors and allows message tracking and processing to continue.
+     * errors and allows processing to continue without retry. Start with this default; select a retry policy only
+     * when the effects can safely repeat and recovery requires it. <strong>Warning:</strong>
+     * {@link ThrowingErrorHandler} can stop the affected tracker until explicit restart, even for functional errors;
+     * it does not retry or automatically resume. See {@link ErrorHandler} for the policy trade-offs.
      */
     Class<? extends ErrorHandler> errorHandler() default LoggingErrorHandler.class;
 
