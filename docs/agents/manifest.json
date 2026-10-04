@@ -7412,7 +7412,7 @@
     {
       "path": "/docs/sdk/models/actions-java",
       "title": "Model commands and atomic commits (Java)",
-      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Java applications.",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Java applications. Guard Models and known descendants with cascading assertions, payload filters and relation/action exceptions.",
       "source": "articles/sdk/models/actions-java.md",
       "symbols": [
         "@Apply",
@@ -7425,7 +7425,12 @@
         "previous()",
         "EVENT_SOURCED",
         "dynamic write targets",
-        "cascade deletion"
+        "cascade deletion",
+        "AssertLegal.cascade",
+        "AssertLegal.allowedClasses",
+        "Parent.validateAncestors",
+        "Apply.ancestorValidation",
+        "AncestorValidation"
       ],
       "links": [
         {
@@ -7663,7 +7668,7 @@
     {
       "path": "/docs/sdk/models/actions-kotlin",
       "title": "Model commands and atomic commits (Kotlin)",
-      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Kotlin applications.",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Kotlin applications. Guard Models and known descendants with cascading assertions, payload filters and relation/action exceptions.",
       "source": "articles/sdk/models/actions-kotlin.md",
       "symbols": [
         "@Apply",
@@ -7676,7 +7681,12 @@
         "previous()",
         "EVENT_SOURCED",
         "dynamic write targets",
-        "cascade deletion"
+        "cascade deletion",
+        "AssertLegal.cascade",
+        "AssertLegal.allowedClasses",
+        "Parent.validateAncestors",
+        "Apply.ancestorValidation",
+        "AncestorValidation"
       ],
       "links": [
         {

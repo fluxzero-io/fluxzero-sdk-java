@@ -110,7 +110,9 @@ import java.lang.annotation.Target;
  * matches the original payload is intentionally not invoked after replacement.</p>
  *
  * <h2>Ordering</h2>
- * Multiple legality methods may be invoked. For independently stored models, assertions declared on the payload run
+ * Cascading rules prevalidate resolved scopes before ordinary assertions; result-dependent routes are checked
+ * after the pure apply returns, against the logical before-state. Multiple ordinary legality methods may be invoked.
+ * For independently stored models, ordinary assertions declared on the payload run
  * before assertions declared on the model. Within each phase their execution order is determined by
  * {@link #priority()}, with higher values taking precedence. Methods with the same priority are invoked in
  * deterministic order by method name and signature. Immediate assertions see the state before apply; deferred
@@ -134,6 +136,24 @@ public @interface AssertLegal {
      * first. Methods with the same priority are invoked in deterministic order by method name and signature.
      */
     int priority() default DEFAULT_PRIORITY;
+
+    /**
+     * Also validates mutations of known descendants through enabled {@link Parent} relationships.
+     * The declaring Model's own mutations remain subject to this assertion. Defaults to false.
+     * Only Model methods opt into cascading; ordinary aggregate assertions retain their existing semantics.
+     * All known enabled routes participate, including old and new routes when reparenting. Shared ancestors run
+     * once per effective update/phase. Immediate rules see the logical before-state; after-handler rules see final state.
+     * Result-bound routes are checked once the pure apply returns. Normal payload and context injection is retained.
+     * <p>This is SDK-side validation; unavailable classes and missing parent values stop traversal, and replay does not
+     * execute assertions. Deploy the rule to every writer. Read ancestors participate in atomic conflict validation:
+     * RETRY reevaluates; configured ACCEPT becomes FAIL for guarded attempts. No new Runtime protocol is required.</p>
+     * @see Parent#validateAncestors()
+     * @see io.fluxzero.sdk.persisting.eventsourcing.Apply#ancestorValidation()
+     */
+    boolean cascade() default false;
+
+    /** Restricts independent-Model assertion methods to assignable payload classes/interfaces; empty means unrestricted. */
+    Class<?>[] allowedClasses() default {};
 
     /**
      * Determines if the legality check should be performed immediately (the default), or when the current handler is

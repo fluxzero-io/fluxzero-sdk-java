@@ -34,6 +34,7 @@ public record Change(
         UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion,
         EntityMetadata metadata,
         ModelConflictPolicy conflictPolicy,
+        AncestorValidation ancestorValidation,
         GraphProjectionCompletion graphProjectionCompletion,
         boolean active, boolean storeEvent, boolean publishEvent,
         boolean updateState) {
@@ -114,7 +115,7 @@ public record Change(
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, directReplay, cascadedDeletion,
                 metadata,
-                conflictPolicy, graphProjectionCompletion, active,
+                conflictPolicy, ancestorValidation, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState);
     }
 
@@ -126,7 +127,7 @@ public record Change(
     /** A checked replacement always writes a revision, even if its value compares equal. */
     Change checkedReplacement() {
         return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after,
-                          handler, directReplay, false, metadata, ModelConflictPolicy.FAIL, graphProjectionCompletion,
+                          handler, directReplay, false, metadata, ModelConflictPolicy.FAIL, ancestorValidation, graphProjectionCompletion,
                           true, configuration().eventSourced(), false, true);
     }
 
@@ -167,7 +168,7 @@ public record Change(
                 modelId, declaredType,
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, directReplay, cascadedDeletion,
-                metadata, settings.conflict(),
+                metadata, settings.conflict(), overrides.ancestorValidation(),
                 overrides.graphProjectionCompletion(),
                 decision.active(), decision.storeEvent(),
                 decision.publishEvent(), decision.updateState());

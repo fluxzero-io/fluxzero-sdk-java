@@ -1,5 +1,10 @@
 # Model relationships and lazy Graphs (Kotlin)
 
+For a rule that guards a Model and all its known descendants, use
+[`@AssertLegal(cascade = true)`](actions-kotlin.md#guard-a-model-and-its-descendants). For example, closing a Project
+can block changes to its Tasks and their children. `@Parent(validateAncestors = false)` cuts one inheritance route;
+per-action exceptions belong on `@Apply(ancestorValidation = AncestorValidation.DISABLED)`.
+
 ## Relationships
 
 A web handler can return a `Graph<T>` directly or as a `WebResponse` payload. The transported response contains
@@ -60,7 +65,7 @@ The child remains an independent Model with its own lifecycle boundary. This tas
 Graph relation and cascade ownership. Being displayed below or deleted with the parent does not make it a `@Member`.
 
 - Updating `projectId` moves the task.
-- The parent and siblings do not need to load for a task-only change.
+- The parent and siblings do not need to load for a task-only change unless applicable cascading assertions need parent state.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
 - For one polymorphic typed relation, use
   `@Parent(types = [Project::class, Folder::class], ...) val parentId: Id<*>`; the concrete typed ID selects one

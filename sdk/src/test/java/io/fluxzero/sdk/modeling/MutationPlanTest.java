@@ -153,17 +153,17 @@ class MutationPlanTest {
         MutationPlan.EffectOverrides payload = new MutationPlan.EffectOverrides(
                 EventPublication.NEVER, EventPublicationStrategy.STORE_ONLY,
                 ModelConflictPolicy.FAIL,
-                GraphProjectionCompletion.DEFAULT);
+                GraphProjectionCompletion.DEFAULT, AncestorValidation.DEFAULT);
         MutationPlan.EffectOverrides model = new MutationPlan.EffectOverrides(
                 EventPublication.DEFAULT, EventPublicationStrategy.STORE_AND_PUBLISH,
                 ModelConflictPolicy.DEFAULT,
-                GraphProjectionCompletion.AWAIT);
+                GraphProjectionCompletion.AWAIT, AncestorValidation.DEFAULT);
 
         assertEquals(new MutationPlan.EffectOverrides(
                              EventPublication.NEVER,
                              EventPublicationStrategy.STORE_AND_PUBLISH,
                              ModelConflictPolicy.FAIL,
-                             GraphProjectionCompletion.AWAIT),
+                             GraphProjectionCompletion.AWAIT, AncestorValidation.DEFAULT),
                      payload.then(model));
     }
 
