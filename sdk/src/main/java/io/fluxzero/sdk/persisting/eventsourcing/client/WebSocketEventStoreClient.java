@@ -198,6 +198,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
     }
 
     @Override
+    public CompletableFuture<Boolean> reindexModel(io.fluxzero.common.api.modeling.ReindexModel request) {
+        return this.<io.fluxzero.common.api.BooleanResult>send(request)
+                .thenApply(io.fluxzero.common.api.BooleanResult::isSuccess);
+    }
+
+    @Override
     public ModelCommitBatch beginModelCommitBatch(int capacity) {
         return new WebSocketModelCommitBatch(capacity);
     }

@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.api.Request;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.util.Collection;
 import java.util.List;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * model state.
  */
 @Value
+@NonFinal
 @EqualsAndHashCode(callSuper = true)
 public class AwaitModelGraphProjection extends Request {
 

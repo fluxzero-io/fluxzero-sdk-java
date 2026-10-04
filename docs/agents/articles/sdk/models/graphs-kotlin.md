@@ -333,3 +333,12 @@ Identity-based Graph navigation needs neither searchability nor composition path
 paths and read current documents, without inheriting an event handler's historical boundary or transaction readset.
 Counts, grouped statistics and facets work in all modes; live statistics may read many documents. Broad child filters
 or sorts can require many compositions before paging. Use stored materialization for those workloads.
+
+## Rebuild the current search source
+
+`graph.reindex()` refreshes this node's canonical source from latest committed state, including missing event-sourced
+sources, without changing Model history. It ignores stale Graph values and staged updates. The customer selects IDs
+or replays events; descendants are separate calls. A bounded consumer uses its fixed `maxIndexExclusive` to skip
+already refreshed sources before replay. Follow the [cutover and replay contract](migration-testing.md#explicit-current-state-reindexing),
+including draining old materializations. AWAIT completion waits for affected stored projections, including ancestors,
+even when the cutoff skips the source write; other derived Graph work continues asynchronously.

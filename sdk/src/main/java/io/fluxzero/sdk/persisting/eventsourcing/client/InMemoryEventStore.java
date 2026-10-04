@@ -299,6 +299,46 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         return super.append(events);
     }
 
+    private java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> modelReindexer;
+    private Object modelReindexLock;
+
+    /** Binds guarded reindex writes to the local canonical search store. */
+    public synchronized void setModelReindexer(Object searchLock,
+            java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> reindexer) {
+        modelReindexer = Objects.requireNonNull(reindexer);
+        modelReindexLock = Objects.requireNonNull(searchLock);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> reindexModel(io.fluxzero.common.api.modeling.ReindexModel request) {
+        try {
+            request.validate();
+            Runnable publish;
+            Object searchLock;
+            java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel, Runnable> reindexer;
+            synchronized (this) {
+                searchLock = modelReindexLock;
+                reindexer = modelReindexer;
+            }
+            if (reindexer == null) { throw new UnsupportedOperationException("No Model reindex store"); }
+            // Match Graph composition's search -> event lock order. The head remains fixed through source storage.
+            synchronized (searchLock) {
+                synchronized (this) {
+                    var expected = request.getExpectedHead();
+                    var head = modelHeads.get(expected.getModelId());
+                    if (head == null || erasedModelTokens.contains(protectedToken(expected.getModelId()))
+                        || !expected.equals(new io.fluxzero.common.api.modeling.ModelHeadState(expected.getModelId(),
+                            head.modelType(), head.sequenceNumber(), head.stateIndex(), head.historyComplete(), head.deleted()))) {
+                        return CompletableFuture.completedFuture(false);
+                    }
+                    publish = reindexer.apply(request);
+                }
+            }
+            if (publish != null) { publish.run(); }
+            return CompletableFuture.completedFuture(publish != null);
+        } catch (Exception e) { return CompletableFuture.failedFuture(e); }
+    }
+
     @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {
@@ -848,21 +888,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 return CompletableFuture.failedFuture(
                         failure);
             }
-            if (modelGraphProjectionPositions
-                        .getOrDefault(
-                                request.getCollection(),
-                                -1L)
-                >= request.getStateIndex()) {
+            if (!(request instanceof io.fluxzero.common.api.modeling.AwaitModelGraphReindex)
+                && modelGraphProjectionPositions.getOrDefault(request.getCollection(), -1L) >= request.getStateIndex()) {
+                return CompletableFuture.completedFuture(modelGraphProjectionStatus(
+                        request.getRequestId(), request.getCollection()));
+            }
+            ModelGraphProjectionWaiter waiter = new ModelGraphProjectionWaiter(request, new CompletableFuture<>());
+            if (modelGraphProjectionComplete(waiter)) {
                 return CompletableFuture.completedFuture(
                         modelGraphProjectionStatus(
                                 request.getRequestId(),
                                 request.getCollection()));
             }
-            CompletableFuture<ModelGraphProjectionStatus>
-                    result = new CompletableFuture<>();
-            ModelGraphProjectionWaiter waiter =
-                    new ModelGraphProjectionWaiter(
-                            request, result);
+            CompletableFuture<ModelGraphProjectionStatus> result = waiter.result();
             modelGraphProjectionWaiters.add(
                     waiter);
             result.whenComplete(
@@ -1117,6 +1155,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                               relation.relationship
                                                       .getParentId()));
             selected.forEach(modelNodeSchemaInvalidations::remove);
+            modelNodeSchemaCompletions.values().forEach(nodes -> selected.forEach(nodes::remove));
             selected.forEach(modelHeads::remove);
             selected.forEach(modelHeadHistory::remove);
             selected.forEach(modelStreams::remove);
@@ -1256,6 +1295,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private final Map<String, Long> modelNodeSchemaInvalidations = new LinkedHashMap<>();
+    // Only retained while a node invalidation is pending; successful collections need not wait for failed others.
+    private final Map<String, Map<String, Long>> modelNodeSchemaCompletions = new HashMap<>();
     private long modelNodeSchemaGeneration;
 
     /** Retains individual node rewrites until all affected projections have accepted the new schema. */
@@ -1393,6 +1434,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 collection, boundary);
                         modelGraphProjectionFailures.remove(
                                 collection);
+                        if (!schemaInvalidations.isEmpty()) {
+                            modelNodeSchemaCompletions.computeIfAbsent(collection, ignored -> new HashMap<>())
+                                    .putAll(schemaInvalidations);
+                        }
                         modelGraphProjectionRebuilds.remove(collection, projection.rebuildGeneration());
                     } else {
                         modelGraphProjectionFailures.put(
@@ -1405,6 +1450,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 if (failures.isEmpty()) {
                     modelGraphProjectionSignals.removeAll(signals);
                     schemaInvalidations.forEach((id, generation) -> modelNodeSchemaInvalidations.remove(id, generation));
+                    modelNodeSchemaCompletions.values().forEach(completedNodes ->
+                            completedNodes.keySet().retainAll(modelNodeSchemaInvalidations.keySet()));
                 }
                 modelGraphProjectionDrainActive = false;
                 completed = takeCompletedModelGraphProjectionWaiters();
@@ -1558,6 +1605,23 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .orElse(null);
     }
 
+    private boolean modelGraphProjectionComplete(ModelGraphProjectionWaiter waiter) {
+        AwaitModelGraphProjection request = waiter.request();
+        long boundary = request.getStateIndex();
+        if (waiter.reindexSettlement() != null) {
+            if (modelGraphProjectionRebuilds.containsKey(request.getCollection())) { return false; }
+            if (waiter.reindexSettlement().get() < 0L) {
+                Map<String, Long> completed = modelNodeSchemaCompletions.getOrDefault(request.getCollection(), Map.of());
+                if (request.getModelIds().stream().anyMatch(id -> completed.getOrDefault(id, -1L)
+                        < modelNodeSchemaInvalidations.getOrDefault(id, -1L))) { return false; }
+                // Include a deletion that superseded schema work, without following later unrelated commits.
+                waiter.reindexSettlement().set(Math.max(boundary, modelStateIndex));
+            }
+            boundary = waiter.reindexSettlement().get();
+        }
+        return modelGraphProjectionPositions.getOrDefault(request.getCollection(), -1L) >= boundary;
+    }
+
     private List<ModelGraphProjectionWaiterCompletion>
             takeCompletedModelGraphProjectionWaiters() {
         List<ModelGraphProjectionWaiter> completed =
@@ -1567,13 +1631,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                                 .containsKey(
                                                         waiter.request()
                                                                 .getCollection())
-                                        || modelGraphProjectionPositions
-                                                   .getOrDefault(
-                                                           waiter.request()
-                                                                   .getCollection(),
-                                                           -1L)
-                                           >= waiter.request()
-                                                   .getStateIndex())
+                                        || modelGraphProjectionComplete(waiter))
                         .toList();
         modelGraphProjectionWaiters.removeAll(
                 completed);
@@ -2096,8 +2154,12 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private record ModelGraphProjectionWaiter(
             AwaitModelGraphProjection request,
-            CompletableFuture<ModelGraphProjectionStatus>
-                    result) {
+            CompletableFuture<ModelGraphProjectionStatus> result, AtomicLong reindexSettlement) {
+        private ModelGraphProjectionWaiter(AwaitModelGraphProjection request,
+                                           CompletableFuture<ModelGraphProjectionStatus> result) {
+            this(request, result, request instanceof io.fluxzero.common.api.modeling.AwaitModelGraphReindex
+                    ? new AtomicLong(-1L) : null);
+        }
     }
 
     private record PendingModelMaterialization(

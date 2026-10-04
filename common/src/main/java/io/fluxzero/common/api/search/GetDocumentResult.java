@@ -54,6 +54,14 @@ public class GetDocumentResult extends AbstractRequestResult {
     boolean modelStateVerified;
 
     /**
+     * Lower-bound storage time in the event-index time domain (milliseconds shifted left 16 bits).
+     * Null for old stores/writes. Only a verified source may use this for a coordinated reindex cutoff;
+     * it is independent of the Model state index and the document tracking sequence.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    Long modelStorageIndex;
+
+    /**
      * The system time (in milliseconds since epoch) at which this result was generated.
      */
     long timestamp = System.currentTimeMillis();
@@ -67,9 +75,14 @@ public class GetDocumentResult extends AbstractRequestResult {
         this(requestId, document, modelHead, false);
     }
 
-    @ConstructorProperties({"requestId", "document", "modelHead", "modelStateVerified"})
     public GetDocumentResult(
             long requestId, SerializedDocument document, ModelHeadState modelHead, boolean modelStateVerified) {
+        this(requestId, document, modelHead, modelStateVerified, null);
+    }
+
+    @ConstructorProperties({"requestId", "document", "modelHead", "modelStateVerified", "modelStorageIndex"})
+    public GetDocumentResult(long requestId, SerializedDocument document, ModelHeadState modelHead,
+                             boolean modelStateVerified, Long modelStorageIndex) {
         if (modelHead != null && modelHead.isDeleted() != (document == null)) {
             throw new IllegalArgumentException(
                     "Direct Model document presence does not match its durable head");
@@ -78,6 +91,7 @@ public class GetDocumentResult extends AbstractRequestResult {
         this.document = document;
         this.modelHead = modelHead;
         this.modelStateVerified = modelStateVerified;
+        this.modelStorageIndex = modelStorageIndex;
     }
 
     /**

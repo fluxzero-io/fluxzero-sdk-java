@@ -162,6 +162,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
     private boolean automaticModelRouting;
+    private GraphProjectionCompletion reindexProjectionCompletion = GraphProjectionCompletion.ASYNC;
     private boolean documentFallback = true;
 
     /** Configures the application default before this repository is used. Namespace views inherit it. */
@@ -281,6 +282,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName, cacheOwner, owningApplication);
         result.configureModelTypes(modelTypes);
         result.configureAutomaticModelRouting(automaticModelRouting);
+        result.configureGraphProjectionCompletion(reindexProjectionCompletion);
         result.configureGraphStrict(!documentFallback);
         result.configureReplayRestoration(replayRestoration);
         return result;
@@ -691,6 +693,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     /** Configures the single-Model event-routing fallback before this repository starts handling commits. */
     public void configureAutomaticModelRouting(boolean enabled) {
         automaticModelRouting = enabled;
+    }
+
+    /** Configures the application default for explicit reindex completion before the repository is used. */
+    public void configureGraphProjectionCompletion(GraphProjectionCompletion completion) {
+        reindexProjectionCompletion = Objects.requireNonNull(completion).orElse(GraphProjectionCompletion.ASYNC);
     }
 
     @Override
@@ -1790,6 +1797,76 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @SuppressWarnings("unchecked")
     private static <T> Entity<T> castPrevious(Entity<?> entity) {
         return (Entity<T>) entity;
+    }
+
+    @Override
+    public void reindex(@NonNull String modelId, @NonNull Class<?> modelType) {
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        String collection = sourceCollection(metadata).orElseThrow(() ->
+                new IllegalArgumentException("Reindex requires a maintained Model source: " + modelType.getName()));
+        Long cutoff = io.fluxzero.sdk.tracking.Tracker.current()
+                .map(tracker -> tracker.getConfiguration().getMaxIndexExclusive()).orElse(null);
+        if (cutoff != null && (cutoff <= 0 || cutoff > (System.currentTimeMillis() << 16))) {
+            throw new IllegalArgumentException("Reindex requires a fixed past consumer time cutoff");
+        }
+        GraphProjectionCompletion completion = Tracker.current().map(Tracker::getConfiguration)
+                .map(configuration -> configuration.getGraphProjectionCompletion()).orElse(GraphProjectionCompletion.DEFAULT);
+        List<Class<?>> awaited = EntityMetadata.graphProjectionRoots(modelType, modelTypes).stream()
+                .filter(root -> completion.orElse(root.projection().mode().completion())
+                        .orElse(reindexProjectionCompletion) == GraphProjectionCompletion.AWAIT)
+                .map(EntityMetadata.GraphProjectionRoot::modelType).distinct().toList();
+        awaited.forEach(type -> registerGraphProjection(type, false).join());
+        var searchClient = client.getSearchClient();
+        DocumentSerializer documents = documentStore.getSerializer();
+        for (int attempt = 0; attempt < 8; attempt++) {
+            var source = searchClient.fetchModelDocument(new GetDocument(modelId, collection, true, true));
+            if (!source.isModelStateVerified()) {
+                throw new UnsupportedOperationException("Reindex requires verified Model source support");
+            }
+            if (source.getDocument() != null && cutoff != null && source.getModelStorageIndex() != null
+                && source.getModelStorageIndex() >= cutoff) {
+                awaitReindexProjections(awaited, modelId, source.getModelHead().getStateIndex());
+                return;
+            }
+            var expected = replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current()).heads().get(modelId);
+            if (expected == null || expected.isDeleted()) { return; }
+            if (!modelName(modelType).equals(expected.getModelType())) {
+                throw new IllegalArgumentException("Reindex Model type does not match stored head: " + modelId);
+            }
+            if (source.getModelHead() != null
+                && source.getModelHead().getStateIndex() > expected.getStateIndex()) { continue; }
+            // Bypass both historical handler boundaries and uncommitted batch overlays.
+            Entity<?> current = loadDurable(modelId, modelType, ModelReadBoundary.at(expected.getStateIndex()), null);
+            if (current.isEmpty() || !expected.equals(
+                    replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current()).heads().get(modelId))) { continue; }
+            var old = source.getDocument();
+            var settings = metadata.rootConfiguration().orElseThrow();
+            boolean sameHead = old != null && expected.equals(source.getModelHead());
+            Instant begin = parseTimeProperty(settings.timestampPath().isBlank() ? null : settings.timestampPath(),
+                    current.get(), false, () -> sameHead
+                            ? old.getTimestamp() == null ? null : Instant.ofEpochMilli(old.getTimestamp()) : current.timestamp());
+            Instant end = parseTimeProperty(settings.endPath().isBlank() ? null : settings.endPath(),
+                    current.get(), true, () -> sameHead
+                            ? old.getEnd() == null ? null : Instant.ofEpochMilli(old.getEnd()) : begin);
+            SerializedDocument document = documents.toDocument(current.get(), modelId, collection, begin, end,
+                    old == null ? Metadata.empty() : old.getMetadata().without(io.fluxzero.common.search.ModelSearchDocument.SUMMARY));
+            document = metadata.isSearchable() ? io.fluxzero.common.search.ModelSearchDocument.preserveSummary(document)
+                    : document.withoutSearchIndexes();
+            var request = new io.fluxzero.common.api.modeling.ReindexModel(document, expected,
+                    old == null ? null : io.fluxzero.common.modeling.ModelDocumentProof.of(old, source.getModelHead()), cutoff);
+            if (client.getEventStoreClient().reindexModel(request).join()) {
+                awaitReindexProjections(awaited, modelId, expected.getStateIndex());
+                return;
+            }
+        }
+        throw new EventSourcingException("Model changed repeatedly during reindex; retry: " + modelId);
+    }
+
+    private void awaitReindexProjections(List<Class<?>> awaited, String modelId, long stateIndex) {
+        CompletableFuture.allOf(awaited.stream().map(type -> client.getEventStoreClient().awaitModelGraphProjection(
+                new io.fluxzero.common.api.modeling.AwaitModelGraphReindex(
+                        graphProjectionDefinition(type).getCollection(), stateIndex, List.of(modelId))))
+                .toArray(CompletableFuture[]::new)).join();
     }
 
     @Override

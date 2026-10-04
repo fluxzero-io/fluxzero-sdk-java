@@ -336,7 +336,10 @@
         "@HandleDocument(source = MODEL_STATE)",
         "internal Model source",
         "canonical Model document",
-        "schema reindexing"
+        "schema reindexing",
+        "Graph.reindex()",
+        "maxIndexExclusive",
+        "modelStorageIndex"
       ],
       "links": [
         {
@@ -7476,7 +7479,10 @@
         "SearchSettings",
         "GraphProjectionMode",
         "DocumentSource",
-        "GraphMigrationTarget"
+        "GraphMigrationTarget",
+        "Graph.reindex()",
+        "maxIndexExclusive",
+        "modelStorageIndex"
       ],
       "links": [
         {
@@ -7720,7 +7726,10 @@
         "SearchSettings",
         "GraphProjectionMode",
         "DocumentSource",
-        "GraphMigrationTarget"
+        "GraphMigrationTarget",
+        "Graph.reindex()",
+        "maxIndexExclusive",
+        "modelStorageIndex"
       ],
       "links": [
         {

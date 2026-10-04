@@ -155,6 +155,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetModelChangeResult.class, name = "getModelChangeResult"),
         @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),
         @JsonSubTypes.Type(value = GetModelGraphProjectionStatus.class, name = "getModelGraphProjectionStatus"),
+        @JsonSubTypes.Type(value = io.fluxzero.common.api.modeling.AwaitModelGraphReindex.class, name = "awaitModelGraphReindex"),
         @JsonSubTypes.Type(value = AwaitModelGraphProjection.class, name = "awaitModelGraphProjection"),
         @JsonSubTypes.Type(value = ModelGraphProjectionStatus.class, name = "modelGraphProjectionStatus"),
         @JsonSubTypes.Type(value = PlanModelDeletion.class, name = "planModelDeletion"),
@@ -187,6 +188,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //search
         @JsonSubTypes.Type(value = IndexDocuments.class, name = "indexDocuments"),
         @JsonSubTypes.Type(value = RewriteModelGraphDocument.class, name = "rewriteModelGraphDocument"),
+        @JsonSubTypes.Type(value = io.fluxzero.common.api.modeling.ReindexModel.class, name = "reindexModel"),
         @JsonSubTypes.Type(value = io.fluxzero.common.api.search.RewriteModelSourceDocument.class, name = "rewriteModelSourceDocument"),
         @JsonSubTypes.Type(value = io.fluxzero.common.api.search.AdoptModelMigrationWithSource.class, name = "adoptModelMigrationWithSource"),
         @JsonSubTypes.Type(value = SearchDocuments.class, name = "searchDocuments"),

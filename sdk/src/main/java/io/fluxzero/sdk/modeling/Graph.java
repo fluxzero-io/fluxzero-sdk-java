@@ -787,6 +787,27 @@ public interface Graph<T> {
     /** Explicitly commits staged changes. Normal handler processing commits automatically. */
     Graph<T> commit();
 
+    /**
+     * Refreshes this Model node's canonical search source from current committed state, even on a historical view.
+     * Descendants are selected separately by the caller. No business event, history, relationship or Model head changes.
+     * Staged changes in this Graph or handler are ignored. Missing/deleted Models are a no-op.
+     * <p>
+     * A bounded consumer's fixed {@code maxIndexExclusive} is used to skip sources stored on/after its time cutoff,
+     * before reconstructing the Model. Stop and drain old writers/materializations before choosing that cutoff;
+     * thereafter all writers must use the intended configuration and comparable clocks. Future/nonpositive cutoffs
+     * are rejected. Without a bounded consumer every call refreshes the source.
+     * <p>
+     * Completion confirms durable source storage and targeted projection invalidation. For affected AWAIT projections,
+     * including ancestor roots, it also waits until the updated projection is queryable, even when the cutoff skips
+     * the source write. Completion follows consumer, Model projection mode and application default precedence, just
+     * like a normal commit. Other derived work continues asynchronously. The wait holds no Model write lock.
+     * Conflicts retry a bounded number of times and then fail for caller retry.
+     * A compatible Runtime is required; unsupported servers fail rather than falling back to ordinary indexing.
+     */
+    default void reindex() {
+        throw new UnsupportedOperationException("This Graph has no guarded reindex capability");
+    }
+
     /** Verifies that the supplied update is legal and returns this graph. */
     <E extends Exception> Graph<T> assertLegal(Object update) throws E;
 
