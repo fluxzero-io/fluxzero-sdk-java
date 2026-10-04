@@ -78,7 +78,8 @@ public abstract class GraphReindexContract {
                 io.fluxzero.common.TimingUtils.retryOnFailure(() -> {
                     assertEquals(1, Fluxzero.searchGraph(type).match(2, "version").fetchAll().size());
                     return null;
-                }, io.fluxzero.common.RetryConfiguration.builder().maxRetries(100).delay(Duration.ofMillis(10)).build());
+                }, io.fluxzero.common.RetryConfiguration.builder().maxRetries(100).delay(Duration.ofMillis(10))
+                        .errorTest(failure -> failure instanceof AssertionError).throwOnFailingErrorTest(true).build());
                 // An unconditional refresh is safe and parallel calls never change the Model stream.
                 CompletableFuture.allOf(java.util.stream.IntStream.range(0, 4).mapToObj(i ->
                         CompletableFuture.runAsync(historical::reindex)).toArray(CompletableFuture[]::new)).join();
@@ -99,7 +100,8 @@ public abstract class GraphReindexContract {
                 io.fluxzero.common.TimingUtils.retryOnFailure(() -> {
                     assertTrue((System.currentTimeMillis() << 16) >= nextCutoff);
                     return null;
-                }, io.fluxzero.common.RetryConfiguration.builder().maxRetries(100).delay(Duration.ofMillis(10)).build());
+                }, io.fluxzero.common.RetryConfiguration.builder().maxRetries(100).delay(Duration.ofMillis(10))
+                        .errorTest(failure -> failure instanceof AssertionError).throwOnFailingErrorTest(true).build());
                 Tracker.current.set(new Tracker("next", MessageType.EVENT, null,
                         ConsumerConfiguration.builder().name("next").maxIndexExclusive(nextCutoff).build(), null));
                 try {
