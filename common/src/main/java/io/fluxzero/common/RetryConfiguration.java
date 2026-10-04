@@ -77,10 +77,11 @@ public class RetryConfiguration {
     /**
      * A predicate that determines whether a caught exception is eligible for retry.
      * <p>
-     * If the predicate returns {@code false}, the retry loop will break (unless {@link #throwOnFailingErrorTest} is set
-     * to true).
+     * If the predicate returns {@code false}, the retry loop returns {@code null}, or throws the caught exception
+     * when {@link #throwOnFailingErrorTest} is {@code true}.
      * <p>
-     * Defaults to always returning true (retry any exception).
+     * Defaults to retrying failures other than {@link Error}. The predicate receives the caught throwable as-is;
+     * it does not unwrap causes.
      */
     @Default
     Predicate<Throwable> errorTest = e -> !(e instanceof Error);
