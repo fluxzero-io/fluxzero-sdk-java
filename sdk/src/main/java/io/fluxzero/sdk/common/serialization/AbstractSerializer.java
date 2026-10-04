@@ -266,9 +266,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
                     }
                     if (!isKnownType(s.data().getType())) {
                         if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
-                            throw new DeserializationException(
-                                    format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
-                                           s.data().getType(), s.data().getRevision()));
+                            throw new UnknownSerializedTypeException(s.data().getType(), s.data().getRevision());
                         }
                         if (unknownTypeStrategy == UnknownTypeStrategy.IGNORE) {
                             return Stream.empty();
@@ -345,9 +343,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         }
         if (!isKnownType(s.data().getType())) {
             if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
-                throw new DeserializationException(
-                        format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
-                               s.data().getType(), s.data().getRevision()));
+                throw new UnknownSerializedTypeException(s.data().getType(), s.data().getRevision());
             }
             if (unknownTypeStrategy == UnknownTypeStrategy.IGNORE) {
                 return null;
@@ -574,6 +570,16 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * Converts a deserialized object to the desired target type. May delegate to a type mapping library.
      */
     protected abstract <V> V doConvert(Object value, Type type);
+
+    @Override
+    public TypeInspection inspectType(String type) {
+        String resolved = resolveTypeName(type);
+        boolean known = resolved != null && isKnownType(resolved);
+        Class<?> javaType = known ? ReflectionUtils.classForName(resolved, null) : null;
+        return new TypeInspection(known ? TypeInspection.Status.KNOWN : TypeInspection.Status.UNKNOWN,
+                                  resolved, javaType == null ? null
+                                          : io.fluxzero.sdk.common.ClientUtils.getRevisionNumberForType(javaType));
+    }
 
     /**
      * Checks whether a given serialized type is recognized on the classpath.

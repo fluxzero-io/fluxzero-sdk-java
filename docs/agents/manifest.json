@@ -357,6 +357,10 @@
         {
           "path": "/docs/sdk/reference/test-fixture-signatures",
           "description": "Check synthetic setup and complete active schedule assertions"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -7337,6 +7341,10 @@
         {
           "path": "/docs/sdk/models/published-event-migration",
           "description": "Replay published Aggregate events, coordinate readers and adopt at a verified cutover"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -7512,6 +7520,10 @@
         {
           "path": "/docs/sdk/models/recipes-java",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -7759,6 +7771,10 @@
         {
           "path": "/docs/sdk/models/recipes-kotlin",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -8047,6 +8063,46 @@
         {
           "path": "/docs/sdk/models/state-boundaries",
           "description": "Understand persistence and protection"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/contract-diagnostics",
+      "title": "Model contract diagnostics and replay qualification",
+      "summary": "Distinguish missing local contracts, invalid data and application failures; compare bounded stream/Graph metadata without importing or replaying it.",
+      "source": "articles/sdk/models/contract-diagnostics.md",
+      "symbols": [
+        "ModelDiagnostics",
+        "ModelDiagnostics.Limits",
+        "ModelDiagnostics.inspectStreams",
+        "ModelDiagnostics.inspectGraph",
+        "ModelRepository.diagnostics",
+        "ModelReadException",
+        "Serializer.inspectType",
+        "TypeInspection",
+        "cold replay",
+        "missing Model contract"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model persistence and contract packaging"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Scope Java Graph reads explicitly"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Scope Kotlin Graph reads explicitly"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Qualify old-writer and fresh-reader retained history"
+        },
+        {
+          "path": "/docs/sdk/serialization/type-aliases",
+          "description": "Resolve historical serialized identifiers"
         }
       ]
     }

@@ -706,8 +706,10 @@ class DefaultModelRepositoryTest {
                     () -> fluxzero.modelRepository()
                             .load(id.toString(), Object.class));
 
-            assertTrue(failure.getMessage().contains(
-                    "Could not resolve stored model type 'missing.example.Account'"));
+            ModelReadException contextual = org.junit.jupiter.api.Assertions.assertInstanceOf(ModelReadException.class, failure);
+            assertEquals(ModelReadException.Kind.MISSING_MODEL_CONTRACT, contextual.getKind());
+            assertEquals("missing.example.Account", contextual.getContext().modelType());
+            assertEquals(id.toString(), contextual.getContext().modelId());
         }
     }
 

@@ -396,6 +396,14 @@ public interface Serializer extends ContentFilter {
     }
 
     /**
+     * Inspects a serialized identifier without reading payloads or running structural upcasters. Custom serializers
+     * may leave this unavailable. A known type/revision does not prove decoding or replay compatibility.
+     */
+    default TypeInspection inspectType(String type) {
+        return new TypeInspection(TypeInspection.Status.UNAVAILABLE, type, null);
+    }
+
+    /**
      * Downcasts the given object to a previous revision.
      *
      * @param object the object to downcast
