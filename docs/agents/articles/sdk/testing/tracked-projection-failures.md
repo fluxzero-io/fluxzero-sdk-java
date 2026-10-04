@@ -5,9 +5,16 @@ to the handler, while the consumer's `ErrorHandler` decides whether tracking ski
 Pair this focused failure seam with the verification-boundaries inventory. Projection replacement, public query
 mapping, replay, surfaced storage failure, effect-attempt count, and tracker position are separate evidence rows.
 
-## Make production intent explicit
+## Test a deliberately selected stop policy
 
-Use a stable document ID, wait for stored completion, and select the error policy on the consumer that owns the tracked
+Start production consumer configuration with the default `LoggingErrorHandler`. The example below deliberately
+selects a different policy to verify stopping and position preservation; it is not a general projection default.
+**`ThrowingErrorHandler` does not retry or automatically resume. The affected tracker can remain stopped until
+explicit restart, even after a functional rejection.** Use it only with an operator repair/restart procedure; other
+trackers or application instances may continue. For safe automatic recovery from temporary failures, consider
+`RetryingErrorHandler` or `ForeverRetryingErrorHandler` as described in the consumer error-policy article.
+
+Use a stable document ID, wait for stored completion, and select the policy on the consumer that owns the tracked
 position:
 
 ```java
@@ -37,10 +44,11 @@ final class ItemViewProjection {
 }
 ```
 
-The default `LoggingErrorHandler` logs and continues. A normally returned batch can then store its final position, so do
-not use the default when silently missing one projection update is unacceptable. `ThrowingErrorHandler` stops before
-the failing index. A retry policy invokes the complete handler again; every write, schedule, dispatch, or outbound
-request completed before the failure must therefore be idempotent or moved behind its own durable intent.
+The default `LoggingErrorHandler` logs and continues without retry. A normally returned batch can then store its final
+position, so monitor and reconcile failed updates when required. In this stop-policy example, automatic position
+storage does not advance past the failing index. Retry or recovery can repeat a handler or batch; every write,
+schedule, dispatch, or outbound request completed before the failure must therefore be idempotent or moved behind
+its own durable intent.
 
 ## Inject the actual storage failure
 

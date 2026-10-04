@@ -230,8 +230,9 @@ Fluxzero migrates only nodes whose serialized type or revision evolved. Raise `@
 The returned Graph must retain its injected values, root, state boundary, nodes and placements; business mutations
 are rejected. Each evolved node is deduplicated and the SDK upcasts its **verified current canonical source**. It never
 copies stale business values from the handled Graph into newer Modelstate. The write checks the complete Model head
-and source proof; contention is re-read up to three writes, then fails handling for consumer retry. Deleted nodes
-stay deleted. An already-migrated source is a no-op.
+and source proof; contention is re-read up to three writes, then fails handling. The consumer's error policy determines
+whether that failure is retried, logged with continuation (the default), or stops the affected tracker until explicit
+restart. Deleted nodes stay deleted. An already-migrated source is a no-op.
 
 This works in NONE too. The Runtime records each changed node durably and refreshes only affected ancestor/root
 projections or update markers, respecting search scope and depth. Schema-only revision changes do not restart full

@@ -27,6 +27,12 @@ missing/before `2026.05.20` → shared application consumer; `2026.05.20` throug
 `2026.07.27` or newer → per exact package and message type. Absolute HTTP test stubs use these same rules;
 give a stub its own test consumer when it represents an independently running external service.
 
+Start with the default `LoggingErrorHandler`: log failures and continue without retry, with monitoring and recovery
+for skipped effects where needed. **`ThrowingErrorHandler` can stop the affected tracker until explicit restart,
+even for functional rejection; it does not automatically retry or resume.** Unlimited retries are appropriate only
+for recoverable failures with safely repeatable effects, acceptable blocked progress and lag alerts. Read
+`/docs/sdk/tracking/error-policy` before changing the policy.
+
 Replay is a code/configuration decision, not a casual runtime action:
 
 ```java
