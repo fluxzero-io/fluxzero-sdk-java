@@ -17,6 +17,8 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
@@ -27,9 +29,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 class ModelCascadingAssertionsTest {
     private static final IllegalCommandException CLOSED = new IllegalCommandException("This project is closed.");
@@ -113,6 +121,61 @@ class ModelCascadingAssertionsTest {
                               new CloseProject("project"))
                 .whenExecuting(fc -> io.fluxzero.sdk.Fluxzero.assertLegal(new TouchTask("task")))
                 .expectExceptionalResult(CLOSED);
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void explicitAssertionsObserveClosedParentWhileChildCacheLags(boolean async) throws Exception {
+        CountDownLatch polling = holdCacheUpdates(async);
+        fixture.givenCommands(new SeedProject("project", false), new CreateTask("task", "project"));
+        assertTrue(polling.await(5, TimeUnit.SECONDS));
+        fixture.whenCommand(new CloseProject("project")).expectSuccessfulResult();
+        fixture.whenExecuting(fc -> io.fluxzero.sdk.Fluxzero.assertLegal(new TouchTask("task")))
+                .expectExceptionalResult(CLOSED);
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void mutationsObserveReopenedParentWhileChildCacheLags(boolean async) throws Exception {
+        CountDownLatch polling = holdCacheUpdates(async);
+        fixture.givenCommands(new SeedProject("project", true), new SeedTask("task", "project"));
+        assertTrue(polling.await(5, TimeUnit.SECONDS));
+        fixture.whenCommand(new SeedProject("project", false)).expectSuccessfulResult();
+        fixture.whenCommand(new TouchTask("task")).expectSuccessfulResult();
+        assertEquals(1, fixture.getFluxzero().modelRepository().load("task", Task.class).get().revision());
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void selectedMutationObservesReopenedParentWhileChildCacheLags(boolean async) throws Exception {
+        CountDownLatch polling = holdCacheUpdates(async);
+        fixture.givenCommands(new SeedProject("project", true), new SeedTask("first", "project"),
+                              new SeedTask("second", "project"));
+        assertTrue(polling.await(5, TimeUnit.SECONDS));
+        // Establish both cached inputs at the same closed-parent boundary before reopening.
+        fixture.whenExecuting(fc -> io.fluxzero.sdk.Fluxzero.assertLegal(new TouchSelected("first", "second")))
+                .expectExceptionalResult(CLOSED);
+        fixture.whenCommand(new SeedProject("project", false)).expectSuccessfulResult();
+        fixture.whenCommand(new TouchSelected("first", "second")).expectSuccessfulResult();
+        assertEquals(1, fixture.getFluxzero().modelRepository().load("first", Task.class).get().revision());
+        assertEquals(0, fixture.getFluxzero().modelRepository().load("second", Task.class).get().revision());
+    }
+
+    record TouchSelected(String first, String second) implements ProjectChange {
+        @Apply Task apply(@io.fluxzero.sdk.tracking.handling.Association("first") Task first,
+                          @io.fluxzero.sdk.tracking.handling.Association("second") Task second) {
+            return new Task(first.taskId(), first.projectId(), first.revision() + 1);
+        }
+    }
+
+    private CountDownLatch holdCacheUpdates(boolean async) {
+        fixture = fixture(async).spy();
+        CountDownLatch polling = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            TrackModelUpdates request = invocation.getArgument(0);
+            if (request.getMaxWaitMillis() == 0) { return invocation.callRealMethod(); }
+            polling.countDown();
+            // The repository cancels this pending poll when the fixture closes.
+            return new CompletableFuture<TrackModelUpdatesResult>();
+        }).when(fixture.getFluxzero().client().getEventStoreClient()).trackModelUpdates(any());
+        return polling;
     }
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
