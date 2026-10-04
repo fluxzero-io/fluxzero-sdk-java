@@ -59,22 +59,25 @@ class GraphReindexTest {
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
     void awaitAlsoWaitsWhenTheSourceWriteIsSkipped(boolean skip) throws Exception {
+        var entered = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CompletableFuture<Void>();
         var client = new LocalClient(null) {
-            @Override protected EventStoreClient createEventStoreClient() { return spy(super.createEventStoreClient()); }
+            @Override protected EventStoreClient createEventStoreClient() {
+                var events = spy(super.createEventStoreClient());
+                // Install the gate before application trackers can invoke this spy concurrently with stubbing.
+                doAnswer(invocation -> {
+                    var result = (java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>)
+                            invocation.callRealMethod();
+                    entered.countDown();
+                    return result.thenCompose(status -> release.thenApply(ignored -> status));
+                }).when(events).awaitModelGraphProjection(isA(io.fluxzero.common.api.modeling.AwaitModelGraphReindex.class));
+                return events;
+            }
         };
         try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
             app.executeModelCommit(new Message(new io.fluxzero.sdk.test.contracts.GraphReindexContract.PutAwait("node", 1))).join();
             var graph = app.apply(fc -> Fluxzero.loadGraph("node",
                     io.fluxzero.sdk.test.contracts.GraphReindexContract.ReindexAwait.class));
-            var entered = new java.util.concurrent.CountDownLatch(1);
-            var release = new java.util.concurrent.CompletableFuture<Void>();
-            doAnswer(invocation -> {
-                var result = (java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>)
-                        invocation.callRealMethod();
-                entered.countDown();
-                return result.thenCompose(status -> release.thenApply(ignored -> status));
-            }).when(client.getEventStoreClient()).awaitModelGraphProjection(
-                    isA(io.fluxzero.common.api.modeling.AwaitModelGraphReindex.class));
             clearInvocations(client.getEventStoreClient());
             var reindex = java.util.concurrent.CompletableFuture.runAsync(() -> {
                 if (skip) {
