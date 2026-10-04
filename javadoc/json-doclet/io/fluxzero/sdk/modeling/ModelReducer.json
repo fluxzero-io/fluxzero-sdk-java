@@ -1821,6 +1821,32 @@
     "varArgs" : false,
     "documentation" : "Replays with late-bound embedded dependencies at the stored event's historical boundary. "
   }, {
+    "name" : "requiresCascadeStorageBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#requiresCascadeStorageBoundary",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "requiresMemberDependencies",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#requiresMemberDependencies",
     "returnType" : "boolean",

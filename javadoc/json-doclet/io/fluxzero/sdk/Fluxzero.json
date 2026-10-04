@@ -225,7 +225,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Runs apply interceptors and immediate model assertions declared for the given update without invoking applies or\n committing model changes.\n <p>\n Assertions marked with {@link io.fluxzero.sdk.modeling.AssertLegal#afterHandler()} are not invoked because this\n validation-only operation does not produce a post-apply model state. This enters the model pipeline directly and\n does not dispatch the update as a command.\n\n @param update the update payload or message to validate\n"
+    "documentation" : " Runs apply interceptors and immediate model assertions declared for the given update without invoking applies or\n committing model changes.\n <p>\n Assertions marked with {@link io.fluxzero.sdk.modeling.AssertLegal#afterHandler()} are not invoked because this\n validation-only operation does not produce a post-apply model state. This enters the model pipeline directly and\n does not dispatch the update as a command.\n <p>\n Matching cascading rules on initially resolved targets establish a storage-current read boundary before loading\n the initial state. Nested checks retain the active operation's boundary and staged changes. A successful\n standalone check does not reserve that state against later changes.\n\n @param update the update payload or message to validate\n"
   }, {
     "name" : "assertLegal",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#assertLegal",

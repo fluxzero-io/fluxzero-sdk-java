@@ -103,7 +103,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Error handler invoked when a message processing error occurs. Default is {@link LoggingErrorHandler} which logs\n errors and allows message tracking and processing to continue.\n"
+    "documentation" : " Error handler invoked when a message processing error occurs. Default is {@link LoggingErrorHandler} which logs\n errors and allows processing to continue without retry. Start with this default; select a retry policy only\n when the effects can safely repeat and recovery requires it. <strong>Warning:</strong>\n {@link ThrowingErrorHandler} can stop the affected tracker until explicit restart, even for functional errors;\n it does not retry or automatically resume. See {@link ErrorHandler} for the policy trade-offs.\n"
   }, {
     "name" : "exclusive",
     "qualifiedName" : "io.fluxzero.sdk.tracking.Consumer#exclusive",
