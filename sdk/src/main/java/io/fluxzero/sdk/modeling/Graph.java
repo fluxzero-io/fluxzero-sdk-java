@@ -797,8 +797,11 @@ public interface Graph<T> {
      * thereafter all writers must use the intended configuration and comparable clocks. Future/nonpositive cutoffs
      * are rejected. Without a bounded consumer every call refreshes the source.
      * <p>
-     * Completion means durable source storage and targeted projection invalidation, in NONE, ASYNC and AWAIT alike.
-     * It is not a projection catch-up barrier. Conflicts retry a bounded number of times and then fail for caller retry.
+     * Completion confirms durable source storage and targeted projection invalidation. For affected AWAIT projections,
+     * including ancestor roots, it also waits until the updated projection is queryable, even when the cutoff skips
+     * the source write. Completion follows consumer, Model projection mode and application default precedence, just
+     * like a normal commit. Other derived work continues asynchronously. The wait holds no Model write lock.
+     * Conflicts retry a bounded number of times and then fail for caller retry.
      * A compatible Runtime is required; unsupported servers fail rather than falling back to ordinary indexing.
      */
     default void reindex() {

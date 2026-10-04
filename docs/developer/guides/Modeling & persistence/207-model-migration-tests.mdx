@@ -318,7 +318,12 @@ A restarted replay must retain its original cutoff; do not calculate a new cutof
 
 The operation retries bounded head/proof conflicts. An exhausted conflict or storage failure may be retried by the
 customer. Concurrent writes, deletion and erasure retain their normal fences. Completion confirms the source write
-and durable targeted invalidation. Affected NONE notifications and ASYNC/AWAIT compositions follow through the
-existing worker; this operation is not an AWAIT projection-completion barrier. Observe projection catch-up separately.
+and durable targeted invalidation. With AWAIT completion it also waits for affected stored Graph projections,
+including ancestor roots, so a query immediately after `reindex()` sees the refreshed projection. This wait also
+applies when the fixed cutoff skips the source write. The consumer completion override takes precedence over the
+Model projection mode, then the application default (`fluxzero.model.graphProjectionCompletion`, environment
+`FLUXZERO_MODEL_GRAPH_PROJECTION_COMPLETION`), just as for normal commits. Other derived work continues asynchronously.
+The wait holds no Model write lock; a stalled projector can still delay the caller. Upgrade the Runtime before
+using this barrier: an older Runtime rejects its distinct request type instead of silently weakening AWAIT.
 No new Model event or automatic migration job is produced. Event replay can select only retained published events;
 use another authoritative ID inventory for Models absent from that log.

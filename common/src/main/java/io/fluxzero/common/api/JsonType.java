@@ -155,6 +155,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetModelChangeResult.class, name = "getModelChangeResult"),
         @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),
         @JsonSubTypes.Type(value = GetModelGraphProjectionStatus.class, name = "getModelGraphProjectionStatus"),
+        @JsonSubTypes.Type(value = io.fluxzero.common.api.modeling.AwaitModelGraphReindex.class, name = "awaitModelGraphReindex"),
         @JsonSubTypes.Type(value = AwaitModelGraphProjection.class, name = "awaitModelGraphProjection"),
         @JsonSubTypes.Type(value = ModelGraphProjectionStatus.class, name = "modelGraphProjectionStatus"),
         @JsonSubTypes.Type(value = PlanModelDeletion.class, name = "planModelDeletion"),

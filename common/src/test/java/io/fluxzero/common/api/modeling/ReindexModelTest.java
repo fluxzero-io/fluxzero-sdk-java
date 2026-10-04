@@ -24,6 +24,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ReindexModelTest {
     @Test
+    void reindexBarrierHasADistinctWireTypeAndRetainsSelectedNodes() throws Exception {
+        var request = new AwaitModelGraphReindex("graphs", 7, java.util.List.of("node"));
+        var decoded = JsonUtils.reader.readValue(JsonUtils.writer.writeValueAsBytes(request), JsonType.class);
+        assertInstanceOf(AwaitModelGraphReindex.class, decoded);
+        assertEquals(request, decoded);
+        assertThrows(IllegalArgumentException.class,
+                () -> new AwaitModelGraphReindex("graphs", 7, java.util.List.of()));
+    }
+
+    @Test
     void preservesWireEnvelopeButNeverExposesIdentifiersOrPayloadsInMetrics() throws Exception {
         var document = new SerializedDocument("private-id", null, null, "private-collection",
                 new Data<>(new byte[]{1, 2, 3}, "private-type", 1, Data.JSON_FORMAT), null, Set.of(), Set.of());

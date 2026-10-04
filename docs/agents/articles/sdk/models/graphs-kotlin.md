@@ -340,4 +340,5 @@ or sorts can require many compositions before paging. Use stored materialization
 sources, without changing Model history. It ignores stale Graph values and staged updates. The customer selects IDs
 or replays events; descendants are separate calls. A bounded consumer uses its fixed `maxIndexExclusive` to skip
 already refreshed sources before replay. Follow the [cutover and replay contract](migration-testing.md#explicit-current-state-reindexing),
-including draining old materializations and waiting separately for derived Graph work in every projection mode.
+including draining old materializations. AWAIT completion waits for affected stored projections, including ancestors,
+even when the cutoff skips the source write; other derived Graph work continues asynchronously.

@@ -57,6 +57,10 @@ public abstract class GraphReindexContract {
                         ConsumerConfiguration.builder().name("reindex").maxIndexExclusive(cutoff).build(), null));
                 try {
                     historical.reindex();
+                    if (mode == GraphProjectionMode.AWAIT) {
+                        assertEquals(1, Fluxzero.searchGraph(type).match(2, "version").fetchAll().size(),
+                                "AWAIT must expose the new projection immediately after reindex");
+                    }
                     var written = source(app, type);
                     assertTrue(written.isModelStateVerified());
                     assertNotNull(written.getModelStorageIndex());
