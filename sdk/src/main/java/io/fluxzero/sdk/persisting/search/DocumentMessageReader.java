@@ -17,13 +17,10 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.search.DefaultDocumentSerializer;
-import io.fluxzero.common.search.Document;
-import io.fluxzero.common.search.JacksonInverter;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 /** Retains the exact stored document source through serialization and handler interceptors. */
@@ -46,14 +43,14 @@ public final class DocumentMessageReader {
      * Decoding is deferred until a replacement is actually needed. Non-document inputs have no stored metadata.
      */
     public static Metadata sourceMetadata(DeserializingMessage message) {
-        return JacksonInverter.extractMetadata(sourceEntries(message));
+        return storedMetadata(message);
     }
 
-    private static Map<Document.Entry, List<Document.Path>> sourceEntries(DeserializingMessage message) {
+    private static Metadata storedMetadata(DeserializingMessage message) {
         Data<byte[]> data = message.getContext(DocumentSource.class).map(DocumentSource::data)
                 .orElseGet(() -> message.getSerializedObject().getData());
         return DefaultDocumentSerializer.INSTANCE.canDeserialize(data)
-                ? DefaultDocumentSerializer.INSTANCE.deserialize(data) : Map.of();
+                ? DefaultDocumentSerializer.INSTANCE.deserializeMetadata(data) : Metadata.empty();
     }
 
     private record DocumentSource(Data<byte[]> data) { }

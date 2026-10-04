@@ -16,6 +16,7 @@
 package io.fluxzero.common.search;
 
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.search.Document.Entry;
 import io.fluxzero.common.search.Document.Path;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
@@ -103,16 +104,62 @@ public enum DefaultDocumentSerializer {
         if (!canDeserialize(document)) {
             throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
         }
-        try (MessageUnpacker unpacker =
-                     MessagePack.newDefaultUnpacker(CompressionAlgorithm.LZ4.decompress(document.getValue()))) {
-            int version = unpacker.unpackInt();
-            if (version != 0) {
-                throw new IllegalArgumentException("Unsupported document revision: " + version);
+        try {
+            return deserializeEntries(CompressionAlgorithm.LZ4.decompress(document.getValue()));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not deserialize document", e);
+        }
+    }
+
+    /**
+     * Reads metadata without constructing payload entries for documents that have no metadata. The complete
+     * document is still validated. Documents with metadata reuse the ordinary parser on the same decompressed
+     * buffer, preserving its entry ordering and duplicate-entry semantics. No decode cache is retained.
+     *
+     * @param document the encoded document
+     * @return its stored metadata, or empty metadata when no metadata paths are present
+     * @throws IllegalArgumentException if the format is unsupported or the document cannot be parsed
+     */
+    public Metadata deserializeMetadata(Data<byte[]> document) {
+        if (!canDeserialize(document)) {
+            throw new IllegalArgumentException("Unsupported data format: " + document.getFormat());
+        }
+        Map<Entry, List<Path>> entries;
+        try {
+            byte[] bytes = CompressionAlgorithm.LZ4.decompress(document.getValue());
+            if (!containsMetadata(bytes)) {
+                return Metadata.empty();
             }
-            unpacker.unpackString(); //id
-            unpackTimestamp(unpacker); //timestamp
-            unpackTimestamp(unpacker); //end
-            unpacker.unpackString(); //collection
+            entries = deserializeEntries(bytes);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not deserialize document", e);
+        }
+        return JacksonInverter.extractMetadata(entries);
+    }
+
+    private boolean containsMetadata(byte[] bytes) throws Exception {
+        try (MessageUnpacker unpacker = newDocumentUnpacker(bytes)) {
+            unpackHeader(unpacker);
+            int size = unpacker.unpackArrayHeader();
+            for (int i = 0; i < size; i++) {
+                Document.EntryType.deserialize(unpacker.unpackByte());
+                skipString(unpacker); // validate framing even when the value has no metadata paths
+                int keysCount = unpacker.unpackArrayHeader();
+                for (int j = 0; j < keysCount; j++) {
+                    String path = unpacker.unpackString();
+                    if (JacksonInverter.isMetadataPath(path)
+                        && !path.equals(JacksonInverter.METADATA_PATH_PREFIX)) {
+                        return true; // the ordinary parser validates the remaining document
+                    }
+                }
+            }
+            return false;
+        }
+    }
+
+    private Map<Entry, List<Path>> deserializeEntries(byte[] bytes) throws Exception {
+        try (MessageUnpacker unpacker = newDocumentUnpacker(bytes)) {
+            unpackHeader(unpacker);
             Map<Entry, List<Path>> map = new LinkedHashMap<>();
             int size = unpacker.unpackArrayHeader();
             for (int i = 0; i < size; i++) {
@@ -125,8 +172,30 @@ public enum DefaultDocumentSerializer {
                 }
             }
             return map;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Could not deserialize document", e);
+        }
+    }
+
+    private static void unpackHeader(MessageUnpacker unpacker) throws Exception {
+        int version = unpacker.unpackInt();
+        if (version != 0) {
+            throw new IllegalArgumentException("Unsupported document revision: " + version);
+        }
+        skipString(unpacker); //id
+        unpackTimestamp(unpacker); //timestamp
+        unpackTimestamp(unpacker); //end
+        skipString(unpacker); //collection
+    }
+
+    private static MessageUnpacker newDocumentUnpacker(byte[] bytes) {
+        return MessagePack.newDefaultUnpacker(bytes);
+    }
+
+    private static void skipString(MessageUnpacker unpacker) throws java.io.IOException {
+        // This default unpacker accepts both string and binary framing. Other kinds must still fail
+        // through unpackString; an unguarded skipValue would silently accept unrelated wire types.
+        switch (unpacker.getNextFormat()) {
+            case FIXSTR, STR8, STR16, STR32, BIN8, BIN16, BIN32 -> unpacker.skipValue();
+            default -> unpacker.unpackString();
         }
     }
 
