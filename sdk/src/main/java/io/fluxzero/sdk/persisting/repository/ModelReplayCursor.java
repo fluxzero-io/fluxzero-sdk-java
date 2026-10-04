@@ -1551,9 +1551,9 @@ final class ModelReplayCursor {
                             @Override public Entity<?> get() {
                                 Class<?> valueType = type == null ? modelTypeResolver.knownModelType(name, id).orElse(null) : type;
                                 if (valueType == null) {
-                                    throw new EventSourcingException(
-                                            ("Graph Model '%s' of logical type '%s' is unknown in this application; register its "
-                                             + "shared Model contract before reading its value").formatted(id, name));
+                                    throw ModelReadException.failure(ModelReadException.Kind.MISSING_MODEL_CONTRACT,
+                                            ModelReadException.Operation.RESOLVE_MODEL_TYPE, id, name, null, null,
+                                            serializer, null).withRoot(modelIds.size() == 1 ? modelIds.getFirst() : null);
                                 }
                                 MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                                         id, valueType, MutationPlan.Access.READ_ONLY,
@@ -1603,6 +1603,8 @@ final class ModelReplayCursor {
                 return graphAtBoundary(
                         rootId, rootType, options, boundary,
                         namespace, staged, boundary.historical());
+            } catch (ModelReadException failure) {
+                throw failure.withRoot(rootId);
             } catch (GraphBoundaryMovedException failure) {
                 if (boundary.historical()
                     || ++attempts >= MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
@@ -1805,7 +1807,9 @@ final class ModelReplayCursor {
             throw new EventSourcingException(
                     "Graph child '%s' has no stored model type".formatted(stream.getModelId()));
         }
-        Class<?> result = modelType(storedType, stream.getModelId());
+        Class<?> result;
+        try { result = modelType(storedType, stream.getModelId()); }
+        catch (ModelReadException failure) { throw failure.withRoot(rootId); }
         if (stream.getModelId().equals(rootId) && !rootType.isAssignableFrom(result)) {
             throw new EventSourcingException(
                     "Graph root '%s' has stored type %s instead of %s"
@@ -1816,21 +1820,27 @@ final class ModelReplayCursor {
 
     Class<?> modelType(String storedType, String modelId) {
         if (storedType == null || storedType.isBlank()) {
-            throw new EventSourcingException(
-                    "Model '%s' has no stored type metadata".formatted(modelId));
+            throw ModelReadException.failure(ModelReadException.Kind.INVALID_DATA,
+                    ModelReadException.Operation.RESOLVE_MODEL_TYPE, modelId, storedType, null, null, serializer,
+                    new EventSourcingException("Model '%s' has no stored type metadata".formatted(modelId)));
         }
+        Class<?> result = null;
         try {
             if (modelTypeResolver == null) {
-                throw new IllegalStateException(
-                        "No application Model type catalog is configured");
+                throw new IllegalStateException("No application Model type catalog is configured");
             }
-            Class<?> result = modelTypeResolver.modelType(storedType, modelId);
+            result = modelTypeResolver.modelType(storedType, modelId);
             EntityMetadata.validate(result);
             return result;
         } catch (Throwable failure) {
-            throw new EventSourcingException(
-                    "Could not resolve stored model type '%s' for %s"
-                            .formatted(storedType, modelId), failure);
+            boolean missing = false;
+            if (modelTypeResolver != null && result == null) {
+                try { missing = modelTypeResolver.knownModelType(storedType, modelId).isEmpty(); }
+                catch (RuntimeException | LinkageError ignored) { /* Preserve the original catalog failure. */ }
+            }
+            throw ModelReadException.failure(missing ? ModelReadException.Kind.MISSING_MODEL_CONTRACT
+                                                     : ModelReadException.Kind.CATALOG_FAILURE,
+                    ModelReadException.Operation.RESOLVE_MODEL_TYPE, modelId, storedType, result, null, serializer, failure);
         }
     }
 
@@ -2385,12 +2395,20 @@ final class ModelReplayCursor {
                             StoredEvent storedEvent = new StoredEvent(
                                     membership,
                                     payloads.getRequired(membership.getStateIndex()));
-                            MutationPlan directDefinition = directReplayPlan(
-                                    storedEvent.event(), current.target.modelType());
-                            if (directDefinition == null) {
-                                current.apply(storedEvent);
-                            } else {
-                                current.applyCompiled(storedEvent, directDefinition);
+                            try {
+                                MutationPlan directDefinition = directReplayPlan(
+                                        storedEvent.event(), current.target.modelType());
+                                if (directDefinition == null) {
+                                    current.apply(storedEvent);
+                                } else {
+                                    current.applyCompiled(storedEvent, directDefinition);
+                                }
+                            } catch (RuntimeException failure) {
+                                throw ModelReadException.failure(ModelReadException.Kind.DECODING_FAILURE,
+                                        ModelReadException.Operation.READ_EVENT, current.target.modelId(),
+                                        stream.getHead() == null ? null : stream.getHead().getModelType(),
+                                        current.target.modelType(), storedEvent.event().getData(), serializer, failure,
+                                        membership.getStateIndex());
                             }
                             return current;
                         },
@@ -2692,9 +2710,11 @@ final class ModelReplayCursor {
                             .ignoreUnknownEvents()) {
                         continue;
                     }
-                    throw new EventSourcingException(
-                            "No replay apply found for %s on model %s"
-                                    .formatted(payloadType.getName(), target.modelType().getName()));
+                    throw ModelReadException.failure(ModelReadException.Kind.MISSING_REPLAY_HANDLER,
+                            ModelReadException.Operation.APPLY_EVENT, target.modelId(), null, target.modelType(),
+                            storedEvent.event().getData(), serializer, new EventSourcingException(
+                                    "No replay apply found for %s on model %s"
+                                            .formatted(payloadType.getName(), target.modelType().getName())));
                 }
                 if (definition.direct()) {
                     CommitAttempt context = CommitAttempt.createSingle(
@@ -2856,12 +2876,9 @@ final class ModelReplayCursor {
                         definition, replayEvent, context, target.modelId(),
                         (resolution, current) -> replayDependencies(resolution, current, membership));
             } catch (Throwable failure) {
-                throw new EventSourcingException(
-                        "Failed to apply model event at state %d to %s"
-                                .formatted(
-                                        membership.getStateIndex(),
-                                        target.modelId()),
-                        failure);
+                throw ModelReadException.failure(ModelReadException.Kind.APPLICATION_FAILURE,
+                        ModelReadException.Operation.APPLY_EVENT, target.modelId(), null, target.modelType(),
+                        event.getSerializedObject().getData(), serializer, failure).atState(membership.getStateIndex());
             }
         }
 

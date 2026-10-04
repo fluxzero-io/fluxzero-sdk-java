@@ -33,6 +33,9 @@ path only specifies placement; it does not create a document or enable search by
 
 ## Model discovery and contract packaging
 
+For actionable read failures and a bounded local-catalog comparison, see
+[Model contract diagnostics](../model-contract-diagnostics). Inspection does not qualify historical replay.
+
 Enable SDK annotation processing in every module that defines Models (Kotlin: kapt with the SDK processor).
 `@Model` declarations, including inherited Models, are written to
 `META-INF/io.fluxzero.sdk.modeling.Model`. The SDK combines those indexes from the contract JARs visible to its
@@ -350,7 +353,7 @@ record Account(@EntityId AccountId accountId, Money balance) {
 ```
 
 - `snapshotPeriod` writes a durable snapshot after the configured number of model events;
-- `maxSnapshotCount` bounds retained snapshots: positive values keep that many, `0` keeps one,
+- `maxSnapshotCount` sets the cleanup target: positive values target that many, `0` keeps one,
   and any negative value (for example `-1`) retains all periodic snapshots;
 - `checkpointPeriod` keeps intermediate replay checkpoints where configured;
 - stale snapshot or cache writes can never overwrite a higher `stateIndex`.
@@ -363,8 +366,13 @@ Storage grows with the number and size of snapshots, so choose the snapshot peri
 
 Snapshots are an optimization. The model stream remains authoritative for event-sourced loading unless publication was
 explicitly configured to omit required history. Fluxzero does not retain a full direct document in every Model commit:
-the direct search collection contains the current document, while `maxSnapshotCount` controls the durable snapshots kept
-for that Model. The event payloads remain the long-term history.
+the direct search collection contains the current document, while `maxSnapshotCount` controls snapshot cleanup for
+that Model. The event payloads remain the long-term history.
+
+The retention count is not a commit-time invariant: overlapping Runtime writers may keep extra snapshots. A later
+snapshot write with a bounded count also trims that previous excess; an idle Model may retain it until then. No
+background cleanup deadline is promised. Snapshot insertion still completes before successful commit acknowledgement.
+This contract is the same in Java and Kotlin; applications must not rely on an exact concurrent snapshot count.
 
 Loading an old Model with billions of unrelated namespace commits does not scan the namespace log. The Runtime selects
 the Model's own stream and the SDK starts from its newest applicable snapshot or checkpoint, then replays only that

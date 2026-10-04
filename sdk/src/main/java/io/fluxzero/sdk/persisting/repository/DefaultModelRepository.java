@@ -701,6 +701,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     @Override
+    public ModelDiagnostics diagnostics() {
+        return new ModelDiagnostics(client.getEventStoreClient(), this, serializer);
+    }
+
+    @Override
     public String modelName(Class<?> modelType) {
         String name = io.fluxzero.sdk.modeling.ModelNames.name(modelType, modelNamePrefix);
         Class<?> existing = modelTypesByName.putIfAbsent(name, modelType);
@@ -1885,6 +1890,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             try {
                 document = loadDocumentUnchecked(modelId, modelType, metadata, false, true);
             } catch (RuntimeException failure) {
+                if (failure instanceof ModelReadException contextual) { throw contextual; }
                 throw new EventSourcingException(
                         "Current-state read for Model '%s' (%s) failed document verification or decoding"
                                 .formatted(modelId, modelType.getName()), failure);
@@ -1965,9 +1971,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .formatted(modelId, storedType.getName(), modelType.getName()));
             }
         }
-        Object value = result.getDocument() == null
-                ? null : documentStore.getSerializer()
-                        .fromDocument(result.getDocument(), modelType);
+        Object value;
+        try {
+            value = result.getDocument() == null ? null
+                    : documentStore.getSerializer().fromDocument(result.getDocument(), modelType);
+        } catch (RuntimeException failure) {
+            var document = result.getDocument();
+            throw ModelReadException.failure(ModelReadException.Kind.DECODING_FAILURE,
+                    ModelReadException.Operation.READ_DOCUMENT, modelId,
+                    head == null ? null : head.getModelType(), modelType,
+                    document == null ? null : document.serializedDataIfPresent().orElse(null),
+                    documentStore.getSerializer() instanceof Serializer documentSerializer ? documentSerializer : null, failure);
+        }
         if (value != null && !modelType.isInstance(value)) {
             throw new EventSourcingException(
                     "Direct Model document '%s' contains %s instead of %s"

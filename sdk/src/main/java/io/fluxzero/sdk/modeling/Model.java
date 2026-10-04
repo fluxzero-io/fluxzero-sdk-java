@@ -167,10 +167,13 @@ public @interface Model {
     int snapshotPeriod() default 0;
 
     /**
-     * Maximum number of snapshots retained for this model. Any negative value retains all periodic snapshots;
+     * Target number of newest snapshots retained for this model. Any negative value retains all periodic snapshots;
      * {@code 0} is treated as {@code 1}. This does not enable snapshots: {@link #snapshotPeriod()} must be positive.
      * Unlimited retention does not prevent explicit physical erasure and does not change event-history retention.
      * Enable negative values only after upgrading the Runtime to support unlimited Model snapshot retention.
+     * Concurrent Runtime writes may retain more; this is a cleanup target, not an exact count at commit completion.
+     * A later bounded snapshot write also trims earlier excess. An idle Model may retain excess until another such
+     * write; snapshot storage still completes before the commit is acknowledged.
      */
     int maxSnapshotCount() default 1;
 

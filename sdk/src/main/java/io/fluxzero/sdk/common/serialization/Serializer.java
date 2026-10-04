@@ -186,6 +186,7 @@ public interface Serializer extends ContentFilter {
      * @param messageType the type of message (COMMAND, EVENT, etc.)
      * @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}
      * @return stream of deserialized messages
+     * @see io.fluxzero.sdk.persisting.search.DocumentMessageReader#retainSource(DeserializingMessage, SerializedMessage)
      */
     default Stream<DeserializingMessage> deserializeMessages(Stream<SerializedMessage> dataStream,
                                                              MessageType messageType, String topic) {
@@ -210,6 +211,11 @@ public interface Serializer extends ContentFilter {
     /**
      * Deserializes a stream of {@link SerializedMessage} into {@link DeserializingMessage} instances with the specified
      * {@link MessageType}.
+     *
+     * Custom document serializers that construct new envelopes or decoded messages must retain the association
+     * with each original stored input. See
+     * {@link io.fluxzero.sdk.persisting.search.DocumentMessageReader#retainSource(DeserializingMessage, SerializedMessage)}
+     * for the explicit source-transfer contract. Standard input-envelope withers already preserve this association.
      *
      * @param dataStream          the stream of messages
      * @param messageType         the type of message (COMMAND, EVENT, etc.)
@@ -387,6 +393,14 @@ public interface Serializer extends ContentFilter {
         }
         Class<?> resolvedType = ReflectionUtils.classForName(currentType, null);
         return resolvedType == null ? currentType : resolvedType.getName();
+    }
+
+    /**
+     * Inspects a serialized identifier without reading payloads or running structural upcasters. Custom serializers
+     * may leave this unavailable. A known type/revision does not prove decoding or replay compatibility.
+     */
+    default TypeInspection inspectType(String type) {
+        return new TypeInspection(TypeInspection.Status.UNAVAILABLE, type, null);
     }
 
     /**

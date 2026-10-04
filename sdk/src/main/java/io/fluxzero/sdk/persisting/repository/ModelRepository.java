@@ -67,6 +67,14 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
+     * Returns an explicit bounded dev/CI catalog inspector for this repository's namespace. Custom repositories
+     * may expose their own inspector; the default declines rather than inspecting a different store or namespace.
+     */
+    default ModelDiagnostics diagnostics() {
+        throw new UnsupportedOperationException("Model contract diagnostics are not supported by this repository");
+    }
+
+    /**
      * Loads a model using the type carried by a typed identifier.
      */
     default <T> Entity<T> load(@NonNull Id<T> modelId) {
