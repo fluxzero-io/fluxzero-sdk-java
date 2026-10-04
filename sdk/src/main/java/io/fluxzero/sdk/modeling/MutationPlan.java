@@ -701,6 +701,24 @@ public final class MutationPlan {
             return List.copyOf(knownModelTypes);
         }
 
+        private volatile DeadlineTypes deadlineTypes = new DeadlineTypes(-1, List.of());
+
+        /** Application registration snapshot; structural declarations remain owned by EntityMetadata. */
+        List<Class<?>> contextualDeadlineTypes() {
+            discoverIndexedModelTypes();
+            DeadlineTypes current = deadlineTypes;
+            int size = knownModelTypes.size();
+            if (current.size() != size) {
+                current = new DeadlineTypes(size, knownModelTypes.stream()
+                        .filter(t -> EntityMetadata.of(t).deadlines().stream().anyMatch(DeadlinePlan.Declaration::contextual))
+                        .toList());
+                deadlineTypes = current;
+            }
+            return current.types();
+        }
+
+        private record DeadlineTypes(int size, List<Class<?>> types) {}
+
         void register(Class<?> modelType) {
             registeredModelTypes.addIfAbsent(modelType);
             knownModelTypes.addIfAbsent(modelType);

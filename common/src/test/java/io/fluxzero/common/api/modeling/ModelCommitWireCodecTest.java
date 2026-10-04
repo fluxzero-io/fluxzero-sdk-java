@@ -42,6 +42,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void deadlineFacetsAndObsoleteResultsRoundTripOnEveryTransport() throws Exception {
+        CommitModels ordinary = commit("deadline-wire", false);
+        ordinary.getSubsteps().getFirst().getEvent().setIndex(null);
+        String owner = ordinary.getReadModelIds().getFirst();
+        var schedule = new io.fluxzero.common.api.scheduling.SerializedSchedule("explicit-id", 1234L,
+                new SerializedMessage(new Data<>(new byte[]{1}, "payload", 0), Metadata.empty(), "generation", 0L), false);
+        var request = new CommitModelsWithDeadlines(ordinary,
+                List.of(new ModelDeadlineUpdate(owner, "expiry", schedule, true)),
+                new ModelDeadlineClaim(owner, "previous-id", "previous-generation"));
+        ModelCommitValidator.validate(request);
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            var decoded = assertInstanceOf(RequestBatch.class, codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+            var received = assertInstanceOf(CommitModelsWithDeadlines.class, decoded.getRequests().getFirst());
+            assertEquals(request.getDeadlineUpdates(), received.getDeadlineUpdates());
+            assertEquals(request.getDeadlineClaim(), received.getDeadlineClaim());
+            assertEquals(request.getSubsteps(), received.getSubsteps());
+            var obsolete = CommitModelsResult.obsoleteDeadline(request.getRequestId(), request.getCommitId());
+            var result = assertInstanceOf(CommitModelsResult.class, codec.decode(codec.encode(obsolete)));
+            assertTrue(result.isObsoleteDeadline());
+            assertFalse(result.isAccepted());
+        }
+    }
+
+    @Test
+    void legacyResultsDefaultToANonObsoleteDeadline() throws Exception {
+        var result = CommitModelsResult.obsoleteDeadline(123L, "legacy");
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) JsonUtils.valueToTree(result);
+        json.remove("obsoleteDeadline");
+        assertFalse(JsonUtils.writer.treeToValue(json, CommitModelsResult.class).isObsoleteDeadline());
+    }
+
+    @Test
     void parentSearchExclusionPreservesLegacyWireDefaults() throws Exception {
         var legacy = ModelRelationship.builder().parentId("parent").parentType("Project").path("children")
                 .deleteOnParentDeletion(true).build();

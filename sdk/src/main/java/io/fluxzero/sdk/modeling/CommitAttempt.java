@@ -600,6 +600,31 @@ public final class CommitAttempt {
     private Set<String> cascadeRootIds = Set.of();
     private volatile CompletableFuture<Object> completion;
     private boolean submitted;
+    private List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> deadlineUpdates = List.of();
+    private io.fluxzero.common.api.modeling.ModelDeadlineClaim deadlineClaim;
+    private boolean managesDeadlines;
+
+    public List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> deadlineUpdates() { return deadlineUpdates; }
+    public io.fluxzero.common.api.modeling.ModelDeadlineClaim deadlineClaim() { return deadlineClaim; }
+    public boolean managesDeadlines() { return managesDeadlines; }
+    void deadlines(List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates,
+                   io.fluxzero.common.api.modeling.ModelDeadlineClaim claim, boolean managed) {
+        deadlineUpdates = List.copyOf(updates); deadlineClaim = claim; managesDeadlines = managed;
+    }
+
+    CommitAttempt deadlineContext(Map<String, Entity<?>> values) {
+        CommitAttempt result = new CommitAttempt();
+        result.readStateIndex = readStateIndex();
+        result.entities = values;
+        result.graphReadOwner = this;
+        result.readCollector = new LinkedHashSet<>();
+        return result;
+    }
+
+    void finishDeadlineReads() {
+        evaluated(readStateIndex(), readModelIds, applyReadModelIds, readModelTypes, steps);
+    }
+
 
     CommitAttempt() {
     }

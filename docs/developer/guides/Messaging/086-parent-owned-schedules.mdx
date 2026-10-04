@@ -6,6 +6,9 @@ sidebar:
    order: 86
 ---
 
+For delayed work derived directly from Model state, use [declarative Model deadlines](./087-model-deadlines.mdx).
+They combine intent changes and stale-delivery guards with the Model commit.
+
 A schedule can belong to the lifetime of one or more **already committed Models**. Declare ownership on its payload
 with `@Parent`, or select parents explicitly on `Schedule`. This works for schedule messages and scheduled commands.
 

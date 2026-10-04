@@ -84,6 +84,7 @@ public final class EntityMetadata {
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
+    private final List<DeadlinePlan.Declaration> deadlines;
     private final List<Property> assertionFields;
     private final int revision;
     private volatile Boolean selfReferentialMember;
@@ -161,6 +162,7 @@ public final class EntityMetadata {
         this.type = type;
         ReflectionUtils.TypeMetadata typeMetadata = ReflectionUtils.getTypeMetadata(type);
         this.model = typeMetadata.typeAnnotation(Model.class);
+        this.deadlines = DeadlinePlan.inspect(type);
         Model declaredModel = type.getDeclaredAnnotation(Model.class);
         this.localModelName = model == null ? null : validateModelName(
                 type, declaredModel == null ? "" : declaredModel.name());
@@ -815,6 +817,8 @@ public final class EntityMetadata {
     /**
      * Returns only the discovered methods classified as apply handlers.
      */
+    List<DeadlinePlan.Declaration> deadlines() { return deadlines; }
+
     public List<HandlerMethod> applyMethods() {
         return handlerMethods.stream().filter(method -> method.kind() == HandlerKind.APPLY).toList();
     }

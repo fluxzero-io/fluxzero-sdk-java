@@ -87,6 +87,14 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
  * @see ScheduledCommandHandler
  */
 public interface MessageScheduler extends Namespaced<MessageScheduler> {
+    /** Prepares a Model-owned deadline without publishing it. Storage is part of the Model commit. */
+    default io.fluxzero.common.api.scheduling.SerializedSchedule prepareDeadline(Schedule schedule, boolean command) {
+        throw new UnsupportedOperationException("This scheduler does not support Model deadlines");
+    }
+
+    /** Activates local delivery after Model deadline intents have been durably committed. */
+    default void deadlinesCommitted(java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates) {
+    }
 
     /**
      * Schedule a periodic message using the {@code @Periodic} annotation on its class, using the {@link Guarantee#DEFAULT}

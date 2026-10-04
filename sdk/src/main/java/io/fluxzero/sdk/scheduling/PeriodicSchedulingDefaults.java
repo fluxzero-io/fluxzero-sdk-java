@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
@@ -64,11 +65,15 @@ final class PeriodicSchedulingDefaults {
     }
 
     static Instant nextDeadline(Periodic periodic, Instant now) {
-        if (periodic.cron().isBlank()) {
-            return now.plusMillis(periodic.timeUnit().toMillis(periodic.delay()));
+        return nextDeadline(periodic.cron(), periodic.timeZone(), periodic.delay(), periodic.timeUnit(), now);
+    }
+
+    static Instant nextDeadline(String cron, String timeZone, long delay, TimeUnit unit, Instant now) {
+        if (cron.isBlank()) {
+            return now.plusMillis(unit.toMillis(delay));
         }
-        return cronExpression(periodic)
-                .map(e -> e.nextTimeAfter(now.atZone(ZoneId.of(periodic.timeZone()))).toInstant())
+        return cronExpression(cron)
+                .map(e -> e.nextTimeAfter(now.atZone(ZoneId.of(timeZone))).toInstant())
                 .orElse(null);
     }
 
@@ -85,7 +90,11 @@ final class PeriodicSchedulingDefaults {
     }
 
     private static Optional<CronExpression> cronExpression(Periodic periodic) {
-        String pattern = ApplicationProperties.substituteProperties(periodic.cron());
+        return cronExpression(periodic.cron());
+    }
+
+    private static Optional<CronExpression> cronExpression(String cron) {
+        String pattern = ApplicationProperties.substituteProperties(cron);
         return Periodic.DISABLED.equals(pattern) ? Optional.empty() : Optional.of(cronExpression.apply(pattern));
     }
 

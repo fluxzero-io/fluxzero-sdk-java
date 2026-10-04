@@ -67,6 +67,7 @@ final class ModelPipeline {
             CompletableFuture.completedFuture(null);
 
     private final DefaultModelRepository repository;
+    private final DeadlinePlan deadlines;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
@@ -91,8 +92,9 @@ final class ModelPipeline {
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
             BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
-            java.util.function.BooleanSupplier localHandlingEnabled) {
+            java.util.function.BooleanSupplier localHandlingEnabled, Supplier<List<Class<?>>> knownModelTypes) {
         this.repository = Objects.requireNonNull(repository, "repository");
+        this.deadlines = new DeadlinePlan(repository, serializer, knownModelTypes);
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
@@ -151,6 +153,8 @@ final class ModelPipeline {
     private <T> CompletableFuture<Void> atomicGraphUpdate(AtomicGraphUpdate<T> operation, Message update) {
         DeserializingMessage message = new DeserializingMessage(update, MessageType.COMMAND, serializer);
         try {
+            io.fluxzero.sdk.scheduling.DeadlineDelivery.beginModelOperation(message);
+            io.fluxzero.sdk.scheduling.DeadlineDelivery.requireCurrent(message);
             if (!repository.sharesReadContext(operation.repository)) {
                 throw new UnsupportedOperationException(
                         "Atomic Graph updates require the application's configured Model namespace; "
@@ -177,6 +181,7 @@ final class ModelPipeline {
                     () -> repositoryCommit.commitPrepared(prepared, null, -1)).thenAccept(result -> {
                 CommitModelsResult committed = result.orElseThrow(() ->
                         new IllegalStateException("An atomic Graph update must submit a checked revision"));
+                if (committed.isObsoleteDeadline()) { throw new io.fluxzero.sdk.scheduling.DeadlineDelivery.Obsolete(); }
                 if (!committed.isAccepted()) {
                     repository.invalidateModels(evaluation.readModelIds());
                     operation.rejected = new ModelCommitConflictException(committed);
@@ -336,6 +341,9 @@ final class ModelPipeline {
             ExecutionRequest request,
             ModelCommitPolicy policy,
             ModelBatchScope.CommitCoordination preparedEntry) {
+        if (request.mode() == Mode.LIVE || request.mode() == Mode.AUTOMATIC) {
+            io.fluxzero.sdk.scheduling.DeadlineDelivery.beginModelOperation(request.message());
+        }
         ModelBatchScope.CommitCoordination entry = preparedEntry == null
                 ? ModelBatchScope.register(this, request.message(), policy, batchLifecycle)
                 : preparedEntry;
@@ -374,7 +382,7 @@ final class ModelPipeline {
                                 entry.batched() && asynchronousReevaluation)
                         : CompletableFuture.completedFuture(attempt);
                 return ready.thenCompose(context.wrap(evaluation -> {
-                    if (request.mode().skipEmpty && evaluation.transitions().isEmpty()) {
+                    if (request.mode().skipEmpty && evaluation.transitions().isEmpty() && evaluation.deadlineClaim() == null) {
                         return CompletableFuture.completedFuture(null);
                     }
                     ModelCommitBatchingClient.ModelCommitBatch batch =
@@ -628,6 +636,7 @@ final class ModelPipeline {
                         return CompletableFuture.completedFuture(optional);
                     }
                     CommitModelsResult result = optional.get();
+                    if (result.isObsoleteDeadline()) { throw new io.fluxzero.sdk.scheduling.DeadlineDelivery.Obsolete(); }
                     if (retry.accepting()) {
                         if (!result.isRebaseRequired()) {
                             return CompletableFuture.completedFuture(optional);
@@ -823,9 +832,11 @@ final class ModelPipeline {
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
-        return reevaluate(entry, message, () -> expandCascadeDeletes(
-                ModelReducer.retry(message, new CommitLoader(
-                        retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message));
+        return reevaluate(entry, message, () -> {
+            io.fluxzero.sdk.scheduling.DeadlineDelivery.requireCurrent(message);
+            return expandCascadeDeletes(ModelReducer.retry(message, new CommitLoader(
+                    retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message);
+        });
     }
 
     private static long retryStateIndex(
@@ -860,6 +871,7 @@ final class ModelPipeline {
             CommitAttempt attempt,
             DeserializingMessage initialMessage,
             PrefetchSlot prefetched) {
+        io.fluxzero.sdk.scheduling.DeadlineDelivery.requireCurrent(initialMessage);
         return expandCascadeDeletes(
                 ModelReducer.apply(
                         attempt, List.of(initialMessage),
@@ -874,6 +886,7 @@ final class ModelPipeline {
             CommitAttempt evaluation,
             long stateIndex,
             boolean migration) {
+        io.fluxzero.sdk.scheduling.DeadlineDelivery.requireCurrent(message);
         List<CommitAttempt.Step> steps = evaluation.steps();
         // ACCEPT reapplies at the runtime's requested boundary while holding its admission session.
         // Keep this existing apply-only path free of waits on speculative producers.
@@ -909,7 +922,7 @@ final class ModelPipeline {
     private CommitAttempt expandCascadeDeletes(
             CommitAttempt evaluation, DeserializingMessage message) {
         try {
-            return expandCascadeDeletes(evaluation);
+            return deadlines.evaluate(expandCascadeDeletes(evaluation), message);
         } catch (Exception failure) {
             throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
         }

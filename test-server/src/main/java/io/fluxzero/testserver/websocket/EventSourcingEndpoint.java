@@ -63,6 +63,13 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
 
     private final EventStoreClient eventStore;
 
+    @Handle
+    public CompletableFuture<io.fluxzero.common.api.BooleanResult> checkDeadline(
+            io.fluxzero.common.api.modeling.CheckModelDeadline request) {
+        return eventStore.checkModelDeadline(request.getClaim()).thenApply(value ->
+                new io.fluxzero.common.api.BooleanResult(request.getRequestId(), value));
+    }
+
     @Override
     protected List<ModelWebSocketCodec> payloadCodecs() {
         return List.of(ModelWebSocketCodec.INSTANCE);

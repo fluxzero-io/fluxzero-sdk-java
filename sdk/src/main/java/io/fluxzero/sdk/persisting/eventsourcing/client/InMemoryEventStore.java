@@ -106,6 +106,94 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private boolean deferModelCommitNotification;
 
+    private final Map<String, DeadlineState> deadlines = new HashMap<>();
+    private final Map<String, String> deadlineSlotsByScheduleId = new HashMap<>();
+    private final Map<String, io.fluxzero.common.api.scheduling.SerializedSchedule> pendingDeadlines = new LinkedHashMap<>();
+    private final Object deadlineProjectionLock = new Object();
+    private java.util.function.BiConsumer<String, io.fluxzero.common.api.scheduling.SerializedSchedule> deadlineProjection;
+    private record DeadlineState(String modelId, String category, String generation,
+                                 io.fluxzero.common.api.scheduling.SerializedSchedule schedule, boolean cancelOnDeletion) {}
+
+    /** Installs the existing scheduler as the projection destination and resumes pending intents. */
+    public void configureDeadlines(java.util.function.BiConsumer<String, io.fluxzero.common.api.scheduling.SerializedSchedule> projection) {
+        deadlineProjection = Objects.requireNonNull(projection);
+        projectDeadlines();
+    }
+
+    @Override
+    public synchronized CompletableFuture<Boolean> checkModelDeadline(io.fluxzero.common.api.modeling.ModelDeadlineClaim claim) {
+        DeadlineState current = deadlines.get(deadlineSlotsByScheduleId.get(claim.scheduleId()));
+        return CompletableFuture.completedFuture(current != null && current.schedule() != null
+                && current.modelId().equals(claim.modelId()) && current.generation().equals(claim.generation()));
+    }
+
+    /** Serializes ordinary schedule writes with the projection of Model intents. */
+    public <T> T withScheduleMutation(java.util.function.Supplier<T> mutation) {
+        synchronized (deadlineProjectionLock) { return mutation.get(); }
+    }
+
+    /** An accepted ordinary scheduler write supersedes the prior Model intent, including queued delivery. */
+    public synchronized void supersedeModelDeadline(String scheduleId) {
+        String slot = deadlineSlotsByScheduleId.remove(scheduleId);
+        if (slot != null) {
+            DeadlineState state = deadlines.get(slot);
+            deadlines.put(slot, new DeadlineState(state.modelId(), state.category(), state.generation(), null,
+                                                  state.cancelOnDeletion()));
+        }
+        pendingDeadlines.remove(scheduleId);
+    }
+
+    private void cancelDeadline(String slot) {
+        DeadlineState state = deadlines.get(slot);
+        if (state != null && state.schedule() != null) {
+            String id = state.schedule().getScheduleId();
+            deadlineSlotsByScheduleId.remove(id);
+            pendingDeadlines.put(id, null);
+            deadlines.put(slot, new DeadlineState(state.modelId(), state.category(), state.generation(), null, state.cancelOnDeletion()));
+        }
+    }
+
+    private void projectDeadlines() {
+        if (deadlineProjection == null) { return; }
+        synchronized (deadlineProjectionLock) {
+            while (true) {
+                Map.Entry<String, io.fluxzero.common.api.scheduling.SerializedSchedule> pending;
+                synchronized (this) {
+                    pending = pendingDeadlines.entrySet().stream()
+                            .map(java.util.AbstractMap.SimpleImmutableEntry::new).findFirst().orElse(null);
+                }
+                if (pending == null) { return; }
+                deadlineProjection.accept(pending.getKey(), pending.getValue());
+                synchronized (this) { pendingDeadlines.remove(pending.getKey(), pending.getValue()); }
+            }
+        }
+    }
+
+    private void commitDeadlines(CommitModels commit) {
+        Set<String> deleted = commit.getSubsteps().stream().flatMap(step -> step.getTargets().stream())
+                .filter(ModelCommitTarget::isDelete).map(ModelCommitTarget::getModelId).collect(Collectors.toSet());
+        if (!deleted.isEmpty()) {
+            deadlines.entrySet().stream().filter(e -> deleted.contains(e.getValue().modelId()) && e.getValue().cancelOnDeletion())
+                    .map(Map.Entry::getKey).toList().forEach(this::cancelDeadline);
+        }
+        if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines managed) {
+            var claim = managed.getDeadlineClaim();
+            if (claim != null) { cancelDeadline(deadlineSlotsByScheduleId.get(claim.scheduleId())); }
+            // Release the full change set before rebinding IDs, allowing atomic category transfers and swaps.
+            managed.getDeadlineUpdates().forEach(update -> cancelDeadline(update.slotId()));
+            for (var update : managed.getDeadlineUpdates()) {
+                var schedule = update.schedule();
+                deadlines.put(update.slotId(), new DeadlineState(update.modelId(), update.category(),
+                        schedule == null ? commit.getCommitId() : schedule.getMessage().getMessageId(),
+                        schedule, update.cancelOnDeletion()));
+                if (schedule != null) {
+                    deadlineSlotsByScheduleId.put(schedule.getScheduleId(), update.slotId());
+                    pendingDeadlines.put(schedule.getScheduleId(), schedule);
+                }
+            }
+        }
+    }
+
     private final ConcurrentHashMap<String, Long> scheduleParentEpochs = new ConcurrentHashMap<>();
     private final String scheduleParentTokenPrefix = java.util.UUID.randomUUID().toString();
     private final ConcurrentHashMap<String, Long> pendingScheduleParentDeletions = new ConcurrentHashMap<>();
@@ -307,6 +395,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 outcome = commitModelsSynchronized(commit);
             }
             notifyScheduleParentDeletions();
+            projectDeadlines();
             completeModelCommitMaterialization(
                     commit.getCommitId());
             if (!outcome.publishedEvents().isEmpty()) {
@@ -327,6 +416,32 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         modelCommits.get(commit.getCommitId())
                                 .asDuplicateForRequest(
                                 commit.getRequestId()), List.of());
+            }
+            if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines managed) {
+                if (deadlineProjection == null) {
+                    throw new UnsupportedOperationException("Model deadline scheduling is not configured");
+                }
+                if (managed.getDeadlineClaim() != null && !checkModelDeadline(managed.getDeadlineClaim()).join()) {
+                    return new ModelCommitOutcome(CommitModelsResult.obsoleteDeadline(
+                            commit.getRequestId(), commit.getCommitId()), List.of());
+                }
+                Set<String> releasedSlots = managed.getDeadlineUpdates().stream()
+                        .map(io.fluxzero.common.api.modeling.ModelDeadlineUpdate::slotId).collect(Collectors.toSet());
+                if (managed.getDeadlineClaim() != null) {
+                    releasedSlots.add(deadlineSlotsByScheduleId.get(managed.getDeadlineClaim().scheduleId()));
+                }
+                Set<String> deletedOwners = commit.getSubsteps().stream().flatMap(step -> step.getTargets().stream())
+                        .filter(ModelCommitTarget::isDelete).map(ModelCommitTarget::getModelId).collect(Collectors.toSet());
+                for (var update : managed.getDeadlineUpdates()) {
+                    if (update.schedule() != null) {
+                        String existingSlot = deadlineSlotsByScheduleId.get(update.schedule().getScheduleId());
+                        DeadlineState existing = deadlines.get(existingSlot);
+                        if (existing != null && !releasedSlots.contains(existingSlot)
+                            && !(existing.cancelOnDeletion() && deletedOwners.contains(existing.modelId()))) {
+                            throw new IllegalArgumentException("Schedule ID is already owned by another Model deadline");
+                        }
+                    }
+                }
             }
             Map<Long, SerializedMessage> existingEvents = existingEvents(commit);
             commit.getSubsteps().stream()
@@ -489,6 +604,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             updates.getLast()
                                     .getStateIndex(),
                             description.targetIds()));
+            commitDeadlines(commit);
             modelUpdates.addAll(updates);
             modelUpdateGeneration.incrementAndGet();
             synchronized (modelUpdateMonitor) {
@@ -962,6 +1078,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public CompletableFuture<ModelDeletionResult> deleteModel(DeleteModel request) {
         var result = deleteModelSynchronized(request);
         notifyScheduleParentDeletions();
+        projectDeadlines();
         return result.thenApply(deleted -> {
             PendingModelErasure pending = pendingModelErasures.get(request.getDeletionId());
             if (pending != null) {
@@ -1116,6 +1233,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                       || selected.contains(
                                               relation.relationship
                                                       .getParentId()));
+            deadlines.entrySet().stream().filter(e -> selected.contains(e.getValue().modelId()))
+                    .map(Map.Entry::getKey).toList().forEach(slot -> { cancelDeadline(slot); deadlines.remove(slot); });
             selected.forEach(modelHeads::remove);
             selected.forEach(modelHeadHistory::remove);
             selected.forEach(modelStreams::remove);
@@ -1223,7 +1342,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 result.getConflicts(),
                                 result.isRetryAllowed(),
                                 result.isDuplicate(),
-                                result.getRebaseStateIndex()));
+                                result.getRebaseStateIndex(), result.isObsoleteDeadline()));
         modelCommitMaterializations.replaceAll(
                 (commitId, materialization) ->
                         materialization.excluding(selected));

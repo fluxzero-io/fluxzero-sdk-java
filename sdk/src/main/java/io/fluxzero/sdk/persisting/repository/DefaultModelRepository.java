@@ -1997,15 +1997,29 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             new ModelCommitBatchingClient.ModelCommitCompletion(
                                     prepared,
                                     resultProcessor)));
-            if (batch != null) {
-                return committed.thenApply(result -> Optional.of(result));
+            CompletableFuture<Optional<CommitModelsResult>> completion = batch != null
+                    ? committed.thenApply(Optional::of)
+                    : committed.thenCompose(result -> result.isAccepted()
+                            ? processCommits(List.of(prepared.accepted(result))).thenApply(ignored -> Optional.of(result))
+                            : CompletableFuture.completedFuture(Optional.of(result)));
+            if (prepared.commit() instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
+                && !deadlines.getDeadlineUpdates().isEmpty()) {
+                var context = io.fluxzero.sdk.common.ThreadLocalContext.capture();
+                // Reply processing is bounded; notifications may read authority and must not block that executor.
+                java.util.function.Function<Optional<CommitModelsResult>, Optional<CommitModelsResult>> activate =
+                        context.wrap(result -> {
+                    if (result.filter(r -> r.isAccepted() && !r.isDuplicate()).isPresent()) {
+                        Fluxzero.get().messageScheduler().forNamespace(client.namespace())
+                                .deadlinesCommitted(deadlines.getDeadlineUpdates());
+                    }
+                    return result;
+                });
+                // Already completed local commits retain their synchronous completion contract.
+                return completion.isDone() ? completion.thenApply(activate)
+                        : completion.thenApplyAsync(activate,
+                                task -> Thread.ofVirtual().name("Fluxzero-deadline-activation").start(task));
             }
-            return committed.thenCompose(result ->
-                    result.isAccepted()
-                            ? processCommits(List.of(prepared.accepted(result)))
-                                    .thenApply(ignored -> Optional.of(result))
-                            : CompletableFuture.completedFuture(
-                                    Optional.of(result)));
+            return completion;
         }
 
         private CompletableFuture<Void> processCommitResults(
@@ -2359,6 +2373,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
             }
             boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
+            if (protocolSteps.isEmpty() && evaluation.deadlineClaim() != null) {
+                protocolSteps.add(new ModelCommitStep(null, false, List.of()));
+            }
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, preparedChanges, existingEvent);
             }
@@ -2376,6 +2393,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             var aliasReads = evaluation.readAliasIds(conflictPolicy);
             if (!aliasReads.isEmpty()) {
                 commit = new CommitModelsWithAliasReads(commit, aliasReads);
+            }
+            if (evaluation.managesDeadlines()) {
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithDeadlines(
+                        commit, evaluation.deadlineUpdates(), evaluation.deadlineClaim());
             }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
@@ -2412,6 +2433,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             if (!candidate.getReadAliasIds().isEmpty()) {
                 commit = new CommitModelsWithAliasReads(commit, candidate.getReadAliasIds());
+            }
+            if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines d) {
+                commit = new io.fluxzero.common.api.modeling.CommitModelsWithDeadlines(
+                        commit, d.getDeadlineUpdates(), d.getDeadlineClaim());
             }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }

@@ -79,6 +79,10 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         this.modelStore = modelStore;
         this.cancellationMetrics = metrics;
         modelStore.setScheduleDeletionMonitor(this::cancelDeletedParents);
+        modelStore.configureDeadlines((id, scheduled) -> {
+            if (scheduled == null) { cancelStoredSchedule(id).join(); }
+            else { scheduleBound(Map.of(), true, scheduled).join(); }
+        });
     }
 
     public InMemoryScheduleStore() {
@@ -128,16 +132,22 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     }
 
     private CompletableFuture<Void> scheduleBound(Map<String, Long> parents, SerializedSchedule... schedules) {
+        return modelStore == null ? scheduleBound(parents, false, schedules)
+                : modelStore.withScheduleMutation(() -> scheduleBound(parents, false, schedules));
+    }
+
+    private CompletableFuture<Void> scheduleBound(Map<String, Long> parents, boolean managed,
+                                                   SerializedSchedule... schedules) {
         List<ScheduleAutoCancelled> cancellations = new ArrayList<>();
         try {
-            return doScheduleBound(parents, cancellations, schedules);
+            return doScheduleBound(parents, cancellations, managed, schedules);
         } finally {
             publishCancellations(cancellations);
         }
     }
 
     private CompletableFuture<Void> doScheduleBound(Map<String, Long> parents,
-                                                     List<ScheduleAutoCancelled> cancellations,
+                                                     List<ScheduleAutoCancelled> cancellations, boolean managed,
                                                      SerializedSchedule... schedules) {
         synchronized (monitorNotificationLock()) {
             List<SerializedMessage> storedMessages = null;
@@ -151,6 +161,7 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
                             .toList();
                     long now = clock.millis();
                     for (SerializedSchedule schedule : filtered) {
+                        if (!managed && modelStore != null) { modelStore.supersedeModelDeadline(schedule.getScheduleId()); }
                         removeOwnership(schedule.getScheduleId());
                         scheduleIdsByIndex.values().removeIf(s -> s.equals(schedule.getScheduleId()));
 
@@ -184,7 +195,14 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     }
 
     @Override
-    public synchronized CompletableFuture<Void> cancelSchedule(String scheduleId, Guarantee guarantee) {
+    public CompletableFuture<Void> cancelSchedule(String scheduleId, Guarantee guarantee) {
+        return modelStore == null ? cancelStoredSchedule(scheduleId) : modelStore.withScheduleMutation(() -> {
+            modelStore.supersedeModelDeadline(scheduleId);
+            return cancelStoredSchedule(scheduleId);
+        });
+    }
+
+    private synchronized CompletableFuture<Void> cancelStoredSchedule(String scheduleId) {
         scheduleIdsByIndex.values().removeIf(s -> s.equals(scheduleId));
         removeOwnership(scheduleId);
         return CompletableFuture.completedFuture(null);

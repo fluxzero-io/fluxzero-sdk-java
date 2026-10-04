@@ -52,8 +52,33 @@ public final class ModelCommitValidator {
         requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
         if (!commit.getReadAliasIds().isEmpty()) {
             Set<String> aliases = uniqueIds(commit.getReadAliasIds(), "read alias");
-            if (!(commit instanceof CommitModelsWithAliasReads) || !commit.getReadModelIds().containsAll(aliases)) {
+            if (!(commit instanceof CommitModelsWithAliasReads || commit instanceof CommitModelsWithDeadlines) || !commit.getReadModelIds().containsAll(aliases)) {
                 throw new IllegalArgumentException("Alias reads require an alias-aware commit and exact lookup head reads");
+            }
+        }
+        if (commit instanceof CommitModelsWithDeadlines deadlines) {
+            Set<String> categories = new HashSet<>();
+            Set<String> scheduleIds = new HashSet<>();
+            for (ModelDeadlineUpdate update : deadlines.getDeadlineUpdates()) {
+                if (update == null || update.modelId() == null || update.modelId().isBlank()
+                    || update.category() == null || update.category().isBlank()
+                    || !commit.getReadModelIds().contains(update.modelId()) || !categories.add(update.slotId())) {
+                    throw new IllegalArgumentException("Deadline updates require unique categories and checked Model reads");
+                }
+                if (update.schedule() != null && (update.schedule().getScheduleId() == null || update.schedule().getScheduleId().isBlank()
+                    || !scheduleIds.add(update.schedule().getScheduleId()) || update.schedule().isIfAbsent() || update.schedule().getMessage() == null
+                    || update.schedule().getMessage().getMessageId() == null)) {
+                    throw new IllegalArgumentException("Deadline updates require a replacement schedule with a generation");
+                }
+            }
+            var claim = deadlines.getDeadlineClaim();
+            if (claim != null && (claim.generation() == null || claim.generation().isBlank()
+                || claim.scheduleId() == null || claim.scheduleId().isBlank()
+                || claim.modelId() == null || claim.modelId().isBlank())) {
+                throw new IllegalArgumentException("Deadline claims require a checked Model and generation");
+            }
+            if (commit.isMigration()) {
+                throw new IllegalArgumentException("Historical migrations cannot activate or consume Model deadlines");
             }
         }
         if (validateSimpleCommit(commit)) {
@@ -67,7 +92,9 @@ public final class ModelCommitValidator {
                 throw new IllegalArgumentException("Model commit substep %d is null".formatted(i));
             }
             if (substep.getTargets() == null
-                || substep.getTargets().isEmpty()) {
+                || substep.getTargets().isEmpty() && (!(commit instanceof CommitModelsWithDeadlines managed)
+                    || managed.getDeadlineClaim() == null || substep.isPublishEvent() || substep.getEvent() != null
+                    || commit.getSubsteps().size() != 1)) {
                 throw new IllegalArgumentException(
                         "Model commit substep %d has no targets"
                                 .formatted(i));
@@ -185,7 +212,7 @@ public final class ModelCommitValidator {
                 }
                 validateDocument(target, target.getDocument());
                 if (target.getDocumentProjection() != null) {
-                    if (!(commit instanceof CommitModelsWithDocumentProjections
+                    if (!((commit instanceof CommitModelsWithDocumentProjections || commit instanceof CommitModelsWithDeadlines)
                           || commit instanceof CommitModelsWithAliasReads) || commit.isMigration()) {
                         throw new IllegalArgumentException("Independent document projections require a projection-aware, non-migration commit");
                     }

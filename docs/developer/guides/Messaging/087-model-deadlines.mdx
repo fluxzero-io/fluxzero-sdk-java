@@ -1,0 +1,132 @@
+---
+title: Model deadlines
+description: Declare one-shot Model deadlines using Schedule values, cron, or delay.
+slug: docs/guides/messaging/model-deadlines
+sidebar:
+   order: 87
+---
+
+Use `@Deadline` for delayed work derived from a Model. A pure instance method declares its desired payload and
+execution time. The Model commit carries changes to that intent; the existing scheduler delivers the work.
+
+```java
+@Model
+record BookingHold(@EntityId HoldId holdId, Instant expiresAt, boolean confirmed) {
+    @Deadline
+    Schedule expiry() {
+        return confirmed ? null : new Schedule(new ExpireBookingHold(holdId), expiresAt);
+    }
+}
+```
+
+`HoldId` extends `Id<BookingHold>`. Returning `null` means there is no desired deadline. Commands are the default
+and receive the configured system user. When authentication supplies a caller, a missing system user rejects
+the Model change before commit rather than inheriting that caller. Applications without user authentication remain supported. `@Deadline(command = false)` instead uses ordinary `@HandleSchedule`
+handling. Give methods distinct categories such as `@Deadline("warning")` and `@Deadline("expiry")`.
+
+## One-shot cron and delay
+
+When the annotation supplies timing, return the payload directly:
+
+```java
+@Deadline(cron = "${booking.expiry.cron}", timeZone = "Europe/Amsterdam")
+ExpireBookingHold expiry() {
+    return confirmed ? null : new ExpireBookingHold(holdId);
+}
+```
+
+Cron uses the same parser and `ApplicationProperties` substitution as `@Periodic`. For example configure
+`booking.expiry.cron=0 9 * * *` (environment variable `BOOKING_EXPIRY_CRON`) for the next 09:00 in the selected zone.
+Set the property to `-` (`Deadline.DISABLED`) to disable it. Configuration must be consistent across writers.
+Property values are resolved during evaluation. New or changed declarations use the current value; changing a
+property alone does not reconcile existing deadlines, and an unrelated Model write does not renew them.
+
+For elapsed time use `@Deadline(delay = 2, timeUnit = TimeUnit.HOURS)`. There is no implicit zero-delay default:
+a plain payload requires cron or a nonnegative delay. Cron takes precedence when both are specified; a returned
+`Schedule` supplies its own timestamp. A `Message` return value preserves its application metadata.
+
+These are **one-shot deadlines**. Cron selects the first match after the change; it does not repeat automatically.
+Delay is measured from the change that creates or changes the desired payload. Both sides of the Model change are
+evaluated with the same reference clock. An unrelated write does not move the deadline, and an unchanged declaration
+does not revive a consumed or externally canceled schedule. To start new work, change the logical payload (for
+example a domain cycle identifier) or transition from no deadline to an active deadline.
+
+Kotlin follows the same contract:
+
+```kotlin
+@Model
+data class BookingHold(
+    @field:EntityId val holdId: HoldId,
+    val expiresAt: Instant,
+    val confirmed: Boolean
+) {
+    @Deadline
+    fun expiry(): Schedule? =
+        if (confirmed) null else Schedule(ExpireBookingHold(holdId), expiresAt)
+
+    @Deadline("warning", delay = 1, timeUnit = TimeUnit.HOURS)
+    fun warning(): WarnBookingHold? =
+        if (confirmed) null else WarnBookingHold(holdId)
+}
+```
+
+## Comparison, identity and deletion
+
+Only changes to the desired time, payload, application metadata, or **explicit** schedule ID produce schedule
+mutations. Automatically generated schedule IDs, message IDs, timestamps, and reserved metadata (`$` keys) do not.
+Payload equality falls back to serialized type, revision, format and bytes when ordinary equality differs.
+Keep the method deterministic: use Model state for explicit timestamps, rather than calling the wall clock yourself.
+
+Without an explicit ID the SDK derives a stable ID from the Model's canonical identity and deadline category.
+Return `new Schedule(payload, "public-id", time)` to select an ID for external `Fluxzero.cancelSchedule("public-id")`.
+An ID change cancels the previous ID. IDs must be unique across active deadline categories in the namespace.
+External cancellation invalidates already queued delivery too, and an unrelated write leaves it canceled.
+
+Logical Model deletion, including cascades, cancels deadlines by default. No `@Parent` on the payload is required.
+`@Deadline(cancelOnDeletion = false)` retains the last committed schedule after logical deletion. Physical erasure
+always removes the intent and cancels its schedule. Deadline ownership is controlled by the declaration; use ordinary
+parent-owned scheduling for independent schedules with payload-based lifetime bindings.
+
+## Ancestors and Graph dependencies
+
+A method can receive a typed Model ancestor or a `Graph<T>` view:
+
+```java
+@Deadline
+Schedule expiry(BookingPolicy policy) {
+    return confirmed || policy == null ? null
+        : new Schedule(new ExpireBookingHold(holdId), createdAt.plus(policy.holdDuration()));
+}
+```
+
+Ancestor changes and relationship changes reevaluate affected declarations in the same Model operation. A Graph
+parameter also supports dependencies on descendants and siblings. Relation navigation selects connected candidates,
+and Model values use the existing batched Graph-loading path. Only declarations that inject context require this
+traversal; a local-state declaration does not add Graph reads to unrelated changes. Large dependency fan-out still
+adds work to the originating commit. All declarations must be reachable in the writing application's Model catalog,
+and every writer of the Model or its injected context must use the same declarations.
+
+## Delivery, recovery and limits
+
+Reads, assertions, replay and historical migration do not schedule work. Live commits atomically persist the desired
+intent, and Runtime projection recovers pending scheduler updates after restart without an application consumer.
+Upgrade every Runtime instance serving the namespace before enabling deadlines: ordinary scheduler writes also
+participate in delivery fencing. New deadline commits use a distinct protocol type, so an older Runtime rejects
+unsupported writes. Local handlers activate from the committed intent and need not wait for scheduler projection.
+
+Delivery checks the current intent generation before handling. A Model mutation consumes that generation atomically
+with its commit; concurrent replacement or cancellation makes it obsolete. Keep one atomic Model operation per
+regular deadline handler. Validation before that operation is allowed. A successful handler without a Model mutation
+consumes the generation after its returned asynchronous work and registered publications complete. Failed handling
+leaves it available for the existing delivery retry policy.
+
+This does not promise exactly-once external effects. An email or remote API request cannot be atomically committed
+with Model state. Use the application's existing idempotency contract for those effects. A handler return value or
+`@Periodic` does not turn a managed deadline into a periodic continuation.
+
+Use synchronous and asynchronous `TestFixture` variants with fixed time and `expectOnlyActiveScheduledCommands`
+or `expectOnlySchedules`. Check the complete active set after creation, replacement, cancellation and deletion,
+and advance time beyond several cron matches to verify one-shot behavior. Durable restart guarantees additionally
+require Runtime/storage tests; fixture reconstruction alone does not prove them.
+
+`@Deadline` currently applies to Models. Stateful handlers do not yet support it.

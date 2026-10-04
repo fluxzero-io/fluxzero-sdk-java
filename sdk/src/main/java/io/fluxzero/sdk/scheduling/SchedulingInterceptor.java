@@ -192,6 +192,11 @@ public class SchedulingInterceptor implements DispatchInterceptor, HandlerInterc
         Periodic methodPeriodic = ofNullable(handler.getMethod())
                 .map(method -> method.getAnnotation(Periodic.class)).orElse(null);
         return (schedule, descriptor, combiner, next) -> {
+            if (schedule.getMessageType() == MessageType.SCHEDULE && DeadlineDelivery.claim(schedule) != null) {
+                // The owning Model is the sole source of the next desired deadline. Ordinary @Periodic and
+                // return-value rescheduling must not publish outside that Model's atomic commit.
+                return next.apply(schedule, descriptor, combiner);
+            }
             if (schedule.getMessageType() == MessageType.SCHEDULE) {
                 long deadline = millisFromIndex(schedule.getIndex());
                 Periodic periodic = methodPeriodic == null

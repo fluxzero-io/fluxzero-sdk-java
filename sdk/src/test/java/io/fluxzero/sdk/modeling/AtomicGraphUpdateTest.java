@@ -154,7 +154,7 @@ class AtomicGraphUpdateTest {
         TestFixture.create().givenCommands(new Create("one", 1)).whenExecuting(fc -> {
             var error = new ModelCommitConflictException(new io.fluxzero.common.api.modeling.CommitModelsResult(
                     1L, "foreign", java.util.List.of(), java.util.List.of(
-                    new io.fluxzero.common.api.modeling.ModelCommitConflict("one", 9L, -1L)), true, false, null));
+                    new io.fluxzero.common.api.modeling.ModelCommitConflict("one", 9L, -1L)), true, false, null, false));
             AtomicInteger calls = new AtomicInteger();
             assertSame(error, assertThrows(ModelCommitConflictException.class, () ->
                     Fluxzero.loadCurrentGraph("one", Counter.class).updateAndGet(g -> {

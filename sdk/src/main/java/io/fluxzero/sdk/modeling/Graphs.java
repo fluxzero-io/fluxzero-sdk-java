@@ -676,6 +676,36 @@ public final class Graphs {
         return List.copyOf(result);
     }
 
+    /** Selects each reachable Model once, using metadata batches and retaining shared graph state. */
+    static List<Graph<?>> related(Graph<?> root, boolean includeParents) {
+        Map<String, Graph<?>> found = new LinkedHashMap<>();
+        found.put(root.id().toString(), root);
+        List<Graph<?>> frontier = List.of(root);
+        while (!frontier.isEmpty()) {
+            Map<GraphState, List<GraphState.Node>> batches = new IdentityHashMap<>();
+            for (Graph<?> graph : frontier) {
+                if (graph instanceof GraphView<?> view && view.state().metadataNavigation()) {
+                    batches.computeIfAbsent(view.state(), ignored -> new ArrayList<>()).add(view.node());
+                }
+            }
+            batches.forEach((state, nodes) -> {
+                state.prepareChildren(nodes);
+                if (includeParents) { state.prepareParents(nodes); }
+            });
+            List<Graph<?>> next = new ArrayList<>();
+            for (Graph<?> graph : frontier) {
+                List<Graph<?>> adjacent = new ArrayList<>(graph instanceof GraphView<?> view
+                        ? view.scopedChildren(null, null, false, true) : graph.children());
+                if (includeParents) { adjacent.addAll(graph.parents()); }
+                for (Graph<?> candidate : adjacent) {
+                    if (found.putIfAbsent(candidate.id().toString(), candidate) == null) { next.add(candidate); }
+                }
+            }
+            frontier = next;
+        }
+        return List.copyOf(found.values());
+    }
+
     /** Identity lookup traverses metadata; ordinary stream/serialization retains its full-value contract. */
     static Stream<Graph<?>> lookupStream(Graph<?> graph) {
         if (!(graph instanceof GraphView<?> view) || !view.state().metadataNavigation()) {
@@ -1350,6 +1380,13 @@ final class GraphState {
         if (metadataNavigation()) {
             navigation().prepare(nodes.stream().map(node -> node.data().id()).toList(),
                                  ModelRelationshipRead.Direction.CHILDREN);
+        }
+    }
+
+    void prepareParents(List<Node> nodes) {
+        if (metadataNavigation()) {
+            navigation().prepare(nodes.stream().map(node -> node.data().id()).toList(),
+                                 ModelRelationshipRead.Direction.PARENTS);
         }
     }
 

@@ -6,6 +6,9 @@ sidebar:
    order: 85
 ---
 
+For delayed work derived directly from Model state, use [declarative Model deadlines](./087-model-deadlines.mdx).
+They combine intent changes and stale-delivery guards with the Model commit.
+
 Use this when a tracked event consumer creates or cancels delayed work after a Model transition. An old event is a
 trigger to inspect **current intent**, not proof that its original deadline still belongs in the active set.
 

@@ -95,7 +95,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 documentSerializer, eventDispatchInterceptor, source,
                 conflictPolicy, conflictResolver, maxConflictRetries,
                 graphProjectionCompletion, definitions::get,
-                () -> localHandlingEnabled);
+                () -> localHandlingEnabled, definitions::contextualDeadlineTypes);
         this.decoratedHandler = handlerDecorator.wrap(pipeline.handler(null));
     }
 
