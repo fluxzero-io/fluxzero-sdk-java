@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "assertCurrentDefault",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler.assertCurrentDefault",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "assertionPlans",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler.assertionPlans",
     "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,io.fluxzero.sdk.modeling.MutationPlan.AssertionPlan>",
@@ -73,6 +81,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Compiler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#Compiler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertCurrentDefault",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates application-bound plans with the already resolved interceptor validation default. "
   } ],
   "methods" : [ {
     "name" : "annotationType",
@@ -84,6 +112,22 @@
     "parameters" : [ {
       "name" : "kind",
       "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#assertCurrent",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.InterceptApply",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

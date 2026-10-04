@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "asserted",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$PendingSubstep.asserted",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "interceptionPhase",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$PendingSubstep.interceptionPhase",
     "type" : "io.fluxzero.sdk.modeling.ModelReducer.InterceptionPhase",
@@ -51,8 +59,38 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "phase",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.InterceptionPhase",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "PendingSubstep",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$PendingSubstep#PendingSubstep",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedChange",
+      "type" : "io.fluxzero.sdk.modeling.GraphMutation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "interceptionPhase",
       "type" : "io.fluxzero.sdk.modeling.ModelReducer.InterceptionPhase",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "asserted",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -61,6 +99,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "asserted",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$PendingSubstep#asserted",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$PendingSubstep#equals",
     "returnType" : "boolean",
@@ -134,6 +183,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "asserted",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "interceptionPhase",
     "type" : "io.fluxzero.sdk.modeling.ModelReducer.InterceptionPhase",
     "annotations" : [ ],

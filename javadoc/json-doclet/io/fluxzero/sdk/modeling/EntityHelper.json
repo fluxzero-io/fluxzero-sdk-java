@@ -153,6 +153,32 @@
     "varArgs" : false,
     "documentation" : " Intercepts the given value before it is applied to an entity. This may result in transformation or expansion of\n the value to one or more derived messages.\n\n @param value  the value to be intercepted, typically the payload of a message\n @param entity the entity receiving the value\n @return a stream of intercepted values or messages to be applied\n"
   }, {
+    "name" : "interceptForValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#interceptForValidation",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.util.function.BiConsumer<java.lang.Object,java.lang.Boolean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Consumes intercepted updates for a validating operation. The consumer's second argument indicates whether\n legality assertions for that exact update have already run during interception. Custom helpers retain their\n existing interception behavior by default. The stream is consumed within this call; its ownership remains with the custom helper.\n"
+  }, {
     "name" : "isLegal",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityHelper#isLegal",
     "returnType" : "boolean",

@@ -15,6 +15,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.Apply",
     "kind" : "annotation_type"
   }, {
+    "file" : "AssertCurrent.json",
+    "name" : "AssertCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.AssertCurrent",
+    "kind" : "enum"
+  }, {
     "file" : "DefaultEventStore.json",
     "name" : "DefaultEventStore",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.DefaultEventStore",

@@ -82,14 +82,6 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "cascadingAssertions",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.cascadingAssertions",
-    "type" : "boolean",
-    "modifiers" : [ "private" ],
-    "annotations" : [ ],
-    "documentation" : null,
-    "constantValue" : null
-  }, {
     "name" : "changes",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.changes",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
@@ -102,6 +94,14 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.completion",
     "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
     "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.currentAssertions",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -253,6 +253,14 @@
     "name" : "preparationRetries",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.preparationRetries",
     "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "protectedAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.protectedAssertions",
+    "type" : "boolean",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -515,17 +523,6 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "cascadingAssertions",
-    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#cascadingAssertions",
-    "returnType" : "void",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
     "name" : "checkReadBoundary",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#checkReadBoundary",
     "returnType" : "void",
@@ -662,6 +659,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Creates the allocation-minimal begin-state used by a direct single-model strategy. "
+  }, {
+    "name" : "currentAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#currentAssertions",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "currentReadContext",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#currentReadContext",
@@ -1303,6 +1311,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "protectAssertionReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#protectAssertionReads",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "rank",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#rank",
     "returnType" : "int",
@@ -1670,6 +1689,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Resolves a read binding without weakening the exact identity contract of entity(String). "
+  }, {
+    "name" : "retainCurrentAssertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#retainCurrentAssertion",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "check",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "retainFailedPreparationReads",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#retainFailedPreparationReads",

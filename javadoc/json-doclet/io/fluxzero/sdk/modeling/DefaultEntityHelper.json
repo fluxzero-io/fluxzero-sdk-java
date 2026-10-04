@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "assertCurrentDefault",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.assertCurrentDefault",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "assertLegalMatchers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.assertLegalMatchers",
     "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.modeling.DefaultEntityHelper.MessageWithEntity>>",
@@ -45,6 +53,14 @@
     "name" : "interceptMatchers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.interceptMatchers",
     "type" : "java.util.function.Function<java.lang.Class<?>,io.fluxzero.common.handling.HandlerMatcher<java.lang.Object,io.fluxzero.sdk.common.HasMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "interceptionAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper.interceptionAssertions",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.modeling.DefaultEntityHelper.InterceptionAssertions>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -83,6 +99,36 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a new helper using the given parameter resolvers and configuration.\n\n @param parameterResolvers       Resolvers used to inject values into annotated handler methods\n @param disablePayloadValidation If true, disables bean validation of payloads\n"
+  }, {
+    "name" : "DefaultEntityHelper",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#DefaultEntityHelper",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "disablePayloadValidation",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertCurrentDefault",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a helper with an application-resolved interceptor validation default. "
   } ],
   "methods" : [ {
     "name" : "applyHandlerConfiguration",
@@ -464,6 +510,35 @@
     "varArgs" : false,
     "documentation" : " Intercepts the given value using {@code @InterceptApply} methods defined on the entity. Interceptors may\n transform or replace the original message.\n"
   }, {
+    "name" : "interceptForValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#interceptForValidation",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.util.function.BiConsumer<java.lang.Object,java.lang.Boolean>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isLegal",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper#isLegal",
     "returnType" : "boolean",
@@ -540,6 +615,12 @@
       "annotationType" : "lombok.Value",
       "values" : {}
     } ]
+  }, {
+    "name" : "InterceptionAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
   }, {
     "name" : "MessageWithEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity",

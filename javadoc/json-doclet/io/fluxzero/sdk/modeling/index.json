@@ -140,6 +140,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$DeserializingMessageWithEntity",
     "kind" : "class"
   }, {
+    "file" : "DefaultEntityHelper.InterceptionAssertions.json",
+    "name" : "DefaultEntityHelper.InterceptionAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions",
+    "kind" : "class"
+  }, {
     "file" : "DefaultEntityHelper.MessageWithEntity.json",
     "name" : "DefaultEntityHelper.MessageWithEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$MessageWithEntity",
@@ -685,6 +690,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeOwner",
     "kind" : "record"
   }, {
+    "file" : "ModelReducer.CurrentAssertion.json",
+    "name" : "ModelReducer.CurrentAssertion",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CurrentAssertion",
+    "kind" : "record"
+  }, {
     "file" : "ModelReducer.DependencyLoader.json",
     "name" : "ModelReducer.DependencyLoader",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DependencyLoader",
@@ -693,6 +703,11 @@
     "file" : "ModelReducer.IncompatibleApply.json",
     "name" : "ModelReducer.IncompatibleApply",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$IncompatibleApply",
+    "kind" : "record"
+  }, {
+    "file" : "ModelReducer.Interception.json",
+    "name" : "ModelReducer.Interception",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$Interception",
     "kind" : "record"
   }, {
     "file" : "ModelReducer.InterceptionPhase.json",

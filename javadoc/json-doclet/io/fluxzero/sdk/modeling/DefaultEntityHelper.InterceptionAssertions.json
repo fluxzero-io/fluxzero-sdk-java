@@ -1,0 +1,97 @@
+{
+  "name" : "InterceptionAssertions",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "checked",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions.checked",
+    "type" : "java.util.IdentityHashMap<java.lang.Object,java.lang.Boolean>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "next",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions.next",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InterceptionAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions#InterceptionAssertions",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "enter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions#enter",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "retain",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions#retain",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "take",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DefaultEntityHelper$InterceptionAssertions#take",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
