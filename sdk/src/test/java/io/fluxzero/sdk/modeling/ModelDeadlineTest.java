@@ -34,6 +34,7 @@ import io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
@@ -47,6 +48,162 @@ import java.util.function.Predicate;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelDeadlineTest {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void timeChangesDoNotReviveConsumedDeadlines(boolean async) {
+        var fixture = async ? TestFixture.createAsync(ExplicitAlarm.class, new Alarms())
+                : TestFixture.create(ExplicitAlarm.class, new Alarms());
+        fixture.atFixedTime(START)
+                .givenCommands(new SetAlarm("alarm", DUE, "first"))
+                .givenTimeAdvancedTo(DUE)
+                .whenCommand(new SetAlarm("alarm", DUE.plusSeconds(60), "first"))
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .andThen().whenCommand(new SetAlarm("alarm", DUE.minusSeconds(60), "first"))
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .andThen().whenTimeAdvancesTo(DUE.plusSeconds(120))
+                .expectNoEvents().expectNoErrors().expectOnlyActiveScheduledCommands();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void aTimeChangeDuringHandlingDoesNotCreateAnotherDeadline(boolean async) {
+        var fixture = async ? TestFixture.createAsync(ExplicitAlarm.class, new MovingAlarms())
+                : TestFixture.create(ExplicitAlarm.class, new MovingAlarms());
+        fixture.atFixedTime(START)
+                .givenCommands(new SetAlarm("alarm", DUE, "first"))
+                .whenTimeAdvancesTo(DUE.plusSeconds(120))
+                .expectNoErrors().expectOnlyActiveScheduledCommands()
+                .expectOnlyEvents(new SetAlarm("alarm", DUE.plusSeconds(60), "first"), new Alarm("first"));
+    }
+
+    static class MovingAlarms {
+        @HandleCommand
+        void handle(Alarm alarm) {
+            Fluxzero.assertAndApply(new SetAlarm("alarm", DUE.plusSeconds(60), alarm.payload()));
+            Fluxzero.publishEvent(alarm);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void timeChangesPreserveExternalCancellationButNewIntentCanActivate(boolean async) {
+        var fixture = async ? TestFixture.createAsync(ExplicitAlarm.class, new Alarms())
+                : TestFixture.create(ExplicitAlarm.class, new Alarms());
+        fixture.atFixedTime(START)
+                .givenCommands(new SetAlarm("alarm", DUE, "first"))
+                .given(fc -> Fluxzero.cancelSchedule(ModelDeadlineUpdate.scheduleId("alarm", "default")))
+                .whenCommand(new SetAlarm("alarm", DUE.plusSeconds(60), "first"))
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .andThen().whenCommand(new SetAlarm("alarm", DUE.plusSeconds(60), "second"))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectOnlyActiveScheduledCommands(new Alarm("second"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ancestorTimingChangesDoNotReviveConsumedDeadlines(boolean async) {
+        var fixture = async ? TestFixture.createAsync(Reservation.class, Policy.class, new PlainCommands())
+                : TestFixture.create(Reservation.class, Policy.class, new PlainCommands());
+        fixture.atFixedTime(START)
+                .givenCommands(new SetPolicy("policy", DUE), new Reserve("reservation", "policy"))
+                .givenTimeAdvancedTo(DUE)
+                .whenCommand(new SetPolicy("policy", DUE.plusSeconds(60)))
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .andThen().whenTimeAdvancesTo(DUE.plusSeconds(120))
+                .expectNoEvents().expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cronConfigurationChangesDoNotReviveConsumedDeadlines(boolean async) {
+        var fixture = async ? TestFixture.createAsync(Timed.class, new Alarms())
+                : TestFixture.create(Timed.class, new Alarms());
+        fixture.withProperty("deadline.cron", "0 * * * *").atFixedTime(START)
+                .givenCommands(new PutTimed("timed", "first", 0))
+                .givenTimeAdvancedTo(DUE)
+                .given(fc -> fixture.withProperty("deadline.cron", "30 * * * *"))
+                .whenCommand(new PutTimed("timed", "first", 1))
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .andThen().whenTimeAdvancesTo(DUE.plusSeconds(7200))
+                .expectNoEvents().expectNoErrors();
+    }
+
+    @Model(searchable = false)
+    record ExplicitAlarm(@EntityId String alarmId, Instant deadline, String payload) {
+        @Deadline
+        Schedule alarm() {
+            return deadline == null ? null : new Schedule(new Alarm(payload), deadline);
+        }
+    }
+
+    record SetAlarm(String alarmId, Instant deadline, String payload) {
+        @Apply
+        ExplicitAlarm apply(@jakarta.annotation.Nullable ExplicitAlarm current) {
+            return new ExplicitAlarm(alarmId, deadline, payload);
+        }
+    }
+
+    static class PlainCommands {
+        @HandleCommand
+        void handle(String message) {
+            Fluxzero.publishEvent(message);
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    void anIgnoredTimeChangeDoesNotReserveAPublicIdAlreadyReusedByAnotherCategory(
+            boolean async, boolean consumedFirst) {
+        var fixture = async ? TestFixture.createAsync(SharedAlarm.class, new LocalAlarms())
+                : TestFixture.create(SharedAlarm.class, new LocalAlarms());
+        fixture.atFixedTime(START)
+                .givenCommands(new SetSharedAlarm("alarm", consumedFirst, DUE, null))
+                .givenTimeAdvancedTo(DUE)
+                .givenCommands(new SetSharedAlarm("alarm", consumedFirst, DUE, "second"))
+                .whenCommand(new SetSharedAlarm("alarm", consumedFirst, DUE.plusSeconds(30), "changed"))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectOnlySchedules(new Alarm("changed"))
+                .andThen().whenTimeAdvancesTo(DUE.plusSeconds(120))
+                .expectOnlyEvents(new Alarm("changed")).expectNoErrors();
+    }
+
+    @Model(searchable = false)
+    record SharedAlarm(@EntityId String alarmId, boolean consumedFirst, Instant firstDeadline, String secondPayload) {
+        @Deadline(value = "first", command = false)
+        Schedule first() {
+            return consumedFirst ? consumed() : active();
+        }
+
+        @Deadline(value = "second", command = false)
+        Schedule second() {
+            return consumedFirst ? active() : consumed();
+        }
+
+        private Schedule consumed() {
+            return new Schedule(new Alarm("first"), "shared", firstDeadline);
+        }
+
+        private Schedule active() {
+            return secondPayload == null ? null
+                    : new Schedule(new Alarm(secondPayload), "shared", DUE.plusSeconds(120));
+        }
+    }
+
+    record SetSharedAlarm(String alarmId, boolean consumedFirst, Instant firstDeadline, String secondPayload) {
+        @Apply
+        SharedAlarm apply(@jakarta.annotation.Nullable SharedAlarm current) {
+            return new SharedAlarm(alarmId, consumedFirst, firstDeadline, secondPayload);
+        }
+    }
+
+    static class LocalAlarms {
+        @io.fluxzero.sdk.tracking.handling.LocalHandler
+        @HandleSchedule
+        void handle(Alarm alarm) {
+            Fluxzero.publishEvent(alarm);
+        }
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void explicitIdsCanSwapCategoriesAtomically(boolean async) {
@@ -122,7 +279,7 @@ class ModelDeadlineTest {
                                                         .getSchedule(
                                                                 ModelDeadlineUpdate.scheduleId(
                                                                         id.toString(), "default")),
-                                                true)))
+                                                true, false)))
                 .givenCommands(new Renew(id, DUE.plusSeconds(60)))
                 .given(fc -> fc.messageScheduler().deadlinesCommitted(java.util.List.of(old.get())))
                 .whenTimeAdvancesTo(DUE.plusSeconds(60))

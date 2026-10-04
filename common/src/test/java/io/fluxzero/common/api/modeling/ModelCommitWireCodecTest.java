@@ -49,7 +49,7 @@ class ModelCommitWireCodecTest {
         var schedule = new io.fluxzero.common.api.scheduling.SerializedSchedule("explicit-id", 1234L,
                 new SerializedMessage(new Data<>(new byte[]{1}, "payload", 0), Metadata.empty(), "generation", 0L), false);
         var request = new CommitModelsWithDeadlines(ordinary,
-                List.of(new ModelDeadlineUpdate(owner, "expiry", schedule, true)),
+                List.of(new ModelDeadlineUpdate(owner, "expiry", schedule, true, true)),
                 new ModelDeadlineClaim(owner, "previous-id", "previous-generation"));
         ModelCommitValidator.validate(request);
         for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
@@ -64,6 +64,18 @@ class ModelCommitWireCodecTest {
             assertTrue(result.isObsoleteDeadline());
             assertFalse(result.isAccepted());
         }
+    }
+
+    @Test
+    void legacyDeadlineUpdatesAllowActivationAndConditionalCancellationIsInvalid() throws Exception {
+        var update = new ModelDeadlineUpdate("owner", "expiry", null, true, false);
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) JsonUtils.valueToTree(update);
+        json.remove("rescheduleOnly");
+        assertFalse(JsonUtils.writer.treeToValue(json, ModelDeadlineUpdate.class).rescheduleOnly());
+        CommitModels ordinary = commit("invalid-reschedule", false);
+        var invalid = new ModelDeadlineUpdate(ordinary.getReadModelIds().getFirst(), "expiry", null, true, true);
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(
+                new CommitModelsWithDeadlines(ordinary, List.of(invalid), null)));
     }
 
     @Test

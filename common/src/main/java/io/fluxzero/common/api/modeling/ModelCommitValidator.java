@@ -65,10 +65,15 @@ public final class ModelCommitValidator {
                     || !commit.getReadModelIds().contains(update.modelId()) || !categories.add(update.slotId())) {
                     throw new IllegalArgumentException("Deadline updates require unique categories and checked Model reads");
                 }
+                // Conditional proposals may be ignored; stores check ID uniqueness after selecting active intents.
                 if (update.schedule() != null && (update.schedule().getScheduleId() == null || update.schedule().getScheduleId().isBlank()
-                    || !scheduleIds.add(update.schedule().getScheduleId()) || update.schedule().isIfAbsent() || update.schedule().getMessage() == null
+                    || (!update.rescheduleOnly() && !scheduleIds.add(update.schedule().getScheduleId()))
+                    || update.schedule().isIfAbsent() || update.schedule().getMessage() == null
                     || update.schedule().getMessage().getMessageId() == null)) {
                     throw new IllegalArgumentException("Deadline updates require a replacement schedule with a generation");
+                }
+                if (update.rescheduleOnly() && update.schedule() == null) {
+                    throw new IllegalArgumentException("Rescheduling a Model deadline requires a schedule");
                 }
             }
             var claim = deadlines.getDeadlineClaim();

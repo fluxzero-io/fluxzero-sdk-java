@@ -74,6 +74,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -179,9 +180,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines managed) {
             var claim = managed.getDeadlineClaim();
             if (claim != null) { cancelDeadline(deadlineSlotsByScheduleId.get(claim.scheduleId())); }
+            var updates = applicableDeadlineUpdates(managed);
             // Release the full change set before rebinding IDs, allowing atomic category transfers and swaps.
-            managed.getDeadlineUpdates().forEach(update -> cancelDeadline(update.slotId()));
-            for (var update : managed.getDeadlineUpdates()) {
+            updates.forEach(update -> cancelDeadline(update.slotId()));
+            for (var update : updates) {
                 var schedule = update.schedule();
                 deadlines.put(update.slotId(), new DeadlineState(update.modelId(), update.category(),
                         schedule == null ? commit.getCommitId() : schedule.getMessage().getMessageId(),
@@ -192,6 +194,26 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 }
             }
         }
+    }
+
+    private List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> applicableDeadlineUpdates(
+            io.fluxzero.common.api.modeling.CommitModelsWithDeadlines commit) {
+        if (commit.getDeadlineUpdates().stream().noneMatch(
+                io.fluxzero.common.api.modeling.ModelDeadlineUpdate::rescheduleOnly)) {
+            return commit.getDeadlineUpdates();
+        }
+        var claim = commit.getDeadlineClaim();
+        Set<String> deleted = commit.getSubsteps().stream().flatMap(step -> step.getTargets().stream())
+                .filter(ModelCommitTarget::isDelete).map(ModelCommitTarget::getModelId).collect(Collectors.toSet());
+        return commit.getDeadlineUpdates().stream().filter(update -> {
+            if (!update.rescheduleOnly()) {
+                return true;
+            }
+            DeadlineState state = deadlines.get(update.slotId());
+            return state != null && state.schedule() != null
+                   && !(claim != null && claim.scheduleId().equals(state.schedule().getScheduleId()))
+                   && !(state.cancelOnDeletion() && deleted.contains(state.modelId()));
+        }).toList();
     }
 
     private final ConcurrentHashMap<String, Long> scheduleParentEpochs = new ConcurrentHashMap<>();
@@ -425,15 +447,20 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     return new ModelCommitOutcome(CommitModelsResult.obsoleteDeadline(
                             commit.getRequestId(), commit.getCommitId()), List.of());
                 }
-                Set<String> releasedSlots = managed.getDeadlineUpdates().stream()
+                var updates = applicableDeadlineUpdates(managed);
+                Set<String> releasedSlots = updates.stream()
                         .map(io.fluxzero.common.api.modeling.ModelDeadlineUpdate::slotId).collect(Collectors.toSet());
                 if (managed.getDeadlineClaim() != null) {
                     releasedSlots.add(deadlineSlotsByScheduleId.get(managed.getDeadlineClaim().scheduleId()));
                 }
                 Set<String> deletedOwners = commit.getSubsteps().stream().flatMap(step -> step.getTargets().stream())
                         .filter(ModelCommitTarget::isDelete).map(ModelCommitTarget::getModelId).collect(Collectors.toSet());
-                for (var update : managed.getDeadlineUpdates()) {
+                Set<String> scheduleIds = new HashSet<>();
+                for (var update : updates) {
                     if (update.schedule() != null) {
+                        if (!scheduleIds.add(update.schedule().getScheduleId())) {
+                            throw new IllegalArgumentException("Deadline updates require unique schedule IDs");
+                        }
                         String existingSlot = deadlineSlotsByScheduleId.get(update.schedule().getScheduleId());
                         DeadlineState existing = deadlines.get(existingSlot);
                         if (existing != null && !releasedSlots.contains(existingSlot)

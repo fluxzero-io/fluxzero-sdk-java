@@ -228,7 +228,8 @@ final class DeadlinePlan {
                                 newGraphs,
                                 newContext,
                                 referenceTime);
-                if (same(old, next)) {
+                boolean sameContent = sameContent(old, next);
+                if (sameContent && (old == null || old.getDeadline().equals(next.getDeadline()))) {
                     continue;
                 }
                 String category = declaration.category();
@@ -239,12 +240,14 @@ final class DeadlinePlan {
                 if (next == null) {
                     updates.add(
                             new ModelDeadlineUpdate(
-                                    id, category, null, declaration.cancelOnDeletion()));
+                                    id, category, null, declaration.cancelOnDeletion(), false));
                     continue;
                 }
+                // Categories sharing a public ID in one commit must never share a delivery token.
                 String generation =
                         UUID.nameUUIDFromBytes(
-                                        (message.getMessageId() + ":" + scheduleId)
+                                        (ModelDeadlineUpdate.scheduleId(id, category) + ":"
+                                                + message.getMessageId() + ":" + scheduleId)
                                                 .getBytes(StandardCharsets.UTF_8))
                                 .toString();
                 var provider = Fluxzero.get().userProvider();
@@ -276,7 +279,7 @@ final class DeadlinePlan {
                                 .prepareDeadline(schedule, declaration.command());
                 updates.add(
                         new ModelDeadlineUpdate(
-                                id, category, prepared, declaration.cancelOnDeletion()));
+                                id, category, prepared, declaration.cancelOnDeletion(), sameContent));
             }
         }
         attempt.deadlines(updates, claim, local || !updates.isEmpty() || claim != null);
@@ -328,14 +331,13 @@ final class DeadlinePlan {
                 });
     }
 
-    private boolean same(Schedule left, Schedule right) {
+    private boolean sameContent(Schedule left, Schedule right) {
         if (left == right) {
             return true;
         }
         if (left == null
                 || right == null
                 || !Objects.equals(explicitId(left), explicitId(right))
-                || !left.getDeadline().equals(right.getDeadline())
                 || !businessMetadata(left).equals(businessMetadata(right))) {
             return false;
         }

@@ -27,11 +27,15 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * Declares one desired, one-shot deadline on a Model. A pure instance method returns {@link
  * Schedule}, a payload when annotation timing is configured, or null to cancel. Parameters may be
  * typed Model ancestors or Graph views. Cron selects the next match without enabling periodic
- * execution. Unchanged declarations never renew consumed or externally canceled deadlines.
+ * execution. Unchanged declarations never renew consumed or externally canceled deadlines. A change
+ * of only the execution time replaces a still-active deadline, but never revives consumed or
+ * canceled work. This condition is checked atomically at commit, after any consumption in that commit.
  *
  * <p>Comparison includes time, payload, application metadata and explicitly supplied schedule IDs.
  * Generated IDs, message timestamps and reserved metadata (keys starting with {@code $}) are
  * ignored. Reads and replay never schedule work. Commands execute as the configured system user.
+ * A changed payload, application metadata or explicit ID, or a transition from null to a deadline,
+ * declares new work and may activate a new deadline after earlier work completed.
  * All writers of the Model or its injected context must run the same declarations. Stateful
  * handlers are not supported.
  */

@@ -24,9 +24,13 @@ import java.util.UUID;
 /**
  * A changed Model-owned deadline. A null schedule cancels the category; omitted categories remain
  * untouched.
+ *
+ * @param rescheduleOnly replace only an active intent in this category, checked atomically at commit
+ *                       after any claim consumption; never recreate consumed or canceled work
  */
 public record ModelDeadlineUpdate(
-        String modelId, String category, SerializedSchedule schedule, boolean cancelOnDeletion) {
+        String modelId, String category, SerializedSchedule schedule, boolean cancelOnDeletion,
+        boolean rescheduleOnly) {
     /** Namespace-local reserved schedule identity, independent of declaration method names. */
     public String slotId() {
         return scheduleId(modelId, category);

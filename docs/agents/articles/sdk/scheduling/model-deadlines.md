@@ -69,6 +69,16 @@ mutations. Automatically generated schedule IDs, message IDs, timestamps, and re
 Payload equality falls back to serialized type, revision, format and bytes when ordinary equality differs.
 Keep the method deterministic: use Model state for explicit timestamps, rather than calling the wall clock yourself.
 
+A change of **only the time** replaces a still-active deadline. It never recreates an already consumed or externally
+canceled deadline, even when the new time lies in the future or the past. This includes time changes derived from
+ancestor configuration. The commit checks the active intent atomically, after any deadline consumed in that same
+commit; a delayed scheduler projection or a concurrent successful handler cannot revive completed work. Merely
+passing the previous deadline time is not the same as successful handling: work that is still active may be moved.
+
+Changing the payload, application metadata or explicit schedule ID declares new work. So does a transition from
+`null` to a deadline. Those transitions may activate a deadline again. Use an explicit domain cycle identifier when
+starting another business cycle; changing only its timing is insufficient.
+
 Without an explicit ID the SDK derives a stable ID from the Model's canonical identity and deadline category.
 Return `new Schedule(payload, "public-id", time)` to select an ID for external `Fluxzero.cancelSchedule("public-id")`.
 An ID change cancels the previous ID. IDs must be unique across active deadline categories in the namespace.
