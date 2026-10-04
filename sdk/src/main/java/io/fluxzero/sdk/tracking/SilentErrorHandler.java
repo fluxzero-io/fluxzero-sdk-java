@@ -24,11 +24,11 @@ import java.util.concurrent.Callable;
  * An {@link ErrorHandler} implementation that suppresses all processing errors and allows message tracking to
  * continue.
  * <p>
- * This handler is ideal for non-critical consumers where message loss or failure should not disrupt the application,
- * such as:
+ * Start with {@link LoggingErrorHandler} so failures remain visible. Use this handler only for deliberately
+ * best-effort consumers with separate observability, where skipping a failed effect is acceptable, such as:
  * <ul>
  *     <li>Metrics collection</li>
- *     <li>Auditing or logging projections</li>
+ *     <li>Optional diagnostic projections</li>
  *     <li>Replays for observability/debugging</li>
  * </ul>
  *
@@ -49,11 +49,11 @@ import java.util.concurrent.Callable;
  * <p><strong>Usage:</strong> Can be registered via {@link Consumer#errorHandler()} or programmatically via {@link ConsumerConfiguration}.
  *
  * <pre>{@code
- * @Consumer(name = "audit", errorHandler = SilentErrorHandler.class)
- * public class AuditProjection {
+ * @Consumer(name = "diagnostics", errorHandler = SilentErrorHandler.class)
+ * public class DiagnosticProjection {
  *     @HandleEvent
  *     void on(UserLoggedIn event) {
- *         // Failure to write to audit log won't affect tracking
+ *         // An optional diagnostic write may be skipped on failure
  *     }
  * }
  * }</pre>

@@ -143,6 +143,37 @@ long minIndex = IndexUtils.indexFromTimestamp(Instant.parse("2026-01-01T00:00:00
 
 If a message fails during tracking, it is handled by the consumer's `errorHandler`.
 
+**Start with the default `LoggingErrorHandler`.** It logs technical failures at ERROR and functional failures at WARN,
+then continues without retrying. A completed batch can advance past the failed effect; monitor failures and arrange
+reconciliation or replay when required.
+
+**`ThrowingErrorHandler` does not retry or automatically resume. It can stop the affected tracker until explicit
+restart**, typically application restart or redeployment after repair, even for `FunctionalException`. Other trackers
+or instances may continue. Select this only for deliberate operator intervention with alerts and a restart procedure.
+
+Use `RetryingErrorHandler` for bounded recovery: by default up to five retries, then continue; an explicit
+`stopConsumerOnFailure = true` also stops on excluded or exhausted failures. Choose `ForeverRetryingErrorHandler`
+when a recoverable outage must hold up progress and effects can safely repeat, such as replacement by stable ID or
+current-state schedule reconciliation. A permanent failure can block the tracker/batch indefinitely, so monitor lag
+and provide operational repair. Retry can repeat a handler or batch without rolling back earlier effects.
+
+```java
+@Consumer(name = "item-projection") // LoggingErrorHandler by default
+final class ItemProjection { /* tracked handlers */ }
+
+// Explicit opt-in for idempotent effects that must recover before progress:
+@Consumer(name = "reconciled-projection", errorHandler = ForeverRetryingErrorHandler.class)
+final class ReconciledProjection { /* tracked handlers */ }
+```
+
+Both retry handlers skip an initial `FunctionalException` by default. Their initial filter is not checked again on
+later failures: `RetryConfiguration.errorTest` controls those and excludes `Error` by default, so a later functional
+failure can keep retrying. The first retry is immediate; later delays are two seconds for the bounded default, or
+10 seconds increasing to a one-minute cap for unlimited retries. Interruption or rejected retry failures can end the
+loop. A rejected retry failure returns `null` by default; interruption normally returns the mapped original error.
+Unlimited retries are not an unconditional delivery or exactly-once guarantee.
+
+
 ### Targetted Retroactive Correction
 
 You can use `minIndex` and `maxIndexExclusive` to target a specific period when a bug was active. Use `IndexUtils` to

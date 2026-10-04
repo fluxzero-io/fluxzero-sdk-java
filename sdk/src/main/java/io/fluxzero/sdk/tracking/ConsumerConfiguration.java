@@ -145,8 +145,10 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     Predicate<Object> handlerFilter = o -> true;
 
     /**
-     * Defines how errors during handler invocation are handled. Defaults to logging errors and continuing with other
-     * messages.
+     * Defines how tracked processing errors are handled. Start with the default {@link LoggingErrorHandler}, which
+     * logs and continues without retry. Configure retries only for safely repeatable effects that require recovery.
+     * <strong>Warning:</strong> {@link ThrowingErrorHandler} can stop the affected tracker until explicit restart;
+     * it does not automatically retry or resume. See {@link ErrorHandler} for policy selection.
      */
     @NonNull
     @Default

@@ -210,7 +210,10 @@ data class Payment(
 
 ## Error Handling & Retries
 
-- **Transient Failures**: Handled by the consumer's `errorHandler`. The default is to log and continue.
+- **Consumer failures**: Start with `LoggingErrorHandler`, which logs and continues without retry. Use unlimited retries
+  only for recoverable failures with safely repeatable effects and lag monitoring. `ThrowingErrorHandler` can stop the
+  affected tracker until explicit restart, including after functional rejection; it does not retry. See the
+  [tracking error-policy guidance](tracking.md#error-correcting).
 - **Scheduled Retries**: Model as `@HandleSchedule` returning a `Duration` for the next attempt; return `null` to stop.
 - **Batching**: Use `@Stateful(commitInBatch = true)` for higher throughput; association lookups remain correct within
   the batch.

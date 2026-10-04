@@ -2424,6 +2424,10 @@
       ],
       "links": [
         {
+          "description": "Choose retry versus stop and monitor recovery",
+          "path": "/docs/sdk/tracking/error-policy"
+        },
+        {
           "description": "Choose delayed command periodic and cancellation semantics",
           "path": "/docs/sdk/scheduling"
         },
@@ -5605,7 +5609,7 @@
     {
       "path": "/docs/sdk/tracking/error-policy",
       "title": "Consumer Error Policies",
-      "summary": "Choose whether a failed tracked message is skipped, retried, or stops tracking, then verify positions and effects.",
+      "summary": "Start with LoggingErrorHandler; choose unlimited retries for repeatable recoverable effects, and recognize that ThrowingErrorHandler can stop tracking until explicit restart.",
       "source": "articles/sdk/tracking/error-policy.md",
       "symbols": [
         "ErrorHandler",
@@ -5616,7 +5620,10 @@
         "SilentErrorHandler",
         "awaitSendAndForgetFutures",
         "ConsumerConfiguration.errorHandler",
-        "tracker position after failure"
+        "tracker position after failure",
+        "consumer stopped until restart",
+        "unlimited retry poison message",
+        "default consumer error handler"
       ],
       "links": [
         {

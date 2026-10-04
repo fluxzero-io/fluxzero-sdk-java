@@ -21,7 +21,7 @@ create only missing work that still belongs:
 ```java
 @Component
 @Consumer(name = "software-rollout-deadlines",
-          errorHandler = ThrowingErrorHandler.class)
+          errorHandler = ForeverRetryingErrorHandler.class)
 final class SoftwareRolloutDeadlines {
 
     @HandleEvent
@@ -92,6 +92,20 @@ final class SoftwareRolloutDeadlines {
 Register every event that can change the desired set with the same reconciliation function. Do not assume that a later
 terminal event in a full replay will cancel work soon enough: an obsolete deadline can become active or expire while
 the replay is still catching up.
+
+Start ordinary consumers with the default `LoggingErrorHandler`. This reconciliation consumer deliberately opts into
+`ForeverRetryingErrorHandler`: a recoverable scheduling outage should delay reconciliation, not skip the required
+effect. Stable IDs and current-state reads make these scheduling effects repeatable; retry can repeat handler or
+batch work. Keep `awaitSendAndForgetFutures = true` (the default) for outgoing dispatch completion.
+
+The first retry is immediate; delays after failed retries start at 10 seconds and cap at one minute. The affected
+tracker/batch waits while retries continue. Monitor lag and repair permanent failures. An initial
+`FunctionalException` is excluded by default, and interruption or retry filtering can end the loop: unlimited retries
+are not an unconditional delivery guarantee. `ThrowingErrorHandler` would instead stop the affected tracker until
+explicit restart; it does not provide automatic retry.
+
+The Kotlin consumer selects the same policy with
+`@Consumer(name = "software-rollout-deadlines", errorHandler = ForeverRetryingErrorHandler::class)`.
 
 ## Know what `ifAbsent` protects
 
