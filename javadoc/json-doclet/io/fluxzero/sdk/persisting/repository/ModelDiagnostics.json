@@ -1,0 +1,238 @@
+{
+  "name" : "ModelDiagnostics",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Explicit dev/CI inspection of a bounded first page of Model streams or a Graph. No payload deserialization,\n structural upcasting, replay, writes, imports or handler activation occurs. Existing transport may transfer payload\n bytes and packed blocks; its byte limit permits one oversized event. Reports retain only identifiers/type metadata.\n This is a catalog comparison, never a guarantee of complete history, valid upcasters or correct application logic.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.client",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "models",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.models",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelTypeResolver",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelDiagnostics",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#ModelDiagnostics",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "models",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelTypeResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Uses the same namespace, local Model catalog and serializer as the application being qualified. "
+  } ],
+  "methods" : [ {
+    "name" : "checkSize",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#checkSize",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "limits",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Limits",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "checkedIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#checkedIds",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "ids",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "limits",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Limits",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inspectGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#inspectGraph",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Report",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "limits",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Limits",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Inspects a bounded descendant Graph sample; unknown Model contracts remain visible as metadata. "
+  }, {
+    "name" : "inspectStreams",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#inspectStreams",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Report",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "limits",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Limits",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Inspects one bounded first page for each explicitly selected stream at a shared boundary. "
+  }, {
+    "name" : "invalid",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#invalid",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReadException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "report",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics#report",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Report",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEvents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "raw",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "limits",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics.Limits",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graph",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Limits",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Limits",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelContract",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ObservedType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ObservedType",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Report",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "TypeKey",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

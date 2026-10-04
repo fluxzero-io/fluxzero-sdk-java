@@ -1,0 +1,298 @@
+{
+  "name" : "ModelContract",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " One sampled stream. A null localModelType means that no local Model contract was found.\n @param requestedId stream identity requested from storage (may be an alias)\n @param modelId canonical identity, or requestedId for an absent head\n @param modelType stored logical Model type, null for an absent head\n @param localModelType local class name, or null when absent/unknown\n @param headPresent distinguishes an absent Model from an unknown local type\n @param historyComplete storage's retained-history declaration\n @param eventsComplete whether the sample contains every sequence from zero through this head\n @param observedTypes distinct serialized type/revision/format tuples encountered in this first page\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "eventsComplete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.eventsComplete",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "headPresent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.headPresent",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "historyComplete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.historyComplete",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "localModelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.localModelType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.modelType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "observedTypes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.observedTypes",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ObservedType>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestedId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract.requestedId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelContract",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#ModelContract",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "localModelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "headPresent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historyComplete",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventsComplete",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "observedTypes",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ObservedType>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Copies the bounded report metadata; no payload objects are retained. "
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eventsComplete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#eventsComplete",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "headPresent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#headPresent",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "historyComplete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#historyComplete",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "localModelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#localModelType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#modelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#modelType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "observedTypes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#observedTypes",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ObservedType>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestedId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#requestedId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "eventsComplete",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "headPresent",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "historyComplete",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "localModelType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "observedTypes",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ObservedType>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "requestedId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

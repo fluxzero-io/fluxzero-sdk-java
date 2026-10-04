@@ -40,6 +40,11 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader",
     "kind" : "class"
   }, {
+    "file" : "DocumentMessageReader.DocumentSource.json",
+    "name" : "DocumentMessageReader.DocumentSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$DocumentSource",
+    "kind" : "record"
+  }, {
     "file" : "DocumentMessageReader.GraphSource.json",
     "name" : "DocumentMessageReader.GraphSource",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$GraphSource",
@@ -49,6 +54,11 @@
     "name" : "DocumentMessageReader.LiveGraph",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$LiveGraph",
     "kind" : "record"
+  }, {
+    "file" : "DocumentMessageReader.SourceDocumentMessage.json",
+    "name" : "DocumentMessageReader.SourceDocumentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage",
+    "kind" : "class"
   }, {
     "file" : "DocumentSerializer.json",
     "name" : "DocumentSerializer",

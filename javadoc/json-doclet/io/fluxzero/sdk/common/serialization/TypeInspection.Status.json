@@ -1,0 +1,70 @@
+{
+  "name" : "Status",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Result of an identifier lookup, independent of payload/replay compatibility. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.common.serialization.TypeInspection.Status>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Status",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status#Status",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status#valueOf",
+    "returnType" : "io.fluxzero.sdk.common.serialization.TypeInspection.Status",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status#values",
+    "returnType" : "io.fluxzero.sdk.common.serialization.TypeInspection.Status[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "KNOWN",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status.KNOWN",
+    "annotations" : [ ],
+    "documentation" : "The identifier is recognized locally. "
+  }, {
+    "name" : "UNAVAILABLE",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status.UNAVAILABLE",
+    "annotations" : [ ],
+    "documentation" : "The serializer does not expose this information. "
+  }, {
+    "name" : "UNKNOWN",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status.UNKNOWN",
+    "annotations" : [ ],
+    "documentation" : "The identifier is not recognized locally before structural upcasting. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

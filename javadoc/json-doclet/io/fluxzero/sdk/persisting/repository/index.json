@@ -90,6 +90,36 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelAncestorResolver$AncestorReads",
     "kind" : "record"
   }, {
+    "file" : "ModelDiagnostics.json",
+    "name" : "ModelDiagnostics",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics",
+    "kind" : "class"
+  }, {
+    "file" : "ModelDiagnostics.Limits.json",
+    "name" : "ModelDiagnostics.Limits",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Limits",
+    "kind" : "record"
+  }, {
+    "file" : "ModelDiagnostics.ModelContract.json",
+    "name" : "ModelDiagnostics.ModelContract",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ModelContract",
+    "kind" : "record"
+  }, {
+    "file" : "ModelDiagnostics.ObservedType.json",
+    "name" : "ModelDiagnostics.ObservedType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$ObservedType",
+    "kind" : "record"
+  }, {
+    "file" : "ModelDiagnostics.Report.json",
+    "name" : "ModelDiagnostics.Report",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report",
+    "kind" : "record"
+  }, {
+    "file" : "ModelDiagnostics.TypeKey.json",
+    "name" : "ModelDiagnostics.TypeKey",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey",
+    "kind" : "record"
+  }, {
     "file" : "ModelGraphResolver.json",
     "name" : "ModelGraphResolver",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver",
@@ -119,6 +149,26 @@
     "name" : "ModelGraphResolver.Value",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Value",
     "kind" : "record"
+  }, {
+    "file" : "ModelReadException.json",
+    "name" : "ModelReadException",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException",
+    "kind" : "class"
+  }, {
+    "file" : "ModelReadException.Context.json",
+    "name" : "ModelReadException.Context",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context",
+    "kind" : "record"
+  }, {
+    "file" : "ModelReadException.Kind.json",
+    "name" : "ModelReadException.Kind",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind",
+    "kind" : "enum"
+  }, {
+    "file" : "ModelReadException.Operation.json",
+    "name" : "ModelReadException.Operation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation",
+    "kind" : "enum"
   }, {
     "file" : "ModelRepository.json",
     "name" : "ModelRepository",

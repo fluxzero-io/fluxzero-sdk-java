@@ -125,6 +125,21 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer",
     "kind" : "interface"
   }, {
+    "file" : "TypeInspection.json",
+    "name" : "TypeInspection",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+    "kind" : "record"
+  }, {
+    "file" : "TypeInspection.Status.json",
+    "name" : "TypeInspection.Status",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status",
+    "kind" : "enum"
+  }, {
+    "file" : "UnknownSerializedTypeException.json",
+    "name" : "UnknownSerializedTypeException",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownSerializedTypeException",
+    "kind" : "class"
+  }, {
     "file" : "UnknownTypeStrategy.json",
     "name" : "UnknownTypeStrategy",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.UnknownTypeStrategy",

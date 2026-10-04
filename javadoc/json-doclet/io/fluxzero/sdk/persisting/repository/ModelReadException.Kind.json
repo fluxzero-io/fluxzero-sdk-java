@@ -1,0 +1,90 @@
+{
+  "name" : "Kind",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "The observed cause category. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.persisting.repository.ModelReadException.Kind>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Kind",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind#Kind",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind#valueOf",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Kind",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind#values",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Kind[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "APPLICATION_FAILURE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.APPLICATION_FAILURE",
+    "annotations" : [ ],
+    "documentation" : "Application replay/upcaster code failed. "
+  }, {
+    "name" : "CATALOG_FAILURE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.CATALOG_FAILURE",
+    "annotations" : [ ],
+    "documentation" : "Local catalog construction or configuration failed. "
+  }, {
+    "name" : "DECODING_FAILURE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.DECODING_FAILURE",
+    "annotations" : [ ],
+    "documentation" : "Decoding failed, without enough evidence to attribute it to corrupt data or application code. "
+  }, {
+    "name" : "INVALID_DATA",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.INVALID_DATA",
+    "annotations" : [ ],
+    "documentation" : "Malformed serialized syntax or invalid structural storage metadata. "
+  }, {
+    "name" : "MISSING_MODEL_CONTRACT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.MISSING_MODEL_CONTRACT",
+    "annotations" : [ ],
+    "documentation" : "The logical Model contract is absent from the application's catalog. "
+  }, {
+    "name" : "MISSING_REPLAY_HANDLER",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.MISSING_REPLAY_HANDLER",
+    "annotations" : [ ],
+    "documentation" : "A known event has no local replay handler for the selected Model. "
+  }, {
+    "name" : "MISSING_SERIALIZED_TYPE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Kind.MISSING_SERIALIZED_TYPE",
+    "annotations" : [ ],
+    "documentation" : "The serialized identifier is still unknown after upcasting. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

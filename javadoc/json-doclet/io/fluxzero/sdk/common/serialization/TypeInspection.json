@@ -1,0 +1,159 @@
+{
+  "name" : "TypeInspection",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Metadata-only local type lookup. This does not execute upcasters, decode data, or qualify application logic.\n A missing input type may still be transformed into a known type by a revision-specific upcaster.\n\n @param status whether the serializer recognizes this identifier, or cannot provide this diagnostic\n @param resolvedType identifier after aliases, when available\n @param localRevision declared local revision, or null when it cannot be determined\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "localRevision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection.localRevision",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resolvedType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection.resolvedType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "status",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection.status",
+    "type" : "io.fluxzero.sdk.common.serialization.TypeInspection.Status",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TypeInspection",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#TypeInspection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "status",
+      "type" : "io.fluxzero.sdk.common.serialization.TypeInspection.Status",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolvedType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "localRevision",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "localRevision",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#localRevision",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolvedType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#resolvedType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "status",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#status",
+    "returnType" : "io.fluxzero.sdk.common.serialization.TypeInspection.Status",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "localRevision",
+    "type" : "java.lang.Integer",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "resolvedType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "status",
+    "type" : "io.fluxzero.sdk.common.serialization.TypeInspection.Status",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ {
+    "name" : "Status",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.TypeInspection$Status",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

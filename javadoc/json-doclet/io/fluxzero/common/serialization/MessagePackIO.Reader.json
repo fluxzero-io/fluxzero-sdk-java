@@ -197,6 +197,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "skipString",
+    "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#skipString",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Skips one string with the same framing, binary acceptance and bounds checks as {@link #unpackString()},\n without allocating the discarded text. Neither operation rejects malformed UTF-8.\n"
+  }, {
     "name" : "throwUnexpected",
     "qualifiedName" : "io.fluxzero.common.serialization.MessagePackIO$Reader#throwUnexpected",
     "returnType" : "int",

@@ -1,0 +1,153 @@
+{
+  "name" : "TypeKey",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey.format",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey.revision",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey.type",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TypeKey",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#TypeKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revision",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#format",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "revision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#revision",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$TypeKey#type",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "format",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "revision",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

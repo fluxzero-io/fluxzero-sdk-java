@@ -1,0 +1,85 @@
+{
+  "name" : "Operation",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "The operation being attempted when the failure was observed. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.persisting.repository.ModelReadException.Operation>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Operation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation#Operation",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation#valueOf",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Operation",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation#values",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Operation[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "APPLY_EVENT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation.APPLY_EVENT",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "INSPECT_CONTRACTS",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation.INSPECT_CONTRACTS",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "READ_DOCUMENT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation.READ_DOCUMENT",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "READ_EVENT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation.READ_EVENT",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "READ_SNAPSHOT",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation.READ_SNAPSHOT",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "RESOLVE_MODEL_TYPE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Operation.RESOLVE_MODEL_TYPE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

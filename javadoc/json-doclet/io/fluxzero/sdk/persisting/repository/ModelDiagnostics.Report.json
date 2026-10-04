@@ -1,0 +1,182 @@
+{
+  "name" : "Report",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " A bounded observation, not an application compatibility verdict.\n @param stateIndex namespace boundary shared by all sampled heads/events\n @param exactBoundary whether storage resolved the requested selector exactly\n @param graphSample true for a depth/node-limited Graph sample; never proves a complete Graph closure\n @param models inspected Model contracts\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "exactBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report.exactBoundary",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "graphSample",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report.graphSample",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "models",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report.models",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ModelContract>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report.stateIndex",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Report",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#Report",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exactBoundary",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graphSample",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "models",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ModelContract>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Copies the bounded Model list. "
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "exactBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#exactBoundary",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "graphSample",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#graphSample",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "models",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#models",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ModelContract>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#stateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics$Report#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "exactBoundary",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "graphSample",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "models",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.ModelDiagnostics.ModelContract>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "stateIndex",
+    "type" : "long",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -589,6 +589,25 @@
     "varArgs" : false,
     "documentation" : " Indicates whether exact or package aliases are currently registered.\n"
   }, {
+    "name" : "inspectType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#inspectType",
+    "returnType" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isKnownType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#isKnownType",
     "returnType" : "boolean",

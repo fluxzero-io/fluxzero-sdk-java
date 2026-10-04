@@ -1,0 +1,385 @@
+{
+  "name" : "Context",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Safe structural context; null means unavailable, not absent data.\n @param operation failing phase\n @param modelId requested or resolved Model identity\n @param rootId Graph read root when known\n @param modelType stored logical Model type when known\n @param javaModelType known local Model class name when available\n @param serializedType original serialized type identifier\n @param serializedRevision original serialized revision\n @param registration local identifier lookup; never a claim about an upcaster chain\n @param stateIndex failing event membership boundary, when known\n @param unresolvedType identifier that remained unknown after upcasting or within a nested state envelope\n @param unresolvedRevision revision of that unresolved representation\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "javaModelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.javaModelType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.modelType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "operation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.operation",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Operation",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.registration",
+    "type" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rootId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.rootId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializedRevision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.serializedRevision",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializedType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.serializedType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.stateIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unresolvedRevision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.unresolvedRevision",
+    "type" : "java.lang.Integer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unresolvedType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context.unresolvedType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Context",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#Context",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Operation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "javaModelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializedType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializedRevision",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registration",
+      "type" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "unresolvedType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "unresolvedRevision",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "javaModelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#javaModelType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#modelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#modelType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "operation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#operation",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Operation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#registration",
+    "returnType" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rootId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#rootId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializedRevision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#serializedRevision",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializedType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#serializedType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#stateIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unresolvedRevision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#unresolvedRevision",
+    "returnType" : "java.lang.Integer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unresolvedType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelReadException$Context#unresolvedType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "javaModelType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "operation",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelReadException.Operation",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "registration",
+    "type" : "io.fluxzero.sdk.common.serialization.TypeInspection",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "rootId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "serializedRevision",
+    "type" : "java.lang.Integer",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "serializedType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "stateIndex",
+    "type" : "java.lang.Long",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "unresolvedRevision",
+    "type" : "java.lang.Integer",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "unresolvedType",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

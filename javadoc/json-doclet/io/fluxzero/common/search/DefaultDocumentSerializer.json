@@ -46,6 +46,22 @@
     "varArgs" : false,
     "documentation" : " Checks whether the given {@link Data} object is in a format that this serializer can deserialize.\n\n @param data the data blob\n @return {@code true} if the format is {@code document}, {@code false} otherwise\n"
   }, {
+    "name" : "containsMetadata",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#containsMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserialize",
     "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#deserialize",
     "returnType" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
@@ -61,6 +77,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Deserializes a {@link Data} blob containing a compressed, binary {@link Document}.\n The data must be in the correct format and contain a supported version.\n\n @param document the data to deserialize\n @return the reconstructed {@link Document} entries\n @throws IllegalArgumentException if the data cannot be parsed or is invalid\n"
+  }, {
+    "name" : "deserializeEntries",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#deserializeEntries",
+    "returnType" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deserializeMetadata",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#deserializeMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reads metadata without constructing payload entries for documents that have no metadata. The complete\n document is still validated. Documents with metadata reuse the ordinary parser on the same decompressed\n buffer, preserving its entry ordering and duplicate-entry semantics. No decode cache is retained.\n\n @param document the encoded document\n @return its stored metadata, or empty metadata when no metadata paths are present\n @throws IllegalArgumentException if the format is unsupported or the document cannot be parsed\n"
   }, {
     "name" : "newDocumentUnpacker",
     "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#newDocumentUnpacker",
@@ -117,6 +165,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Serializes the given {@link Document} into a compressed binary {@link Data} container.\n\n @param document the document to serialize\n @return the serialized form of the document\n @throws IllegalArgumentException if the document cannot be serialized\n"
+  }, {
+    "name" : "unpackHeader",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#unpackHeader",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "io.fluxzero.common.serialization.MessagePackIO.Reader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "unpackLong",
     "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer#unpackLong",

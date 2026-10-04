@@ -131,6 +131,17 @@
     "varArgs" : false,
     "documentation" : " Executes or resumes an exact-model hard deletion using an explicit durable idempotency key.\n Descendant deletion still requires a confirmed plan.\n"
   }, {
+    "name" : "diagnostics",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#diagnostics",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelDiagnostics",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an explicit bounded dev/CI catalog inspector for this repository's namespace. Custom repositories\n may expose their own inspector; the default declines rather than inspecting a different store or namespace.\n"
+  }, {
     "name" : "followPublishedEventMigration",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#followPublishedEventMigration",
     "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",

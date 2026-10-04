@@ -1,0 +1,133 @@
+{
+  "name" : "SourceDocumentMessage",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.SerializedMessage",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "original",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage.original",
+    "type" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.DocumentSource",
+    "modifiers" : [ "final", "private", "transient" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SourceDocumentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage#SourceDocumentMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "SourceDocumentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage#SourceDocumentMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "original",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader.DocumentSource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "withData",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage#withData",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage#withMetadata",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withSegment",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage#withSegment",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
