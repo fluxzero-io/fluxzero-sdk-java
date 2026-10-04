@@ -152,8 +152,9 @@ public final class CommitAttempt {
     void resetGraphReads() {
         deferredBoundary = null;
         failedPreparationReads = null;
-        cascadingAssertions = false;
+        protectedAssertions = false;
         cascadeInvocations = null;
+        currentAssertions = null;
         graphReadGeneration++;
         graphReadTypes = null;
         graphReadEntities = null;
@@ -1064,8 +1065,18 @@ public final class CommitAttempt {
         return cascadeRootIds;
     }
 
-    private boolean cascadingAssertions;
+    private boolean protectedAssertions;
     private Map<Integer, Set<ModelReducer.CascadeInvocation>> cascadeInvocations;
+    private List<ModelReducer.CurrentAssertion> currentAssertions;
+
+    void retainCurrentAssertion(ModelReducer.CurrentAssertion check) {
+        if (currentAssertions == null) { currentAssertions = new ArrayList<>(); }
+        currentAssertions.add(check);
+    }
+
+    List<ModelReducer.CurrentAssertion> currentAssertions() {
+        return currentAssertions == null ? List.of() : currentAssertions;
+    }
 
     boolean markCascadeInvocation(int step, String id, java.lang.reflect.Executable method) {
         if (cascadeInvocations == null) { cascadeInvocations = new java.util.HashMap<>(); }
@@ -1076,10 +1087,10 @@ public final class CommitAttempt {
     private CommitAttempt cascadeParent;
     void cascadeParent(CommitAttempt parent) { cascadeParent = parent; }
 
-    void cascadingAssertions() {
-        cascadingAssertions = true;
+    void protectAssertionReads() {
+        protectedAssertions = true;
         if (cascadeParent != null) {
-            (cascadeParent.graphReadOwner == null ? cascadeParent : cascadeParent.graphReadOwner).cascadingAssertions();
+            (cascadeParent.graphReadOwner == null ? cascadeParent : cascadeParent.graphReadOwner).protectAssertionReads();
         }
     }
 
@@ -1090,7 +1101,7 @@ public final class CommitAttempt {
 
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
         ModelConflictPolicy result = resolveConflictPolicy(configured);
-        return cascadingAssertions && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
+        return protectedAssertions && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
     }
 
     private ModelConflictPolicy resolveConflictPolicy(ModelConflictPolicy configured) {

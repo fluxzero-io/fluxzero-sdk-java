@@ -60,7 +60,6 @@ public final class ModelReducer {
 
     static final ModelReducer EMPTY = new ModelReducer(MutationPlan.HandlerPlan.EMPTY, null);
     private static final Object NO_INTERCEPTION = new Object();
-    private static final Object SUPPRESSED = new Object();
 
     private final MutationPlan.HandlerPlan handlers;
     private final MutationPlan.DirectSingleTargetApply directApply;
@@ -177,7 +176,7 @@ public final class ModelReducer {
     Object intercept(
             DeserializingMessage message,
             CommitAttempt context,
-            InterceptionPhase phase, DependencyLoader loader) {
+            InterceptionPhase phase, DependencyLoader loader, Runnable assertCurrent, boolean previouslyAsserted) {
         HandlerInvoker applicable = null;
         List<MutationPlan.CompiledHandler> interceptors = switch (phase) {
             case PAYLOAD -> handlers.payload().interceptors();
@@ -223,8 +222,13 @@ public final class ModelReducer {
             return NO_INTERCEPTION;
         }
         HandlerInvoker selected = applicable;
+        boolean checked = previouslyAsserted;
+        if (assertCurrent != null && compiler != null && compiler.assertCurrent(selected.getMethodAnnotation())) {
+            assertCurrent.run();
+            checked = true;
+        }
         Object output = message.apply(ignored -> CommitAttempt.withGraphReads(context, selected::invoke));
-        return output == null ? SUPPRESSED : output;
+        return new Interception(output, checked);
     }
 
     private HandlerInvoker memberInterceptor(Entity<?> owner, DeserializingMessage message,
@@ -242,8 +246,11 @@ public final class ModelReducer {
                 if (!interceptor.method().executable().getDeclaringClass().isAssignableFrom(member.type())) { continue; }
                 HandlerInvoker invoker = interceptor.matcher().getInvokerOrNull(member.get(), memberMessage);
                 if (invoker != null) {
-                    return HandlerInvoker.call(() -> memberMessage.apply(ignored ->
-                            CommitAttempt.withGraphReads(loaded, invoker::invoke)));
+                    return new HandlerInvoker.DelegatingHandlerInvoker(invoker) {
+                        @Override public Object invoke(java.util.function.BiFunction<Object, Object, Object> combiner) {
+                            return memberMessage.apply(ignored -> CommitAttempt.withGraphReads(loaded, invoker::invoke));
+                        }
+                    };
                 }
             }
             if (member.isPresent()) {
@@ -259,8 +266,10 @@ public final class ModelReducer {
     }
 
     Object interceptionOutput(Object result) {
-        return result == SUPPRESSED ? null : result;
+        return ((Interception) result).output();
     }
+
+    private record Interception(Object output, boolean asserted) {}
 
     List<Change> apply(
             DeserializingMessage message,
@@ -277,6 +286,12 @@ public final class ModelReducer {
             boolean assertions,
             Set<String> applyReads,
             DependencyLoader assertionLoader) {
+        return apply(message, beginState, applyHandlers, assertions, applyReads, assertionLoader, false);
+    }
+
+    private List<Change> apply(DeserializingMessage message, CommitAttempt beginState, boolean applyHandlers,
+                               boolean assertions, Set<String> applyReads, DependencyLoader assertionLoader,
+                               boolean currentAsserted) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
         if (directApply != null && applyHandlers) {
@@ -308,15 +323,15 @@ public final class ModelReducer {
                     message, beginState,
                     List.of(directTransition(
                             compiledHandler, result, 0, beginState)),
-                    assertions, assertionLoader);
+                    assertions && !currentAsserted, assertionLoader);
         }
         beginState.attachTo(message);
         try {
             // Keep the unused loader out of the ordinary path's captured arguments.
             return assertionLoader == null ? message.apply(ignored -> applyInContext(
-                    message, beginState, applyHandlers, assertions, applyReads, null))
+                    message, beginState, applyHandlers, assertions, applyReads, null, currentAsserted))
                     : message.apply(ignored -> applyInContext(
-                    message, beginState, applyHandlers, assertions, applyReads, assertionLoader));
+                    message, beginState, applyHandlers, assertions, applyReads, assertionLoader, currentAsserted));
         } finally {
             beginState.attachTo(message);
         }
@@ -328,8 +343,8 @@ public final class ModelReducer {
             boolean applyHandlers,
             boolean assertions,
             Set<String> applyReads,
-            DependencyLoader assertionLoader) {
-        if (assertions) {
+            DependencyLoader assertionLoader, boolean currentAsserted) {
+        if (assertions && !currentAsserted) {
             assertAll(beforePayloadAssertions, message, beginState, false, assertionLoader);
             assertAll(beforeModelAssertions, message, beginState, false, assertionLoader);
             assertEmbedded(message, beginState, false, assertionLoader);
@@ -382,7 +397,7 @@ public final class ModelReducer {
                         ? beginState.entity(value.modelId())
                         : resultTarget(value.handler().method(), beginState, value.modelId())))
                 .toList();
-        return finishApply(message, beginState, transitions, assertions, assertionLoader);
+        return finishApply(message, beginState, transitions, assertions && !currentAsserted, assertionLoader);
     }
 
     private static Map<String, AppliedValue> compose(Map<String, AppliedValue> first, Map<String, AppliedValue> second) {
@@ -1172,7 +1187,7 @@ public final class ModelReducer {
             Objects.requireNonNull(message, "message");
             if (mode.stageGraphPayloads && message.getPayload() instanceof Graph<?> graph) {
                 enqueueOutput(
-                        message, graph, pending, false, InterceptionPhase.NONE);
+                        message, graph, pending, false, InterceptionPhase.NONE, false);
             } else {
                 pending.add(new PendingSubstep(
                         message, null, mode.interceptionPhase));
@@ -1325,14 +1340,22 @@ public final class ModelReducer {
                 InterceptionPhase interceptionPhase =
                         current.interceptionPhase();
                 while (interceptionPhase != InterceptionPhase.NONE) {
-                    Object interception = resolved.reducer().intercept(
-                            current.message(), context, interceptionPhase, assertionLoader);
+                    ModelReducer currentReducer = resolved.reducer();
+                    Runnable checkCurrent = !mode.assertions || current.asserted() ? null : () -> {
+                        attempt.protectAssertionReads(); // Retain all assertion reads; guarded ACCEPT must fail on conflict.
+                        currentReducer.apply(current.message(), context, false, true, null, assertionLoader);
+                        if (mode.applyHandlers && currentReducer.afterAssertions) {
+                            attempt.retainCurrentAssertion(new CurrentAssertion(current.message(), currentReducer));
+                        }
+                    };
+                    Object interception = currentReducer.intercept(
+                            current.message(), context, interceptionPhase, assertionLoader, checkCurrent, current.asserted());
                     if (resolved.reducer().intercepted(interception)) {
                         DeserializingMessage source = current.message();
                         Object output = resolved.reducer().interceptionOutput(interception);
                         InterceptionPhase completedPhase = interceptionPhase;
                         CommitAttempt.withGraphReads(context, () -> {
-                            enqueueOutputs(source, output, pending, completedPhase);
+                            enqueueOutputs(source, output, pending, completedPhase, ((Interception) interception).asserted());
                             return null;
                         });
                         resolver.prefetch(
@@ -1352,7 +1375,7 @@ public final class ModelReducer {
                 }
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
-                        applyReadModelIds, assertionLoader);
+                        applyReadModelIds, assertionLoader, current.asserted());
                 readStateIndex = context.readStateIndex();
                 if (!pending.isEmpty()) { context.retainWriteOrigins(transitions); }
                 for (Change transition : transitions) {
@@ -1472,7 +1495,7 @@ public final class ModelReducer {
             DeserializingMessage source,
             Object output,
             Deque<PendingSubstep> pending,
-            InterceptionPhase completedPhase) {
+            InterceptionPhase completedPhase, boolean asserted) {
         List<?> outputs = asStream(output).toList();
         for (int i = outputs.size() - 1; i >= 0; i--) {
             Object value = outputs.get(i);
@@ -1480,7 +1503,7 @@ public final class ModelReducer {
                     source, value, pending,
                     i == 0 && value != null
                     && value.getClass().equals(source.getPayloadClass()),
-                    completedPhase);
+                    completedPhase, asserted && i == 0);
         }
     }
 
@@ -1489,7 +1512,7 @@ public final class ModelReducer {
             Object output,
             Deque<PendingSubstep> pending,
             boolean preserveSourceIdentity,
-            InterceptionPhase completedPhase) {
+            InterceptionPhase completedPhase, boolean asserted) {
         if (output == null) {
             throw new IllegalStateException(
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
@@ -1508,7 +1531,12 @@ public final class ModelReducer {
                 !emitted.getPayloadClass().equals(source.getPayloadClass());
         InterceptionPhase nextPhase = changedType
                 ? InterceptionPhase.PAYLOAD : completedPhase.next();
-        pending.addFirst(new PendingSubstep(emitted, null, nextPhase));
+        boolean retained = asserted && (!(output instanceof HasMessage) || output == source)
+                           && emitted.getPayload() == source.getPayload()
+                           && emitted.getMetadata().equals(source.getMetadata())
+                           && emitted.getContext(ModelPipeline.ExplicitModelTarget.class)
+                                   .equals(source.getContext(ModelPipeline.ExplicitModelTarget.class));
+        pending.addFirst(new PendingSubstep(emitted, null, nextPhase, retained));
     }
 
     private static void cascadeBefore(CommitAttempt attempt, int step, DeserializingMessage message,
@@ -1523,7 +1551,7 @@ public final class ModelReducer {
             if (plan.empty()) { continue; }
             boolean ancestors = assertOnly || reducer.canValidateAncestorsBeforeApply(target);
             if (!plan.matches(message, ancestors)) { continue; }
-            attempt.cascadingAssertions();
+            attempt.protectAssertionReads();
             if (checks == null) {
                 context.ensureReadBoundary();
                 checks = new CascadeChecks(attempt, compiler, resolver, context.readStateIndex());
@@ -1566,6 +1594,40 @@ public final class ModelReducer {
         return step.cascadeCause() < 0 ? step.message() : attempt.steps().get(step.cascadeCause()).message();
     }
 
+    record CurrentAssertion(DeserializingMessage message, ModelReducer reducer) {}
+
+    static void assertCurrentAfter(CommitAttempt attempt) {
+        if (attempt.currentAssertions().isEmpty()) { return; }
+        Map<String, Object> finalValues = new LinkedHashMap<>();
+        attempt.steps().forEach(step -> step.changes().forEach(change -> finalValues.put(change.modelId(), change.after())));
+        Map<String, Class<?>> reads = new LinkedHashMap<>(attempt.readModelTypes());
+        SubstepResolver resolver = attempt.readResolver();
+        for (CurrentAssertion check : attempt.currentAssertions()) {
+            DeserializingMessage message = check.message();
+            CommitAttempt previous = message.getContext(CommitAttempt.class).orElse(null);
+            try {
+                CommitAttempt context = resolver.resolve(message, attempt.readStateIndex(), finalValues).context()
+                        .withValues(finalValues);
+                attempt.bindCascadeReads(context);
+                context.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
+                DependencyLoader loader = (source, scope, parameters, current) -> {
+                    CommitAttempt loaded = resolver.resolveAssertion(source, scope, parameters, current, finalValues);
+                    attempt.bindCascadeReads(loaded);
+                    loaded.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
+                    return loaded;
+                };
+                context.attachTo(message);
+                message.apply(ignored -> check.reducer().finishApply(message, context, List.of(), true, loader));
+            } finally {
+                if (previous == null) { message.withoutContext(CommitAttempt.class); }
+                else { previous.attachTo(message); }
+            }
+        }
+        attempt.evaluated(attempt.readStateIndex(), reads.keySet(),
+                attempt.readModelIds(io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT), reads, attempt.steps());
+        attempt.checkReadBoundary();
+    }
+
     /** Validates opted-in Model rules against each logical before-state and the complete final state. */
     static void assertCascades(CommitAttempt attempt, MutationPlan.Compiler compiler) {
         boolean relevant = false;
@@ -1580,7 +1642,7 @@ public final class ModelReducer {
             if (relevant) { break; }
         }
         if (!relevant) { return; }
-        attempt.cascadingAssertions();
+        attempt.protectAssertionReads();
         attempt.ensureReadBoundary();
         new CascadeChecks(attempt, compiler).run();
     }
@@ -1687,7 +1749,7 @@ public final class ModelReducer {
 
         private CommitAttempt load(String id, Class<?> type, Map<String, Object> state) {
             CommitAttempt context = resolver.resolveValidation(id, type, boundary, state);
-            attempt.cascadingAssertions();
+            attempt.protectAssertionReads();
             attempt.bindCascadeReads(context);
             context.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
             return context;
@@ -1716,7 +1778,7 @@ public final class ModelReducer {
                 context.attachTo(call.message());
                 HandlerInvoker invoker = call.assertion().handler().matcher().getInvokerOrNull(owner.get(), call.message());
                 if (invoker == null) { return; }
-                attempt.cascadingAssertions();
+                attempt.protectAssertionReads();
                 CommitAttempt selected = context;
                 call.message().apply(ignored -> CommitAttempt.withGraphReads(selected, () -> {
                     Object result = invoker.invoke();
@@ -1844,7 +1906,10 @@ public final class ModelReducer {
     private record PendingSubstep(
             DeserializingMessage message,
             GraphMutation stagedChange,
-            InterceptionPhase interceptionPhase) {
+            InterceptionPhase interceptionPhase, boolean asserted) {
+        private PendingSubstep(DeserializingMessage message, GraphMutation stagedChange, InterceptionPhase phase) {
+            this(message, stagedChange, phase, false);
+        }
     }
 
     private enum InterceptionPhase {

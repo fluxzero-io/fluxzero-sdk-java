@@ -15,6 +15,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerConfiguration;
@@ -106,6 +107,38 @@ public class DefaultEntityHelper implements EntityHelper {
     private final BiFunction<Class<?>, Boolean, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
     private final Function<Class<?>, HandlerMatcher<Object, MessageWithEntity>> assertLegalMatchers;
     private final boolean disablePayloadValidation;
+    private final boolean assertCurrentDefault;
+    private final ThreadLocal<InterceptionAssertions> interceptionAssertions = new ThreadLocal<>();
+
+    private static final class InterceptionAssertions {
+        private java.util.IdentityHashMap<Object, Boolean> checked;
+        private Object next;
+        InterceptionAssertions(Object input) { next = input; }
+        boolean enter(Object input) {
+            if (next != input) { return false; }
+            next = null;
+            return true;
+        }
+        boolean take(Object value) { return checked != null && checked.remove(value) != null; }
+        void retain(Object value) {
+            if (checked == null) { checked = new java.util.IdentityHashMap<>(); }
+            checked.put(value, true);
+        }
+    }
+
+    @Override
+    public void interceptForValidation(Object value, Entity<?> entity,
+                                       java.util.function.BiConsumer<Object, Boolean> consumer) {
+        InterceptionAssertions previous = interceptionAssertions.get();
+        InterceptionAssertions current = new InterceptionAssertions(value);
+        interceptionAssertions.set(current);
+        try {
+            intercept(value, entity).forEach(update -> consumer.accept(update, current.take(update)));
+        } finally {
+            if (previous == null) { interceptionAssertions.remove(); }
+            else { interceptionAssertions.set(previous); }
+        }
+    }
 
     /**
      * Creates a new helper using the given parameter resolvers and configuration.
@@ -116,6 +149,15 @@ public class DefaultEntityHelper implements EntityHelper {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public DefaultEntityHelper(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                boolean disablePayloadValidation) {
+        this(parameterResolvers, disablePayloadValidation,
+             ApplicationProperties.assertCurrent());
+    }
+
+    /** Creates a helper with an application-resolved interceptor validation default. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public DefaultEntityHelper(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                               boolean disablePayloadValidation, boolean assertCurrentDefault) {
+        this.assertCurrentDefault = assertCurrentDefault;
         this.interceptMatchers = memoize(type -> inspect(
                 type, executables(type, EntityMetadata.HandlerKind.INTERCEPT_APPLY), (List) parameterResolvers,
                 HandlerConfiguration.builder().methodAnnotation(InterceptApply.class).build()));
@@ -251,16 +293,37 @@ public class DefaultEntityHelper implements EntityHelper {
                     return new Message(value, currentMetadata);
                 }).orElse(value);
         MessageWithEntity m = new MessageWithEntity(payload, entity);
+        InterceptionAssertions active = interceptionAssertions.get();
+        InterceptionAssertions checks = active != null && active.enter(value) ? active : null;
+        boolean previouslyAsserted = checks != null && checks.take(value);
         return getInterceptInvoker(m)
-                .map(i -> asStream(i.invoke()).flatMap(v -> {
-                    Message message = v instanceof HasMessage hm
-                            ? hm.toMessage() : Message.asMessage(v).withTimestamp(m.getTimestamp());
-                    message = message.withMetadata(m.getMetadata().with(message.getMetadata()));
-                    if (message.getPayloadClass().equals(m.getPayloadClass())) {
-                        return Stream.of(message);
-                    }
-                    return intercept(message, entity);
-                })).orElseGet(() -> Stream.of(value));
+                .map(i -> {
+                    InterceptApply annotation = checks == null ? null : i.getMethodAnnotation();
+                    boolean assertCurrent = checks != null && annotation != null
+                                            && annotation.assertCurrent().enabled(assertCurrentDefault);
+                    if (assertCurrent && !previouslyAsserted) { assertLegal(m, entity); }
+                    boolean[] retained = assertCurrent || previouslyAsserted ? new boolean[1] : null;
+                    return asStream(i.invoke()).flatMap(v -> {
+                        boolean retainCurrent = retained != null && !retained[0];
+                        if (retained != null) { retained[0] = true; }
+                        Message message = v instanceof HasMessage hm
+                                ? hm.toMessage() : Message.asMessage(v).withTimestamp(m.getTimestamp());
+                        message = message.withMetadata(m.getMetadata().with(message.getMetadata()));
+                        if (retainCurrent
+                            && (!(v instanceof HasMessage) || v == value)
+                            && message.getPayload() == m.getPayload() && message.getMetadata().equals(m.getMetadata())) {
+                            checks.retain(message);
+                        }
+                        if (message.getPayloadClass().equals(m.getPayloadClass())) {
+                            return Stream.of(message);
+                        }
+                        if (checks != null) { checks.next = message; }
+                        return intercept(message, entity);
+                    });
+                }).orElseGet(() -> {
+                    if (previouslyAsserted) { checks.retain(value); }
+                    return Stream.of(value);
+                });
     }
 
     /**

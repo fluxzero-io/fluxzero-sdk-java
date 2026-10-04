@@ -292,13 +292,16 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     @Override
     public <E extends Exception> Entity<T> assertLegal(Object update) throws E {
-        entityHelper.intercept(update, this).forEach(c -> entityHelper.assertLegal(c, this));
+        entityHelper.interceptForValidation(update, this, (current, asserted) -> {
+            if (!asserted) { entityHelper.assertLegal(current, this); }
+        });
         return this;
     }
 
     @Override
     public Entity<T> assertAndApply(Object payloadOrMessage) {
-        entityHelper.intercept(payloadOrMessage, this).forEach(m -> apply(Message.asMessage(m), true));
+        entityHelper.interceptForValidation(payloadOrMessage, this,
+                (current, asserted) -> apply(Message.asMessage(current), !asserted));
         return this;
     }
 

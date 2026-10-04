@@ -5775,7 +5775,8 @@
         "Entity",
         "@AssertLegal(afterHandler = true)",
         "suppressed assertions",
-        "replacement assertions"
+        "replacement assertions",
+        "io.fluxzero.sdk.persisting.eventsourcing.AssertCurrent"
       ],
       "links": [
         {

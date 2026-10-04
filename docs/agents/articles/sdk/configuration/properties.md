@@ -186,3 +186,9 @@ fallback, and new clients continue to read old replies. No stored data changes o
 only the SDK cannot repair an old Runtime that omits substeps. Zero-only responses and Graph-embedded event pages
 retain their existing representation. Request count and payload-byte limits retain their existing meaning; metadata
 still contributes to total response size.
+
+## Interceptor current-input checks
+
+`fluxzero.interceptApply.assertCurrent` (`FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT`) explicitly enables/disables
+current-input legality checks. Without it, DEFAULT interceptors enable them from defaults version `2026.10.04`.
+Absent/older defaults preserve replacement-only behavior. Explicit `AssertCurrent.ENABLED`/`DISABLED` wins.

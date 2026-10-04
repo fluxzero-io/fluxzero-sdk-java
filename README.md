@@ -37,6 +37,15 @@ SDK packages are published through [Fluxzero Packages](https://packages.fluxzero
 
 See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
+## Versioned Defaults
+
+Application behavior changes are opt-in through `fluxzero.defaults.version`; dedicated properties override them.
+See [all versioned defaults](docs/developer/guides/Configuration/280-application-properties.mdx).
+
+| Defaults version | Equivalent property |
+| --- | --- |
+| `2026.10.04` | `fluxzero.interceptApply.assertCurrent=true` |
+
 ## Work on the SDK
 
 The SDK is a Maven multi-module project. Building from source requires Java 25.0.3+ and Python 3.9+.

@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerMatcher;
@@ -167,7 +168,16 @@ public final class MutationPlan {
             return new CascadePlan(own, List.copyOf(parents), this);
         }
 
+        private final boolean assertCurrentDefault;
+
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
+            this(parameterResolvers, ApplicationProperties.assertCurrent());
+        }
+
+        /** Creates application-bound plans with the already resolved interceptor validation default. */
+        public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                        boolean assertCurrentDefault) {
+            this.assertCurrentDefault = assertCurrentDefault;
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
                     new ArrayList<>(parameterResolvers.size() + 1);
             if (parameterResolvers.stream().noneMatch(EntityParameterResolver.class::isInstance)) {
@@ -179,6 +189,10 @@ public final class MutationPlan {
             }
             resolvers.addAll(parameterResolvers);
             this.parameterResolvers = List.copyOf(resolvers);
+        }
+
+        boolean assertCurrent(InterceptApply annotation) {
+            return annotation != null && annotation.assertCurrent().enabled(assertCurrentDefault);
         }
 
         HandlerPlan compileHandlers(Collection<EntityMetadata.HandlerMethod> selectedHandlers) {

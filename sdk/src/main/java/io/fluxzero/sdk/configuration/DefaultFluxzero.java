@@ -1173,7 +1173,9 @@ public class DefaultFluxzero implements Fluxzero {
             runtimeDocumentStore = documentStore.get();
 
             //event sourcing
-            var entityMatcher = new DefaultEntityHelper(runtimeParameterResolvers, disablePayloadValidation);
+            boolean assertCurrentDefault = ApplicationProperties.assertCurrent(propertySource);
+            var entityMatcher = new DefaultEntityHelper(runtimeParameterResolvers, disablePayloadValidation,
+                                                       assertCurrentDefault);
             EventStore eventStore = new DefaultEventStore(client, serializer, dispatchChains.get(EVENT),
                                                           localHandlerRegistry(EVENT, handlerChains,
                                                                                runtimeParameterResolvers,
@@ -1196,10 +1198,10 @@ public class DefaultFluxzero implements Fluxzero {
                     new DefaultModelRepository(
                             client, runtimeDocumentStore, serializer,
                             new DefaultEntityHelper(
-                                    runtimeParameterResolvers, disablePayloadValidation),
+                                    runtimeParameterResolvers, disablePayloadValidation, assertCurrentDefault),
                             snapshotSerializer, modelCache,
                             runtimeParameterResolvers,
-                            propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY));
+                            propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY), assertCurrentDefault);
             commandModelRepository.configureReplayRestoration(modelReplayRestoration);
             commandModelRepository.configureGraphStrict(ApplicationProperties.graphStrict(propertySource));
             graphRepository.set(commandModelRepository);
