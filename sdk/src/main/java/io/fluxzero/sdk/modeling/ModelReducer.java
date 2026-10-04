@@ -155,6 +155,16 @@ public final class ModelReducer {
         return requiresStorageBoundary;
     }
 
+    boolean requiresCascadeStorageBoundary(DeserializingMessage message, Class<?> modelType, boolean assertOnly) {
+        if (compiler == null || directWithoutCascade) { return false; }
+        MutationPlan.CascadePlan plan = compiler.cascadePlan(modelType);
+        if (plan.empty()) { return false; }
+        // Only a single statically resolved apply proves that no later composition can re-enable ancestors.
+        boolean ancestors = assertOnly || directHandler == null
+                || directHandler.effect().ancestorValidation() != AncestorValidation.DISABLED;
+        return plan.matches(message, ancestors);
+    }
+
     boolean permitsDeferredBoundary() {
         return permitsDeferredBoundary;
     }

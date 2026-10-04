@@ -113,3 +113,8 @@ Use `@AssertLegal(cascade = true)` on an independent Model to guard its own muta
 ordinary aggregate/entity assertions. Read the [Java](../models/actions-java.md#guard-a-model-and-its-descendants) or
 [Kotlin](../models/actions-kotlin.md#guard-a-model-and-its-descendants) guide for timing, injection, exceptions and
 conflicts: an attempt using these guards upgrades ACCEPT to FAIL to protect validation reads.
+
+For matching cascade rules on initially resolved targets or known result-bound write candidates, a new operation
+selects a storage-current boundary before loading its initial state. This prevents an old child cache cursor from
+hiding a changed parent. Nested checks keep the active operation's boundary and staged changes; dynamically
+discovered targets also join that boundary. This does not turn an independent check into a reservation.

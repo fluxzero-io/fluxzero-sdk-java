@@ -217,6 +217,11 @@ use the logical before-state. Applies and assertions must remain deterministic a
 methods or apply their exemptions; result-dependent routes/policies require `assertAndApply` or ordinary command
 handling. Event replay does not run assertions.
 
+When initially resolved targets or known result-bound write candidates have matching cascading rules, the operation
+opens a storage-current read boundary before loading its initial state. A cached child's cursor alone cannot prove
+that its parent is current. Checks inside an existing operation retain its pinned boundary and staged changes;
+targets discovered later also join that boundary. A standalone `assertLegal` remains a check, not a reservation.
+
 Every enabled, locally known parent route participates, through all descendant levels. Shared ancestors are checked
 once per effective update/phase. A move checks both the old and the new route; deleting or detaching a child cannot
 escape its old parent's rule. Direct Graph mutations and automatic deletions participate too. A missing parent value

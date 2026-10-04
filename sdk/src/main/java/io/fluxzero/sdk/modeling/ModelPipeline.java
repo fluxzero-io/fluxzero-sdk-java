@@ -431,8 +431,11 @@ final class ModelPipeline {
             boolean retry,
             boolean batched) {
         return switch (request.mode()) {
-            case ASSERT -> ModelReducer.assertLegal(
-                    attempt, request.message(), new CommitLoader(null));
+            case ASSERT -> {
+                CommitLoader loader = new CommitLoader(null);
+                loader.assertionsOnly = true;
+                yield ModelReducer.assertLegal(attempt, request.message(), loader);
+            }
             case REPLAY, MIGRATE -> ModelReducer.reapply(
                     attempt, List.of(request.message()),
                     new CommitLoader(null, true, request.mode() == Mode.MIGRATE));
@@ -1132,6 +1135,7 @@ final class ModelPipeline {
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private boolean requiresStorageBoundary;
+        private boolean assertionsOnly;
         private boolean durableOnly;
         private boolean permitsDeferredBoundary;
         private CommitAttempt deferredContext;
@@ -1223,6 +1227,26 @@ final class ModelPipeline {
                             explicitTarget == null ? null : explicitTarget.modelId(),
                             explicitTarget == null ? null : explicitTarget.modelType(),
                             applyOnly);
+            if (boundary == null && !applyOnly && !requiresStorageBoundary) {
+                for (MutationPlan.ResolvedModel target : resolution.models()) {
+                    if ((assertionsOnly || target.access().writes())
+                        && definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        // A child cache cursor does not prove that a later-read ancestor is still current.
+                        // Standalone assertions have no commit conflict check to repair a stale successful result.
+                        requiresStorageBoundary = true;
+                        break;
+                    }
+                }
+            }
+            if (boundary == null && !applyOnly && !requiresStorageBoundary) {
+                for (MutationPlan.DeferredWriteTarget target : resolution.deferredWrites()) {
+                    if (definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        // Result-bound writes can have only read-only inputs until Apply selects the actual target.
+                        requiresStorageBoundary = true;
+                        break;
+                    }
+                }
+            }
             return new ModelReducer.ResolvedSubstep(
                     resolve(resolution, boundary, stagedValues), definition.reducer());
         }
@@ -1536,6 +1560,8 @@ final class ModelPipeline {
             return null;
         }
         MutationPlan.ResolvedModel target = targets.resolveSingle(message);
+        if (target.access().writes()
+            && definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false)) { return null; }
         // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
         return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
                 ? new PrefetchSlot(target) : null;
