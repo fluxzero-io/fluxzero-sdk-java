@@ -186,6 +186,49 @@ class DocumentGraphUpcastingTest {
     }
 
     @Test
+    void migrationPreservesRootMetadataAndTextIndexWithChildrenAndRegeneratesExclusions() throws Exception {
+        var rootCaster = new MoveName();
+        var childCaster = new MoveValue();
+        var serializer = new JacksonSerializer(List.of(rootCaster, childCaster));
+        ObjectNode json = serializer.getObjectMapper().createObjectNode().put("id", "root").put("name", "Legacy name");
+        json.putArray("children").addObject().put("id", "child").put("oldValue", "Legacy child");
+        var manifest = new ModelGraphDocumentManifest(41L, List.of("UpcastRoot", "UpcastChild"),
+                List.of(ROOT_TYPE, Child.class.getName()), List.of("children"), List.of(
+                new ModelGraphDocumentManifest.Node("root", 0, 0, 0, -1, -1, 0),
+                new ModelGraphDocumentManifest.Node("child", 1, 1, 0, 0, 0, 0)));
+        var metadata = Metadata.of("custom", "retained-secret",
+                io.fluxzero.common.search.SearchExclusions.METADATA_KEY, java.util.Map.of("details/name", true),
+                ModelGraphDocumentManifest.METADATA_KEY, manifest.serialize());
+        var stored = serializer.toDocument(json, "root", COLLECTION, null, null, metadata);
+        var entries = new java.util.LinkedHashMap<>(stored.deserializeDocument().getEntries());
+        io.fluxzero.common.search.SearchExclusions.addTo(entries, List.of("details/name"));
+        stored = new SerializedDocument(stored.deserializeDocument().toBuilder().entries(entries).build());
+        assertTrue(stored.getMetadata().containsKey(io.fluxzero.common.search.SearchExclusions.METADATA_KEY));
+        SerializedMessage source = new SerializedMessage(stored.getDocument().withType(ROOT_TYPE).withRevision(0),
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY, manifest.serialize()), "root", 0L);
+        var reader = new DocumentMessageReader();
+        reader.register(new GraphReader(), HandlerFilter.ALWAYS_HANDLE);
+        var message = reader.read(List.of(source), COLLECTION, serializer).findFirst().orElseThrow();
+        var resolver = new MaterializedGraphParameterResolver(serializer, () -> mock(ModelRepository.class),
+                () -> List.of(Root.class, Child.class));
+        var method = GraphReader.class.getDeclaredMethod("read", Graph.class);
+        Graph<?> graph = (Graph<?>) resolver.resolve(method.getParameters()[0], method.getAnnotation(HandleDocument.class))
+                .apply(message);
+        assertEquals(new Root("root", new Details("Legacy name")), graph.get());
+        assertEquals(new Child("child", "Legacy child"), graph.children(Child.class).getFirst().get());
+        assertEquals(1, rootCaster.calls.get());
+        assertEquals(1, childCaster.calls.get());
+        assertEquals("Legacy child", graph.children(Child.class).getFirst().get().value());
+        assertEquals(1, childCaster.calls.get());
+        var migrated = MaterializedGraphDocumentMigration.create(graph, message, serializer).orElseThrow().replacement();
+        assertEquals("retained-secret", migrated.getMetadata().get("custom"));
+        assertFalse(migrated.getMetadata().containsKey(io.fluxzero.common.search.SearchExclusions.METADATA_KEY));
+        assertTrue(io.fluxzero.common.api.search.constraints.ContainsConstraint.contains("retained-secret", "$metadata/custom")
+                .matches(migrated.deserializeDocument()));
+        assertEquals(2, ModelGraphDocumentManifest.from(migrated).orElseThrow().nodes().size());
+    }
+
+    @Test
     void failedRemoteRegistrationDoesNotLeakDefinitionsOrRefcounts() {
         var repository = mock(ModelRepository.class);
         org.mockito.Mockito.when(repository.registerGraphProjection(Root.class, false)).thenReturn(

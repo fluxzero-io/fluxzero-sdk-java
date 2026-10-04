@@ -331,10 +331,10 @@ public class JacksonInverter implements Inverter<JsonNode> {
         SortedMap<Object, Object> tree = new TreeMap<>();
         entries.forEach((entry, paths) -> paths.stream().map(Path::getValue).filter(JacksonInverter::isMetadataPath)
                 .forEach(path -> {
-                    String relativePath = path.substring(METADATA_PATH_PREFIX.length()).replaceFirst("^/", "");
-                    if (relativePath.isEmpty()) {
+                    if (path.equals(METADATA_PATH_PREFIX)) {
                         return;
                     }
+                    String relativePath = path.substring(METADATA_PATH_PREFIX.length() + 1);
                     SortedMap<Object, Object> parent = tree;
                     Iterator<String> iterator = Path.split(relativePath).iterator();
                     while (iterator.hasNext()) {
@@ -352,7 +352,7 @@ public class JacksonInverter implements Inverter<JsonNode> {
         Map<String, String> result = new LinkedHashMap<>();
         tree.forEach((key, value) -> {
             JsonNode node = toJsonNode(value);
-            result.put(SearchUtils.unescapeFieldName(key.toString()),
+            result.put(key.toString(),
                        node.isTextual() ? node.asText() : Metadata.objectMapper.valueToTree(node).toString());
         });
         return Metadata.of(result);

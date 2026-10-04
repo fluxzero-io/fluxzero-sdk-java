@@ -41,6 +41,14 @@ For ordinary read models, returning a higher-revision document can rewrite it in
 replay boundary, then verify final documents and public queries. Adding `@Facet`, `@Sortable`, `@SearchExclude`, or an
 upcaster does not backfill existing documents by itself.
 
+Ordinary higher-revision replacements retain the handled stored version's metadata, including through upcasting. Derived search indexes/exclusions are regenerated from the replacement.
+To explicitly replace it, return `new Message(document, Metadata.of("source", "migration"))` in Java or
+`Message(document, Metadata.of("source", "migration"))` in Kotlin. `Metadata.empty()` removes all metadata.
+This is a complete metadata replacement, not a merge with the tracking envelope. The payload's revision gate,
+document ID, timestamp-path precedence and direct-null deletion remain unchanged. A Message's ID/time do not
+change the indexed document identity/times. Stored Graph rematerialization also preserves custom projection
+metadata while refreshing its manifest; its stricter complete-Graph return contract remains in effect.
+
 A typed Model handler observes the canonical searchable node and can only perform a state-preserving schema rewrite. Use `source = DocumentSource.MODEL_STATE` for the same maintenance on non-searchable DOCUMENT state. Model commands own business changes and deletion. A `Graph<T>` document handler observes logical Graph updates in every search mode; returning it migrates evolved verified current nodes, including at NONE. Affected projections follow durably without a full Modeltype scan. Use `graphMigration = GraphMigrationTarget.PROJECTION` for only the handled stored composition; that option is observational at NONE. Read `/docs/sdk/models/configuration` and `/docs/sdk/models/migration-testing` before choosing the route.
 
 ## Destructive maintenance
