@@ -100,14 +100,15 @@ import java.lang.annotation.Target;
  *
  * <h2>Interaction with intercepted updates</h2>
  * {@link io.fluxzero.sdk.persisting.eventsourcing.InterceptApply @InterceptApply} resolves the effective update or
- * updates first. Assertions therefore run for a retained update, do not run for a suppressed update, and run only for
+ * updates first when current-input checks are disabled. Assertions then run for a retained update, do not run for a suppressed update, and run only for
  * the replacement when the original update is replaced. Expanded updates are processed in encounter order: each
  * update's immediate assertions run before its apply methods and see state produced by earlier updates. Assertions
  * configured with {@link #afterHandler()} remain deferred until handler completion.
  *
- * <p>If a rule must also hold after an interceptor replaces the original payload, define that rule for the effective
- * replacement or place it in shared/entity-side assertion logic that matches the replacement. An assertion that only
- * matches the original payload is intentionally not invoked after replacement.</p>
+ * <p>{@code @InterceptApply(assertCurrent = AssertCurrent.ENABLED)} retains checks for that interceptor's input.
+ * Immediate checks run before interception within the commit attempt; retained after-handler checks use final state.
+ * This applies even to suppressed input. DEFAULT enables this from defaults version {@code 2026.10.04}, unless
+ * {@code fluxzero.interceptApply.assertCurrent} overrides it. Explicit annotation settings win.</p>
  *
  * <h2>Ordering</h2>
  * Cascading rules prevalidate resolved scopes before ordinary assertions; result-dependent routes are checked

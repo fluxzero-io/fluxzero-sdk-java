@@ -141,6 +141,7 @@ Override it with `fluxzero.proxy.http2MaxResponseHeaderSize`
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
+| `>= 2026.10.04` | `fluxzero.interceptApply.assertCurrent = true` | Validating operations check the current input before each selected interceptor. Annotation ENABLED/DISABLED overrides the property; set false to retain replacement-only checks. |
 
 For example:
 

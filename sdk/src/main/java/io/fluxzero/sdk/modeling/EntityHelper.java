@@ -46,6 +46,16 @@ public interface EntityHelper {
     Stream<?> intercept(Object value, Entity<?> entity);
 
     /**
+     * Consumes intercepted updates for a validating operation. The consumer's second argument indicates whether
+     * legality assertions for that exact update have already run during interception. Custom helpers retain their
+     * existing interception behavior by default. The stream is consumed within this call; its ownership remains with the custom helper.
+     */
+    default void interceptForValidation(Object value, Entity<?> entity,
+                                       java.util.function.BiConsumer<Object, Boolean> consumer) {
+        intercept(value, entity).forEach(update -> consumer.accept(update, false));
+    }
+
+    /**
      * Returns an invoker that can apply the given event to the provided entity.
      *
      * @param message the message to apply

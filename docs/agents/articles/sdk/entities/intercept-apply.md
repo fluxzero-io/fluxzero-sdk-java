@@ -36,13 +36,34 @@ Because `RecordLabelChange` is another payload type, the replacement goes throug
 for that type, then `@AssertLegal`, then `@Apply`. A same-type normalized replacement proceeds directly to legality
 and apply handling. Do not perform the state mutation in the interceptor.
 
-Only effective payloads run assertions: a retained payload runs its matching assertions, suppression runs neither
-assertions nor apply methods, and a replacement runs only assertions matching the replacement. An assertion that
-matches only the original type does not run after rewriting. Put an invariant that must survive transformation on
-the replacement or in shared/entity-side assertion logic that also matches it.
+## Validate the current interceptor input
 
-`@AssertLegal(afterHandler = true)` keeps its deferred handler-completion timing. Do not reinterpret it as an immediate
-assertion merely because interception occurred.
+Use `@InterceptApply(assertCurrent = AssertCurrent.ENABLED)` to retain legality checks for the input of that
+interceptor. `AssertCurrent` is in `io.fluxzero.sdk.persisting.eventsourcing`.
+`DEFAULT` follows `fluxzero.interceptApply.assertCurrent` (`FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT`): when absent,
+it is enabled from `fluxzero.defaults.version=2026.10.04` and disabled for older or absent defaults versions.
+An explicit annotation choice wins over the application property, which wins over the defaults version.
+Use `DISABLED`, or property `false` for unconfigured interceptors, when rewriting is deliberately allowed before
+checking legality. Configuration is resolved for the owning application when its helpers/plans are created.
+
+Current immediate assertions run before the selected interceptor, inside the same commit attempt and against its
+current state. The input is checked once even when it splits into several outputs or is suppressed. Every replacement
+keeps its normal checks. A bare unchanged input is not checked twice in the same scope; a new instance or message
+envelope receives its own checks. In A → B → C, each interceptor controls its own current input, not always A.
+Payload, Message, metadata, user and custom parameter injection use that input's context. There is no combined
+original/replacement parameter. Existing nested legality checks also participate.
+
+Retained current `afterHandler=true` assertions keep the input context and run against the final composed state:
+for Models this is the end of the atomic Model operation, including automatic child deletions; for Aggregate/Entity
+it is the existing handler-completion phase. Existing effective-update assertions keep their established timing.
+Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
+start running assertions. Interceptors and assertions must remain free of external side effects.
+
+Model assertion reads participate in the pinned commit and conflict checks. RETRY evaluates them again; an attempt
+that validates a current input upgrades configured ACCEPT to FAIL, so concurrent changes cannot retain stale
+permission. Other ACCEPT operations retain their behavior. S285 rules still guard effective Model mutations;
+an output's Apply exception does not undo current-input checks. This requires no new Runtime protocol or Runtime
+upgrade. With current-input checks disabled, no validation history or additional Model reads are retained.
 
 ## Expand one accepted update
 

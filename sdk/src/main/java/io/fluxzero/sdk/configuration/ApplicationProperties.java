@@ -165,6 +165,20 @@ public class ApplicationProperties {
         return propertySource.getBoolean(GRAPH_STRICT_PROPERTY);
     }
 
+    /** Interceptor input validation override; environment variable FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT. */
+    public static final String ASSERT_CURRENT_PROPERTY = "fluxzero.interceptApply.assertCurrent";
+    private static final LocalDate ASSERT_CURRENT_DEFAULTS_VERSION = LocalDate.of(2026, 10, 4);
+
+    /** Resolves interceptor input validation from the active application at configuration time. */
+    public static boolean assertCurrent() { return assertCurrent(getPropertySource()); }
+
+    /** Resolves interceptor input validation from the owning application's source at configuration time. */
+    public static boolean assertCurrent(PropertySource source) {
+        String configured = source.get(ASSERT_CURRENT_PROPERTY);
+        return configured == null ? defaultsVersionAtLeast(source, ASSERT_CURRENT_DEFAULTS_VERSION)
+                : Boolean.parseBoolean(configured.trim());
+    }
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**
@@ -261,6 +275,12 @@ public class ApplicationProperties {
      *         <td>Commands with one statically unambiguous Model apply and single-Model events use the canonical
      *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
      *         Set the property to {@code false} to retain compatibility behavior.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.10.04}</td>
+     *         <td>{@code fluxzero.interceptApply.assertCurrent = true}</td>
+     *         <td>Validating apply operations also check the input of each selected interceptor before transformation.
+     *         Set the property to false to preserve replacement-only validation; explicit interceptor overrides win.</td>
      *     </tr>
      * </table>
      * <p>

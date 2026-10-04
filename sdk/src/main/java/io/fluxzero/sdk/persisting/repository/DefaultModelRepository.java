@@ -211,9 +211,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             String modelNamePrefix) {
+        this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache, parameterResolvers,
+             modelNamePrefix, ApplicationProperties.assertCurrent());
+    }
+
+    /** Creates a repository with the owning application's resolved interceptor validation default. */
+    public DefaultModelRepository(Client client, DocumentStore documentStore, Serializer serializer,
+                                  EntityHelper entityHelper, Serializer snapshotSerializer, Cache cache,
+                                  List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                  String modelNamePrefix, boolean assertCurrentDefault) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
              new MutationPlan.Compiler(Objects.requireNonNull(
-                     parameterResolvers, "parameterResolvers")),
+                     parameterResolvers, "parameterResolvers"), assertCurrentDefault),
              new AtomicReference<>(), modelNamePrefix, new ConcurrentHashMap<>(), new Object(), new AtomicReference<>());
     }
 

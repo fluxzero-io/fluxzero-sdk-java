@@ -105,7 +105,7 @@ A nullable read-only Model parameter also accepts a null identifying property, s
 folder ID. Both a missing Model at a non-null ID and a null reference inject null there. A write target still needs
 a non-null identity; nullable read support does not turn invalid writes or ambiguous ancestors into silent absence.
 
-Interception selects the payloads to which assertions apply:
+With current-input checks disabled, interception selects the payloads to which assertions apply:
 
 | Interceptor outcome | Assertions and application |
 |:--------------------|:---------------------------|
@@ -114,9 +114,35 @@ Interception selects the payloads to which assertions apply:
 | Replace the payload | Only the replacement's matching assertions and apply methods run |
 | Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
 
-Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
-invariant that must survive rewriting on the effective replacement or in shared/Model-side assertion logic that also
-matches it. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+## Validate the current interceptor input
+
+Use `@InterceptApply(assertCurrent = AssertCurrent.ENABLED)` to retain legality checks for the input of that
+interceptor. `AssertCurrent` is in `io.fluxzero.sdk.persisting.eventsourcing`.
+`DEFAULT` follows `fluxzero.interceptApply.assertCurrent` (`FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT`): when absent,
+it is enabled from `fluxzero.defaults.version=2026.10.04` and disabled for older or absent defaults versions.
+An explicit annotation choice wins over the application property, which wins over the defaults version.
+Use `DISABLED`, or property `false` for unconfigured interceptors, when rewriting is deliberately allowed before
+checking legality. Configuration is resolved for the owning application when its helpers/plans are created.
+
+Current immediate assertions run before the selected interceptor, inside the same commit attempt and against its
+current state. The input is checked once even when it splits into several outputs or is suppressed. Every replacement
+keeps its normal checks. A bare unchanged input is not checked twice in the same scope; a new instance or message
+envelope receives its own checks. In A → B → C, each interceptor controls its own current input, not always A.
+Payload, Message, metadata, user and custom parameter injection use that input's context. There is no combined
+original/replacement parameter. Existing nested legality checks also participate.
+
+Retained current `afterHandler=true` assertions keep the input context and run against the final composed state:
+for Models this is the end of the atomic Model operation, including automatic child deletions; for Aggregate/Entity
+it is the existing handler-completion phase. Existing effective-update assertions keep their established timing.
+Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
+start running assertions. Interceptors and assertions must remain free of external side effects.
+
+Model assertion reads participate in the pinned commit and conflict checks. RETRY evaluates them again; an attempt
+that validates a current input upgrades configured ACCEPT to FAIL, so concurrent changes cannot retain stale
+permission. Other ACCEPT operations retain their behavior. S285 rules still guard effective Model mutations;
+an output's Apply exception does not undo current-input checks. This requires no new Runtime protocol or Runtime
+upgrade. With current-input checks disabled, no validation history or additional Model reads are retained.
+
 
 ## Guard a Model and its descendants
 
@@ -163,7 +189,7 @@ Normal User, Message, Metadata, Model/Graph and custom parameter injection remai
 and typed payload selection both apply; neither a User-only nor a no-arg signature requires a dummy payload parameter.
 The filter applies to the Model's own changes too. Choose an unrestricted rule for a general lock; a narrow payload
 filter deliberately leaves other actions outside that rule. Interceptors select the effective payload: suppressed
-updates run no checks, replacements/splits are checked using their resulting payloads. Automatic child deletion uses
+updates have no effective mutation; replacements/splits use their resulting payloads. Enabled current-input checks run separately before interception. Automatic child deletion uses
 the effective command that caused the deletion for assertion selection and injection.
 
 ### Deliberate exceptions
