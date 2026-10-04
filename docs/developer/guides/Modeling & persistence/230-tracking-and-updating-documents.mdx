@@ -79,6 +79,16 @@ Existing document timestamps remain in effect unless the returned type declares 
 For an ordinary document, return a `Message` to explicitly replace the complete metadata map. Its payload still
 needs a higher revision; its message ID and timestamp do not override the document's identity or indexed times.
 Use `Metadata.empty()` to remove all document metadata. Returning `null` directly retains the deletion behavior.
+Only payload and metadata participate in this write; other Message envelope fields are ignored.
+
+A custom `Serializer.deserializeMessages(...)` implementation may buffer, reorder or split a document batch.
+If it constructs entirely new envelopes or decoded messages, call
+`DocumentMessageReader.retainSource(decodedOutput, originalInput)` for every corresponding output, keeping the
+original stored input before transformations. Standard input-envelope `withData`, `withMetadata` and `withSegment`
+operations preserve that source automatically. The helper transfers the original document bytes for metadata
+preservation; the custom serializer still owns ordinary message identity, revision and transport fields.
+See `DocumentMessageReader.retainSource` Javadoc for the complete extension contract.
+
 
 <Tabs>
   <TabItem label="Java">

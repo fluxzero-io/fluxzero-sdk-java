@@ -170,6 +170,13 @@ class ErrorCorrectionHandler {
 
 ## Document Rebuilding
 
+A custom serializer that creates entirely new decoded document messages can preserve source metadata with
+`DocumentMessageReader.retainSource(decodedOutput, originalInput)`. Keep the unchanged original stored input
+associated with each output, including split or reordered outputs; preserve ordinary envelope fields separately.
+Standard input-envelope withers already retain this source. See that method's Javadoc for the full contract.
+Only payload and metadata of a returned `Message` participate in document replacement; other envelope fields
+are ignored for the write.
+
 Ordinary `@HandleDocument` replacements preserve the handled stored version’s metadata through upcasting.
 Return a `Message` to replace its complete metadata explicitly; `new Message(document, Metadata.empty())` removes it.
 The payload must still have a higher revision. Indexed times and document identity retain their existing rules,

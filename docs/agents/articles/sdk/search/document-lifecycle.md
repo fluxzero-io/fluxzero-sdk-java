@@ -43,8 +43,15 @@ Ordinary higher-revision replacements retain the handled stored version's metada
 To explicitly replace it, return `new Message(document, Metadata.of("source", "migration"))` in Java or
 `Message(document, Metadata.of("source", "migration"))` in Kotlin. `Metadata.empty()` removes all metadata.
 This is a complete metadata replacement, not a merge with the tracking envelope. The payload's revision gate,
-document ID, timestamp-path precedence and direct-null deletion remain unchanged. A Message's ID/time do not
+document ID, timestamp-path precedence and direct-null deletion remain unchanged. Only payload and metadata
+participate in this write; a Message's ID/time and other envelope fields do not
 change the indexed document identity/times.
+
+Custom serializers that create entirely new document envelopes or decoded messages must call
+`DocumentMessageReader.retainSource(decodedOutput, originalInput)` for each output, associating it with the
+unchanged original stored input even when batching, reordering or splitting. Standard input-envelope withers
+preserve source attribution automatically. This transfers stored metadata provenance only; preserve ordinary
+message identity/revision/transport fields separately. The same API applies in Java and Kotlin.
 
 ## Destructive maintenance
 
