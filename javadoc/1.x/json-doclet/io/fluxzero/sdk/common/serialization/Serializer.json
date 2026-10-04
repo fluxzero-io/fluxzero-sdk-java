@@ -261,7 +261,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deserializes a stream of {@link SerializedMessage} into {@link DeserializingMessage} instances with the specified\n {@link MessageType}.\n\n @param dataStream  the stream of messages\n @param messageType the type of message (COMMAND, EVENT, etc.)\n @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}\n @return stream of deserialized messages\n"
+    "documentation" : " Deserializes a stream of {@link SerializedMessage} into {@link DeserializingMessage} instances with the specified\n {@link MessageType}.\n\n @param dataStream  the stream of messages\n @param messageType the type of message (COMMAND, EVENT, etc.)\n @param topic       the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}\n @return stream of deserialized messages\n @see io.fluxzero.sdk.persisting.search.DocumentMessageReader#retainSource(DeserializingMessage, SerializedMessage)\n"
   }, {
     "name" : "deserializeMessages",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#deserializeMessages",
@@ -292,7 +292,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Deserializes a stream of {@link SerializedMessage} into {@link DeserializingMessage} instances with the specified\n {@link MessageType}.\n\n @param dataStream          the stream of messages\n @param messageType         the type of message (COMMAND, EVENT, etc.)\n @param topic               the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}\n @param unknownTypeStrategy value that determines what to do when encountering unknown types\n @return stream of deserialized messages\n"
+    "documentation" : " Deserializes a stream of {@link SerializedMessage} into {@link DeserializingMessage} instances with the specified\n {@link MessageType}.\n\n Custom document serializers that construct new envelopes or decoded messages must retain the association\n with each original stored input. See\n {@link io.fluxzero.sdk.persisting.search.DocumentMessageReader#retainSource(DeserializingMessage, SerializedMessage)}\n for the explicit source-transfer contract. Standard input-envelope withers already preserve this association.\n\n @param dataStream          the stream of messages\n @param messageType         the type of message (COMMAND, EVENT, etc.)\n @param topic               the topic of the message if the type is CUSTOM or DOCUMENT, otherwise {@code null}\n @param unknownTypeStrategy value that determines what to do when encountering unknown types\n @return stream of deserialized messages\n"
   }, {
     "name" : "downcast",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#downcast",

@@ -30,6 +30,21 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultIndexOperation",
     "kind" : "class"
   }, {
+    "file" : "DocumentMessageReader.json",
+    "name" : "DocumentMessageReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader",
+    "kind" : "class"
+  }, {
+    "file" : "DocumentMessageReader.DocumentSource.json",
+    "name" : "DocumentMessageReader.DocumentSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$DocumentSource",
+    "kind" : "record"
+  }, {
+    "file" : "DocumentMessageReader.SourceDocumentMessage.json",
+    "name" : "DocumentMessageReader.SourceDocumentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage",
+    "kind" : "class"
+  }, {
     "file" : "DocumentSerializer.json",
     "name" : "DocumentSerializer",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",

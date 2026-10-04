@@ -1,0 +1,119 @@
+{
+  "name" : "DocumentMessageReader",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Retains the exact stored document source through serialization and handler interceptors. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "DocumentMessageReader",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#DocumentMessageReader",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#read",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Reads one complete serializer batch, preserving per-document source metadata through upcasting. "
+  }, {
+    "name" : "retainSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#retainSource",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retains the original stored document bytes for metadata preservation after custom deserialization.\n Use this when a custom {@link Serializer#deserializeMessages(Stream, MessageType, String)} implementation\n constructs entirely new envelopes or {@link DeserializingMessage} instances. Normal input-envelope\n {@code withData}, {@code withMetadata} and {@code withSegment} transformations already retain the source\n when invoked through this reader.\n <p>\n Keep the original input before any transformation and attach it to each corresponding decoded output:\n <pre>{@code\n DocumentMessageReader.retainSource(decodedOutput, originalInput);\n }</pre>\n Keep this association explicitly when buffering, reordering or splitting a batch; message IDs alone are\n insufficient because multiple versions can share an ID. This method does not require changing the batch\n boundary. Later {@link DeserializingMessage#withPayload(Object)} replacements retain the attached context.\n <p>\n The source must contain the exact stored version's original {@link Data#DOCUMENT_FORMAT} data. Tracking\n envelope metadata and the upcast/replacement payload are not substitutes for those bytes. Metadata is read\n lazily only when needed; there is no storage fetch or lookup of a newer version. Arbitrary custom formats\n are not decoded by this helper.\n <p>\n This attaches metadata provenance only: it does not copy the source message's ID, timestamps, revision or\n transport metadata into the output. A custom serializer remains responsible for preserving those ordinary\n message-envelope contracts.\n\n @param message the corresponding custom-decoded output\n @param source the unchanged original input document envelope\n @return the supplied output with its source attached to the handling context\n @see #sourceMetadata(DeserializingMessage)\n"
+  }, {
+    "name" : "sourceMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#sourceMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns metadata embedded in the handled document version, excluding the tracking envelope's time fields.\n Decoding is deferred until a replacement is actually needed. Non-document inputs have no stored metadata.\n"
+  }, {
+    "name" : "storedMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader#storedMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DocumentSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$DocumentSource",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SourceDocumentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DocumentMessageReader$SourceDocumentMessage",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}
