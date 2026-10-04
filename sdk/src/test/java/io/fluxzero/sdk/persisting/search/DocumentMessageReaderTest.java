@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,29 @@ class DocumentMessageReaderTest {
                              Metadata.of("source", "first"), Metadata.of("source", "first")), result);
         assertEquals("same-id", first.getMessageId());
         assertEquals("same-id", second.getMessageId());
+    }
+
+    @Test
+    void customSerializerCanAttachOriginalSourcesToEntirelyNewSplitOutputs() throws Exception {
+        var serializer = new JacksonSerializer() {
+            @Override
+            public Stream<DeserializingMessage> deserializeMessages(Stream<SerializedMessage> messages,
+                                                                    MessageType type, String topic) {
+                var batch = messages.toList();
+                assertEquals(2, batch.size());
+                return batch.reversed().stream().flatMap(original -> Stream.of("one", "two").map(value -> {
+                    var output = new DeserializingMessage(
+                            new Message(new Value(value), Metadata.of("transport", "replacement")), type, topic, this);
+                    return DocumentMessageReader.retainSource(output, original);
+                }));
+            }
+        };
+        var result = new DocumentMessageReader().read(
+                        List.of(source(serializer, "first"), source(serializer, "second")), "docs", serializer)
+                .map(message -> message.withPayload(new Value("intercepted")))
+                .map(DocumentMessageReader::sourceMetadata).toList();
+        assertEquals(List.of(Metadata.of("source", "second"), Metadata.of("source", "second"),
+                             Metadata.of("source", "first"), Metadata.of("source", "first")), result);
     }
 
     private static SerializedMessage source(JacksonSerializer serializer, String metadata) throws Exception {

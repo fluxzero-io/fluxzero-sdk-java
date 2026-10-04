@@ -45,9 +45,16 @@ Ordinary higher-revision replacements retain the handled stored version's metada
 To explicitly replace it, return `new Message(document, Metadata.of("source", "migration"))` in Java or
 `Message(document, Metadata.of("source", "migration"))` in Kotlin. `Metadata.empty()` removes all metadata.
 This is a complete metadata replacement, not a merge with the tracking envelope. The payload's revision gate,
-document ID, timestamp-path precedence and direct-null deletion remain unchanged. A Message's ID/time do not
+document ID, timestamp-path precedence and direct-null deletion remain unchanged. Only payload and metadata
+participate in this write; a Message's ID/time and other envelope fields do not
 change the indexed document identity/times. Stored Graph rematerialization also preserves custom projection
 metadata while refreshing its manifest; its stricter complete-Graph return contract remains in effect.
+
+Custom serializers that create entirely new document envelopes or decoded messages must call
+`DocumentMessageReader.retainSource(decodedOutput, originalInput)` for each output, associating it with the
+unchanged original stored input even when batching, reordering or splitting. Standard input-envelope withers
+preserve source attribution automatically. This transfers stored metadata provenance only; preserve ordinary
+message identity/revision/transport fields separately. The same API applies in Java and Kotlin.
 
 A typed Model handler observes the canonical searchable node and can only perform a state-preserving schema rewrite. Use `source = DocumentSource.MODEL_STATE` for the same maintenance on non-searchable DOCUMENT state. Model commands own business changes and deletion. A `Graph<T>` document handler observes logical Graph updates in every search mode; returning it migrates evolved verified current nodes, including at NONE. Affected projections follow durably without a full Modeltype scan. Use `graphMigration = GraphMigrationTarget.PROJECTION` for only the handled stored composition; that option is observational at NONE. Read `/docs/sdk/models/configuration` and `/docs/sdk/models/migration-testing` before choosing the route.
 

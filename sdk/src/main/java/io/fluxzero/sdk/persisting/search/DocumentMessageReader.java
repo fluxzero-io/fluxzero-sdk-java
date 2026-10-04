@@ -235,7 +235,35 @@ public final class DocumentMessageReader {
         }).toList();
     }
 
-    /** Retains the exact stored input across payload upcasting, without reading newer storage state. */
+    /**
+     * Retains the original stored document bytes for metadata preservation after custom deserialization.
+     * Use this when a custom {@link Serializer#deserializeMessages(Stream, MessageType, String)} implementation
+     * constructs entirely new envelopes or {@link DeserializingMessage} instances. Normal input-envelope
+     * {@code withData}, {@code withMetadata} and {@code withSegment} transformations already retain the source
+     * when invoked through this reader.
+     * <p>
+     * Keep the original input before any transformation and attach it to each corresponding decoded output:
+     * <pre>{@code
+     * DocumentMessageReader.retainSource(decodedOutput, originalInput);
+     * }</pre>
+     * Keep this association explicitly when buffering, reordering or splitting a batch; message IDs alone are
+     * insufficient because multiple versions can share an ID. This method does not require changing the batch
+     * boundary. Later {@link DeserializingMessage#withPayload(Object)} replacements retain the attached context.
+     * <p>
+     * The source must contain the exact stored version's original {@link Data#DOCUMENT_FORMAT} data. Tracking
+     * envelope metadata and the upcast/replacement payload are not substitutes for those bytes. Metadata is read
+     * lazily only when needed; there is no storage fetch or lookup of a newer version. Arbitrary custom formats
+     * are not decoded by this helper.
+     * <p>
+     * This attaches metadata provenance only: it does not copy the source message's ID, timestamps, revision or
+     * transport metadata into the output. A custom serializer remains responsible for preserving those ordinary
+     * message-envelope contracts.
+     *
+     * @param message the corresponding custom-decoded output
+     * @param source the unchanged original input document envelope
+     * @return the supplied output with its source attached to the handling context
+     * @see #sourceMetadata(DeserializingMessage)
+     */
     public static DeserializingMessage retainSource(DeserializingMessage message, SerializedMessage source) {
         return message.putContext(DocumentSource.class, new DocumentSource(source.getData()));
     }
