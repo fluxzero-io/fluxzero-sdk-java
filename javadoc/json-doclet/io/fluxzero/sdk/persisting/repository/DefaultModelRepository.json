@@ -194,6 +194,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "reindexProjectionCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.reindexProjectionCompletion",
+    "type" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "replayCursor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.replayCursor",
     "type" : "io.fluxzero.sdk.persisting.repository.ModelReplayCursor",
@@ -565,6 +573,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "awaitReindexProjections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#awaitReindexProjections",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "awaited",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "beginLocalCommit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#beginLocalCommit",
     "returnType" : "java.lang.Runnable",
@@ -737,6 +771,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Configures the single-Model event-routing fallback before this repository starts handling commits. "
+  }, {
+    "name" : "configureGraphProjectionCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#configureGraphProjectionCompletion",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completion",
+      "type" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures the application default for explicit reindex completion before the repository is used. "
   }, {
     "name" : "configureGraphStrict",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#configureGraphStrict",
@@ -2859,6 +2909,36 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reindex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#reindex",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

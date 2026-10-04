@@ -1359,6 +1359,17 @@
     "varArgs" : false,
     "documentation" : "Returns the selected value from the preceding revision, or {@code null} when unavailable. "
   }, {
+    "name" : "reindex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#reindex",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Refreshes this Model node's canonical search source from current committed state, even on a historical view.\n Descendants are selected separately by the caller. No business event, history, relationship or Model head changes.\n Staged changes in this Graph or handler are ignored. Missing/deleted Models are a no-op.\n <p>\n A bounded consumer's fixed {@code maxIndexExclusive} is used to skip sources stored on/after its time cutoff,\n before reconstructing the Model. Stop and drain old writers/materializations before choosing that cutoff;\n thereafter all writers must use the intended configuration and comparable clocks. Future/nonpositive cutoffs\n are rejected. Without a bounded consumer every call refreshes the source.\n <p>\n Completion confirms durable source storage and targeted projection invalidation. For affected AWAIT projections,\n including ancestor roots, it also waits until the updated projection is queryable, even when the cutoff skips\n the source write. Completion follows consumer, Model projection mode and application default precedence, just\n like a normal commit. Other derived work continues asynchronously. The wait holds no Model write lock.\n Conflicts retry a bounded number of times and then fail for caller retry.\n A compatible Runtime is required; unsupported servers fail rather than falling back to ordinary indexing.\n"
+  }, {
     "name" : "relationshipPath",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#relationshipPath",
     "returnType" : "java.lang.String",

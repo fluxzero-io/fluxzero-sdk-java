@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "reindexSettlement",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiter.reindexSettlement",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "request",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiter.request",
     "type" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
@@ -46,6 +54,31 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "ModelGraphProjectionWaiter",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiter#ModelGraphProjectionWaiter",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reindexSettlement",
+      "type" : "java.util.concurrent.atomic.AtomicLong",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "equals",
@@ -68,6 +101,17 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiter#hashCode",
     "returnType" : "int",
     "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reindexSettlement",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiter#reindexSettlement",
+    "returnType" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -110,6 +154,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "reindexSettlement",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "request",
     "type" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
     "annotations" : [ ],

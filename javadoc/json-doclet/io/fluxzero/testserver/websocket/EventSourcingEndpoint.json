@@ -314,6 +314,25 @@
   }, {
     "name" : "handle",
     "qualifiedName" : "io.fluxzero.testserver.websocket.EventSourcingEndpoint#handle",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.BooleanResult>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "io.fluxzero.testserver.websocket.Handle",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.ReindexModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.EventSourcingEndpoint#handle",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
     "modifiers" : [ ],
     "annotations" : [ {

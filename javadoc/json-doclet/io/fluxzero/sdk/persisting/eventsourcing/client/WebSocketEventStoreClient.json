@@ -611,6 +611,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "reindexModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#reindexModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.ReindexModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "repairRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#repairRelationships",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",

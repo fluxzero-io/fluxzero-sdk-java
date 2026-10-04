@@ -146,6 +146,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelStorageIndices",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelStorageIndices",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "monitors",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.monitors",
     "type" : "java.util.List<java.util.function.BiConsumer<java.lang.String,java.util.List<io.fluxzero.common.api.SerializedMessage>>>",
@@ -1233,6 +1241,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Re-materializes only affected roots at the same business boundary after a source schema rewrite. "
+  }, {
+    "name" : "prepareModelReindex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareModelReindex",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.ReindexModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Prepares one source write while the owning Model store holds its head lock. Publications run after that lock.\n A null result means a conflict; a no-op publication is a successful cutoff skip.\n"
   }, {
     "name" : "purgeExpiredMessages",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#purgeExpiredMessages",

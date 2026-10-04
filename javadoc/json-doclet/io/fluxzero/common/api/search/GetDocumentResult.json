@@ -42,6 +42,19 @@
     "documentation" : "True only when the store verified the actual document body against evidence captured with its Model fence. ",
     "constantValue" : null
   }, {
+    "name" : "modelStorageIndex",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.modelStorageIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "documentation" : " Lower-bound storage time in the event-index time domain (milliseconds shifted left 16 bits).\n Null for old stores/writes. Only a verified source may use this for a coordinated reindex cutoff;\n it is independent of the Model state index and the document tracking sequence.\n",
+    "constantValue" : null
+  }, {
     "name" : "requestId",
     "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult.requestId",
     "type" : "long",
@@ -107,10 +120,40 @@
     "name" : "GetDocumentResult",
     "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult#GetDocumentResult",
     "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelHead",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelStateVerified",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "GetDocumentResult",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentResult#GetDocumentResult",
+    "modifiers" : [ "public" ],
     "annotations" : [ {
       "annotationType" : "java.beans.ConstructorProperties",
       "values" : {
-        "value" : "\"requestId\",\"document\",\"modelHead\",\"modelStateVerified\""
+        "value" : "\"requestId\",\"document\",\"modelHead\",\"modelStateVerified\",\"modelStorageIndex\""
       }
     } ],
     "typeParameters" : [ ],
@@ -132,6 +175,11 @@
     }, {
       "name" : "modelStateVerified",
       "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelStorageIndex",
+      "type" : "java.lang.Long",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -1,0 +1,103 @@
+{
+  "name" : "ReindexModel",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Refreshes one canonical source at an unchanged authoritative Model head. The Model store owns the head guard;\n the search store atomically preserves provenance and records a fresh storage-time index and targeted invalidation.\n A BooleanResult reports success (including a cutoff skip), or false when inspection must be retried.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cutoff",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel.cutoff",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Fixed consumer time cutoff, or null to refresh unconditionally. ",
+    "constantValue" : null
+  }, {
+    "name" : "document",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel.document",
+    "type" : "io.fluxzero.common.api.search.@lombok.NonNull SerializedDocument",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : "Current serialized Model state; never a historical Graph or an ordinary public projection. ",
+    "constantValue" : null
+  }, {
+    "name" : "expectedHead",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel.expectedHead",
+    "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelHeadState",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : "Complete authoritative head at reconstruction time. ",
+    "constantValue" : null
+  }, {
+    "name" : "expectedProof",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel.expectedProof",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Verified previous source proof, or null when creating a source from complete event history. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ReindexModel",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel#ReindexModel",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel#toMetric",
+    "returnType" : "io.fluxzero.common.api.modeling.ReindexModel.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns operational measurements without Model identifiers, proofs or payloads. "
+  }, {
+    "name" : "validate",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel#validate",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Validates the non-deleting source envelope. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

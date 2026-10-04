@@ -1,0 +1,61 @@
+{
+  "name" : "AwaitModelGraphReindex",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphReindex",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Waits for current Model projection progress and all pending source rewrites of the selected nodes in one collection.\n Unlike an ordinary commit barrier, this also covers same-state-index schema work. A distinct wire type prevents\n older Runtimes from silently treating this request as an ordinary state-index barrier.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "AwaitModelGraphReindex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphReindex#AwaitModelGraphReindex",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "collection"
+        }
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "stateIndex"
+        }
+      } ]
+    }, {
+      "name" : "modelIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "modelIds"
+        }
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a source-reindex barrier for the given nodes and their affected roots. "
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
     "kind" : "class"
   }, {
+    "file" : "AwaitModelGraphReindex.json",
+    "name" : "AwaitModelGraphReindex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphReindex",
+    "kind" : "class"
+  }, {
     "file" : "CommitModels.json",
     "name" : "CommitModels",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels",
@@ -433,6 +438,16 @@
     "file" : "RegisterModelGraphProjection.json",
     "name" : "RegisterModelGraphProjection",
     "qualifiedName" : "io.fluxzero.common.api.modeling.RegisterModelGraphProjection",
+    "kind" : "class"
+  }, {
+    "file" : "ReindexModel.json",
+    "name" : "ReindexModel",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel",
+    "kind" : "class"
+  }, {
+    "file" : "ReindexModel.Metric.json",
+    "name" : "ReindexModel.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel$Metric",
     "kind" : "class"
   }, {
     "file" : "Relationship.json",

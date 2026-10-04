@@ -5,7 +5,7 @@
   "kind" : "enum",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Controls whether command-result completion waits for affected materialized model-graph documents.\n",
+  "documentation" : " Controls whether command results and explicit Graph reindex completion wait for affected materialized Graphs.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.GraphProjectionCompletion>",
   "interfaces" : [ ],
@@ -74,7 +74,7 @@
     "name" : "AWAIT",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion.AWAIT",
     "annotations" : [ ],
-    "documentation" : " Delay the handler result until all affected graph roots crossed the committed model state boundary.\n"
+    "documentation" : " Delay the handler result or explicit reindex completion until affected graph roots reflect the operation.\n"
   }, {
     "name" : "DEFAULT",
     "qualifiedName" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion.DEFAULT",

@@ -202,6 +202,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelNodeSchemaCompletions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelNodeSchemaCompletions",
+    "type" : "java.util.Map<java.lang.String,java.util.Map<java.lang.String,java.lang.Long>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelNodeSchemaGeneration",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelNodeSchemaGeneration",
     "type" : "long",
@@ -214,6 +222,22 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelNodeSchemaInvalidations",
     "type" : "java.util.Map<java.lang.String,java.lang.Long>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelReindexLock",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelReindexLock",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelReindexer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelReindexer",
+    "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel,java.lang.Runnable>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -1032,6 +1056,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "modelGraphProjectionComplete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelGraphProjectionComplete",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "waiter",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionWaiter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "modelGraphProjectionStatus",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelGraphProjectionStatus",
     "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionStatus",
@@ -1215,6 +1255,25 @@
     "parameters" : [ {
       "name" : "request",
       "type" : "io.fluxzero.common.api.modeling.RegisterModelGraphProjection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reindexModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#reindexModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.ReindexModel",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1524,6 +1583,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Links the SDK-only event store to its in-memory search materializer.\n"
+  }, {
+    "name" : "setModelReindexer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelReindexer",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchLock",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reindexer",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.ReindexModel,java.lang.Runnable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Binds guarded reindex writes to the local canonical search store. "
   }, {
     "name" : "setScheduleDeletionMonitor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setScheduleDeletionMonitor",

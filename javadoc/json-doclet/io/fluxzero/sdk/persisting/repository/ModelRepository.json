@@ -803,6 +803,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Registers the graph projection declared by the supplied model type.\n\n @param modelType model carrying an enabled graph projection\n @param rebuild whether all current roots should be scanned even if the definition is unchanged\n"
+  }, {
+    "name" : "reindex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#reindex",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reindexes the current durable state of exactly one Model. Custom repositories must implement the guarded\n capability explicitly. See {@link Graph#reindex()} for cutoff and completion semantics.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

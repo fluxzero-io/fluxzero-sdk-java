@@ -1,0 +1,47 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel$Metric",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "Payload-free reindex measurements. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "bounded",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel$Metric.bounded",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documentBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel$Metric.documentBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ReindexModel$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

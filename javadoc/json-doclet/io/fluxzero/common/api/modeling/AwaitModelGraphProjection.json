@@ -8,6 +8,9 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   }, {
+    "annotationType" : "lombok.experimental.NonFinal",
+    "values" : {}
+  }, {
     "annotationType" : "lombok.EqualsAndHashCode",
     "values" : {
       "callSuper" : "true"

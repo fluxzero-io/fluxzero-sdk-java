@@ -334,6 +334,22 @@
     "varArgs" : false,
     "documentation" : " Idempotently registers an asynchronous materialized model-graph projection.\n"
   }, {
+    "name" : "reindexModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#reindexModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.ReindexModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Refreshes a canonical Model source without changing its head or history. "
+  }, {
     "name" : "repairRelationships",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient#repairRelationships",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
