@@ -106,6 +106,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "directWithoutCascade",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer.directWithoutCascade",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "dynamicMembers",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer.dynamicMembers",
     "type" : "boolean",
@@ -648,6 +656,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "assertCascades",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#assertCascades",
+    "returnType" : "void",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "attempt",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compiler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Validates opted-in Model rules against each logical before-state and the complete final state. "
+  }, {
     "name" : "assertEmbedded",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#assertEmbedded",
     "returnType" : "void",
@@ -878,6 +907,104 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Runs an explicit read-only helper inside the active mutation, without creating a second attempt. "
+  }, {
+    "name" : "canValidateAncestorsBeforeApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#canValidateAncestorsBeforeApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascadeBefore",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#cascadeBefore",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "attempt",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "step",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "context",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reducer",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.SubstepResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readTypes",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascadeValidationMessage",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#cascadeValidationMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "attempt",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "step",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt.Step",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "compose",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer#compose",
@@ -2007,6 +2134,30 @@
   "nestedTypes" : [ {
     "name" : "AppliedValue",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$AppliedValue",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CascadeCall",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeCall",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CascadeChecks",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CascadeInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeInvocation",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CascadeOwner",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeOwner",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]

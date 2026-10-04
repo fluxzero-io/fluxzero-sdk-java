@@ -58,9 +58,33 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "cascadeInvocations",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.cascadeInvocations",
+    "type" : "java.util.Map<java.lang.Integer,java.util.Set<io.fluxzero.sdk.modeling.ModelReducer.CascadeInvocation>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cascadeParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.cascadeParent",
+    "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "cascadeRootIds",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.cascadeRootIds",
     "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cascadingAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.cascadingAssertions",
+    "type" : "boolean",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -390,6 +414,22 @@
     "varArgs" : false,
     "documentation" : " Attaches this attempt to the non-null message's context and returns that message.\n"
   }, {
+    "name" : "bindCascadeReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#bindCascadeReads",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "loaded",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "bindGraphReads",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#bindGraphReads",
     "returnType" : "void",
@@ -432,6 +472,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "cascadeParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#cascadeParent",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parent",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cascadeRootIds",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#cascadeRootIds",
     "returnType" : "java.util.Set<java.lang.String>",
@@ -455,6 +511,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascadingAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#cascadingAssertions",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1050,6 +1117,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "markCascadeInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#markCascadeInvocation",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "step",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "mayWrite",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#mayWrite",
     "returnType" : "boolean",
@@ -1539,6 +1632,22 @@
     }, {
       "name" : "sourceProperty",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveConflictPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#resolveConflictPolicy",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configured",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

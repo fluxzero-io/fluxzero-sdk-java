@@ -25,6 +25,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "ancestorValidation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.Apply#ancestorValidation",
+    "returnType" : "io.fluxzero.sdk.modeling.AncestorValidation",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Overrides inherited cascading Model assertions for this mutation. This never suppresses payload/local\n assertions or stored relationship constraints. DEFAULT inherits an earlier Apply setting.\n"
+  }, {
     "name" : "automaticHandling",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.Apply#automaticHandling",
     "returnType" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",

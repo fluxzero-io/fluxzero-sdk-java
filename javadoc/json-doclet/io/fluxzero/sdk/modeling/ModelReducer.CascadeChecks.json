@@ -1,0 +1,259 @@
+{
+  "name" : "CascadeChecks",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Per-attempt state only; immutable matcher/route knowledge remains in MutationPlan. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "attempt",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.attempt",
+    "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.boundary",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "compiler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.compiler",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deferred",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.deferred",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelReducer.CascadeCall>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "finalValues",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.finalValues",
+    "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.reads",
+    "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.reducer",
+    "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resolver",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.resolver",
+    "type" : "io.fluxzero.sdk.modeling.ModelReducer.SubstepResolver",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks.values",
+    "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CascadeChecks",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks#CascadeChecks",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "attempt",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compiler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "CascadeChecks",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks#CascadeChecks",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "attempt",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compiler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolver",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.SubstepResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collect",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks#collect",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routeValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.CascadePlan",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestors",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owners",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModelReducer.CascadeOwner>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visited",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "depth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks#invoke",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "call",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer.CascadeCall",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "state",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "after",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks#load",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "state",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "run",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks#run",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

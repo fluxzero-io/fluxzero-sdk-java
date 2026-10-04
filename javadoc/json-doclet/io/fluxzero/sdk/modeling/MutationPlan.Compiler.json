@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "cascadePlans",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler.cascadePlans",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,io.fluxzero.sdk.modeling.MutationPlan.CascadePlan>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "memberInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler.memberInterceptors",
     "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>>",
@@ -87,6 +95,38 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#assertions",
     "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.AssertionPlan",
     "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascadePlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#cascadePlan",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.CascadePlan",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compileCascadePlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#compileCascadePlan",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.CascadePlan",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -282,6 +322,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the cached replay plan for the supplied payload and Model types, compiling it on first use.\n"
+  }, {
+    "name" : "hasCascade",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#hasCascade",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "memberInterceptors",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#memberInterceptors",

@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "ancestorValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change.ancestorValidation",
+    "type" : "io.fluxzero.sdk.modeling.AncestorValidation",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "before",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change.before",
     "type" : "java.lang.Object",
@@ -200,6 +208,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "ancestorValidation",
+      "type" : "io.fluxzero.sdk.modeling.AncestorValidation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "graphProjectionCompletion",
       "type" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
       "varArgs" : false,
@@ -244,6 +257,17 @@
     "name" : "after",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#after",
     "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ancestorValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#ancestorValidation",
+    "returnType" : "io.fluxzero.sdk.modeling.AncestorValidation",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -754,6 +778,11 @@
   }, {
     "name" : "after",
     "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "ancestorValidation",
+    "type" : "io.fluxzero.sdk.modeling.AncestorValidation",
     "annotations" : [ ],
     "documentation" : null
   }, {

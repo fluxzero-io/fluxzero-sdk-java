@@ -189,7 +189,7 @@
     "name" : "assertAfterHandler",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#assertAfterHandler",
     "returnType" : "boolean",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -347,6 +347,22 @@
     }, {
       "name" : "explicitType",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascades",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#cascades",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1033,6 +1049,18 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CachedDefinition",
     "kind" : "record",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CascadeParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CascadeParent",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CascadePlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CascadePlan",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "Catalog",

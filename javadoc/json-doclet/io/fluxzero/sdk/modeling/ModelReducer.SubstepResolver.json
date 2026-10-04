@@ -15,6 +15,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "compiler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$SubstepResolver#compiler",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "prefetch",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$SubstepResolver#prefetch",
     "returnType" : "void",
@@ -163,6 +174,37 @@
       "annotations" : [ ]
     }, {
       "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$SubstepResolver#resolveValidation",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "values",
       "type" : "java.util.Map<java.lang.String,java.lang.Object>",
       "varArgs" : false,
       "annotations" : [ ]

@@ -30,6 +30,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.Alias",
     "kind" : "annotation_type"
   }, {
+    "file" : "AncestorValidation.json",
+    "name" : "AncestorValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AncestorValidation",
+    "kind" : "enum"
+  }, {
     "file" : "AnnotatedEntityHolder.json",
     "name" : "AnnotatedEntityHolder",
     "qualifiedName" : "io.fluxzero.sdk.modeling.AnnotatedEntityHolder",
@@ -660,6 +665,26 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$AppliedValue",
     "kind" : "record"
   }, {
+    "file" : "ModelReducer.CascadeCall.json",
+    "name" : "ModelReducer.CascadeCall",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeCall",
+    "kind" : "record"
+  }, {
+    "file" : "ModelReducer.CascadeChecks.json",
+    "name" : "ModelReducer.CascadeChecks",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeChecks",
+    "kind" : "class"
+  }, {
+    "file" : "ModelReducer.CascadeInvocation.json",
+    "name" : "ModelReducer.CascadeInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeInvocation",
+    "kind" : "record"
+  }, {
+    "file" : "ModelReducer.CascadeOwner.json",
+    "name" : "ModelReducer.CascadeOwner",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$CascadeOwner",
+    "kind" : "record"
+  }, {
     "file" : "ModelReducer.DependencyLoader.json",
     "name" : "ModelReducer.DependencyLoader",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$DependencyLoader",
@@ -778,6 +803,16 @@
     "file" : "MutationPlan.CachedDefinition.json",
     "name" : "MutationPlan.CachedDefinition",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CachedDefinition",
+    "kind" : "record"
+  }, {
+    "file" : "MutationPlan.CascadeParent.json",
+    "name" : "MutationPlan.CascadeParent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CascadeParent",
+    "kind" : "record"
+  }, {
+    "file" : "MutationPlan.CascadePlan.json",
+    "name" : "MutationPlan.CascadePlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CascadePlan",
     "kind" : "record"
   }, {
     "file" : "MutationPlan.Catalog.json",

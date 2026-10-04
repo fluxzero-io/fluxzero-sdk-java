@@ -5,11 +5,19 @@
   "kind" : "record",
   "modifiers" : [ "final", "public", "static" ],
   "annotations" : [ ],
-  "documentation" : "One ordered mutation journal entry. ",
+  "documentation" : " One ordered mutation journal entry.\n @param cascadeCause index of the effective update causing an automatic deletion, or -1 for an ordinary update;\n                     used only for local validation, never serialized\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "cascadeCause",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step.cascadeCause",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "changes",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step.changes",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
@@ -45,9 +53,45 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
+    "documentation" : "An ordinary effective update, with no automatic-deletion cause. "
+  }, {
+    "name" : "Step",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#Step",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "changes",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cascadeCause",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "cascadeCause",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#cascadeCause",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "changes",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#changes",
     "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
@@ -121,6 +165,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "cascadeCause",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "changes",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
     "annotations" : [ ],

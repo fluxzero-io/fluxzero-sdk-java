@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "ancestorValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$EffectOverrides.ancestorValidation",
+    "type" : "io.fluxzero.sdk.modeling.AncestorValidation",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "conflict",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$EffectOverrides.conflict",
     "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
@@ -76,12 +84,28 @@
       "type" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "ancestorValidation",
+      "type" : "io.fluxzero.sdk.modeling.AncestorValidation",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "ancestorValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$EffectOverrides#ancestorValidation",
+    "returnType" : "io.fluxzero.sdk.modeling.AncestorValidation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "conflict",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$EffectOverrides#conflict",
     "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
@@ -198,6 +222,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "ancestorValidation",
+    "type" : "io.fluxzero.sdk.modeling.AncestorValidation",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "conflict",
     "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
     "annotations" : [ ],
