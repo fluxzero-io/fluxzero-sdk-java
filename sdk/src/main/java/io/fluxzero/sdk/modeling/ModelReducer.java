@@ -65,6 +65,7 @@ public final class ModelReducer {
     private final MutationPlan.HandlerPlan handlers;
     private final MutationPlan.DirectSingleTargetApply directApply;
     private final MutationPlan.CompiledHandler directHandler;
+    private final boolean directWithoutCascade;
     private final boolean afterAssertions;
     private final MutationPlan.Compiler compiler;
     private final List<MutationPlan.Assertion> beforePayloadAssertions, beforeModelAssertions;
@@ -110,6 +111,8 @@ public final class ModelReducer {
         this.directApply = directApply;
         this.directHandler = directApply == null ? null : handlers.singleApply();
         this.compiler = compiler;
+        this.directWithoutCascade = directApply != null && (compiler == null
+                || directHandler.method().targetModelTypes().stream().allMatch(type -> compiler.cascadePlan(type).empty()));
         List<MutationPlan.AssertionField> payloadFields = fields.stream()
                 .filter(field -> field.receiverModelType() == null).toList();
         List<MutationPlan.AssertionField> modelFields = fields.stream()
@@ -145,7 +148,7 @@ public final class ModelReducer {
     boolean requiresMemberDependencies() { return memberDependencies; }
 
     boolean direct() {
-        return directApply != null;
+        return directWithoutCascade;
     }
 
     boolean requiresStorageBoundary() {
@@ -1090,6 +1093,11 @@ public final class ModelReducer {
         SubstepResolver resolver = parent.readResolver();
         SubstepResolver assertions = new SubstepResolver() {
             @Override public ModelRepository repository() { return resolver.repository(); }
+            @Override public MutationPlan.Compiler compiler() { return resolver.compiler(); }
+            @Override public CommitAttempt resolveValidation(String id, Class<?> type, long boundary,
+                                                             Map<String, Object> values) {
+                return resolver.resolveValidation(id, type, boundary, values);
+            }
             @Override public ResolvedSubstep resolve(DeserializingMessage source, Long boundary,
                                                      Map<String, Object> values) {
                 return resolver.resolveAssertion(source, parent, values);
@@ -1174,6 +1182,7 @@ public final class ModelReducer {
         Objects.requireNonNull(resolver, "resolver");
         attempt.resetGraphReads();
         attempt.readResolver(resolver);
+        attempt.cascadeParent(parent);
         CommitAttempt originalContext = initialMessage == null ? null
                 : initialMessage.getContext(CommitAttempt.class).orElse(null);
         CommitAttempt commitBeginContext = null;
@@ -1265,6 +1274,10 @@ public final class ModelReducer {
                             target.modelId(), target.modelType());
                 });
                 if (graphMutation != null) {
+                    if (mode.assertions) {
+                        cascadeBefore(attempt, steps.size(), current.message(), context, resolved.reducer(), resolver,
+                                stagedValues, readModelIds, readModelTypes, mode == Mode.ASSERT);
+                    }
                     Change change = evaluateGraphMutation(
                             graphMutation,
                             context, readStateIndex,
@@ -1273,7 +1286,13 @@ public final class ModelReducer {
                     stagedValues.put(
                             change.modelId(), change.after());
                     applyReadModelIds.add(change.modelId());
-                    mergeDirectMutation(steps, current.message(), change);
+                    if (mode.assertions && resolver.compiler() != null
+                        && !resolver.compiler().cascadePlan(change.modelType()).empty()) {
+                        // Each guarded Graph mutation retains its own logical before-state and assertion identity.
+                        steps.add(new CommitAttempt.Step(current.message(), List.of(change)));
+                    } else {
+                        mergeDirectMutation(steps, current.message(), change);
+                    }
                     if (!pending.isEmpty()) { context.retainWriteOrigins(List.of(change)); }
                     continue;
                 }
@@ -1317,6 +1336,10 @@ public final class ModelReducer {
                     interceptionPhase = interceptionPhase.next();
                 }
 
+                if (mode.assertions) {
+                    cascadeBefore(attempt, steps.size(), current.message(), context, resolved.reducer(), resolver,
+                            stagedValues, readModelIds, readModelTypes, mode == Mode.ASSERT);
+                }
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
                         applyReadModelIds, assertionLoader);
@@ -1478,6 +1501,232 @@ public final class ModelReducer {
         pending.addFirst(new PendingSubstep(emitted, null, nextPhase));
     }
 
+    private static void cascadeBefore(CommitAttempt attempt, int step, DeserializingMessage message,
+                                      CommitAttempt context, ModelReducer reducer, SubstepResolver resolver,
+                                      Map<String, Object> stagedValues, Set<String> readIds, Map<String, Class<?>> readTypes, boolean assertOnly) {
+        MutationPlan.Compiler compiler = resolver.compiler();
+        if (compiler == null) { return; }
+        CascadeChecks checks = null;
+        for (MutationPlan.ResolvedModel target : context.targets()) {
+            if (!assertOnly && !target.access().writes()) { continue; }
+            MutationPlan.CascadePlan plan = compiler.cascadePlan(target.modelType());
+            if (plan.empty()) { continue; }
+            boolean ancestors = assertOnly || reducer.canValidateAncestorsBeforeApply(target);
+            if (!plan.matches(message, ancestors)) { continue; }
+            attempt.cascadingAssertions();
+            if (checks == null) {
+                context.ensureReadBoundary();
+                checks = new CascadeChecks(attempt, compiler, resolver, context.readStateIndex());
+                checks.values.putAll(stagedValues);
+                for (var entry : context.entities().entrySet()) { checks.values.put(entry.getKey(), entry.getValue().get()); }
+            }
+            Map<String, CascadeOwner> owners = new LinkedHashMap<>();
+            Entity<?> value = context.entity(target.modelId());
+            checks.collect(target.modelId(), target.modelType(), value == null ? null : value.get(), plan,
+                    message, ancestors, owners, new LinkedHashSet<>(), 0);
+            for (CascadeOwner owner : owners.values()) {
+                for (MutationPlan.Assertion assertion : owner.plan().assertions()) {
+                    if (!MutationPlan.assertAfterHandler(assertion.handler().method())
+                        && assertion.selector().canHandle(message)) {
+                        checks.invoke(new CascadeCall(step, owner.id(), owner.type(), assertion, message), checks.values, false);
+                    }
+                }
+            }
+        }
+        if (checks != null) {
+            readIds.addAll(checks.reads.keySet());
+            readTypes.putAll(checks.reads);
+        }
+    }
+
+    private boolean canValidateAncestorsBeforeApply(MutationPlan.ResolvedModel target) {
+        // Result-bound targets and payload/Model composition decide the effective override only after apply.
+        // Defer inherited checks for these candidates; the journal validates their actual policy and before-state.
+        // In particular, never infer a result's identity with the null-result (deletion) resolver.
+        for (MutationPlan.CompiledHandler handler : handlers.all()) {
+            if (handler.method().kind() == EntityMetadata.HandlerKind.APPLY
+                && handler.effect().ancestorValidation() != AncestorValidation.DEFAULT
+                && (handler.method().dynamicApplyResult()
+                    || handler.method().targetModelTypes().contains(target.modelType()))) { return false; }
+        }
+        return true;
+    }
+
+    private static DeserializingMessage cascadeValidationMessage(CommitAttempt attempt, CommitAttempt.Step step) {
+        return step.cascadeCause() < 0 ? step.message() : attempt.steps().get(step.cascadeCause()).message();
+    }
+
+    /** Validates opted-in Model rules against each logical before-state and the complete final state. */
+    static void assertCascades(CommitAttempt attempt, MutationPlan.Compiler compiler) {
+        boolean relevant = false;
+        for (CommitAttempt.Step step : attempt.steps()) {
+            for (Change change : step.changes()) {
+                if (change.updateState() && compiler.cascadePlan(change.modelType()).matches(cascadeValidationMessage(attempt, step),
+                        change.ancestorValidation() != AncestorValidation.DISABLED)) {
+                    relevant = true;
+                    break;
+                }
+            }
+            if (relevant) { break; }
+        }
+        if (!relevant) { return; }
+        attempt.cascadingAssertions();
+        attempt.ensureReadBoundary();
+        new CascadeChecks(attempt, compiler).run();
+    }
+
+    /** Per-attempt state only; immutable matcher/route knowledge remains in MutationPlan. */
+    private static final class CascadeChecks {
+        private final CommitAttempt attempt;
+        private final long boundary;
+        private final MutationPlan.Compiler compiler;
+        private final SubstepResolver resolver;
+        private final ModelReducer reducer;
+        private final Map<String, Class<?>> reads;
+        private final Map<String, Object> values = new LinkedHashMap<>();
+        private final Map<String, Object> finalValues = new LinkedHashMap<>();
+        private final List<CascadeCall> deferred = new ArrayList<>();
+
+        private CascadeChecks(CommitAttempt attempt, MutationPlan.Compiler compiler) {
+            this(attempt, compiler, attempt.readResolver(), attempt.readStateIndex());
+        }
+
+        private CascadeChecks(CommitAttempt attempt, MutationPlan.Compiler compiler, SubstepResolver resolver, long boundary) {
+            this.attempt = attempt;
+            this.boundary = boundary;
+            this.compiler = compiler;
+            this.resolver = resolver;
+            this.reducer = new ModelReducer(MutationPlan.HandlerPlan.EMPTY, null, List.of(), compiler);
+            this.reads = new LinkedHashMap<>(attempt.readModelTypes());
+            for (CommitAttempt.Step step : attempt.steps()) {
+                for (Change change : step.changes()) {
+                    if (!values.containsKey(change.modelId())) { values.put(change.modelId(), change.before()); }
+                    finalValues.put(change.modelId(), change.after());
+                }
+            }
+        }
+
+        private void run() {
+            Map<Integer, List<Change>> cascaded = new LinkedHashMap<>();
+            for (CommitAttempt.Step step : attempt.steps()) {
+                if (step.cascadeCause() >= 0) {
+                    cascaded.computeIfAbsent(step.cascadeCause(), ignored -> new ArrayList<>()).addAll(step.changes());
+                }
+            }
+            int stepIndex = 0;
+            for (CommitAttempt.Step step : attempt.steps()) {
+                if (step.cascadeCause() >= 0) {
+                    step.changes().forEach(change -> values.put(change.modelId(), change.after()));
+                    stepIndex++;
+                    continue;
+                }
+                List<Change> changes = step.changes();
+                if (cascaded.containsKey(stepIndex)) {
+                    changes = new ArrayList<>(changes);
+                    changes.addAll(cascaded.get(stepIndex));
+                }
+                Map<String, CascadeOwner> owners = new LinkedHashMap<>();
+                for (Change change : changes) {
+                    if (!change.updateState()) { continue; }
+                    MutationPlan.CascadePlan plan = compiler.cascadePlan(change.modelType());
+                    boolean ancestors = change.ancestorValidation() != AncestorValidation.DISABLED;
+                    if (!plan.matches(step.message(), ancestors)) { continue; }
+                    collect(change.modelId(), change.modelType(), change.before(), plan, step.message(), ancestors,
+                            owners, new LinkedHashSet<>(), 0);
+                    // Creation/reparenting may introduce another guarded route even though the old value was absent.
+                    collect(change.modelId(), change.modelType(), change.after(), plan, step.message(), ancestors,
+                            owners, new LinkedHashSet<>(), 0);
+                }
+                for (CascadeOwner owner : owners.values()) {
+                    for (MutationPlan.Assertion assertion : owner.plan().assertions()) {
+                        if (!assertion.selector().canHandle(step.message())) { continue; }
+                        CascadeCall call = new CascadeCall(stepIndex, owner.id(), owner.type(), assertion, step.message());
+                        if (MutationPlan.assertAfterHandler(assertion.handler().method())) { deferred.add(call); }
+                        else { invoke(call, values, false); }
+                    }
+                }
+                step.changes().forEach(change -> values.put(change.modelId(), change.after()));
+                stepIndex++;
+            }
+            for (CascadeCall call : deferred) { invoke(call, finalValues, true); }
+            attempt.evaluated(attempt.readStateIndex(), reads.keySet(),
+                    attempt.readModelIds(io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT), reads, attempt.steps());
+            attempt.checkReadBoundary();
+        }
+
+        private void collect(String id, Class<?> type, Object routeValue, MutationPlan.CascadePlan plan,
+                             DeserializingMessage message, boolean ancestors, Map<String, CascadeOwner> owners,
+                             Set<String> visited, int depth) {
+            if (!visited.add(id) || plan.empty()) { return; }
+            if (depth >= 256) { throw new IllegalStateException("Cascading assertion ancestry exceeds 256 levels"); }
+            if (!plan.assertions().isEmpty()) { owners.putIfAbsent(id, new CascadeOwner(id, type, plan)); }
+            if (!ancestors || routeValue == null) { return; }
+            for (MutationPlan.CascadeParent parent : plan.parents()) {
+                MutationPlan.CascadePlan parentPlan = compiler.cascadePlan(parent.type());
+                if (!parentPlan.matches(message, true)) { continue; }
+                Object parentId = parent.reference().read(routeValue);
+                if (parentId == null || !parent.type().equals(parent.reference().parentModelType(parentId))) { continue; }
+                String key = parentId.toString();
+                if (visited.contains(key)) { continue; }
+                CommitAttempt context = load(key, parent.type(), values);
+                Entity<?> entity = context.entity(key);
+                collect(key, parent.type(), entity == null ? null : entity.get(), parentPlan, message, true,
+                        owners, visited, depth + 1);
+            }
+        }
+
+        private CommitAttempt load(String id, Class<?> type, Map<String, Object> state) {
+            CommitAttempt context = resolver.resolveValidation(id, type, boundary, state);
+            attempt.cascadingAssertions();
+            attempt.bindCascadeReads(context);
+            context.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
+            return context;
+        }
+
+        private void invoke(CascadeCall call, Map<String, Object> state, boolean after) {
+            CommitAttempt previous = call.message().getContext(CommitAttempt.class).orElse(null);
+            CommitAttempt context = load(call.id(), call.type(), state);
+            Entity<?> owner = context.entity(call.id());
+            if (owner == null || owner.isEmpty()) { return; }
+            if (!after && !attempt.markCascadeInvocation(call.step(), call.id(),
+                    call.assertion().handler().method().executable())) { return; }
+            var scope = new MutationPlan.AssertionScope(call.message().withPayload(owner.get()),
+                    new MutationPlan.AssertionScope(call.message(), null));
+            DependencyLoader loader = (message, nestedScope, parameters, current) -> {
+                CommitAttempt loaded = resolver.resolveAssertion(message, nestedScope, parameters, current, state);
+                attempt.bindCascadeReads(loaded);
+                loaded.targets().forEach(target -> reads.putIfAbsent(target.modelId(), target.modelType()));
+                return loaded;
+            };
+            try {
+                if (!call.assertion().handler().method().modelParameters().isEmpty()) {
+                    context = loader.load(call.message(), scope,
+                            EntityMetadata.modelParameters(call.assertion().handler().method().executable()), context);
+                }
+                context.attachTo(call.message());
+                HandlerInvoker invoker = call.assertion().handler().matcher().getInvokerOrNull(owner.get(), call.message());
+                if (invoker == null) { return; }
+                attempt.cascadingAssertions();
+                CommitAttempt selected = context;
+                call.message().apply(ignored -> CommitAttempt.withGraphReads(selected, () -> {
+                    Object result = invoker.invoke();
+                    IdentityHashMap<Object, Boolean> visited = new IdentityHashMap<>();
+                    visited.put(owner.get(), Boolean.TRUE);
+                    reducer.assertResult(result, call.message(), selected, after, visited, 0, loader, scope);
+                    return null;
+                }));
+            } finally {
+                if (previous == null) { call.message().withoutContext(CommitAttempt.class); }
+                else { previous.attachTo(call.message()); }
+            }
+        }
+    }
+
+    private record CascadeOwner(String id, Class<?> type, MutationPlan.CascadePlan plan) {}
+    private record CascadeCall(int step, String id, Class<?> type, MutationPlan.Assertion assertion,
+                               DeserializingMessage message) {}
+    record CascadeInvocation(String id, Executable method) {}
+
     private static List<GraphMutation> stagedChanges(Graph<?> graph) {
         Objects.requireNonNull(graph, "graph");
         List<GraphMutation> staged = Graphs.stagedChanges(graph);
@@ -1512,6 +1761,11 @@ public final class ModelReducer {
     @FunctionalInterface
     interface SubstepResolver {
         default ModelRepository repository() { return null; }
+        default MutationPlan.Compiler compiler() { return null; }
+
+        default CommitAttempt resolveValidation(String id, Class<?> type, long boundary, Map<String, Object> values) {
+            throw new UnsupportedOperationException("Cascading validation requires Model reads");
+        }
 
         ResolvedSubstep resolve(
                 DeserializingMessage message,

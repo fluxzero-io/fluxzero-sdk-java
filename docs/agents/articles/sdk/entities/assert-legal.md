@@ -105,3 +105,11 @@ active/inactive/missing state, warm caches and a second writer between read and 
 Before adding a workaround, identify the values and relationships that carry the invariant, their ID binding,
 read boundary and conflict policy. `@AssertLegal`, a current read or RETRY alone does not make arbitrary I/O
 transactional. The query guide at `/docs/sdk/entities/graph-search` covers document/search consistency separately.
+
+## Cascading rules on independent Models
+
+Use `@AssertLegal(cascade = true)` on an independent Model to guard its own mutations and known descendants.
+`allowedClasses` selects payload families without requiring an unused payload argument. This opt-in does not change
+ordinary aggregate/entity assertions. Read the [Java](../models/actions-java.md#guard-a-model-and-its-descendants) or
+[Kotlin](../models/actions-kotlin.md#guard-a-model-and-its-descendants) guide for timing, injection, exceptions and
+conflicts: an attempt using these guards upgrades ACCEPT to FAIL to protect validation reads.

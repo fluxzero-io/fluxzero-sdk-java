@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.eventsourcing;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
+import io.fluxzero.sdk.modeling.AncestorValidation;
 import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
@@ -181,6 +182,13 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Apply {
+
+    /**
+     * Overrides inherited cascading Model assertions for this mutation. This never suppresses payload/local
+     * assertions or stored relationship constraints. DEFAULT inherits an earlier Apply setting.
+     */
+    AncestorValidation ancestorValidation() default AncestorValidation.DEFAULT;
+
 
     /**
      * Overrides conflict handling for the model produced by this apply.

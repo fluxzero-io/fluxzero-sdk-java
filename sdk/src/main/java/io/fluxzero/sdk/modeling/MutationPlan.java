@@ -127,6 +127,46 @@ public final class MutationPlan {
                 new ConcurrentHashMap<>();
         private final ConcurrentHashMap<Class<?>, List<CompiledHandler>> memberInterceptors = new ConcurrentHashMap<>();
 
+        // Application-bound matchers capture parameter resolvers; structural metadata stays in EntityMetadata.
+        private final ConcurrentHashMap<Class<?>, CascadePlan> cascadePlans = new ConcurrentHashMap<>();
+
+        CascadePlan cascadePlan(Class<?> type) {
+            return cascadePlans.computeIfAbsent(type, this::compileCascadePlan);
+        }
+
+        private boolean hasCascade(Class<?> type, Set<Class<?>> visiting) {
+            if (!visiting.add(type)) { return false; }
+            EntityMetadata metadata = EntityMetadata.of(type);
+            if (metadata.handlerMethods().stream().anyMatch(MutationPlan::cascades)) { return true; }
+            for (EntityMetadata.ParentReference reference : metadata.parentReferences()) {
+                if (reference.validateAncestors()) {
+                    for (Class<?> parent : reference.parentModelTypes()) {
+                        if (hasCascade(parent, visiting)) { return true; }
+                    }
+                }
+            }
+            return false;
+        }
+
+        private CascadePlan compileCascadePlan(Class<?> type) {
+            if (!hasCascade(type, new LinkedHashSet<>())) { return CascadePlan.EMPTY; }
+            EntityMetadata metadata = EntityMetadata.of(type);
+            List<Assertion> own = compileHandlers(metadata.handlerMethods().stream()
+                    .filter(MutationPlan::cascades).toList()).all().stream()
+                    .map(handler -> new Assertion(handler, null, assertionPriority(handler.method()),
+                            handler.method().executable().toGenericString(), compileCompatibilityMatcher(handler.method())))
+                    .sorted(java.util.Comparator.comparingInt(Assertion::priority).reversed()
+                            .thenComparing(Assertion::signature)).toList();
+            List<CascadeParent> parents = new ArrayList<>();
+            for (EntityMetadata.ParentReference reference : metadata.parentReferences()) {
+                if (!reference.validateAncestors()) { continue; }
+                for (Class<?> parent : reference.parentModelTypes()) {
+                    if (hasCascade(parent, new LinkedHashSet<>())) { parents.add(new CascadeParent(reference, parent)); }
+                }
+            }
+            return new CascadePlan(own, List.copyOf(parents), this);
+        }
+
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
                     new ArrayList<>(parameterResolvers.size() + 1);
@@ -245,6 +285,7 @@ public final class MutationPlan {
                     handler.executable().getDeclaringClass(), List.of(handler.executable()), resolvers,
                     HandlerConfiguration.<DeserializingMessage>builder()
                             .methodAnnotation(annotationType(handler.kind()))
+                            .messageFilter(new io.fluxzero.sdk.tracking.handling.PayloadFilter())
                             .build());
         }
 
@@ -426,6 +467,34 @@ public final class MutationPlan {
     record AssertionField(EntityMetadata.Property property, Class<?> receiverModelType) {
     }
 
+    static boolean cascades(EntityMetadata.HandlerMethod handler) {
+        return handler.kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL && handler.receiverModelType() != null
+                && ReflectionUtils.<AssertLegal>getMethodAnnotation(handler.executable(), AssertLegal.class)
+                .map(AssertLegal::cascade).orElse(false);
+    }
+
+    record CascadeParent(EntityMetadata.ParentReference reference, Class<?> type) {}
+
+    record CascadePlan(List<Assertion> assertions, List<CascadeParent> parents, Compiler compiler) {
+        static final CascadePlan EMPTY = new CascadePlan(List.of(), List.of(), null);
+        boolean empty() { return assertions.isEmpty() && parents.isEmpty(); }
+        boolean matches(DeserializingMessage message, boolean ancestors) {
+            return !empty() && matches(message, ancestors, new LinkedHashSet<>());
+        }
+        private boolean matches(DeserializingMessage message, boolean ancestors, Set<Class<?>> visited) {
+            for (Assertion assertion : assertions) {
+                if (assertion.selector().canHandle(message)) { return true; }
+            }
+            if (ancestors) {
+                for (CascadeParent parent : parents) {
+                    if (visited.add(parent.type())
+                        && compiler.cascadePlan(parent.type()).matches(message, true, visited)) { return true; }
+                }
+            }
+            return false;
+        }
+    }
+
     record AssertionPlan(List<Assertion> before, List<Assertion> after) {
     }
 
@@ -455,16 +524,16 @@ public final class MutationPlan {
             EventPublication publication,
             EventPublicationStrategy strategy,
             ModelConflictPolicy conflict,
-            GraphProjectionCompletion graphProjectionCompletion) {
+            GraphProjectionCompletion graphProjectionCompletion, AncestorValidation ancestorValidation) {
         private static final EffectOverrides NONE = new EffectOverrides(
                 EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
-                ModelConflictPolicy.DEFAULT, GraphProjectionCompletion.DEFAULT);
+                ModelConflictPolicy.DEFAULT, GraphProjectionCompletion.DEFAULT, AncestorValidation.DEFAULT);
 
         static EffectOverrides of(Executable handler) {
             Apply apply = handler == null ? null : handler.getAnnotation(Apply.class);
             return apply == null ? NONE : new EffectOverrides(
                     apply.eventPublication(), apply.publicationStrategy(),
-                    apply.conflictPolicy(), apply.graphProjectionCompletion());
+                    apply.conflictPolicy(), apply.graphProjectionCompletion(), apply.ancestorValidation());
         }
 
         EffectOverrides then(EffectOverrides override) {
@@ -476,7 +545,9 @@ public final class MutationPlan {
                     override.conflict != ModelConflictPolicy.DEFAULT
                             ? override.conflict : conflict,
                     override.graphProjectionCompletion != GraphProjectionCompletion.DEFAULT
-                            ? override.graphProjectionCompletion : graphProjectionCompletion);
+                            ? override.graphProjectionCompletion : graphProjectionCompletion,
+                    override.ancestorValidation != AncestorValidation.DEFAULT
+                            ? override.ancestorValidation : ancestorValidation);
         }
     }
 
@@ -562,7 +633,7 @@ public final class MutationPlan {
                 .map(AssertLegal::priority).orElse(AssertLegal.DEFAULT_PRIORITY);
     }
 
-    private static boolean assertAfterHandler(EntityMetadata.HandlerMethod handler) {
+    static boolean assertAfterHandler(EntityMetadata.HandlerMethod handler) {
         return ReflectionUtils.<AssertLegal>getMethodAnnotation(handler.executable(), AssertLegal.class)
                 .map(AssertLegal::afterHandler).orElse(false);
     }
@@ -801,6 +872,7 @@ public final class MutationPlan {
             if (explicitType != null) { receiverTypes.add(explicitType); }
             for (Class<?> receiverType : receiverTypes) {
                 EntityMetadata.of(receiverType).handlerMethods().stream()
+                        .filter(handler -> !cascades(handler))
                         .filter(handler -> EntityMetadata.acceptsPayload(handler, payloadType))
                         .forEach(result::add);
             }
