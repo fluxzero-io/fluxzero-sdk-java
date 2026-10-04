@@ -54,6 +54,13 @@ import java.lang.annotation.Target;
  * </ul>
  *
  * <p>
+ * Ordinary document replacements preserve all metadata embedded in the handled stored version, including when
+ * the payload was upcast. Tracking-envelope metadata is not copied into the document. Return a
+ * {@link io.fluxzero.sdk.common.Message} to replace the complete document metadata explicitly; empty metadata removes
+ * it. The Message payload must still have a higher revision. Its ID and timestamp do not override the stored
+ * document identity or the existing timestamp-selection rules. A plain {@code null} result still deletes the document.
+ * </p>
+ * <p>
  * This mechanism supports fully-automated data migrations: handlers can evolve or patch documents over time,
  * and changes are persisted across application restarts.
  * </p>

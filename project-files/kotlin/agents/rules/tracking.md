@@ -164,6 +164,11 @@ class ErrorCorrectionHandler {
 
 ## Document Rebuilding
 
+Ordinary `@HandleDocument` replacements preserve the handled stored version’s metadata through upcasting.
+Return a `Message` to replace its complete metadata explicitly; `Message(document, Metadata.empty())` removes it.
+The payload must still have a higher revision. Indexed times and document identity retain their existing rules,
+and returning `null` directly still deletes the document.
+
 When you modify your search indexing configuration (e.g., adding a new `@Facet`, changing a `@Searchable` field, or
 adding an **Upcaster**), you may need to rebuild your document collection.
 

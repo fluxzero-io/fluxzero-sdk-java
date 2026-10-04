@@ -36,6 +36,7 @@ import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.persisting.search.DocumentMessageReader;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
@@ -63,8 +64,8 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -723,7 +724,9 @@ public class DefaultTracking implements Tracking {
 
     private List<DeserializingMessage> deserializeNonChunkedMessages(List<SerializedMessage> serializedMessages,
                                                                      String topic) {
-        return serializer.deserializeMessages(serializedMessages.stream(), messageType, topic).toList();
+        return messageType == MessageType.DOCUMENT
+                ? new DocumentMessageReader().read(serializedMessages, topic, serializer).toList()
+                : serializer.deserializeMessages(serializedMessages.stream(), messageType, topic).toList();
     }
 
     private void flushNonChunkedMessages(List<SerializedMessage> messages, String topic,

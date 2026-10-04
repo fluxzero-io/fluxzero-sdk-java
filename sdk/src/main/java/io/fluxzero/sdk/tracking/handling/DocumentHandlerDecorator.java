@@ -15,13 +15,16 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.ClientUtils;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.SearchParameters;
+import io.fluxzero.sdk.persisting.search.DocumentMessageReader;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import lombok.AllArgsConstructor;
 
@@ -80,7 +83,8 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
         public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
             return delegate.getInvoker(message)
                     .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
-                                  && m.getReturnType().isAssignableFrom(message.getPayloadClass())
+                                  && (m.getReturnType().isAssignableFrom(message.getPayloadClass())
+                                      || Message.class.isAssignableFrom(m.getReturnType()))
                             ? ReflectionUtils.<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
                                     .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
                             .map(topic -> new DocumentHandlerInvoker(i, topic, message)) : Optional.of(i));
@@ -113,16 +117,20 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                 if (result == null) {
                     store.deleteDocument(message.getMessageId(), collection);
                 } else {
-                    if (ClientUtils.getRevisionNumber(result) > message.getSerializedObject().getOriginalRevision()) {
-                        if (getSearchParameters(result.getClass()) instanceof SearchParameters searchParams
+                    Object value = result instanceof Message replacement ? replacement.getPayload() : result;
+                    if (ClientUtils.getRevisionNumber(value) > message.getSerializedObject().getOriginalRevision()) {
+                        var metadata = result instanceof Message replacement ? replacement.getMetadata()
+                                : DocumentMessageReader.sourceMetadata(message);
+                        if (getSearchParameters(value.getClass()) instanceof SearchParameters searchParams
                             && (searchParams.getTimestampPath() != null || searchParams.getEndPath() != null)) {
-                            store.index(result, message.getMessageId(), collection);
+                            store.prepareIndex(value).id(message.getMessageId()).collection(collection)
+                                    .metadata(metadata).index();
                         } else {
                             var start = Optional.ofNullable(message.getMetadata().get("$start")).map(Long::valueOf)
                                     .map(Instant::ofEpochMilli).orElse(null);
                             var end = Optional.ofNullable(message.getMetadata().get("$end")).map(Long::valueOf)
                                     .map(Instant::ofEpochMilli).orElse(null);
-                            store.index(result, message.getMessageId(), collection, start, end);
+                            store.index(value, message.getMessageId(), collection, start, end, metadata, Guarantee.DEFAULT, false);
                         }
                     }
                 }
