@@ -21,6 +21,7 @@ import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.persisting.search.DocumentMessageReader;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
@@ -69,8 +70,7 @@ public class LocalDocumentHandlerRegistry extends AbstractNamespaced<HasLocalHan
     private void initializeMonitor() {
         if (initialized.compareAndSet(false, true)) {
             ((InMemorySearchStore) client.getSearchClient()).registerMonitor(
-                    (collection, messages) -> serializer.deserializeMessages(
-                            messages.stream(), MessageType.DOCUMENT, collection).forEach(message -> {
+                    (collection, messages) -> new DocumentMessageReader().read(messages, collection, serializer).forEach(message -> {
                         message = setConsumerNamespace(
                                 message, isApplicationNamespace(client) ? null : client.namespace());
                         dispatchInterceptor.monitorDispatch(

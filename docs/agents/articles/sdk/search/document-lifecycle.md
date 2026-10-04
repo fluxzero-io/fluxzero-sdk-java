@@ -39,6 +39,20 @@ Returning a higher-revision document can rewrite it in place during a controlled
 replay boundary, then verify final documents and public queries. Adding `@Facet`, `@Sortable`, `@SearchExclude`, or an
 upcaster does not backfill existing documents by itself.
 
+Ordinary higher-revision replacements retain the handled stored version's metadata, including through upcasting.
+To explicitly replace it, return `new Message(document, Metadata.of("source", "migration"))` in Java or
+`Message(document, Metadata.of("source", "migration"))` in Kotlin. `Metadata.empty()` removes all metadata.
+This is a complete metadata replacement, not a merge with the tracking envelope. The payload's revision gate,
+document ID, timestamp-path precedence and direct-null deletion remain unchanged. Only payload and metadata
+participate in this write; a Message's ID/time and other envelope fields do not
+change the indexed document identity/times.
+
+Custom serializers that create entirely new document envelopes or decoded messages must call
+`DocumentMessageReader.retainSource(decodedOutput, originalInput)` for each output, associating it with the
+unchanged original stored input even when batching, reordering or splitting. Standard input-envelope withers
+preserve source attribution automatically. This transfers stored metadata provenance only; preserve ordinary
+message identity/revision/transport fields separately. The same API applies in Java and Kotlin.
+
 ## Destructive maintenance
 
 Targeted delete/move/bulk operations and collection deletion belong to search maintenance. Before deletion, count and

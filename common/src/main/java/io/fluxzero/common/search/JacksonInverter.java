@@ -270,31 +270,39 @@ public class JacksonInverter implements Inverter<JsonNode> {
 
     @SuppressWarnings("unchecked")
     public static Metadata extractMetadata(Map<Entry, List<Path>> entries) {
-        SortedMap<Object, Object> tree = new TreeMap<>();
-        entries.forEach((entry, paths) -> paths.stream().map(Path::getValue).filter(JacksonInverter::isMetadataPath)
-                .forEach(path -> {
-                    String relativePath = path.substring(METADATA_PATH_PREFIX.length()).replaceFirst("^/", "");
-                    if (relativePath.isEmpty()) {
-                        return;
+        SortedMap<Object, Object> tree = null;
+        for (Map.Entry<Entry, List<Path>> entry : entries.entrySet()) {
+            for (Path location : entry.getValue()) {
+                String path = location.getValue();
+                if (!isMetadataPath(path) || path.equals(METADATA_PATH_PREFIX)) {
+                    continue;
+                }
+                if (tree == null) {
+                    tree = new TreeMap<>();
+                }
+                String relativePath = path.substring(METADATA_PATH_PREFIX.length() + 1);
+                SortedMap<Object, Object> parent = tree;
+                Iterator<String> iterator = Path.split(relativePath).iterator();
+                while (iterator.hasNext()) {
+                    String rawSegment = iterator.next();
+                    Object segment = parent == tree
+                            ? SearchUtils.unescapeFieldName(rawSegment)
+                            : asIntegerOrString(rawSegment);
+                    if (iterator.hasNext()) {
+                        parent = (SortedMap<Object, Object>) parent.computeIfAbsent(segment, s -> new TreeMap<>());
+                    } else {
+                        parent.put(segment, toJsonNode(entry.getKey()));
                     }
-                    SortedMap<Object, Object> parent = tree;
-                    Iterator<String> iterator = Path.split(relativePath).iterator();
-                    while (iterator.hasNext()) {
-                        String rawSegment = iterator.next();
-                        Object segment = parent == tree
-                                ? SearchUtils.unescapeFieldName(rawSegment)
-                                : asIntegerOrString(rawSegment);
-                        if (iterator.hasNext()) {
-                            parent = (SortedMap<Object, Object>) parent.computeIfAbsent(segment, s -> new TreeMap<>());
-                        } else {
-                            parent.put(segment, toJsonNode(entry));
-                        }
-                    }
-                }));
+                }
+            }
+        }
+        if (tree == null) {
+            return Metadata.empty();
+        }
         Map<String, String> result = new LinkedHashMap<>();
         tree.forEach((key, value) -> {
             JsonNode node = toJsonNode(value);
-            result.put(SearchUtils.unescapeFieldName(key.toString()),
+            result.put(key.toString(),
                        node.isTextual() ? node.asText() : Metadata.objectMapper.valueToTree(node).toString());
         });
         return Metadata.of(result);
