@@ -166,7 +166,7 @@ class ModelCommitValidatorTest {
     @Test
     void rejectsSnapshotsThatCannotBeReconstructed() {
         ModelCommitTarget invalid = target("order-1").toBuilder()
-                .snapshot(new ModelSnapshotMutation(null, 0L, 10, 2))
+                .snapshot(new ModelSnapshotMutation(null, 0L, 10, 2, null))
                 .build();
 
         assertThrows(

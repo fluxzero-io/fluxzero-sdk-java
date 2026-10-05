@@ -55,6 +55,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 
+import io.fluxzero.sdk.scheduling.DeadlineMetadata;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1828,7 +1829,8 @@ final class ModelReplayCursor {
         return ImmutableModelRoot.revision(
                 entity.id(), (Class<Object>) entity.type(), entity.idProperty(), entity.get(),
                 entityHelper, serializer, null, null, entity.timestamp(),
-                head.getSequenceNumber(), head.getStateIndex(), castPrevious(previous));
+                head.getSequenceNumber(), head.getStateIndex(), castPrevious(previous))
+                .withDeadlines(DeadlineMetadata.get(entity));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -2307,7 +2309,8 @@ final class ModelReplayCursor {
                     target.modelId(), (Class<Object>) target.modelType(),
                     EntityMetadata.of(target.modelType()).entityId().orElseThrow().name(), snapshot.value(),
                     entityHelper, serializer, null, null, snapshot.timestamp(),
-                    snapshot.sequenceNumber(), snapshot.stateIndex(), null);
+                    snapshot.sequenceNumber(), snapshot.stateIndex(), null)
+                    .withDeadlines(DeadlineMetadata.read(snapshot.metadata(), target.modelId(), Map.of()));
         }
 
         private void applyPage(
@@ -2944,7 +2947,9 @@ final class ModelReplayCursor {
                     entity.id(), (Class<Object>) entity.type(), entity.idProperty(), value,
                     entityHelper, serializer, event.getMessageId(), event.getIndex(),
                     Instant.ofEpochMilli(event.getTimestamp()), sequenceNumber, stateIndex,
-                    castPrevious(ImmutableRoot.retainPrevious(previous, configuration)));
+                    castPrevious(ImmutableRoot.retainPrevious(previous, configuration)))
+                    .withDeadlines(DeadlineMetadata.read(event.getMetadata(), entity.id().toString(),
+                                                        DeadlineMetadata.get(previous)));
         }
 
         private Entity<?> withHead(Entity<?> entity, ModelHeadState head) {

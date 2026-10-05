@@ -22,6 +22,8 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.CommitModelsWithDeadlines;
+import io.fluxzero.common.api.modeling.ModelDeadlineUpdate;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -70,6 +72,22 @@ class InMemoryEventStoreModelCommitTest {
     void stopOperations() throws InterruptedException {
         operations.shutdownNow();
         assertTrue(operations.awaitTermination(2, TimeUnit.SECONDS), "Test operations did not terminate");
+    }
+
+    @Test
+    void scheduleObserversSeeTheReceiptOutsideTheModelLock() {
+        InMemoryEventStore store = denseStore();
+        var request = new CommitModelsWithDeadlines(commit("deadline", ModelCommitStep.builder()
+                .event(event("deadline")).targets(List.of(storedTarget("root"))).build()),
+                List.of(new ModelDeadlineUpdate("root", "default", "schedule", null, true)));
+        AtomicInteger notifications = new AtomicInteger();
+        store.setModelScheduleWriter(updates -> () -> {
+            assertFalse(Thread.holdsLock(store));
+            assertTrue(store.commitModels(request).join().isDuplicate());
+            notifications.incrementAndGet();
+        });
+        assertTrue(store.commitModels(request).join().isAccepted());
+        assertEquals(1, notifications.get());
     }
 
     @Test

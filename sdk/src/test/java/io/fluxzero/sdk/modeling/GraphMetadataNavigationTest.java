@@ -1049,8 +1049,8 @@ class GraphMetadataNavigationTest {
         Entity<Aliased> empty = ImmutableModelRoot.initial("missing", Aliased.class, "rootId", null);
         var value = new java.util.concurrent.atomic.AtomicReference<Entity<Aliased>>(empty);
         var complete = Graphs.materialized(List.of(
-                new Graphs.MaterializedNode("missing", Aliased.class, -1, null, () -> null),
-                new Graphs.MaterializedNode("child", AliasChild.class, 0, "children", () -> new AliasChild("child", "missing"))),
+                new Graphs.MaterializedNode("missing", Aliased.class, -1, null, () -> null, Map.of()),
+                new Graphs.MaterializedNode("child", AliasChild.class, 0, "children", () -> new AliasChild("child", "missing"), Map.of())),
                 Aliased.class, 0L, null, null, Map.of(), Map.of());
         ModelGraphResolver resolver = (ModelGraphResolver) Proxy.newProxyInstance(
                 ModelGraphResolver.class.getClassLoader(), new Class<?>[]{ModelGraphResolver.class, ModelRepository.class},

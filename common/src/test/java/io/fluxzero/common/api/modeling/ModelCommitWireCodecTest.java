@@ -42,48 +42,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
-    void deadlineFacetsAndObsoleteResultsRoundTripOnEveryTransport() throws Exception {
+    void deadlineEffectsRoundTripOnEveryTransport() throws Exception {
         CommitModels ordinary = commit("deadline-wire", false);
         ordinary.getSubsteps().getFirst().getEvent().setIndex(null);
         String owner = ordinary.getReadModelIds().getFirst();
         var schedule = new io.fluxzero.common.api.scheduling.SerializedSchedule("explicit-id", 1234L,
-                new SerializedMessage(new Data<>(new byte[]{1}, "payload", 0), Metadata.empty(), "generation", 0L), false);
+                new SerializedMessage(new Data<>(new byte[]{1}, "payload", 0), Metadata.empty(), "message", 0L), false);
         var request = new CommitModelsWithDeadlines(ordinary,
-                List.of(new ModelDeadlineUpdate(owner, "expiry", schedule, true, true)),
-                new ModelDeadlineClaim(owner, "previous-id", "previous-generation"));
+                List.of(new ModelDeadlineUpdate(owner, "expiry", "previous-id", schedule, true)));
         ModelCommitValidator.validate(request);
         for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
             var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
             var decoded = assertInstanceOf(RequestBatch.class, codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
             var received = assertInstanceOf(CommitModelsWithDeadlines.class, decoded.getRequests().getFirst());
             assertEquals(request.getDeadlineUpdates(), received.getDeadlineUpdates());
-            assertEquals(request.getDeadlineClaim(), received.getDeadlineClaim());
             assertEquals(request.getSubsteps(), received.getSubsteps());
-            var obsolete = CommitModelsResult.obsoleteDeadline(request.getRequestId(), request.getCommitId());
-            var result = assertInstanceOf(CommitModelsResult.class, codec.decode(codec.encode(obsolete)));
-            assertTrue(result.isObsoleteDeadline());
-            assertFalse(result.isAccepted());
         }
     }
 
     @Test
-    void legacyDeadlineUpdatesAllowActivationAndConditionalCancellationIsInvalid() throws Exception {
-        var update = new ModelDeadlineUpdate("owner", "expiry", null, true, false);
-        var json = (com.fasterxml.jackson.databind.node.ObjectNode) JsonUtils.valueToTree(update);
-        json.remove("rescheduleOnly");
-        assertFalse(JsonUtils.writer.treeToValue(json, ModelDeadlineUpdate.class).rescheduleOnly());
-        CommitModels ordinary = commit("invalid-reschedule", false);
-        var invalid = new ModelDeadlineUpdate(ordinary.getReadModelIds().getFirst(), "expiry", null, true, true);
+    void previousScheduleIdentityMustNotBeBlank() {
+        CommitModels ordinary = commit("invalid-cancellation", false);
+        var invalid = new ModelDeadlineUpdate(ordinary.getReadModelIds().getFirst(), "expiry", " ", null, true);
         assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(
-                new CommitModelsWithDeadlines(ordinary, List.of(invalid), null)));
-    }
-
-    @Test
-    void legacyResultsDefaultToANonObsoleteDeadline() throws Exception {
-        var result = CommitModelsResult.obsoleteDeadline(123L, "legacy");
-        var json = (com.fasterxml.jackson.databind.node.ObjectNode) JsonUtils.valueToTree(result);
-        json.remove("obsoleteDeadline");
-        assertFalse(JsonUtils.writer.treeToValue(json, CommitModelsResult.class).isObsoleteDeadline());
+                new CommitModelsWithDeadlines(ordinary, List.of(invalid))));
     }
 
     @Test

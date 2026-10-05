@@ -29,7 +29,6 @@ import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsWithDeadlines;
-import io.fluxzero.common.api.modeling.CheckModelDeadline;
 import io.fluxzero.common.api.modeling.CommitModelsWithRelationships;
 import io.fluxzero.common.api.modeling.CommitModelsWithAliasReads;
 import io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections;
@@ -144,7 +143,6 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //modeling
         @JsonSubTypes.Type(value = CommitModels.class, name = "commitModels"),
         @JsonSubTypes.Type(value = CommitModelsWithDeadlines.class, name = "commitModelsWithDeadlines"),
-        @JsonSubTypes.Type(value = CheckModelDeadline.class, name = "checkModelDeadline"),
         @JsonSubTypes.Type(value = CommitModelsWithRelationships.class, name = "commitModelsWithRelationships"),
         @JsonSubTypes.Type(value = CommitModelsWithAliasReads.class, name = "commitModelsWithAliasReads"),
         @JsonSubTypes.Type(value = CommitModelsWithDocumentProjections.class, name = "commitModelsWithDocumentProjections"),

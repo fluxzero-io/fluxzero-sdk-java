@@ -69,11 +69,6 @@ import java.util.concurrent.CompletableFuture;
  * @see io.fluxzero.sdk.persisting.repository.AggregateRepository
  */
 public interface EventStoreClient extends AutoCloseable {
-    /** Checks a Model deadline generation without consuming it. Commit-time comparison remains mandatory. */
-    default CompletableFuture<Boolean> checkModelDeadline(io.fluxzero.common.api.modeling.ModelDeadlineClaim claim) {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException("Model deadlines are not supported"));
-    }
-
 
     /**
      * Atomically commits the ordered state transitions of one independent-model commit.

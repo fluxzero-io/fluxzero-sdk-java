@@ -17,11 +17,13 @@
 package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.search.SortableEntry;
 import lombok.Value;
 
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
@@ -65,6 +67,9 @@ public class ModelSnapshotMutation {
      */
     int maxSnapshotCount;
 
+    /** SDK-owned revision metadata, retained with the snapshot; absent on older snapshot writes. */
+    Metadata metadata;
+
     /**
      * Returns the serialized value size without protocol framing.
      */
@@ -81,23 +86,19 @@ public class ModelSnapshotMutation {
             String modelId,
             long sequenceNumber,
             long stateIndex) {
+        Set<FacetEntry> facets = new LinkedHashSet<>(Set.of(
+                new FacetEntry(MODEL_ID_FACET, modelId),
+                new FacetEntry(SEQUENCE_NUMBER, Long.toString(sequenceNumber)),
+                new FacetEntry(STATE_INDEX, Long.toString(stateIndex))));
+        if (metadata != null) {
+            metadata.entrySet().forEach(e -> facets.add(new FacetEntry(e.getKey(), e.getValue())));
+        }
         return new SerializedDocument(
                 snapshotKey(modelId,
                             sequenceNumber),
                 timestamp, null, COLLECTION,
                 value, null,
-                Set.of(
-                        new FacetEntry(
-                                MODEL_ID_FACET,
-                                modelId),
-                        new FacetEntry(
-                                SEQUENCE_NUMBER,
-                                Long.toString(
-                                        sequenceNumber)),
-                        new FacetEntry(
-                                STATE_INDEX,
-                                Long.toString(
-                                        stateIndex))),
+                facets,
                 Set.of(
                         new SortableEntry(
                                 SEQUENCE_NUMBER,

@@ -47,7 +47,7 @@ class ModelSnapshotStoreTest {
                 new ModelSnapshotMutation(
                         serializer.serialize("value"),
                         timestamp.toEpochMilli(),
-                        2, 3)
+                        2, 3, null)
                         .toDocument("model-1", 5L, 8L);
 
         ModelSnapshotStore.Snapshot snapshot =
@@ -64,10 +64,10 @@ class ModelSnapshotStoreTest {
         var fluxzero = TestFixture.create().getFluxzero();
         List<SerializedDocument> snapshots = List.of(
                 new ModelSnapshotMutation(
-                        serializer.serialize("previous"), 1L, 1, 2)
+                        serializer.serialize("previous"), 1L, 1, 2, null)
                         .toDocument("model-1", 1L, Long.MAX_VALUE - 1L),
                 new ModelSnapshotMutation(
-                        serializer.serialize("latest"), 2L, 1, 2)
+                        serializer.serialize("latest"), 2L, 1, 2, null)
                         .toDocument("model-1", 2L, Long.MAX_VALUE));
         fluxzero.client().getSearchClient()
                 .index(snapshots, Guarantee.STORED, false)

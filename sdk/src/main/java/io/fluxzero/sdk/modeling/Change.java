@@ -36,7 +36,7 @@ public record Change(
         ModelConflictPolicy conflictPolicy,
         GraphProjectionCompletion graphProjectionCompletion,
         boolean active, boolean storeEvent, boolean publishEvent,
-        boolean updateState) {
+        boolean updateState, boolean deadlineOnly, java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) {
 
     public Change {
         Objects.requireNonNull(modelId, "modelId");
@@ -115,7 +115,21 @@ public record Change(
                 before, after, handler, directReplay, cascadedDeletion,
                 metadata,
                 conflictPolicy, graphProjectionCompletion, active,
-                storeEvent, publishEvent, updateState);
+                storeEvent, publishEvent, updateState, deadlineOnly, deadlines);
+    }
+
+    /** Attaches the complete SDK-computed metadata for this exact revision. */
+    public Change withDeadlines(java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> value) {
+        return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after, handler,
+                directReplay, cascadedDeletion, metadata, conflictPolicy, graphProjectionCompletion, active,
+                storeEvent, publishEvent, updateState, deadlineOnly, value == null ? null : java.util.Map.copyOf(value));
+    }
+
+    /** Marks a revision whose sole purpose is retaining computed deadline metadata. */
+    Change asDeadlineUpdate() {
+        return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after, handler,
+                directReplay, cascadedDeletion, metadata, configuration().conflictPolicy(), graphProjectionCompletion, active,
+                storeEvent, publishEvent, updateState, true, deadlines);
     }
 
     /** Whether this change originated from a direct graph mutation rather than a model handler. */
@@ -127,7 +141,7 @@ public record Change(
     Change checkedReplacement() {
         return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after,
                           handler, directReplay, false, metadata, ModelConflictPolicy.FAIL, graphProjectionCompletion,
-                          true, configuration().eventSourced(), false, true);
+                          true, configuration().eventSourced(), false, true, deadlineOnly, deadlines);
     }
 
     /**
@@ -170,7 +184,7 @@ public record Change(
                 metadata, settings.conflict(),
                 overrides.graphProjectionCompletion(),
                 decision.active(), decision.storeEvent(),
-                decision.publishEvent(), decision.updateState());
+                decision.publishEvent(), decision.updateState(), false, null);
     }
 
     /**

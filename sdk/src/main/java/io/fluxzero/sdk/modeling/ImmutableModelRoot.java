@@ -53,6 +53,16 @@ public class ImmutableModelRoot<T> extends ImmutableRoot<T>
     @EqualsAndHashCode.Include
     long stateIndex = -1L;
 
+    @JsonProperty
+    @Builder.Default
+    @EqualsAndHashCode.Include
+    java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines = java.util.Map.of();
+
+    /** Returns this revision with its immutable SDK-owned deadline metadata. */
+    public ImmutableModelRoot<T> withDeadlines(java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> value) {
+        return deadlines.equals(value) ? this : toBuilder().deadlines(java.util.Map.copyOf(value)).build();
+    }
+
     private ImmutableModelRoot(
             Object id,
             Class<T> type,
@@ -69,6 +79,7 @@ public class ImmutableModelRoot<T> extends ImmutableRoot<T>
         super(id, type, idProperty, value, entityHelper, serializer,
               lastEventId, lastEventIndex, timestamp, sequenceNumber, previous);
         this.stateIndex = stateIndex;
+        this.deadlines = java.util.Map.of();
     }
 
     private ImmutableModelRoot(
@@ -79,6 +90,7 @@ public class ImmutableModelRoot<T> extends ImmutableRoot<T>
             Entity<T> previous) {
         super(source, lastEventId, lastEventIndex, sequenceNumber, previous);
         this.stateIndex = source.stateIndex;
+        this.deadlines = source.deadlines;
     }
 
     /** Creates a new uncommitted model root with the current timestamp. */

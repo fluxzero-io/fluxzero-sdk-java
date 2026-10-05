@@ -25,7 +25,7 @@ import java.beans.ConstructorProperties;
 import java.util.List;
 
 /**
- * Commits changed deadline intents or consumes an active generation with Model state. The distinct
+ * Commits SDK-computed ordinary scheduler effects together with Model state. The distinct
  * wire type requires explicit service support. All existing relationship, alias and document
  * projection facets are retained.
  */
@@ -35,10 +35,9 @@ public final class CommitModelsWithDeadlines extends CommitModels {
     private final List<ModelRelationshipRead> readRelationships;
     private final List<String> readAliasIds;
     private final List<ModelDeadlineUpdate> deadlineUpdates;
-    private final ModelDeadlineClaim deadlineClaim;
 
     public CommitModelsWithDeadlines(
-            CommitModels commit, List<ModelDeadlineUpdate> updates, ModelDeadlineClaim claim) {
+            CommitModels commit, List<ModelDeadlineUpdate> updates) {
         this(
                 commit.getRequestId(),
                 commit.getCommitId(),
@@ -51,8 +50,7 @@ public final class CommitModelsWithDeadlines extends CommitModels {
                 commit.isMigration(),
                 commit.getReadRelationships(),
                 commit.getReadAliasIds(),
-                updates,
-                claim);
+                updates);
     }
 
     @ConstructorProperties({
@@ -67,8 +65,7 @@ public final class CommitModelsWithDeadlines extends CommitModels {
         "migration",
         "readRelationships",
         "readAliasIds",
-        "deadlineUpdates",
-        "deadlineClaim"
+        "deadlineUpdates"
     })
     public CommitModelsWithDeadlines(
             long requestId,
@@ -82,8 +79,7 @@ public final class CommitModelsWithDeadlines extends CommitModels {
             boolean migration,
             List<ModelRelationshipRead> readRelationships,
             List<String> readAliasIds,
-            List<ModelDeadlineUpdate> deadlineUpdates,
-            ModelDeadlineClaim deadlineClaim) {
+            List<ModelDeadlineUpdate> deadlineUpdates) {
         super(
                 requestId,
                 commitId,
@@ -98,7 +94,6 @@ public final class CommitModelsWithDeadlines extends CommitModels {
                 readRelationships == null ? List.of() : List.copyOf(readRelationships);
         this.readAliasIds = readAliasIds == null ? List.of() : List.copyOf(readAliasIds);
         this.deadlineUpdates = List.copyOf(deadlineUpdates);
-        this.deadlineClaim = deadlineClaim;
     }
 
     @Override

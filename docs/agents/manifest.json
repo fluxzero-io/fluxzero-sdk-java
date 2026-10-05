@@ -2947,11 +2947,14 @@
     {
       "path": "/docs/sdk/scheduling/model-deadlines",
       "title": "Declarative Model Deadlines",
-      "summary": "Declare one-shot Model commands or schedule messages with Schedule, property-based cron or delay, atomic intent guards and ancestor/Graph reevaluation.",
+      "summary": "Declare one-shot Model commands or schedule messages with Schedule, property-based cron or delay, protected Model metadata, Graph.deadlines() and ancestor/Graph reevaluation.",
       "source": "articles/sdk/scheduling/model-deadlines.md",
       "symbols": [
         "@Deadline",
         "Schedule.forDeadline",
+        "Graph.deadlines",
+        "DeadlineInfo",
+        "$fluxzero.deadline",
         "Deadline.DISABLED",
         "cancelOnDeletion",
         "Model deadline",

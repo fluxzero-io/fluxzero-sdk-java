@@ -18,7 +18,6 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.api.modeling.ModelDeadlineClaim;
 import io.fluxzero.common.api.modeling.ModelDeadlineUpdate;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
@@ -27,7 +26,8 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.scheduling.Deadline;
-import io.fluxzero.sdk.scheduling.DeadlineDelivery;
+import io.fluxzero.sdk.scheduling.DeadlineInfo;
+import io.fluxzero.sdk.scheduling.DeadlineMetadata;
 import io.fluxzero.sdk.scheduling.Schedule;
 
 import java.lang.reflect.InvocationTargetException;
@@ -133,7 +133,6 @@ final class DeadlinePlan {
                 last.put(change.modelId(), change);
             }
         }
-        ModelDeadlineClaim claim = DeadlineDelivery.claim(message);
         Instant referenceTime = Fluxzero.currentTime();
         Set<Class<?>> contextual = new LinkedHashSet<>();
         boolean graphContext = false;
@@ -147,7 +146,7 @@ final class DeadlinePlan {
             }
         }
         boolean local = last.values().stream().anyMatch(c -> !c.metadata().deadlines().isEmpty());
-        if (!local && contextual.isEmpty() && claim == null) {
+        if (!local && contextual.isEmpty()) {
             return attempt;
         }
         if (!contextual.isEmpty()) {
@@ -198,9 +197,19 @@ final class DeadlinePlan {
             }
         }
         List<ModelDeadlineUpdate> updates = new ArrayList<>();
+        Map<String, Map<String, DeadlineInfo>> original = new LinkedHashMap<>(), planned = new LinkedHashMap<>();
+        List<Change> contextualChanges = new ArrayList<>();
         for (var candidate : candidates.entrySet()) {
             String id = candidate.getKey();
             Class<?> type = candidate.getValue();
+            Entity<?> stored = attempt.deadlineOrigin(id);
+            if (stored == null) { stored = attempt.entity(id); }
+            if (stored == null) { stored = attempt.graphReadEntity(id); }
+            Graph<?> oldGraph = oldGraphs.get(id);
+            Map<String, DeadlineInfo> recorded = stored == null && oldGraph != null
+                    ? oldGraph.deadlines() : DeadlineMetadata.get(stored);
+            original.put(id, recorded);
+            Map<String, DeadlineInfo> desired = new LinkedHashMap<>(recorded);
             for (Declaration declaration : EntityMetadata.of(type).deadlines()) {
                 if (!last.containsKey(id) && !declaration.contextual()) {
                     continue;
@@ -233,30 +242,34 @@ final class DeadlinePlan {
                     continue;
                 }
                 String category = declaration.category();
-                String scheduleId =
-                        next != null && next.hasExplicitScheduleId()
-                                ? next.getScheduleId()
-                                : ModelDeadlineUpdate.scheduleId(id, category);
-                if (next == null) {
-                    updates.add(
-                            new ModelDeadlineUpdate(
-                                    id, category, null, declaration.cancelOnDeletion(), false));
+                DeadlineInfo previous = recorded.get(category);
+                // Compare declarations first; only changed existing work needs the original-time guard.
+                Instant oldTime = previous == null ? old == null ? null : old.getDeadline() : previous.deadline();
+                if (next != null && old != null && oldTime != null && !oldTime.isAfter(referenceTime)) {
                     continue;
                 }
-                // Categories sharing a public ID in one commit must never share a delivery token.
-                String generation =
+                String previousId = previous != null ? previous.scheduleId()
+                        : old == null ? null : old.hasExplicitScheduleId() ? old.getScheduleId()
+                        : ModelDeadlineUpdate.scheduleId(id, category);
+                String scheduleId = next != null && next.hasExplicitScheduleId() ? next.getScheduleId()
+                        : ModelDeadlineUpdate.scheduleId(id, category);
+                if (next == null) {
+                    desired.remove(category);
+                    if (previousId != null) {
+                        updates.add(new ModelDeadlineUpdate(id, category, previousId, null, declaration.cancelOnDeletion()));
+                    }
+                    continue;
+                }
+                desired.put(category, new DeadlineInfo(scheduleId, next.getDeadline(), declaration.command(),
+                                                       declaration.cancelOnDeletion()));
+                String messageId =
                         UUID.nameUUIDFromBytes(
                                         (ModelDeadlineUpdate.scheduleId(id, category) + ":"
                                                 + message.getMessageId() + ":" + scheduleId)
                                                 .getBytes(StandardCharsets.UTF_8))
                                 .toString();
                 var provider = Fluxzero.get().userProvider();
-                Metadata metadata =
-                        next.getMetadata()
-                                .with(
-                                        DeadlineDelivery.metadata(
-                                                new ModelDeadlineClaim(id, scheduleId, generation),
-                                                next.getDeadline()));
+                Metadata metadata = DeadlineMetadata.strip(next.getMetadata());
                 if (provider != null) {
                     var systemUser = provider.getSystemUser();
                     if (systemUser == null && (provider.getActiveUser() != null || provider.containsUser(metadata))) {
@@ -268,7 +281,7 @@ final class DeadlinePlan {
                         new Schedule(
                                 next.getPayload(),
                                 metadata,
-                                generation,
+                                messageId,
                                 Fluxzero.currentTime(),
                                 scheduleId,
                                 next.getDeadline());
@@ -279,10 +292,34 @@ final class DeadlinePlan {
                                 .prepareDeadline(schedule, declaration.command());
                 updates.add(
                         new ModelDeadlineUpdate(
-                                id, category, prepared, declaration.cancelOnDeletion(), sameContent));
+                                id, category, previousId, prepared, declaration.cancelOnDeletion()));
+            }
+            planned.put(id, Map.copyOf(desired));
+            if (!last.containsKey(id) && !desired.equals(recorded)) {
+                Entity<?> owner = stored != null ? stored : attempt.graphReadEntity(id);
+                if (owner == null) { throw new IllegalStateException("Missing deadline owner " + id); }
+                Object value = owner.get();
+                contextualChanges.add(Change.applied(id, type, owner.sequenceNumber(), owner.lastEventIndex(),
+                        value, value, null, java.util.function.UnaryOperator.identity(), false)
+                        .checkedReplacement().withEffects(EntityMetadata.of(type).rootConfiguration().orElseThrow().eventSourced(), false, true)
+                        .withDeadlines(desired).asDeadlineUpdate());
             }
         }
-        attempt.deadlines(updates, claim, local || !updates.isEmpty() || claim != null);
+        attempt.deadlines(updates);
+        Map<String, Change> finalChanges = new LinkedHashMap<>();
+        attempt.transitions().forEach(c -> finalChanges.put(c.modelId(), c));
+        List<CommitAttempt.Step> steps = new ArrayList<>();
+        for (var step : attempt.steps()) {
+            steps.add(new CommitAttempt.Step(step.message(), step.changes().stream().map(change -> {
+                Map<String, DeadlineInfo> value = change == finalChanges.get(change.modelId())
+                        ? planned.get(change.modelId()) : original.get(change.modelId());
+                return value == null ? change : change.withDeadlines(value);
+            }).toList()));
+        }
+        if (!contextualChanges.isEmpty()) {
+            steps.add(new CommitAttempt.Step(message, contextualChanges));
+        }
+        attempt.deadlineSteps(steps);
         attempt.finishDeadlineReads();
         return attempt;
     }

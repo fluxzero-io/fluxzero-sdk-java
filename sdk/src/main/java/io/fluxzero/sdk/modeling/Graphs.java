@@ -463,11 +463,13 @@ public final class Graphs {
 
     /** Description of one placement in a materialized graph manifest. */
     public record MaterializedNode(
-            String id, Class<?> type, int parent, String relationshipPath, Supplier<?> value) {
+            String id, Class<?> type, int parent, String relationshipPath, Supplier<?> value,
+            Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) {
         public MaterializedNode {
             Objects.requireNonNull(id, "id");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(value, "value");
+            deadlines = deadlines == null ? Map.of() : Map.copyOf(deadlines);
             if (parent < -1) {
                 throw new IllegalArgumentException("Materialized graph parent must be at least -1");
             }
@@ -949,7 +951,7 @@ final class GraphState {
                                 .formatted(specification.parent(), specification.id()));
             }
             NodeData data = NodeData.materialized(
-                    specification.id(), specification.type(), specification.value());
+                    specification.id(), specification.type(), specification.value(), specification.deadlines());
             Node parent = specification.parent() < 0 ? null : placements.get(specification.parent());
             Node node = new Node(data, parent, specification.relationshipPath(), false);
             if (parent != null) {
@@ -1656,8 +1658,12 @@ final class GraphState {
         }
 
         static NodeData materialized(
-                String id, Class<?> type, Supplier<?> value) {
-            return new NodeData(id, type, new Materialized(value), false);
+                String id, Class<?> type, Supplier<?> value, Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) {
+            return new NodeData(id, type, new Materialized(value, deadlines), false);
+        }
+
+        Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> materializedDeadlines() {
+            return resolution instanceof Materialized materialized ? materialized.deadlines() : null;
         }
 
         static NodeData external(Graph<?> graph) {
@@ -1773,7 +1779,7 @@ final class GraphState {
         private record LazyIdentity(Object requestedId, boolean exact) implements Resolution {
         }
 
-        private record Materialized(Supplier<?> value) implements Resolution {
+        private record Materialized(Supplier<?> value, Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) implements Resolution {
         }
 
         private record External(Graph<?> graph) implements Resolution {
@@ -2326,6 +2332,16 @@ final class GraphView<T> implements Graph<T> {
         }
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().sequenceNumber() : entity.sequenceNumber();
+    }
+
+    @Override
+    public java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines() {
+        CommitAttempt.graphValueRead(this);
+        Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> materialized = node.data().materializedDeadlines();
+        if (materialized != null) { return materialized; }
+        Entity<?> entity = node.data().entity();
+        return entity == null ? node.data().durable().deadlines()
+                : io.fluxzero.sdk.scheduling.DeadlineMetadata.get(entity);
     }
 
     @Override

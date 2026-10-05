@@ -1123,7 +1123,7 @@ public final class ModelReducer {
                 pending.add(new PendingSubstep(
                         step.message(), null, InterceptionPhase.NONE));
             }
-            changes.stream().filter(Change::directMutation).forEach(change ->
+            changes.stream().filter(Change::directMutation).filter(c -> !c.deadlineOnly()).forEach(change ->
                     pending.add(new PendingSubstep(
                             step.message(), change.forRebase(), InterceptionPhase.NONE)));
         }
@@ -1199,6 +1199,7 @@ public final class ModelReducer {
                             prepared.context().bindGraphReads(attempt);
                             List<Change> transitions = prepared.reducer().apply(
                                     current.message(), prepared.context(), true, true, new LinkedHashSet<>(), null);
+                            prepared.context().retainDeadlineOrigins(transitions);
                             attempt.evaluated(
                                     prepared.context().readStateIndex(),
                                     List.of(target.modelId()),
@@ -1273,6 +1274,7 @@ public final class ModelReducer {
                     stagedValues.put(
                             change.modelId(), change.after());
                     applyReadModelIds.add(change.modelId());
+                    context.retainDeadlineOrigins(List.of(change));
                     mergeDirectMutation(steps, current.message(), change);
                     if (!pending.isEmpty()) { context.retainWriteOrigins(List.of(change)); }
                     continue;
@@ -1320,6 +1322,7 @@ public final class ModelReducer {
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
                         applyReadModelIds, assertionLoader);
+                context.retainDeadlineOrigins(transitions);
                 readStateIndex = context.readStateIndex();
                 if (!pending.isEmpty()) { context.retainWriteOrigins(transitions); }
                 for (Change transition : transitions) {

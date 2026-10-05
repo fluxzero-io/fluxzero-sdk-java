@@ -77,7 +77,7 @@ class InMemorySearchStoreModelMaterializationTest {
         String id = "model-1", collection = "model-sources";
         SerializedDocument source = structuredDocument(id, collection, "private");
         var snapshot = new io.fluxzero.common.api.modeling.ModelSnapshotMutation(
-                new io.fluxzero.common.api.Data<>(new byte[]{1}, "snapshot", 0), 0, 1, 1);
+                new io.fluxzero.common.api.Data<>(new byte[]{1}, "snapshot", 0), 0, 1, 1, null);
         var target = ModelCommitTarget.builder().modelId(id).modelType("TestModel").updateState(true)
                 .document(new ModelDocumentMutation(collection, source)).snapshot(snapshot).build();
         var commit = new CommitModels("initial", -1L, List.of(id),

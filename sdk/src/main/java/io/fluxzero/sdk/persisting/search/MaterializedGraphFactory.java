@@ -57,14 +57,15 @@ final class MaterializedGraphFactory {
             Supplier<ModelRepository> repositorySupplier, Collection<Class<?>> registeredModelTypes,
             Map<String, String> pathOverrides) {
         DocumentSnapshot snapshot = DocumentSnapshot.of(document);
-        ModelGraphDocumentManifest manifest = ModelGraphDocumentManifest.from(
-                snapshot == null ? document.getMetadata() : JacksonInverter.extractMetadata(snapshot.entries()))
+        io.fluxzero.common.api.Metadata metadata = snapshot == null ? document.getMetadata()
+                : JacksonInverter.extractMetadata(snapshot.entries());
+        ModelGraphDocumentManifest manifest = ModelGraphDocumentManifest.from(metadata)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Graph document %s has no typed model graph manifest".formatted(document.getId())));
         SerializedDocument sourceDocument = snapshot == null ? document : snapshot.document(document);
         return create(new Source(
                 document.getId(), document.getCollection(), document.getTimestamp(), document.getEnd(),
-                documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, manifest, null,
+                documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, manifest, null, metadata,
                 () -> Source.rawJson(sourceDocument, documentSerializer)), rootType);
     }
 
@@ -74,17 +75,17 @@ final class MaterializedGraphFactory {
             Supplier<ModelRepository> repositorySupplier, Collection<Class<?>> registeredModelTypes,
             Map<String, String> pathOverrides) {
         return create(document, documentId, collection, timestamp, end, manifest, rootType, documentSerializer,
-                      repositorySupplier, registeredModelTypes, pathOverrides, null);
+                      repositorySupplier, registeredModelTypes, pathOverrides, null, io.fluxzero.common.api.Metadata.empty());
     }
 
     static <T> Graph<T> create(
             JsonNode document, String documentId, String collection, Long timestamp, Long end,
             ModelGraphDocumentManifest manifest, Class<T> rootType, DocumentSerializer documentSerializer,
             Supplier<ModelRepository> repositorySupplier, Collection<Class<?>> registeredModelTypes,
-            Map<String, String> pathOverrides, Long previousStateIndex) {
+            Map<String, String> pathOverrides, Long previousStateIndex, io.fluxzero.common.api.Metadata metadata) {
         return create(new Source(
                 documentId, collection, timestamp, end, documentSerializer, repositorySupplier,
-                registeredModelTypes, pathOverrides, manifest, previousStateIndex, () -> document), rootType);
+                registeredModelTypes, pathOverrides, manifest, previousStateIndex, metadata, () -> document), rootType);
     }
 
     static <T> Graph<T> create(
@@ -93,7 +94,7 @@ final class MaterializedGraphFactory {
             Collection<Class<?>> registeredModelTypes, Map<String, String> pathOverrides, Long previousStateIndex) {
         Source source = new Source(document.getId(), document.getCollection(), document.getTimestamp(), document.getEnd(),
                 documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, manifest,
-                previousStateIndex, () -> Source.rawJson(document, documentSerializer));
+                previousStateIndex, message.getMetadata(), () -> Source.rawJson(document, documentSerializer));
         var root = manifest.nodes().getFirst();
         if (DocumentMessageReader.usesSerializer(message, documentSerializer)
                 && manifest.type(root).equals(document.getDocument().getType())
@@ -160,6 +161,7 @@ final class MaterializedGraphFactory {
         private final DocumentSerializer documentSerializer;
         private final ModelRepository repository;
         private final ModelGraphDocumentManifest manifest;
+        private final io.fluxzero.common.api.Metadata metadata;
         private final Long previousStateIndex;
         private final Supplier<JsonNode> jsonSupplier;
         private final Map<String, String> pathOverrides;
@@ -172,7 +174,8 @@ final class MaterializedGraphFactory {
                 String documentId, String collection, Long timestamp, Long end,
                 DocumentSerializer documentSerializer, Supplier<ModelRepository> repositorySupplier,
                 Collection<Class<?>> registeredModelTypes, Map<String, String> pathOverrides,
-                ModelGraphDocumentManifest manifest, Long previousStateIndex, Supplier<JsonNode> jsonSupplier) {
+                ModelGraphDocumentManifest manifest, Long previousStateIndex, io.fluxzero.common.api.Metadata metadata,
+                Supplier<JsonNode> jsonSupplier) {
             this.documentId = Objects.requireNonNull(documentId, "documentId");
             this.collection = collection;
             this.timestamp = timestamp;
@@ -180,6 +183,7 @@ final class MaterializedGraphFactory {
             this.documentSerializer = Objects.requireNonNull(documentSerializer, "documentSerializer");
             this.repository = Objects.requireNonNull(repositorySupplier, "repositorySupplier").get();
             this.manifest = Objects.requireNonNull(manifest, "manifest");
+            this.metadata = Objects.requireNonNull(metadata, "metadata");
             this.previousStateIndex = previousStateIndex;
             this.jsonSupplier = Objects.requireNonNull(jsonSupplier, "jsonSupplier");
             this.pathOverrides = Map.copyOf(pathOverrides);
@@ -215,7 +219,8 @@ final class MaterializedGraphFactory {
                 int nodeIndex = index;
                 result.add(new Graphs.MaterializedNode(
                         manifestNode.id(), type, manifestNode.parent(), relationshipPath,
-                        () -> convert(manifest.nodes().get(nodeIndex), type, documentPaths.get(nodeIndex))));
+                        () -> convert(manifest.nodes().get(nodeIndex), type, documentPaths.get(nodeIndex)),
+                        io.fluxzero.sdk.scheduling.DeadlineMetadata.read(metadata, manifestNode.id(), Map.of())));
             }
             return List.copyOf(result);
         }

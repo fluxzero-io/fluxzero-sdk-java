@@ -119,7 +119,7 @@ public final class ModelGraphDocumentStitcher {
                     children, documents, modelTypes, bounds, manifest, 0,
                     new LinkedHashSet<>());
             composed = ModelSearchDocument.preserveSummary(withManifest(
-                    composed, manifest.build()));
+                    composed, manifest.build(), Metadata.of(manifest.deadlines)));
             SerializedDocument serialized =
                     new SerializedDocument(composed);
             bounds.verifyOutputBytes(
@@ -131,7 +131,7 @@ public final class ModelGraphDocumentStitcher {
 
     private static Document withManifest(
             Document document,
-            ModelGraphDocumentManifest manifest) {
+            ModelGraphDocumentManifest manifest, Metadata deadlines) {
         Map<Document.Entry, List<Document.Path>> entries =
                 new LinkedHashMap<>();
         String manifestPath = metadataPath(
@@ -149,7 +149,7 @@ public final class ModelGraphDocumentStitcher {
         new JacksonInverter().addMetadataEntries(
                 entries,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
-                            manifest.serialize()));
+                            manifest.serialize()).with(deadlines));
         LinkedHashSet<FacetEntry> facets = new LinkedHashSet<>(
                 document.getFacets());
         facets.add(new FacetEntry(
@@ -244,6 +244,9 @@ public final class ModelGraphDocumentStitcher {
                     serialized.bytes());
             Document direct =
                     ModelSearchDocument.restoreSummary(serialized.deserializeDocument());
+            serialized.getMetadata().entrySet().stream()
+                    .filter(e -> e.getKey().startsWith(io.fluxzero.common.api.modeling.ModelDeadlineUpdate.METADATA_PREFIX))
+                    .forEach(e -> manifest.deadlines.put(e.getKey(), e.getValue()));
             int nodeIndex = manifest.add(
                     modelId, Objects.requireNonNull(modelTypes.get(modelId),
                             () -> "No logical Model type is available for " + modelId),
@@ -501,6 +504,7 @@ public final class ModelGraphDocumentStitcher {
         private final List<String> paths = new ArrayList<>();
         private final Map<String, Integer> pathIndexes =
                 new LinkedHashMap<>();
+        private final Map<String, String> deadlines = new LinkedHashMap<>();
         private final List<ModelGraphDocumentManifest.Node> nodes =
                 new ArrayList<>();
 

@@ -89,8 +89,6 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
     @Delegate
     private final HandlerRegistry localHandlerRegistry;
     private final ConcurrentMap<String, LocalScheduleTask> localScheduleTasks = new ConcurrentHashMap<>();
-    // Generation keys prevent an older commit callback from replacing a newer deadline's local task.
-    private final ConcurrentMap<String, LocalScheduleTask> managedLocalScheduleTasks = new ConcurrentHashMap<>();
     private final ThreadLocal<Boolean> localHandlerRegistration = ThreadLocal.withInitial(() -> false);
 
     @Getter(lazy = true)
@@ -186,27 +184,38 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     @Override
     public void deadlinesCommitted(java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates) {
+        // Planning never consults the scheduler. Local delivery, like ordinary local schedules, reconciles the
+        // stored row so delayed commit notifications cannot cancel or replace a newer timer for a public ID.
+        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
         for (var update : updates) {
-            managedLocalScheduleTasks.values().stream()
-                    .filter(t -> update.modelId().equals(t.schedule.getMetadata().get("$deadlineModel")))
-                    .filter(t -> !DeadlineDelivery.current(deserializingMessage(t.schedule)))
-                    .forEach(t -> {
-                        if (managedLocalScheduleTasks.remove(t.schedule.getMessageId(), t)) { t.cancel(); }
-                    });
-            if (update.schedule() == null) { continue; }
-            var serialized = update.schedule();
-            serializer.deserializeMessages(Stream.of(serialized.getMessage()), SCHEDULE).findFirst()
-                    .map(DeserializingMessage::toMessage).ifPresent(message -> {
-                        Schedule schedule = new Schedule(message.getPayload(), message.getMetadata(), message.getMessageId(),
-                                message.getTimestamp(), serialized.getScheduleId(), Instant.ofEpochMilli(serialized.getTimestamp()));
-                        if (!shouldScheduleLocalDelivery(schedule)
-                            || !DeadlineDelivery.current(deserializingMessage(schedule))) { return; }
-                        LocalScheduleTask task = registerLocalTask(schedule, Fluxzero.get(), managedLocalScheduleTasks,
-                                                                  schedule.getMessageId(), false);
-                        // A newer commit may have completed while this callback registered its older generation.
-                        if (!DeadlineDelivery.current(deserializingMessage(schedule))
-                            && managedLocalScheduleTasks.remove(schedule.getMessageId(), task)) { task.cancel(); }
-                    });
+            if (update.previousScheduleId() != null) { ids.add(update.previousScheduleId()); }
+            if (update.schedule() != null) { ids.add(update.schedule().getScheduleId()); }
+        }
+        Fluxzero fluxzero = Fluxzero.get();
+        for (String id : ids) {
+            java.util.concurrent.atomic.AtomicReference<LocalScheduleTask> selected = new java.util.concurrent.atomic.AtomicReference<>();
+            localScheduleTasks.compute(id, (key, previous) -> {
+                Schedule current = getSchedule(key).orElse(null);
+                if (current != null && previous != null && sameScheduledMessage(current, previous.schedule)) {
+                    return previous;
+                }
+                if (previous != null) { previous.cancel(); }
+                if (current == null || !shouldScheduleLocalDelivery(current)) { return null; }
+                LocalScheduleTask task = new LocalScheduleTask(current, fluxzero);
+                selected.set(task);
+                return task;
+            });
+            LocalScheduleTask task = selected.get();
+            if (task != null) {
+                try {
+                    // No inline execution while Model admission may still be held.
+                    task.registration = taskScheduler.schedule(task.schedule.getDeadline(), task::run);
+                    if (localScheduleTasks.get(id) != task) { task.cancel(); }
+                } catch (RuntimeException | Error e) {
+                    localScheduleTasks.remove(id, task);
+                    throw e;
+                }
+            }
         }
     }
 
@@ -219,7 +228,6 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
             SerializedMessage serialized = commandDispatchInterceptor.modifySerializedMessage(
                     intercepted.serialize(serializer), intercepted, COMMAND, null);
             if (serialized == null) { throw new IllegalStateException("Deadline command was suppressed by serialization"); }
-            DeadlineDelivery.preserveGuard(serialized, schedule.getMetadata());
             prepared = schedule.withPayload(new ScheduledCommand(serialized))
                     .addMetadata("$commandType", schedule.getPayloadClass().getName());
         }
@@ -228,9 +236,7 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
         SerializedMessage serialized = dispatchInterceptor.modifySerializedMessage(
                 intercepted.serialize(serializer), intercepted, SCHEDULE, null);
         if (serialized == null) { throw new IllegalStateException("Deadline schedule was suppressed by serialization"); }
-        // The protocol, rather than random IDs introduced by dispatch decoration, owns this intent generation.
         serialized.setMessageId(schedule.getMessageId());
-        DeadlineDelivery.preserveGuard(serialized, schedule.getMetadata());
         return new SerializedSchedule(schedule.getScheduleId(), schedule.getDeadline().toEpochMilli(), serialized, false);
     }
 
@@ -349,29 +355,23 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
             return;
         }
         Schedule localSchedule = storedSchedule.orElse(schedule);
-        registerLocalTask(localSchedule, fluxzero, localScheduleTasks, schedule.getScheduleId(), true);
-    }
-
-    private LocalScheduleTask registerLocalTask(Schedule localSchedule, Fluxzero fluxzero,
-                                                ConcurrentMap<String, LocalScheduleTask> tasks, String key, boolean runExpiredInline) {
         LocalScheduleTask task = new LocalScheduleTask(localSchedule, fluxzero);
-        LocalScheduleTask previous = tasks.put(key, task);
+        LocalScheduleTask previous = localScheduleTasks.put(schedule.getScheduleId(), task);
         if (previous != null) {
             previous.cancel();
         }
         try {
             task.registration = taskScheduler.schedule(localSchedule.getDeadline(), task::run);
-            if (tasks.get(key) != task) {
+            if (localScheduleTasks.get(schedule.getScheduleId()) != task) {
                 task.cancel();
             }
-            if (runExpiredInline && !localHandlerRegistration.get()) {
+            if (!localHandlerRegistration.get()) {
                 runIfExpired(task, localSchedule);
             }
         } catch (RuntimeException | Error e) {
-            tasks.remove(key, task);
+            localScheduleTasks.remove(schedule.getScheduleId(), task);
             throw e;
         }
-        return task;
     }
 
     protected void runIfExpired(LocalScheduleTask task, Schedule schedule) {
@@ -408,31 +408,20 @@ public class DefaultMessageScheduler extends AbstractNamespaced<MessageScheduler
 
     protected void cancelLocalDelivery(String scheduleId) {
         Optional.ofNullable(localScheduleTasks.remove(scheduleId)).ifPresent(LocalScheduleTask::cancel);
-        managedLocalScheduleTasks.values().stream().filter(t -> scheduleId.equals(t.schedule.getScheduleId()))
-                .forEach(t -> {
-                    if (managedLocalScheduleTasks.remove(t.schedule.getMessageId(), t)) { t.cancel(); }
-                });
     }
 
     protected void handleLocalSchedule(LocalScheduleTask task) {
-        boolean managed = task.schedule.getMetadata().containsKey("$deadlineGeneration");
-        if (!(managed ? managedLocalScheduleTasks.remove(task.schedule.getMessageId(), task)
-                : localScheduleTasks.remove(task.schedule.getScheduleId(), task))) { return; }
+        if (!localScheduleTasks.remove(task.schedule.getScheduleId(), task)) {
+            return;
+        }
         Fluxzero fluxzero = Optional.ofNullable(task.fluxzero).or(() -> Fluxzero.getOptionally()).orElse(null);
-        Runnable localHandling = managed ? () -> {
-            DeserializingMessage message = deserializingMessage(task.schedule);
-            if (DeadlineDelivery.current(message) && localHandlerRegistry.canHandle(message)) {
-                handleLocally(task.schedule);
-            }
-        } : () -> getSchedule(task.schedule.getScheduleId())
+        Runnable localHandling = () -> getSchedule(task.schedule.getScheduleId())
                 .filter(current -> sameSchedule(current, task.schedule))
                 .ifPresent(current -> {
                     DeserializingMessage message = deserializingMessage(current);
                     if (localHandlerRegistry.canHandle(message)) {
                         try {
-                            if (DeadlineDelivery.claim(message) == null) {
-                                getSchedulingClient().cancelSchedule(current.getScheduleId(), Guarantee.NONE).get();
-                            }
+                            getSchedulingClient().cancelSchedule(current.getScheduleId(), Guarantee.NONE).get();
                             handleLocally(current);
                         } catch (Exception e) {
                             throw new SchedulerException(String.format(

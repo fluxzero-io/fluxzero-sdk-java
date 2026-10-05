@@ -77,20 +77,12 @@ public class CommitModelsResult extends AbstractRequestResult {
      */
     long timestamp = System.currentTimeMillis();
 
-    /** The guarded deadline was already consumed or replaced; no Model changes were committed. */
-    boolean obsoleteDeadline;
-
-    public static CommitModelsResult obsoleteDeadline(long requestId, String commitId) {
-        return new CommitModelsResult(requestId, commitId, List.of(), List.of(), false, false, null, true);
-    }
-
-
     /**
      * Creates a model commit result, normalizing omitted compatibility fields to empty collections.
      */
     @ConstructorProperties({
             "requestId", "commitId", "updates", "conflicts", "retryAllowed",
-            "duplicate", "rebaseStateIndex", "obsoleteDeadline"})
+            "duplicate", "rebaseStateIndex"})
     public CommitModelsResult(
             long requestId,
             String commitId,
@@ -98,8 +90,7 @@ public class CommitModelsResult extends AbstractRequestResult {
             List<ModelCommitConflict> conflicts,
             boolean retryAllowed,
             boolean duplicate,
-            Long rebaseStateIndex,
-            boolean obsoleteDeadline) {
+            Long rebaseStateIndex) {
         this.requestId = requestId;
         this.commitId = commitId;
         this.updates = updates == null ? List.of() : List.copyOf(updates);
@@ -107,7 +98,6 @@ public class CommitModelsResult extends AbstractRequestResult {
         this.retryAllowed = retryAllowed;
         this.duplicate = duplicate;
         this.rebaseStateIndex = rebaseStateIndex;
-        this.obsoleteDeadline = obsoleteDeadline;
     }
 
     /**
@@ -117,7 +107,7 @@ public class CommitModelsResult extends AbstractRequestResult {
             long requestId, String commitId, List<ModelUpdate> updates) {
         return new CommitModelsResult(
                 requestId, commitId, updates, List.of(), false,
-                false, null, false);
+                false, null);
     }
 
     /** Creates the common one-substep, one-target accepted result. */
@@ -152,7 +142,7 @@ public class CommitModelsResult extends AbstractRequestResult {
             boolean retryAllowed) {
         return new CommitModelsResult(
                 requestId, commitId, List.of(), conflicts, retryAllowed,
-                false, null, false);
+                false, null);
     }
 
     /**
@@ -160,7 +150,7 @@ public class CommitModelsResult extends AbstractRequestResult {
      */
     @Transient
     public boolean isAccepted() {
-        return !obsoleteDeadline && conflicts.isEmpty() && !isRebaseRequired();
+        return conflicts.isEmpty() && !isRebaseRequired();
     }
 
     /**
@@ -177,7 +167,7 @@ public class CommitModelsResult extends AbstractRequestResult {
     public CommitModelsResult forRequest(long requestId) {
         return new CommitModelsResult(
                 requestId, commitId, updates, conflicts, retryAllowed,
-                duplicate, rebaseStateIndex, obsoleteDeadline);
+                duplicate, rebaseStateIndex);
     }
 
     /**
@@ -186,7 +176,7 @@ public class CommitModelsResult extends AbstractRequestResult {
     public CommitModelsResult asDuplicateForRequest(long requestId) {
         return new CommitModelsResult(
                 requestId, commitId, updates, conflicts, retryAllowed,
-                true, rebaseStateIndex, obsoleteDeadline);
+                true, rebaseStateIndex);
     }
 
     /** Returns whether this result contains exactly one committed target position. */
@@ -206,7 +196,7 @@ public class CommitModelsResult extends AbstractRequestResult {
             long rebaseStateIndex) {
         return new CommitModelsResult(
                 requestId, commitId, List.of(), changedModels, true,
-                false, rebaseStateIndex, false);
+                false, rebaseStateIndex);
     }
 
     /**

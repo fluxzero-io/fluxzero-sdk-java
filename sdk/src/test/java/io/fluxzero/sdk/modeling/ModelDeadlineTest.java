@@ -17,7 +17,6 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.modeling.ModelDeadlineClaim;
 import io.fluxzero.common.api.modeling.ModelDeadlineUpdate;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -86,14 +85,14 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void timeChangesPreserveExternalCancellationButNewIntentCanActivate(boolean async) {
+    void changedFutureDeadlineDoesNotReadOrPreserveExternalCancellation(boolean async) {
         var fixture = async ? TestFixture.createAsync(ExplicitAlarm.class, new Alarms())
                 : TestFixture.create(ExplicitAlarm.class, new Alarms());
         fixture.atFixedTime(START)
                 .givenCommands(new SetAlarm("alarm", DUE, "first"))
                 .given(fc -> Fluxzero.cancelSchedule(ModelDeadlineUpdate.scheduleId("alarm", "default")))
                 .whenCommand(new SetAlarm("alarm", DUE.plusSeconds(60), "first"))
-                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands()
+                .expectSuccessfulResult().expectNoErrors().expectOnlyActiveScheduledCommands(new Alarm("first"))
                 .andThen().whenCommand(new SetAlarm("alarm", DUE.plusSeconds(60), "second"))
                 .expectSuccessfulResult().expectNoErrors()
                 .expectOnlyActiveScheduledCommands(new Alarm("second"));
@@ -247,46 +246,6 @@ class ModelDeadlineTest {
         }
     }
 
-    @org.junit.jupiter.api.Test
-    void localDeliveryDoesNotWaitForTheSchedulerProjection() {
-        fixture(false)
-                .given(
-                        fc ->
-                                ((io.fluxzero.sdk.persisting.eventsourcing.client
-                                                        .LocalEventStoreClient)
-                                                fc.client().getEventStoreClient())
-                                        .getMessageStore()
-                                        .configureDeadlines((scheduleId, schedule) -> {}))
-                .givenCommands(new Create(id, DUE))
-                .whenTimeAdvancesTo(DUE)
-                .expectNoErrors()
-                .expectThat(fc -> assertTrue(Fluxzero.loadModel(id).get().expired()));
-    }
-
-    @org.junit.jupiter.api.Test
-    void delayedCommitNotificationCannotReplaceANewerLocalGeneration() {
-        var old = new AtomicReference<ModelDeadlineUpdate>();
-        fixture(false)
-                .givenCommands(new Create(id, DUE))
-                .given(
-                        fc ->
-                                old.set(
-                                        new ModelDeadlineUpdate(
-                                                id.toString(),
-                                                "default",
-                                                fc.client()
-                                                        .getSchedulingClient()
-                                                        .getSchedule(
-                                                                ModelDeadlineUpdate.scheduleId(
-                                                                        id.toString(), "default")),
-                                                true, false)))
-                .givenCommands(new Renew(id, DUE.plusSeconds(60)))
-                .given(fc -> fc.messageScheduler().deadlinesCommitted(java.util.List.of(old.get())))
-                .whenTimeAdvancesTo(DUE.plusSeconds(60))
-                .expectNoErrors()
-                .expectThat(fc -> assertTrue(Fluxzero.loadModel(id).get().expired()));
-    }
-
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void configuredAuthenticationCannotFallBackToTheCallerWhenSystemUserIsMissing(boolean async) {
@@ -331,7 +290,7 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void unrelatedUpdateRetainsGeneration(boolean async) {
+    void unrelatedUpdateRetainsScheduledMessage(boolean async) {
         AtomicReference<String> generation = new AtomicReference<>();
         fixture(async)
                 .givenCommands(new Create(id, DUE))
@@ -458,35 +417,6 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void deliveryAfterReplacementIsIgnored(boolean async) {
-        AtomicReference<Message> delivery = new AtomicReference<>();
-        fixture(async)
-                .givenCommands(new Create(id, DUE))
-                .given(
-                        fc -> {
-                            var scheduled =
-                                    (ScheduledCommand)
-                                            fc.messageScheduler()
-                                                    .getSchedule(
-                                                            ModelDeadlineUpdate.scheduleId(
-                                                                    id.toString(), "default"))
-                                                    .orElseThrow()
-                                                    .getPayload();
-                            delivery.set(
-                                    fc.serializer()
-                                            .deserializeMessage(
-                                                    scheduled.getCommand(), MessageType.COMMAND)
-                                            .toMessage());
-                        })
-                .givenCommands(new Renew(id, DUE.plusSeconds(60)))
-                .givenTimeAdvancedTo(DUE)
-                .whenExecuting(fc -> fc.commandGateway().sendAndForget(delivery.get()))
-                .expectNoErrors()
-                .expectThat(fc -> assertFalse(Fluxzero.loadModel(id).get().expired()));
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
     void explicitScheduleIdentityIsComparedAndOldIdentityIsCancelled(boolean async) {
         var fixture =
                 async ? TestFixture.createAsync(Custom.class) : TestFixture.create(Custom.class);
@@ -513,35 +443,6 @@ class ModelDeadlineTest {
                 .expectNoErrors()
                 .expectNoNewSchedules()
                 .expectOnlyActiveScheduledCommands();
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void externalCancellationInvalidatesAnAlreadyQueuedCommand(boolean async) {
-        AtomicReference<Message> delivery = new AtomicReference<>();
-        fixture(async)
-                .givenCommands(new Create(id, DUE))
-                .given(
-                        fc -> {
-                            String scheduleId =
-                                    ModelDeadlineUpdate.scheduleId(id.toString(), "default");
-                            var scheduled =
-                                    (ScheduledCommand)
-                                            fc.messageScheduler()
-                                                    .getSchedule(scheduleId)
-                                                    .orElseThrow()
-                                                    .getPayload();
-                            delivery.set(
-                                    fc.serializer()
-                                            .deserializeMessage(
-                                                    scheduled.getCommand(), MessageType.COMMAND)
-                                            .toMessage());
-                            Fluxzero.cancelSchedule(scheduleId);
-                        })
-                .givenTimeAdvancedTo(DUE)
-                .whenExecuting(fc -> fc.commandGateway().sendAndForget(delivery.get()))
-                .expectNoErrors()
-                .expectThat(fc -> assertFalse(Fluxzero.loadModel(id).get().expired()));
     }
 
     @ParameterizedTest
@@ -580,7 +481,7 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void changedPayloadSelectsTheNextCronMatch(boolean async) {
+    void changedPayloadDoesNotRestartAnElapsedCronDeadline(boolean async) {
         var fixture =
                 async
                         ? TestFixture.createAsync(Timed.class, new Alarms())
@@ -592,11 +493,7 @@ class ModelDeadlineTest {
                 .whenCommand(new PutTimed("timed", "second", 0))
                 .expectSuccessfulResult()
                 .expectNoErrors()
-                .expectOnlyActiveScheduledCommands(
-                        (Predicate<Schedule>)
-                                s ->
-                                        s.getDeadline().equals(DUE.plusSeconds(3600))
-                                                && s.getPayload().equals(new Alarm("second")));
+                .expectOnlyActiveScheduledCommands();
     }
 
     @ParameterizedTest
@@ -648,7 +545,7 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void validationOnlyScheduleStillConsumesItsDeadline(boolean async) {
+    void validationOnlyScheduleUsesOrdinaryOneShotDelivery(boolean async) {
         var fixture =
                 async
                         ? TestFixture.createAsync(Checked.class, Hold.class, new Checks())
@@ -660,12 +557,7 @@ class ModelDeadlineTest {
                 .expectNoErrors()
                 .expectThat(
                         fc -> {
-                            assertTrue(
-                                    fc.messageScheduler()
-                                            .getSchedule(
-                                                    ModelDeadlineUpdate.scheduleId(
-                                                            "check", "default"))
-                                            .isEmpty());
+                            assertEquals(DUE, Fluxzero.loadGraph("check", Checked.class).deadlines().get("default").deadline());
                             assertFalse(Fluxzero.loadModel(id).get().expired());
                         });
     }
@@ -703,7 +595,7 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void asynchronousRawHandlerConsumesOnlyAfterItsModelWrite(boolean async) {
+    void asynchronousRawHandlerCanCommitModelChanges(boolean async) {
         var fixture =
                 async
                         ? TestFixture.createAsync(
@@ -721,7 +613,7 @@ class ModelDeadlineTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void successfulAsynchronousRawHandlerWithoutAModelWriteConsumes(boolean async) {
+    void asynchronousRawHandlerWithoutAModelWriteRemainsOneShot(boolean async) {
         var fixture =
                 async
                         ? TestFixture.createAsync(AsyncReminder.class, new AsyncChecks())
@@ -732,45 +624,6 @@ class ModelDeadlineTest {
                 .expectNoErrors()
                 .expectOnlyEvents("async completed")
                 .expectOnlySchedules();
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void failedAsynchronousRawHandlerLeavesItsGenerationUnconsumed(boolean async) {
-        var fixture =
-                async
-                        ? TestFixture.createAsync(AsyncReminder.class, new AsyncChecks())
-                        : TestFixture.create(AsyncReminder.class, new AsyncChecks());
-        fixture.atFixedTime(START)
-                .givenCommands(new PutAsyncReminder("async", id, true, false))
-                .whenTimeAdvancesTo(DUE)
-                .expectError(
-                        error -> {
-                            while (error.getCause() != null) {
-                                error = error.getCause();
-                            }
-                            return error instanceof IllegalStateException
-                                    && "async failed".equals(error.getMessage());
-                        },
-                        "the asynchronous handler failure")
-                .expectThat(
-                        fc -> {
-                            var schedule =
-                                    fc.messageScheduler()
-                                            .getSchedule(
-                                                    ModelDeadlineUpdate.scheduleId(
-                                                            "async", "default"))
-                                            .orElseThrow();
-                            assertTrue(
-                                    fc.client()
-                                            .getEventStoreClient()
-                                            .checkModelDeadline(
-                                                    new ModelDeadlineClaim(
-                                                            "async",
-                                                            schedule.getScheduleId(),
-                                                            schedule.getMessageId()))
-                                            .join());
-                        });
     }
 
     @Model(searchable = false)
@@ -795,7 +648,7 @@ class ModelDeadlineTest {
         @HandleSchedule
         CompletionStage<Void> handle(AsyncCheck check) {
             var context = DeserializingMessage.getCurrent().captureContext();
-            return CompletableFuture.runAsync(
+            return io.fluxzero.sdk.common.AsyncCompletionScope.register(CompletableFuture.runAsync(
                     context.wrap(
                             () -> {
                                 if (check.fail()) {
@@ -806,7 +659,7 @@ class ModelDeadlineTest {
                                 } else {
                                     Fluxzero.publishEvent("async completed");
                                 }
-                            }));
+                            })));
         }
     }
 

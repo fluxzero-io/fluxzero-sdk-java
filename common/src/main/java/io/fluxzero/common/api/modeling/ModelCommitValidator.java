@@ -65,25 +65,18 @@ public final class ModelCommitValidator {
                     || !commit.getReadModelIds().contains(update.modelId()) || !categories.add(update.slotId())) {
                     throw new IllegalArgumentException("Deadline updates require unique categories and checked Model reads");
                 }
-                // Conditional proposals may be ignored; stores check ID uniqueness after selecting active intents.
                 if (update.schedule() != null && (update.schedule().getScheduleId() == null || update.schedule().getScheduleId().isBlank()
-                    || (!update.rescheduleOnly() && !scheduleIds.add(update.schedule().getScheduleId()))
+                    || !scheduleIds.add(update.schedule().getScheduleId())
                     || update.schedule().isIfAbsent() || update.schedule().getMessage() == null
                     || update.schedule().getMessage().getMessageId() == null)) {
-                    throw new IllegalArgumentException("Deadline updates require a replacement schedule with a generation");
+                    throw new IllegalArgumentException("Deadline updates require an unconditional replacement schedule with a message ID");
                 }
-                if (update.rescheduleOnly() && update.schedule() == null) {
-                    throw new IllegalArgumentException("Rescheduling a Model deadline requires a schedule");
+                if (update.previousScheduleId() != null && update.previousScheduleId().isBlank()) {
+                    throw new IllegalArgumentException("Previous schedule ID must not be blank");
                 }
-            }
-            var claim = deadlines.getDeadlineClaim();
-            if (claim != null && (claim.generation() == null || claim.generation().isBlank()
-                || claim.scheduleId() == null || claim.scheduleId().isBlank()
-                || claim.modelId() == null || claim.modelId().isBlank())) {
-                throw new IllegalArgumentException("Deadline claims require a checked Model and generation");
             }
             if (commit.isMigration()) {
-                throw new IllegalArgumentException("Historical migrations cannot activate or consume Model deadlines");
+                throw new IllegalArgumentException("Historical migrations cannot change Model deadlines");
             }
         }
         if (validateSimpleCommit(commit)) {
@@ -96,13 +89,8 @@ public final class ModelCommitValidator {
             if (substep == null) {
                 throw new IllegalArgumentException("Model commit substep %d is null".formatted(i));
             }
-            if (substep.getTargets() == null
-                || substep.getTargets().isEmpty() && (!(commit instanceof CommitModelsWithDeadlines managed)
-                    || managed.getDeadlineClaim() == null || substep.isPublishEvent() || substep.getEvent() != null
-                    || commit.getSubsteps().size() != 1)) {
-                throw new IllegalArgumentException(
-                        "Model commit substep %d has no targets"
-                                .formatted(i));
+            if (substep.getTargets() == null || substep.getTargets().isEmpty()) {
+                throw new IllegalArgumentException("Model commit substep %d has no targets".formatted(i));
             }
             boolean requiresEvent = substep.isPublishEvent();
             if (!requiresEvent) {

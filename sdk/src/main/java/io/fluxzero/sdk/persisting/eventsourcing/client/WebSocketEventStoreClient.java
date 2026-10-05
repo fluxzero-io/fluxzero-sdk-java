@@ -193,13 +193,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
      * Commits an independent-model commit and retains the positions returned by the runtime.
      */
     @Override
-    public CompletableFuture<Boolean> checkModelDeadline(io.fluxzero.common.api.modeling.ModelDeadlineClaim claim) {
-        return this.<io.fluxzero.common.api.BooleanResult>send(
-                new io.fluxzero.common.api.modeling.CheckModelDeadline(claim)).thenApply(
-                io.fluxzero.common.api.BooleanResult::isSuccess);
-    }
-
-    @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         return send(commit);
     }

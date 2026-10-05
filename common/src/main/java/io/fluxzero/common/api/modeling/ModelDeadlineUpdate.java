@@ -22,15 +22,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
- * A changed Model-owned deadline. A null schedule cancels the category; omitted categories remain
- * untouched.
+ * SDK-computed ordinary scheduler effects included in a Model commit. No scheduler status is consulted.
  *
- * @param rescheduleOnly replace only an active intent in this category, checked atomically at commit
- *                       after any claim consumption; never recreate consumed or canceled work
+ * @param previousScheduleId ID to cancel before replacements are stored; null for a new category
+ * @param schedule replacement schedule, or null to cancel only
+ * @param cancelOnDeletion bind the replacement to the Model's existing lifetime ownership mechanism
  */
 public record ModelDeadlineUpdate(
-        String modelId, String category, SerializedSchedule schedule, boolean cancelOnDeletion,
-        boolean rescheduleOnly) {
+        String modelId, String category, String previousScheduleId, SerializedSchedule schedule,
+        boolean cancelOnDeletion) {
+    /** Reserved SDK-owned metadata prefix in Model events, documents and snapshots. */
+    public static final String METADATA_PREFIX = "$fluxzero.deadline.";
+
     /** Namespace-local reserved schedule identity, independent of declaration method names. */
     public String slotId() {
         return scheduleId(modelId, category);

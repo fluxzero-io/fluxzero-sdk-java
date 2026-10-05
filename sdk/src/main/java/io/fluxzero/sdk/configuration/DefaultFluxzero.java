@@ -1047,11 +1047,6 @@ public class DefaultFluxzero implements Fluxzero {
                 });
             }
 
-            handlerChains.computeIfPresent(COMMAND, (type, chain) ->
-                    new io.fluxzero.sdk.scheduling.DeadlineDelivery().andThen(chain));
-            handlerChains.computeIfPresent(SCHEDULE, (type, chain) ->
-                    new io.fluxzero.sdk.scheduling.DeadlineDelivery().andThen(chain));
-
             //add customer interceptors
             Arrays.stream(MessageType.values()).forEach(messageType -> {
                 List<DispatchInterceptor> orderedDispatchInterceptors = orderedInterceptors(Stream.concat(

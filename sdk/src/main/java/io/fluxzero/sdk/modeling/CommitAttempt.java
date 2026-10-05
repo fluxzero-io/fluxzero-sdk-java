@@ -150,6 +150,7 @@ public final class CommitAttempt {
     }
 
     void resetGraphReads() {
+        deadlineOrigins = null;
         deferredBoundary = null;
         failedPreparationReads = null;
         graphReadGeneration++;
@@ -331,13 +332,32 @@ public final class CommitAttempt {
     }
 
     Entity<?> graphReadEntity(String modelId) {
-        CommitAttempt owner = graphReadOwner;
-        if (owner == null) {
-            return null;
-        }
+        CommitAttempt owner = graphReadOwner == null ? this : graphReadOwner;
         synchronized (owner) {
             return owner.graphReadEntities == null ? null : owner.graphReadEntities.get(modelId);
         }
+    }
+
+    private Map<String, Entity<?>> deadlineOrigins;
+
+    void retainDeadlineOrigins(List<Change> changes) {
+        if (graphReadOwner == null) { return; }
+        for (Change change : changes) {
+            Entity<?> origin = entities.get(change.modelId());
+            if (!change.metadata().deadlines().isEmpty() || !io.fluxzero.sdk.scheduling.DeadlineMetadata.get(origin).isEmpty()) {
+                if (origin != null) {
+                    if (graphReadOwner.deadlineOrigins == null) {
+                        graphReadOwner.deadlineOrigins = new LinkedHashMap<>();
+                    }
+                    graphReadOwner.deadlineOrigins.putIfAbsent(change.modelId(), origin);
+                }
+            }
+        }
+    }
+
+    /** Original loaded revision retained before deadline evaluation stages changes for this attempt. */
+    public Entity<?> deadlineOrigin(String modelId) {
+        return deadlineOrigins == null ? null : deadlineOrigins.get(modelId);
     }
 
     /** Retains precommit stamps and deletion identities for graph reads in later substeps. */
@@ -601,15 +621,14 @@ public final class CommitAttempt {
     private volatile CompletableFuture<Object> completion;
     private boolean submitted;
     private List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> deadlineUpdates = List.of();
-    private io.fluxzero.common.api.modeling.ModelDeadlineClaim deadlineClaim;
-    private boolean managesDeadlines;
-
     public List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> deadlineUpdates() { return deadlineUpdates; }
-    public io.fluxzero.common.api.modeling.ModelDeadlineClaim deadlineClaim() { return deadlineClaim; }
-    public boolean managesDeadlines() { return managesDeadlines; }
-    void deadlines(List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates,
-                   io.fluxzero.common.api.modeling.ModelDeadlineClaim claim, boolean managed) {
-        deadlineUpdates = List.copyOf(updates); deadlineClaim = claim; managesDeadlines = managed;
+    public boolean managesDeadlines() { return !deadlineUpdates.isEmpty(); }
+    void deadlines(List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates) {
+        deadlineUpdates = List.copyOf(updates);
+    }
+
+    void deadlineSteps(List<Step> value) {
+        evaluated(readStateIndex(), readModelIds, applyReadModelIds, readModelTypes, value);
     }
 
     CommitAttempt deadlineContext(Map<String, Entity<?>> values) {

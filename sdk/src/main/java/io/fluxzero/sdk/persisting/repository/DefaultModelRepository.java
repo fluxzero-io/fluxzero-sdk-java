@@ -90,6 +90,7 @@ import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.NonNull;
 
+import io.fluxzero.sdk.scheduling.DeadlineMetadata;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -1722,7 +1723,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     requestStep.getEvent() == null ? null : requestStep.getEvent().getMessageId(),
                     resultStep.getEventIndex(), Instant.ofEpochMilli(revision.timestamp()),
                     targetResult.getSequenceNumber(), resultStep.getStateIndex(),
-                    castPrevious(ImmutableRoot.retainPrevious(result, model)));
+                    castPrevious(ImmutableRoot.retainPrevious(result, model)))
+                    .withDeadlines(transition.deadlines() == null ? DeadlineMetadata.get(result) : transition.deadlines());
         }
         if (result == null) {
             throw new IllegalStateException(
@@ -1872,7 +1874,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         Entity<?> revision = ImmutableModelRoot.revision(
                 entity.id(), (Class<Object>) entity.type(), entity.idProperty(), entity.get(),
                 entityHelper, serializer, null, null, entity.timestamp(),
-                head.getSequenceNumber(), head.getStateIndex(), null);
+                head.getSequenceNumber(), head.getStateIndex(), null)
+                .withDeadlines(result.getDocument() == null ? Map.of()
+                        : DeadlineMetadata.read(result.getDocument().getMetadata(), modelId, Map.of()));
         return new ModelReplayCursor.DocumentVersion(revision, head);
     }
 
@@ -2005,7 +2009,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (prepared.commit() instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
                 && !deadlines.getDeadlineUpdates().isEmpty()) {
                 var context = io.fluxzero.sdk.common.ThreadLocalContext.capture();
-                // Reply processing is bounded; notifications may read authority and must not block that executor.
+                // Local scheduling uses ordinary scheduler reads; keep those off the bounded reply executor.
                 java.util.function.Function<Optional<CommitModelsResult>, Optional<CommitModelsResult>> activate =
                         context.wrap(result -> {
                     if (result.filter(r -> r.isAccepted() && !r.isDuplicate()).isPresent()) {
@@ -2284,7 +2288,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             for (CommitAttempt.Step step : evaluation.steps()) {
                 DeserializingMessage message = step.message();
                 List<Change> transitions = step.changes().stream()
-                        .filter(Change::active).toList();
+                        .filter(Change::active).map(change -> {
+                            if (change.deadlines() != null) { return change; }
+                            Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> retained = DeadlineMetadata.get(
+                                    evaluation.deadlineOrigin(change.modelId()));
+                            if (migration || existingEvent) {
+                                retained = DeadlineMetadata.read(message.getMetadata(), change.modelId(), retained);
+                            }
+                            return retained.isEmpty() ? change : change.withDeadlines(retained);
+                        }).toList();
                 if (transitions.isEmpty()) {
                     continue;
                 }
@@ -2343,6 +2355,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     hasDocumentProjections |= target.getDocumentProjection() != null;
                     preparedChanges.put(target, transition);
                 }
+                if (event != null && event.getIndex() == null) {
+                    Metadata reserved = DeadlineMetadata.strip(event.getMetadata());
+                    for (Change change : committedTransitions) {
+                        if (change.deadlines() != null) {
+                            reserved = DeadlineMetadata.with(reserved, change.modelId(), change.deadlines());
+                        }
+                    }
+                    event = BinaryWire.prepareEnvelope(event.withMetadata(reserved));
+                }
                 int protocolIndex = protocolSteps.size();
                 protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
                 if (!cascadeRoots.isEmpty()) {
@@ -2373,9 +2394,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
             }
             boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
-            if (protocolSteps.isEmpty() && evaluation.deadlineClaim() != null) {
-                protocolSteps.add(new ModelCommitStep(null, false, List.of()));
-            }
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, preparedChanges, existingEvent);
             }
@@ -2396,7 +2414,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             if (evaluation.managesDeadlines()) {
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithDeadlines(
-                        commit, evaluation.deadlineUpdates(), evaluation.deadlineClaim());
+                        commit, evaluation.deadlineUpdates());
             }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
@@ -2436,7 +2454,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             if (candidate instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines d) {
                 commit = new io.fluxzero.common.api.modeling.CommitModelsWithDeadlines(
-                        commit, d.getDeadlineUpdates(), d.getDeadlineClaim());
+                        commit, d.getDeadlineUpdates());
             }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }
@@ -2444,16 +2462,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private static void requireSameShape(
                 Outcome original,
                 Outcome rebased) {
-            if (rebased.commit() == null
-                || original.commit().getSubsteps().size()
-                   != rebased.commit().getSubsteps().size()) {
+            List<ModelCommitStep> originalSteps = commandSteps(original), rebasedSteps = commandSteps(rebased);
+            if (rebased.commit() == null || originalSteps.size() != rebasedSteps.size()) {
                 throw changedRebaseShape();
             }
             for (int substep = 0;
-                 substep < original.commit().getSubsteps().size();
+                 substep < originalSteps.size();
                  substep++) {
-                ModelCommitStep before = original.commit().getSubsteps().get(substep);
-                ModelCommitStep after = rebased.commit().getSubsteps().get(substep);
+                ModelCommitStep before = originalSteps.get(substep);
+                ModelCommitStep after = rebasedSteps.get(substep);
                 if (before.isPublishEvent() != after.isPublishEvent()
                     || before.getTargets().size() != after.getTargets().size()) {
                     throw changedRebaseShape();
@@ -2469,6 +2486,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
             }
+        }
+
+        private static List<ModelCommitStep> commandSteps(Outcome outcome) {
+            if (outcome.commit() == null) { return List.of(); }
+            return outcome.commit().getSubsteps().stream().filter(step -> step.getTargets().stream().anyMatch(target -> {
+                Change change = outcome.changes.get(target);
+                return change == null || !change.deadlineOnly();
+            })).toList();
         }
 
         private static IllegalStateException changedRebaseShape() {
@@ -2495,12 +2520,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 long nextSequence,
                 boolean cascadeDelete,
                 boolean migration) {
+            Metadata modelMetadata = DeadlineMetadata.strip(message.getMetadata());
+            if (transition.deadlines() != null) {
+                modelMetadata = DeadlineMetadata.with(modelMetadata, transition.modelId(), transition.deadlines());
+            }
             ModelDocumentMutation document = transition.updateState()
                     && (existingEventIndex(message) == null
                         || migration)
                     ? directDocument(
                             transition,
-                            message.getTimestamp(), message.getMetadata(), false)
+                            message.getTimestamp(), modelMetadata, false)
                     : null;
             ModelDocumentMutation projection = null;
             RelationshipUpdate relationships = transition.updateState()
@@ -2508,7 +2537,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     : RelationshipUpdate.UNCHANGED;
             ModelSnapshotMutation snapshot = snapshot(
                     transition, nextSequence,
-                    message.getTimestamp());
+                    message.getTimestamp(), modelMetadata);
             List<String> aliases = transition.updateState()
                     ? transition.metadata().aliases(transition.after())
                     : null;
@@ -2689,7 +2718,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private ModelSnapshotMutation snapshot(
                 Change transition,
                 long nextSequence,
-                Instant timestamp) {
+                Instant timestamp, Metadata metadata) {
             EntityMetadata.RootConfiguration model = transition.configuration();
             EntityMetadata.SnapshotSettings snapshotSettings = model.snapshotSettings(false);
             if (snapshotSerializer == null
@@ -2704,7 +2733,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             transition.after()),
                     timestamp.toEpochMilli(),
                     snapshotSettings.period(),
-                    snapshotSettings.maxCount());
+                    snapshotSettings.maxCount(),
+                    metadata.withoutIf(k -> !k.startsWith(DeadlineMetadata.PREFIX)));
         }
 
         private ModelDocumentMutation directDocument(
