@@ -67,6 +67,9 @@ jobs:
           server-username-env-var: MAVEN_USERNAME
           server-password-env-var: MAVEN_DEPLOY_TOKEN
 
+      - name: Test release title policy
+        run: python3 .github/scripts/set-release-title.test.py
+
       - name: Find existing release tag
         id: existing_tag
         run: |
@@ -336,7 +339,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.build-and-test.outputs.version-tag }}
-          name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body_path: release-assets/release-notes.md
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
           fail_on_unmatched_files: true
@@ -345,6 +347,12 @@ jobs:
             release-assets/project-kotlin.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip.sha256
+
+      - name: Set release title from original UTC publication date
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-test.outputs.version-tag }}
+        run: python3 .github/scripts/set-release-title.py "$GITHUB_REPOSITORY" "$RELEASE_TAG"
 
   # Job 5: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:
