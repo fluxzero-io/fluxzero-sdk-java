@@ -118,6 +118,9 @@ jobs:
       - name: Test release title policy
         run: python3 .github/scripts/set-release-title.test.py
 
+      - name: Test website dispatch policy
+        run: node --test .github/scripts/site-dispatch.test.mjs
+
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 
@@ -318,12 +321,14 @@ jobs:
           RELEASE_TAG: ${{ needs.build-and-test.outputs.version-tag }}
         run: python3 .github/scripts/set-release-title.py "$GITHUB_REPOSITORY" "$RELEASE_TAG"
 
-  # Notify after a stable SDK build or validated documentation-only push.
+  # The changelog loader must see the published release before the website builds.
+  # Documentation-only pushes still notify without creating a release.
   fluxzero-site:
-    needs: [changes, build-and-test]
+    needs: [changes, build-and-test, github-release]
     if: >-
       !cancelled() && needs.changes.result == 'success' &&
-      ((needs.build-and-test.result == 'success' && needs.build-and-test.outputs.prerelease != 'true') ||
+      ((needs.build-and-test.result == 'success' && needs.github-release.result == 'success' &&
+        needs.build-and-test.outputs.prerelease != 'true') ||
        (needs.build-and-test.result == 'skipped' && needs.changes.outputs.documentation_only == 'true' &&
         needs.changes.outputs.website_changed == 'true'))
     runs-on: ubuntu-latest
