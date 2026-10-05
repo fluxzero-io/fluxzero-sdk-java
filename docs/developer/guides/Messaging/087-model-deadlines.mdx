@@ -175,11 +175,22 @@ parameter also supports dependencies on descendants and siblings. Candidate sele
 plain ancestor parameters follow changed ancestor values or relationship routes; Graph parameters can require the
 connected component. A Graph parameter on one method does not widen other methods' scope. Navigation across
 changed roots is batched and shared, as are candidate Model loads. Only declarations that inject context require
-this traversal; a local-state declaration does not add Graph reads to unrelated changes. Large dependency fan-out
-still adds work to the originating commit. In particular, a declaration that scans all siblings for every owner can
-perform quadratic application work even when underlying storage reads are shared. All declarations must be
+this traversal; a local-state declaration does not add Graph reads to unrelated changes. All declarations must be
 reachable in the writing application's Model catalog, and every writer of the Model or its injected context must
 use the same declarations.
+
+**Performance caution:** Graph and ancestor injection can increase the work and latency of the originating commit.
+
+- **Graph injection:** the SDK cannot know in advance which siblings or descendants a method will inspect. A change
+  in a large connected component can therefore reevaluate many owners' Graph-dependent deadlines. If each owner
+  scans all N siblings, application work can grow to O(N²), even with shared reads and batch loading.
+- **Ancestor injection:** selection is narrower, but changing a shared ancestor can still reevaluate deadlines on
+  many dependent descendants. For example, changing a policy used by 10,000 bookings can evaluate 10,000 deadlines.
+- **Actual deadline changes:** changed schedules and their owners' deadline metadata are committed together, adding
+  writes to that same operation. Reevaluation alone does not reschedule anything when before and after are equal.
+
+Prefer a typed ancestor parameter when it provides all required context. Keep Graph traversal and per-owner work
+bounded, and assess commit cost with realistic numbers of connected Models when using either form of injection.
 
 ## Inspecting recorded deadlines
 
