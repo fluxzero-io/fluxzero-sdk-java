@@ -98,6 +98,9 @@ jobs:
             exit 1
           fi
 
+      - name: Test release title policy
+        run: python3 .github/scripts/set-release-title.test.py
+
       - name: Test release policies
         run: |
           bash .github/scripts/resolve-release-version.test.sh
@@ -289,7 +292,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.build-and-test.outputs.version-tag }}
-          name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
           make_latest: ${{ needs.build-and-test.outputs.make-latest }}
@@ -299,6 +301,12 @@ jobs:
             release-assets/project-kotlin.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip
             release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip.sha256
+
+      - name: Set release title from original UTC publication date
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.build-and-test.outputs.version-tag }}
+        run: python3 .github/scripts/set-release-title.py "$GITHUB_REPOSITORY" "$RELEASE_TAG"
 
   # Job 4: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:
