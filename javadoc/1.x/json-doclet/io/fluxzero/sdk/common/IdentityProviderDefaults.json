@@ -1,0 +1,26 @@
+{
+  "name" : "IdentityProviderDefaults",
+  "qualifiedName" : "io.fluxzero.sdk.common.IdentityProviderDefaults",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Owns the shared default inherited by {@link IdentityProvider}.\n\n <p>Keep this interface free of default methods: the JVM must not initialize provider discovery merely because\n an implementation is being initialized. Otherwise concurrent first use of the default and an implementation\n can wait on each other's class-initialization monitors. Discovery remains eager on access to the field and\n uses that thread's context class loader. Constructing an implementation alone does not trigger discovery.</p>\n\n @see IdentityProvider\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "defaultIdentityProvider",
+    "qualifiedName" : "io.fluxzero.sdk.common.IdentityProviderDefaults.defaultIdentityProvider",
+    "type" : "io.fluxzero.sdk.common.IdentityProvider",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " The default identity provider, resolved using {@link ServiceLoader}, or falling back to {@link UuidFactory}.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
