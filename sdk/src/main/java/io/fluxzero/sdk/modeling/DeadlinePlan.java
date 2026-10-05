@@ -318,7 +318,7 @@ final class DeadlinePlan {
                 Map<String, DeadlineInfo> value = change == finalChanges.get(change.modelId())
                         ? planned.get(change.modelId()) : original.get(change.modelId());
                 return value == null ? change : change.withDeadlines(value);
-            }).toList()));
+            }).toList(), step.cascadeCause()));
         }
         if (!contextualChanges.isEmpty()) {
             steps.add(new CommitAttempt.Step(message, contextualChanges));

@@ -1636,7 +1636,8 @@ public final class ModelReducer {
         boolean relevant = false;
         for (CommitAttempt.Step step : attempt.steps()) {
             for (Change change : step.changes()) {
-                if (change.updateState() && compiler.cascadePlan(change.modelType()).matches(cascadeValidationMessage(attempt, step),
+                if (change.updateState() && !change.deadlineOnly()
+                    && compiler.cascadePlan(change.modelType()).matches(cascadeValidationMessage(attempt, step),
                         change.ancestorValidation() != AncestorValidation.DISABLED)) {
                     relevant = true;
                     break;
@@ -1702,7 +1703,8 @@ public final class ModelReducer {
                 }
                 Map<String, CascadeOwner> owners = new LinkedHashMap<>();
                 for (Change change : changes) {
-                    if (!change.updateState()) { continue; }
+                    // Retaining derived deadline metadata does not introduce another business mutation.
+                    if (!change.updateState() || change.deadlineOnly()) { continue; }
                     MutationPlan.CascadePlan plan = compiler.cascadePlan(change.modelType());
                     boolean ancestors = change.ancestorValidation() != AncestorValidation.DISABLED;
                     if (!plan.matches(step.message(), ancestors)) { continue; }

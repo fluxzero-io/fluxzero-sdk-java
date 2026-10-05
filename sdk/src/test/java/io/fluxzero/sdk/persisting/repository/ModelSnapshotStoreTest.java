@@ -90,7 +90,7 @@ class ModelSnapshotStoreTest {
     void unreadableSnapshotStillDeletesAndReturnsEmptyForReplay() {
         var fluxzero = TestFixture.create().getFluxzero();
         var document = new ModelSnapshotMutation(new io.fluxzero.common.api.Data<>("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                "missing.snapshot.type", 5, "application/json"), 1L, 1, 2).toDocument("model-1", 1L, 2L);
+                "missing.snapshot.type", 5, "application/json"), 1L, 1, 2, null).toDocument("model-1", 1L, 2L);
         fluxzero.client().getSearchClient().index(List.of(document), Guarantee.STORED, false).join();
         var store = new ModelSnapshotStore(fluxzero.documentStore(), serializer);
         org.junit.jupiter.api.Assertions.assertTrue(store.getSnapshot("model-1", 2L).isEmpty());
