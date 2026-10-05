@@ -1,0 +1,175 @@
+{
+  "name" : "CommitModelsWithDeadlines",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Commits SDK-computed ordinary scheduler effects together with Model state. The distinct\n wire type requires explicit service support. All existing relationship, alias and document\n projection facets are retained.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.CommitModels",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "deadlineUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines.deadlineUpdates",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "readAliasIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines.readAliasIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "readRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines.readRelationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommitModelsWithDeadlines",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines#CommitModelsWithDeadlines",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "CommitModelsWithDeadlines",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines#CommitModelsWithDeadlines",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"commitId\",\"readStateIndex\",\"readModelIds\",\"substeps\",\"conflictPolicy\",\"guarantee\",\"possibleDuplicate\",\"migration\",\"readRelationships\",\"readAliasIds\",\"deadlineUpdates\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readModelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "substeps",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitStep>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "possibleDuplicate",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRelationships",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readAliasIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadlineUpdates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines#getBytes",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasExpiredReplacement",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines#hasExpiredReplacement",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cutoff",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether a proposed replacement's original scheduler time has been reached at commit acceptance. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

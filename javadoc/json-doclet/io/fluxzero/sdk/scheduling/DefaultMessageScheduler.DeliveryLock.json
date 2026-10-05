@@ -1,0 +1,36 @@
+{
+  "name" : "DeliveryLock",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeliveryLock",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "users",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeliveryLock.users",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeliveryLock",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeliveryLock#DeliveryLock",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

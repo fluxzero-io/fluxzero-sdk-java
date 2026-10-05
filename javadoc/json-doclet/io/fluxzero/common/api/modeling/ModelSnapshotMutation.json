@@ -53,6 +53,14 @@
     "documentation" : " Configured maximum number of snapshots retained for this model. Positive values bound retention;\n any negative value retains all snapshots until explicit erasure. Zero is invalid on the wire\n (the SDK resolves an annotation value of zero to one).\n",
     "constantValue" : null
   }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.metadata",
+    "type" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "SDK-owned revision metadata, retained with the snapshot; absent on older snapshot writes. ",
+    "constantValue" : null
+  }, {
     "name" : "snapshotPeriod",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation.snapshotPeriod",
     "type" : "int",

@@ -25,8 +25,36 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "schedulesStored",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitOutcome.schedulesStored",
+    "type" : "java.lang.Runnable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
+    "name" : "ModelCommitOutcome",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitOutcome#ModelCommitOutcome",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publishedEvents",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "ModelCommitOutcome",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitOutcome#ModelCommitOutcome",
     "modifiers" : [ "private" ],
@@ -40,6 +68,11 @@
     }, {
       "name" : "publishedEvents",
       "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedulesStored",
+      "type" : "java.lang.Runnable",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -97,6 +130,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "schedulesStored",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitOutcome#schedulesStored",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitOutcome#toString",
     "returnType" : "java.lang.String",
@@ -117,6 +161,11 @@
   }, {
     "name" : "result",
     "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "schedulesStored",
+    "type" : "java.lang.Runnable",
     "annotations" : [ ],
     "documentation" : null
   } ],

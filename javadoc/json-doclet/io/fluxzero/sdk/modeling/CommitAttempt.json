@@ -106,6 +106,30 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "deadlineOrigins",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.deadlineOrigins",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deadlineReevaluation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.deadlineReevaluation",
+    "type" : "java.util.function.LongConsumer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deadlineUpdates",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.deadlineUpdates",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "deferredBoundary",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.deferredBoundary",
     "type" : "io.fluxzero.sdk.modeling.CommitAttempt.DeferredBoundary",
@@ -687,6 +711,97 @@
     "varArgs" : false,
     "documentation" : "Returns this repository's active mutation read context, never an event-replay or escaped async context. "
   }, {
+    "name" : "deadlineContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlineContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.Entity<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deadlineOrigin",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlineOrigin",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Original loaded revision retained before deadline evaluation stages changes for this attempt. "
+  }, {
+    "name" : "deadlineReevaluation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlineReevaluation",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "action",
+      "type" : "java.util.function.LongConsumer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deadlineSteps",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlineSteps",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.CommitAttempt.Step>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deadlineUpdates",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlineUpdates",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#deadlines",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "declaresAlias",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#declaresAlias",
     "returnType" : "boolean",
@@ -836,6 +951,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "finishDeadlineReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#finishDeadlineReads",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1121,6 +1247,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "managesDeadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#managesDeadlines",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1573,6 +1710,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "reevaluateDeadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#reevaluateDeadlines",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cutoff",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "references",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#references",
     "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
@@ -1699,6 +1852,22 @@
     "parameters" : [ {
       "name" : "check",
       "type" : "io.fluxzero.sdk.modeling.ModelReducer.CurrentAssertion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "retainDeadlineOrigins",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#retainDeadlineOrigins",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "changes",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

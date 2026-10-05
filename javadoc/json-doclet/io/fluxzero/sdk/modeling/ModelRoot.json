@@ -12,6 +12,17 @@
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelRoot#deadlines",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the recorded deadline categories belonging to this Model revision. "
+  }, {
     "name" : "stateIndex",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModelRoot#stateIndex",
     "returnType" : "long",

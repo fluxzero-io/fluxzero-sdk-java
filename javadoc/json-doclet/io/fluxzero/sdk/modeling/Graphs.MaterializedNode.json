@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs$MaterializedNode.deadlines",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "id",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs$MaterializedNode.id",
     "type" : "java.lang.String",
@@ -81,12 +89,28 @@
       "type" : "java.util.function.Supplier<?>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "deadlines",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs$MaterializedNode#deadlines",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs$MaterializedNode#equals",
     "returnType" : "boolean",
@@ -182,6 +206,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "deadlines",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "id",
     "type" : "java.lang.String",
     "annotations" : [ ],

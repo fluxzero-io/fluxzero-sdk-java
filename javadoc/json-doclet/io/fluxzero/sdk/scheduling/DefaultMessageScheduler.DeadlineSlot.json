@@ -1,0 +1,52 @@
+{
+  "name" : "DeadlineSlot",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "pending",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot.pending",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "task",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot.task",
+    "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.LocalScheduleTask",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeadlineSlot",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot#DeadlineSlot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

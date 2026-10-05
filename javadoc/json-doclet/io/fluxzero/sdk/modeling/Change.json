@@ -74,6 +74,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "deadlineOnly",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change.deadlineOnly",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change.deadlines",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "directReplay",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change.directReplay",
     "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.modeling.Entity<?>>",
@@ -237,6 +253,16 @@
       "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "deadlineOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadlines",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -393,6 +419,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "asDeadlineUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#asDeadlineUpdate",
+    "returnType" : "io.fluxzero.sdk.modeling.Change",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Marks a revision whose sole purpose is retaining computed deadline metadata. "
+  }, {
     "name" : "before",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#before",
     "returnType" : "java.lang.Object",
@@ -462,6 +499,28 @@
     "name" : "conflictPolicy",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#conflictPolicy",
     "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deadlineOnly",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#deadlineOnly",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#deadlines",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -743,6 +802,22 @@
     "varArgs" : false,
     "documentation" : " Rejects an active event-sourced state change that does not store its reconstructing event, throwing {@link\n IllegalStateException}.\n"
   }, {
+    "name" : "withDeadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Change#withDeadlines",
+    "returnType" : "io.fluxzero.sdk.modeling.Change",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Attaches the complete SDK-computed metadata for this exact revision. "
+  }, {
     "name" : "withEffects",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Change#withEffects",
     "returnType" : "io.fluxzero.sdk.modeling.Change",
@@ -808,6 +883,16 @@
   }, {
     "name" : "conflictPolicy",
     "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "deadlineOnly",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "deadlines",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
     "annotations" : [ ],
     "documentation" : null
   }, {

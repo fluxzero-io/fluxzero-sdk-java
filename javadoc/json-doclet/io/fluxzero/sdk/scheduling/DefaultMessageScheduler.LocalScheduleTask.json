@@ -29,7 +29,7 @@
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$LocalScheduleTask.schedule",
     "type" : "io.fluxzero.sdk.scheduling.Schedule",
-    "modifiers" : [ "final", "private" ],
+    "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null

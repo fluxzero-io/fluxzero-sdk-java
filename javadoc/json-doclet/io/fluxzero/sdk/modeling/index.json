@@ -835,6 +835,11 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog",
     "kind" : "class"
   }, {
+    "file" : "MutationPlan.Catalog.DeadlineTypes.json",
+    "name" : "MutationPlan.Catalog.DeadlineTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog$DeadlineTypes",
+    "kind" : "record"
+  }, {
     "file" : "MutationPlan.Catalog.ExplicitDefinition.json",
     "name" : "MutationPlan.Catalog.ExplicitDefinition",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog$ExplicitDefinition",

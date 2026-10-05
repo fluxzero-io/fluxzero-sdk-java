@@ -34,6 +34,23 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "generatedScheduleId",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule.generatedScheduleId",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "scheduleId",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule.scheduleId",
     "type" : "java.lang.@lombok.NonNull String",
@@ -131,6 +148,51 @@
   }, {
     "name" : "Schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#Schedule",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generatedScheduleId",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#Schedule",
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -153,6 +215,36 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a new scheduled message with a given {@code scheduleId}.\n\n @param payload    the payload\n @param scheduleId the unique schedule identifier\n @param deadline   the delivery deadline\n"
+  }, {
+    "name" : "Schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#Schedule",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generatedScheduleId",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "Schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#Schedule",
@@ -275,6 +367,32 @@
     "varArgs" : false,
     "documentation" : " Returns a new schedule with a {@link User} added to the metadata using the configured {@link UserProvider}.\n"
   }, {
+    "name" : "forDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#forDeadline",
+    "returnType" : "io.fluxzero.sdk.scheduling.Schedule",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "declaration",
+      "type" : "io.fluxzero.sdk.scheduling.Deadline",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "referenceTime",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a Model deadline declaration at a common reference time. Null remains null; a Schedule keeps its\n own time. Plain payloads (including Message envelopes) use the annotation's cron or delay. A disabled cron\n returns null. This factory only constructs a value and never stores or dispatches it.\n\n @param value the declaration result\n @param declaration annotation supplying one-shot timing\n @param referenceTime reference shared by before/after evaluation\n @return the desired schedule, or null when inactive\n"
+  }, {
     "name" : "getDeadline",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#getDeadline",
     "returnType" : "java.time.@lombok.NonNull Instant",
@@ -302,6 +420,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Unique identifier for this scheduled message. Used to replace, cancel, or retrieve the schedule.\n"
+  }, {
+    "name" : "hasExplicitScheduleId",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#hasExplicitScheduleId",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.Transient",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether the schedule identity was selected explicitly, rather than generated by a convenience constructor. "
   }, {
     "name" : "reschedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.Schedule#reschedule",

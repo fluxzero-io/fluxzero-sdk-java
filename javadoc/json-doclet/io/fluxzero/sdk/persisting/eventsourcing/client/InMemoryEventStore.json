@@ -82,6 +82,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "modelDeadlineClock",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelDeadlineClock",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelDeletions",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelDeletions",
     "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelDeletionResult>",
@@ -254,6 +262,14 @@
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelRelationshipHistory",
     "type" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.MutableModelRelationship>",
     "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelScheduleWriter",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelScheduleWriter",
+    "type" : "java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>,java.lang.Runnable>",
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -1604,6 +1620,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Binds guarded reindex writes to the local canonical search store. "
+  }, {
+    "name" : "setModelScheduleWriter",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelScheduleWriter",
+    "returnType" : "void",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "writer",
+      "type" : "java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>,java.lang.Runnable>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Installs the LocalClient scheduler writer; effects are applied in the accepted Model commit. "
   }, {
     "name" : "setScheduleDeletionMonitor",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setScheduleDeletionMonitor",

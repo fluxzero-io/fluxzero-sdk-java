@@ -499,6 +499,17 @@
     "varArgs" : false,
     "documentation" : " Opens a new, deliberately current view of this Model using its exact repository identity and owning repository.\n The new namespace boundary is pinned during this call, ignoring an active event-handler boundary.\n Event-sourced values and relationships remain lazy; a DOCUMENT-only root is coherently read and retained\n during this call. Like {@link Fluxzero#loadCurrentGraph(Object, Class)}, the view captures the current\n message-batch overlay. It is not a continuously updating view and does not modify this graph or commit its edits.\n <p>The result is rooted at this Model, even when this node was reached through a parent. Reparenting is reflected\n in its new navigation; a deleted Model has an empty value. View-only path selections, filters, mapped values and\n response context are not carried over: reapply those deliberately to the new view.</p>\n <p>Requires a locally known Model type and repository support for exact-identity current reads. Custom Graphs\n may override this method; the default fails rather than silently switching repositories or read boundaries.</p>\n <p>Within a mutation on this repository/namespace, the view joins that active attempt's pinned boundary,\n staged values and inspected read dependencies; it does not open a second snapshot. Outside mutations it has\n no transaction provenance and deliberately opens the fresh boundary described above.</p>\n\n @throws UnsupportedOperationException if this Graph or its repository cannot open such a view\n @throws IllegalStateException if this node's Model type is unknown locally\n"
   }, {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#deadlines",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the immutable deadline categories recorded with this Model revision. Values describe planned times,\n not scheduler execution or external cancellation. Reading them never evaluates declarations or schedules work.\n Custom Graphs without deadline metadata return an empty map.\n"
+  }, {
     "name" : "delete",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#delete",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",

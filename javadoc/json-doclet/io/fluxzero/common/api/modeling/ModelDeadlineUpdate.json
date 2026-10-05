@@ -1,0 +1,280 @@
+{
+  "name" : "ModelDeadlineUpdate",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " SDK-computed ordinary scheduler effects included in a Model commit. No scheduler status is consulted.\n\n @param previousScheduleId ID to cancel before replacements are stored; null for a new category\n @param schedule replacement schedule, or null to cancel only\n @param previousDeadline original scheduler time in epoch milliseconds for a replacement; null for creation/cancellation\n @param cancelOnDeletion bind the replacement to the Model's existing lifetime ownership mechanism\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "METADATA_PREFIX",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.METADATA_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Reserved SDK-owned metadata prefix in Model events, documents and snapshots. ",
+    "constantValue" : "$fluxzero.deadline."
+  }, {
+    "name" : "cancelOnDeletion",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.cancelOnDeletion",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "category",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.category",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "previousDeadline",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.previousDeadline",
+    "type" : "java.lang.Long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "previousScheduleId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.previousScheduleId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate.schedule",
+    "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelDeadlineUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#ModelDeadlineUpdate",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "category",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previousScheduleId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedule",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cancelOnDeletion",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previousDeadline",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cancelOnDeletion",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#cancelOnDeletion",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "category",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#category",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#modelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "previousDeadline",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#previousDeadline",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "previousScheduleId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#previousScheduleId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#schedule",
+    "returnType" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scheduleId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#scheduleId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "category",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Derives the stable schedule identity without exposing application string conventions. "
+  }, {
+    "name" : "slotId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#slotId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Namespace-local reserved schedule identity, independent of declaration method names. "
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "cancelOnDeletion",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "category",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "previousDeadline",
+    "type" : "java.lang.Long",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "previousScheduleId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "schedule",
+    "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

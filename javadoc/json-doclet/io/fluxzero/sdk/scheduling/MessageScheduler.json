@@ -134,6 +134,43 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "prepareDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#prepareDeadline",
+    "returnType" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "command",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Prepares a Model-owned deadline without publishing it. Storage is part of the Model commit. "
+  }, {
+    "name" : "registerDeadlineCommit",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#registerDeadlineCommit",
+    "returnType" : "java.util.function.Consumer<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reserves local deadline delivery before submission. Invoke the returned callback exactly once after completion,\n with the authoritative result or {@code null} on failure. Reservations order overlapping commit callbacks;\n implementations must not consult scheduler status during preparation or activation.\n"
+  }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
     "returnType" : "void",

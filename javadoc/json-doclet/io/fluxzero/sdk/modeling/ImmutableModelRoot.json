@@ -40,6 +40,23 @@
   "superClass" : "io.fluxzero.sdk.modeling.ImmutableRoot<T>",
   "interfaces" : [ "io.fluxzero.sdk.modeling.ModelRoot<T>" ],
   "fields" : [ {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableModelRoot.deadlines",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Include",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "stateIndex",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableModelRoot.stateIndex",
     "type" : "long",
@@ -342,6 +359,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Creates a lightweight staged model root with its known sequence number. "
+  }, {
+    "name" : "withDeadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableModelRoot#withDeadlines",
+    "returnType" : "io.fluxzero.sdk.modeling.ImmutableModelRoot<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns this revision with its immutable SDK-owned deadline metadata. "
   }, {
     "name" : "withEventIndex",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableModelRoot#withEventIndex",

@@ -8,7 +8,7 @@
     "annotationType" : "lombok.Value",
     "values" : {}
   } ],
-  "documentation" : " Result of an accepted, rebase-requested, or conflict-rejected\n {@link CommitModels}.\n <p>\n Accepted results are durable and include completion of direct document and snapshot materialization. A duplicate\n accepted {@code commitId} returns the same logical result with the new request ID used for response correlation.\n Rebase and conflict results are not retained under the idempotency key.\n",
+  "documentation" : " Result of an accepted, rebase-requested, deadline-reevaluation-requested, or conflict-rejected\n {@link CommitModels}.\n <p>\n Accepted results are durable and include completion of direct document and snapshot materialization. A duplicate\n accepted {@code commitId} returns the same logical result with the new request ID used for response correlation.\n Rebase, deadline reevaluation and conflict results are not retained under the idempotency key.\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
   "interfaces" : [ ],
@@ -27,6 +27,19 @@
     "modifiers" : [ ],
     "annotations" : [ ],
     "documentation" : " Current positions for model identities involved in a rejected commit. Empty for an accepted commit.\n",
+    "constantValue" : null
+  }, {
+    "name" : "deadlineReevaluationTime",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsResult.deadlineReevaluationTime",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "documentation" : " Runtime cutoff in epoch milliseconds when deadline effects must be recalculated at the same Model read\n boundary. Nothing was committed. This is independent of the application's conflict policy and retry budget.\n",
     "constantValue" : null
   }, {
     "name" : "duplicate",
@@ -58,7 +71,7 @@
     "type" : "boolean",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Whether the runtime permits an SDK retry. For strict conflict results\n this means the scoped relationships were unchanged; a default-policy\n apply-only rebase is always retryable at\n {@link #rebaseStateIndex}.\n",
+    "documentation" : " Whether the runtime permits an SDK retry. For strict conflict results\n this means the scoped relationships were unchanged; a default-policy\n apply-only rebase is always retryable at\n {@link #rebaseStateIndex}. Deadline-only reevaluation is also retryable, at the original Model read boundary.\n",
     "constantValue" : null
   }, {
     "name" : "timestamp",
@@ -84,7 +97,7 @@
     "annotations" : [ {
       "annotationType" : "java.beans.ConstructorProperties",
       "values" : {
-        "value" : "\"requestId\",\"commitId\",\"updates\",\"conflicts\",\"retryAllowed\",\"duplicate\",\"rebaseStateIndex\""
+        "value" : "\"requestId\",\"commitId\",\"updates\",\"conflicts\",\"retryAllowed\",\"duplicate\",\"rebaseStateIndex\",\"deadlineReevaluationTime\""
       }
     } ],
     "typeParameters" : [ ],
@@ -120,6 +133,11 @@
       "annotations" : [ ]
     }, {
       "name" : "rebaseStateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadlineReevaluationTime",
       "type" : "java.lang.Long",
       "varArgs" : false,
       "annotations" : [ ]
@@ -336,6 +354,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Requests an internal apply-only rebase at the supplied current boundary.\n"
+  }, {
+    "name" : "reevaluateDeadlines",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsResult#reevaluateDeadlines",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cutoff",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Rejects only the time-sensitive deadline plan; no idempotency receipt is retained. "
   }, {
     "name" : "toMetric",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsResult#toMetric",

@@ -394,6 +394,11 @@
       "type" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "deadlines",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,

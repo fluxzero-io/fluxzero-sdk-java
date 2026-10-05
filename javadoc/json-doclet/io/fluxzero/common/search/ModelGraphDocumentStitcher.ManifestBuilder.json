@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$ManifestBuilder.deadlines",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "modelTypeIndexes",
     "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$ManifestBuilder.modelTypeIndexes",
     "type" : "java.util.Map<java.lang.String,java.lang.Integer>",

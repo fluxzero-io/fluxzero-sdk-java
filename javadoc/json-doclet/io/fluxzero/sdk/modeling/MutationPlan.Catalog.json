@@ -26,6 +26,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "deadlineTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.deadlineTypes",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Catalog.DeadlineTypes",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "definitions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.definitions",
     "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,io.fluxzero.sdk.modeling.MutationPlan>",
@@ -159,6 +167,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "contextualDeadlineTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#contextualDeadlineTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Application registration snapshot; structural declarations remain owned by EntityMetadata. "
   }, {
     "name" : "discoverIndexedModelTypes",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#discoverIndexedModelTypes",
@@ -349,6 +368,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "DeadlineTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog$DeadlineTypes",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "ExplicitDefinition",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog$ExplicitDefinition",
     "kind" : "record",

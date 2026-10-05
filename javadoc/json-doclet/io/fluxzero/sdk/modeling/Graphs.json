@@ -914,6 +914,27 @@
     "varArgs" : false,
     "documentation" : "Internal result view retaining a known revision without consulting a subsequent current cache entry. "
   }, {
+    "name" : "related",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#related",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeParents",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Traverses a union of roots once, batching each frontier and preserving shared navigation state. "
+  }, {
     "name" : "remapPaths",
     "qualifiedName" : "io.fluxzero.sdk.modeling.Graphs#remapPaths",
     "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",

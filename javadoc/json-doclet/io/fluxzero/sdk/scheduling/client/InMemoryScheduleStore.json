@@ -647,6 +647,32 @@
     "varArgs" : false,
     "documentation" : " Replaces the scheduling clock, refreshes clock-change monitoring, resets the minimum schedule index, and\n notifies monitors.\n"
   }, {
+    "name" : "storeSchedules",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#storeSchedules",
+    "returnType" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parents",
+      "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cancellations",
+      "type" : "java.util.List<io.fluxzero.common.api.scheduling.ScheduleAutoCancelled>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schedules",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "toString",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.client.InMemoryScheduleStore#toString",
     "returnType" : "java.lang.String",

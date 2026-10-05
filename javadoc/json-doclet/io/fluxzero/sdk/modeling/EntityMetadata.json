@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata.deadlines",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.DeadlinePlan.Declaration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "entityId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata.entityId",
     "type" : "io.fluxzero.sdk.modeling.EntityMetadata.Property",
@@ -227,7 +235,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Returns only the discovered methods classified as apply handlers.\n"
+    "documentation" : null
   }, {
     "name" : "assertionFields",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#assertionFields",
@@ -318,6 +326,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Returns the canonical Model source collection, shared with node search when enabled. "
+  }, {
+    "name" : "deadlines",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#deadlines",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.DeadlinePlan.Declaration>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns only the discovered methods classified as apply handlers.\n"
   }, {
     "name" : "entityId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata#entityId",

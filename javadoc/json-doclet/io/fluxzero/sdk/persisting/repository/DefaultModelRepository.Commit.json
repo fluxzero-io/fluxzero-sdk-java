@@ -204,6 +204,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "commandSteps",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#commandSteps",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitStep>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "outcome",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "commit",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#commit",
     "returnType" : "java.util.concurrent.CompletableFuture<java.util.Optional<io.fluxzero.common.api.modeling.CommitModelsResult>>",
@@ -548,6 +564,32 @@
     "varArgs" : false,
     "documentation" : " Prepares the wire commit and change correlation using the supplied conflict, migration, and\n existing-event policies, without submitting the commit.\n"
   }, {
+    "name" : "prepareDeadlineReevaluation",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepareDeadlineReevaluation",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "original",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "evaluation",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Rebuilds all deadline metadata and effects without changing the original conflict or event policy. "
+  }, {
     "name" : "prepareRebased",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepareRebased",
     "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
@@ -573,6 +615,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Prepares an ACCEPT rebase with the original commit shape, delivery guarantee, duplicate flag, and\n migration policy. Empty originals and incompatible shapes are rejected.\n"
+  }, {
+    "name" : "prepareUpdated",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#prepareUpdated",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "original",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "evaluation",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "policy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "processCommitResults",
     "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit#processCommitResults",
@@ -755,6 +828,11 @@
     }, {
       "name" : "timestamp",
       "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

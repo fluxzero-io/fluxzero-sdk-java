@@ -45,9 +45,34 @@
     "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$SimpleField",
     "kind" : "class"
   }, {
+    "file" : "Deadline.json",
+    "name" : "Deadline",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "DeadlineInfo.json",
+    "name" : "DeadlineInfo",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineInfo",
+    "kind" : "record"
+  }, {
+    "file" : "DeadlineMetadata.json",
+    "name" : "DeadlineMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata",
+    "kind" : "class"
+  }, {
     "file" : "DefaultMessageScheduler.json",
     "name" : "DefaultMessageScheduler",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultMessageScheduler.DeadlineSlot.json",
+    "name" : "DefaultMessageScheduler.DeadlineSlot",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultMessageScheduler.DeliveryLock.json",
+    "name" : "DefaultMessageScheduler.DeliveryLock",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeliveryLock",
     "kind" : "class"
   }, {
     "file" : "DefaultMessageScheduler.LocalScheduleTask.json",

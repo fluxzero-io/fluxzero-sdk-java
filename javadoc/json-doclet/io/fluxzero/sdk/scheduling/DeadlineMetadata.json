@@ -1,0 +1,136 @@
+{
+  "name" : "DeadlineMetadata",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Internal codec for SDK-owned deadline metadata in events, Model documents and snapshots. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "PREFIX",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata.PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Reserved SDK namespace; application/dispatch metadata cannot supply values in this namespace. ",
+    "constantValue" : "$fluxzero.deadline."
+  } ],
+  "constructors" : [ {
+    "name" : "DeadlineMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata#DeadlineMetadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata#get",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Obtains the immutable deadline map from a loaded Model revision. "
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata#key",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "read",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata#read",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previous",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Restores a Model's recorded categories; old records without metadata retain their prior value. "
+  }, {
+    "name" : "strip",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata#strip",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Removes untrusted deadline metadata before preparing a live Model write. "
+  }, {
+    "name" : "with",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DeadlineMetadata#with",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadlines",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DeadlineInfo>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds one complete authoritative category map, including an explicit empty map when canceled. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

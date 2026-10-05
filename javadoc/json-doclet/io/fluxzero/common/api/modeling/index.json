@@ -40,6 +40,11 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithAliasReads",
     "kind" : "class"
   }, {
+    "file" : "CommitModelsWithDeadlines.json",
+    "name" : "CommitModelsWithDeadlines",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines",
+    "kind" : "class"
+  }, {
     "file" : "CommitModelsWithDocumentProjections.json",
     "name" : "CommitModelsWithDocumentProjections",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections",
@@ -209,6 +214,11 @@
     "name" : "ModelConflictPolicy",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
     "kind" : "enum"
+  }, {
+    "file" : "ModelDeadlineUpdate.json",
+    "name" : "ModelDeadlineUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeadlineUpdate",
+    "kind" : "record"
   }, {
     "file" : "ModelDeletionCascade.json",
     "name" : "ModelDeletionCascade",

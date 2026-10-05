@@ -1,0 +1,113 @@
+{
+  "name" : "Deadline",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD"
+    }
+  } ],
+  "documentation" : " Declares one desired, one-shot deadline on a Model. A pure instance method returns {@link\n Schedule}, a payload when annotation timing is configured, or null to cancel. Parameters may be\n typed Model ancestors or Graph views. Cron selects the next match without enabling periodic\n execution. Both sides of a change use the same reference clock; unchanged declarations retain\n their recorded original time. Once that time has arrived, changed timing, payload, application\n metadata or schedule ID cannot recreate the deadline. Return null and later a payload to start\n a new cycle. Runtime rechecks the original time at transaction acceptance in scheduler milliseconds;\n an expired replacement rebuilds deadline effects and Model metadata without reexecuting applies or handlers.\n External cancellation is neither queried nor recorded by deadline planning. Both evaluations use current\n configuration, so a property change alone does not reconcile an existing deadline.\n\n <p>Comparison includes time, payload, application metadata and explicitly supplied schedule IDs.\n Generated IDs, message timestamps and reserved metadata (keys starting with {@code $}) are ignored.\n The SDK retains category metadata under {@code $fluxzero.deadline.*} in existing Model storage;\n {@link io.fluxzero.sdk.modeling.Graph#deadlines()} exposes it for the exact revision. These values\n describe planned work, not successful execution. Reads and replay never schedule work. Commands\n execute as the configured system user. Concrete scheduler changes share the Model commit.\n All writers of the Model or its injected context must run the same declarations. Stateful\n handlers are not supported.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ {
+    "name" : "DISABLED",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline.DISABLED",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "A property-resolvable cron value that disables the declaration. ",
+    "constantValue" : "-"
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "cancelOnDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#cancelOnDeletion",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Cancels the last committed schedule on logical Model deletion, including cascades. "
+  }, {
+    "name" : "command",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#command",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Whether the payload is dispatched as a command. False selects ordinary HandleSchedule\n handling.\n"
+  }, {
+    "name" : "cron",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#cron",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Cron expression selecting the next deadline, with the same syntax and property substitution\n as {@link Periodic}. For example {@code \"${reminder.cron}\"}. {@link #DISABLED} disables\n scheduling. Takes precedence over delay. A returned {@link Schedule} supplies its own time.\n"
+  }, {
+    "name" : "delay",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#delay",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Delay from the change that creates or changes the payload. Required for plain payloads\n without cron.\n"
+  }, {
+    "name" : "timeUnit",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#timeUnit",
+    "returnType" : "java.util.concurrent.TimeUnit",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Unit of {@link #delay()}. "
+  }, {
+    "name" : "timeZone",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#timeZone",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Time zone for cron evaluation. "
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.Deadline#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stable category within the Model. Declare distinct names when a Model has multiple deadlines.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

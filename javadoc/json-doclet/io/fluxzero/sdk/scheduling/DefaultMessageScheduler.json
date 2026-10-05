@@ -5,6 +5,9 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
@@ -32,6 +35,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "deadlineSlots",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.deadlineSlots",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.scheduling.DefaultMessageScheduler.DeadlineSlot>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultGuarantee",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.defaultGuarantee",
     "type" : "io.fluxzero.common.Guarantee",
@@ -43,6 +54,14 @@
     "name" : "dispatchInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.dispatchInterceptor",
     "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "localDeliveryLocks",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.localDeliveryLocks",
+    "type" : "java.util.concurrent.ConcurrentMap<java.lang.String,io.fluxzero.sdk.scheduling.DefaultMessageScheduler.DeliveryLock>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -159,6 +178,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "armDeadlineTask",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#armDeadlineTask",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.LocalScheduleTask",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cancelLocalDelivery",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#cancelLocalDelivery",
     "returnType" : "void",
@@ -274,6 +309,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#deserializeSchedule",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.scheduling.Schedule>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializingMessage",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#deserializingMessage",
     "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
@@ -283,6 +334,27 @@
     "parameters" : [ {
       "name" : "schedule",
       "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "discardDeadlineSlot",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#discardDeadlineSlot",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "slot",
+      "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.DeadlineSlot",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -347,6 +419,49 @@
     "varArgs" : false,
     "documentation" : " Dispatches the schedule to local handlers and waits for an available handling result; handler failures\n propagate to the caller.\n"
   }, {
+    "name" : "prepareDeadline",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#prepareDeadline",
+    "returnType" : "io.fluxzero.common.api.scheduling.SerializedSchedule",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "io.fluxzero.sdk.scheduling.Schedule",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "command",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerDeadlineCommit",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#registerDeadlineCommit",
+    "returnType" : "java.util.function.Consumer<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerHandler",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#registerHandler",
     "returnType" : "io.fluxzero.common.Registration",
@@ -399,6 +514,22 @@
     "parameters" : [ {
       "name" : "registration",
       "type" : "java.util.function.Supplier<io.fluxzero.common.Registration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeDeadlineTask",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#removeDeadlineTask",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "task",
+      "type" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler.LocalScheduleTask",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -652,10 +783,43 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Configures the concrete application delivery default before first use; namespace copies inherit it. "
+  }, {
+    "name" : "withLocalDeliveryLock",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler#withLocalDeliveryLock",
+    "returnType" : "T",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "action",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "DeadlineSlot",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeadlineSlot",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DeliveryLock",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$DeliveryLock",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "LocalScheduleTask",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.DefaultMessageScheduler$LocalScheduleTask",
     "kind" : "class",

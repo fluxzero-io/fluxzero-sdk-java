@@ -60,6 +60,11 @@
     "qualifiedName" : "io.fluxzero.sdk.common.IdentityProvider",
     "kind" : "interface"
   }, {
+    "file" : "IdentityProviderDefaults.json",
+    "name" : "IdentityProviderDefaults",
+    "qualifiedName" : "io.fluxzero.sdk.common.IdentityProviderDefaults",
+    "kind" : "interface"
+  }, {
     "file" : "LazyId.json",
     "name" : "LazyId",
     "qualifiedName" : "io.fluxzero.sdk.common.LazyId",
