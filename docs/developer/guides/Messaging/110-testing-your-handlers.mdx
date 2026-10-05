@@ -573,6 +573,8 @@ This ensures that:
 Handlers annotated with `@LocalHandler` are still executed synchronously, even in async fixtures—just like in production.
 </Aside>
 
+The asynchronous fixture registers newly discovered `@TrackSelf` payloads before concurrent dispatch proceeds. A failed registration remains a failure for that type; use a fresh fixture after correcting its configuration, rather than retrying a partially installed handler.
+
 ## Using test fixtures in Spring
 
 Fluxzero integrates seamlessly with Spring Boot. You can inject a `TestFixture` directly:
