@@ -57,3 +57,8 @@ The runtime exposes WebSocket endpoints for commands, queries, events, event sou
 Runtime namespace defaults to `public` when no namespace is supplied and normalizes namespace values to lowercase. Use explicit namespaces only when the deployment model needs isolation.
 
 Runtime health and readiness are different: `/health` means the process is up, while `/ready` includes availability/database readiness and should be used for deployment readiness checks.
+
+`IdentityProvider.defaultIdentityProvider` selects the first ServiceLoader provider using the context class loader
+of the thread that first accesses the field, with `UuidFactory` as fallback. The selected instance is shared;
+constructing a provider directly does not trigger that discovery. Use `replaceIdentityProvider(...)` for an
+application-specific provider. This contract is the same for Java and Kotlin.
