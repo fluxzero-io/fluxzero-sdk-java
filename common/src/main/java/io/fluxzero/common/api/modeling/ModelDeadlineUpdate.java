@@ -26,11 +26,12 @@ import java.util.UUID;
  *
  * @param previousScheduleId ID to cancel before replacements are stored; null for a new category
  * @param schedule replacement schedule, or null to cancel only
+ * @param previousDeadline original scheduler time in epoch milliseconds for a replacement; null for creation/cancellation
  * @param cancelOnDeletion bind the replacement to the Model's existing lifetime ownership mechanism
  */
 public record ModelDeadlineUpdate(
         String modelId, String category, String previousScheduleId, SerializedSchedule schedule,
-        boolean cancelOnDeletion) {
+        boolean cancelOnDeletion, Long previousDeadline) {
     /** Reserved SDK-owned metadata prefix in Model events, documents and snapshots. */
     public static final String METADATA_PREFIX = "$fluxzero.deadline.";
 

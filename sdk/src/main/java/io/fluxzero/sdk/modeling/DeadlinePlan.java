@@ -126,6 +126,13 @@ final class DeadlinePlan {
     }
 
     CommitAttempt evaluate(CommitAttempt attempt, DeserializingMessage message) {
+        Instant referenceTime = Fluxzero.currentTime();
+        return evaluate(attempt, message, referenceTime, referenceTime.toEpochMilli());
+    }
+
+    private CommitAttempt evaluate(CommitAttempt attempt, DeserializingMessage message,
+                                   Instant referenceTime, long cutoff) {
+        List<CommitAttempt.Step> originalSteps = attempt.steps();
         Map<String, Change> first = new LinkedHashMap<>(), last = new LinkedHashMap<>();
         for (Change change : attempt.transitions()) {
             if (change.updateState()) {
@@ -133,17 +140,12 @@ final class DeadlinePlan {
                 last.put(change.modelId(), change);
             }
         }
-        Instant referenceTime = Fluxzero.currentTime();
-        Set<Class<?>> contextual = new LinkedHashSet<>();
-        boolean graphContext = false;
+        Map<Class<?>, List<Declaration>> contextual = new LinkedHashMap<>();
         for (Class<?> type : knownTypes.get()) {
-            var declarations = EntityMetadata.of(type).deadlines();
-            boolean graph = declarations.stream().anyMatch(Declaration::graph);
-            if (last.values().stream()
-                    .anyMatch(c -> potentiallyRelated(type, c.modelType(), graph))) {
-                contextual.add(type);
-                graphContext |= graph;
-            }
+            List<Declaration> affected = EntityMetadata.of(type).deadlines().stream()
+                    .filter(Declaration::contextual)
+                    .filter(d -> last.values().stream().anyMatch(c -> affectedBy(type, d, c))).toList();
+            if (!affected.isEmpty()) { contextual.put(type, affected); }
         }
         boolean local = last.values().stream().anyMatch(c -> !c.metadata().deadlines().isEmpty());
         if (!local && contextual.isEmpty()) {
@@ -158,43 +160,43 @@ final class DeadlinePlan {
         CommitAttempt oldContext = attempt.deadlineContext(before),
                 newContext = attempt.deadlineContext(after);
         Map<String, Class<?>> candidates = new LinkedHashMap<>();
+        Map<String, Set<Declaration>> affectedDeclarations = new LinkedHashMap<>();
         Map<String, Graph<?>> oldGraphs = new LinkedHashMap<>(), newGraphs = new LinkedHashMap<>();
         last.forEach((id, change) -> candidates.put(id, change.modelType()));
-        if (!contextual.isEmpty()) {
-            boolean connected = graphContext;
-            for (CommitAttempt context : List.of(oldContext, newContext)) {
-                CommitAttempt.withGraphReads(
-                        context,
-                        () -> {
-                            Map<String, Graph<?>> graphs =
-                                    context == oldContext ? oldGraphs : newGraphs;
-                            Set<String> visited = new LinkedHashSet<>();
-                            for (var changed : last.entrySet()) {
-                                if (visited.contains(changed.getKey())) {
-                                    continue;
-                                }
-                                Graph<?> root =
-                                        Graphs.lazyRepositoryId(
-                                                changed.getKey(),
-                                                changed.getValue().modelType(),
-                                                repository);
-                                List<Graph<?>> selected = Graphs.related(root, connected);
-                                for (Graph<?> graph : selected) {
-                                    visited.add(graph.id().toString());
-                                    if (graph.knownType().isPresent()
-                                            && contextual.contains(graph.type())) {
-                                        candidates.putIfAbsent(graph.id().toString(), graph.type());
-                                        graphs.putIfAbsent(graph.id().toString(), graph);
-                                    }
-                                }
-                            }
-                            Graphs.modelValues(
-                                    graphs.values().stream()
-                                            .map(g -> Graphs.<Object>cast(g))
-                                            .toList());
-                            return null;
-                        });
-            }
+        for (CommitAttempt context : List.of(oldContext, newContext)) {
+            if (contextual.isEmpty()) { break; }
+            CommitAttempt.withGraphReads(context, () -> {
+                Map<String, Graph<?>> graphs = context == oldContext ? oldGraphs : newGraphs;
+                Map<String, Graph<?>> navigation = new LinkedHashMap<>();
+                // Graph parameters can navigate the connected component. Plain Model parameters only
+                // require descendants of changed ancestors; do not widen them because another method uses Graph.
+                for (boolean connected : List.of(false, true)) {
+                    List<Graph<?>> roots = new ArrayList<>();
+                    for (var changed : last.entrySet()) {
+                        if (contextual.entrySet().stream().noneMatch(e -> e.getValue().stream()
+                                .anyMatch(d -> d.graph() == connected && affectedBy(e.getKey(), d, changed.getValue())))) {
+                            continue;
+                        }
+                        roots.add(navigation.computeIfAbsent(changed.getKey(), id ->
+                                Graphs.lazyRepositoryId(id, changed.getValue().modelType(), repository)));
+                    }
+                    for (Graph<?> graph : Graphs.related(roots, connected)) {
+                        String id = graph.id().toString();
+                        navigation.putIfAbsent(id, graph);
+                        List<Declaration> declarations = graph.knownType().isEmpty() ? List.of()
+                                : contextual.getOrDefault(graph.type(), List.of()).stream()
+                                    .filter(d -> d.graph() == connected).toList();
+                        if (!declarations.isEmpty()) {
+                            candidates.putIfAbsent(id, graph.type());
+                            graphs.putIfAbsent(id, graph);
+                            affectedDeclarations.computeIfAbsent(id, ignored -> new LinkedHashSet<>())
+                                    .addAll(declarations);
+                        }
+                    }
+                }
+                Graphs.modelValues(graphs.values().stream().map(g -> Graphs.<Object>cast(g)).toList());
+                return null;
+            });
         }
         List<ModelDeadlineUpdate> updates = new ArrayList<>();
         Map<String, Map<String, DeadlineInfo>> original = new LinkedHashMap<>(), planned = new LinkedHashMap<>();
@@ -211,7 +213,8 @@ final class DeadlinePlan {
             original.put(id, recorded);
             Map<String, DeadlineInfo> desired = new LinkedHashMap<>(recorded);
             for (Declaration declaration : EntityMetadata.of(type).deadlines()) {
-                if (!last.containsKey(id) && !declaration.contextual()) {
+                if (!last.containsKey(id)
+                        && !affectedDeclarations.getOrDefault(id, Set.of()).contains(declaration)) {
                     continue;
                 }
                 if (last.containsKey(id)
@@ -245,7 +248,7 @@ final class DeadlinePlan {
                 DeadlineInfo previous = recorded.get(category);
                 // Compare declarations first; only changed existing work needs the original-time guard.
                 Instant oldTime = previous == null ? old == null ? null : old.getDeadline() : previous.deadline();
-                if (next != null && old != null && oldTime != null && !oldTime.isAfter(referenceTime)) {
+                if (next != null && old != null && oldTime != null && oldTime.toEpochMilli() <= cutoff) {
                     continue;
                 }
                 String previousId = previous != null ? previous.scheduleId()
@@ -256,7 +259,7 @@ final class DeadlinePlan {
                 if (next == null) {
                     desired.remove(category);
                     if (previousId != null) {
-                        updates.add(new ModelDeadlineUpdate(id, category, previousId, null, declaration.cancelOnDeletion()));
+                        updates.add(new ModelDeadlineUpdate(id, category, previousId, null, declaration.cancelOnDeletion(), null));
                     }
                     continue;
                 }
@@ -292,7 +295,8 @@ final class DeadlinePlan {
                                 .prepareDeadline(schedule, declaration.command());
                 updates.add(
                         new ModelDeadlineUpdate(
-                                id, category, previousId, prepared, declaration.cancelOnDeletion()));
+                                id, category, previousId, prepared, declaration.cancelOnDeletion(),
+                                old == null || oldTime == null ? null : oldTime.toEpochMilli()));
             }
             planned.put(id, Map.copyOf(desired));
             if (!last.containsKey(id) && !desired.equals(recorded)) {
@@ -321,6 +325,10 @@ final class DeadlinePlan {
         }
         attempt.deadlineSteps(steps);
         attempt.finishDeadlineReads();
+        attempt.deadlineReevaluation(nextCutoff -> {
+            attempt.deadlineSteps(originalSteps);
+            evaluate(attempt, message, referenceTime, Math.max(cutoff, nextCutoff));
+        });
         return attempt;
     }
 
@@ -399,6 +407,16 @@ final class DeadlinePlan {
                 .filter(e -> !e.getKey().startsWith("$"))
                 .forEach(e -> result.put(e.getKey(), e.getValue()));
         return result;
+    }
+
+    private static boolean affectedBy(Class<?> owner, Declaration declaration, Change change) {
+        if (!potentiallyRelated(owner, change.modelType(), declaration.graph())) { return false; }
+        if (declaration.graph()) { return true; }
+        if (declaration.parameters().stream().anyMatch(p -> p.modelType().isAssignableFrom(change.modelType())
+                || change.modelType().isAssignableFrom(p.modelType()))) { return true; }
+        // Moving an intermediate ancestor can change which value is injected even if its own type is not injected.
+        return !change.metadata().parentRelationships(change.modelId(), change.before())
+                .equals(change.metadata().parentRelationships(change.modelId(), change.after()));
     }
 
     private static boolean potentiallyRelated(Class<?> owner, Class<?> changed, boolean graph) {

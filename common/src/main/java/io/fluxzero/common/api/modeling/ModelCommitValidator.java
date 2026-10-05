@@ -71,6 +71,9 @@ public final class ModelCommitValidator {
                     || update.schedule().getMessage().getMessageId() == null)) {
                     throw new IllegalArgumentException("Deadline updates require an unconditional replacement schedule with a message ID");
                 }
+                if (update.previousDeadline() != null && (update.previousScheduleId() == null || update.schedule() == null)) {
+                    throw new IllegalArgumentException("An original deadline time requires a replacement of existing work");
+                }
                 if (update.previousScheduleId() != null && update.previousScheduleId().isBlank()) {
                     throw new IllegalArgumentException("Previous schedule ID must not be blank");
                 }

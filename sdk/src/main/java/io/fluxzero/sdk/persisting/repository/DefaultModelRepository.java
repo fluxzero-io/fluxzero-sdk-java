@@ -1992,7 +1992,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (prepared.commit() == null) {
                 return CompletableFuture.completedFuture(Optional.empty());
             }
-            CompletableFuture<CommitModelsResult> committed =
+            java.util.function.Consumer<CommitModelsResult> deadlineCompletion =
+                    prepared.commit() instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
+                            && !deadlines.getDeadlineUpdates().isEmpty()
+                    ? Fluxzero.get().messageScheduler().forNamespace(client.namespace())
+                            .registerDeadlineCommit(deadlines.getDeadlineUpdates()) : null;
+            CompletableFuture<CommitModelsResult> committed;
+            try {
+                committed =
                     io.fluxzero.sdk.common.AsyncCompletionScope.takeOwnership(() -> batch == null
                     ? eventStoreClient.commitModels(prepared.commit())
                     : batch.add(
@@ -2001,27 +2008,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             new ModelCommitBatchingClient.ModelCommitCompletion(
                                     prepared,
                                     resultProcessor)));
+            } catch (RuntimeException | Error failure) {
+                if (deadlineCompletion != null) { deadlineCompletion.accept(null); }
+                throw failure;
+            }
             CompletableFuture<Optional<CommitModelsResult>> completion = batch != null
                     ? committed.thenApply(Optional::of)
                     : committed.thenCompose(result -> result.isAccepted()
                             ? processCommits(List.of(prepared.accepted(result))).thenApply(ignored -> Optional.of(result))
                             : CompletableFuture.completedFuture(Optional.of(result)));
-            if (prepared.commit() instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
-                && !deadlines.getDeadlineUpdates().isEmpty()) {
+            if (deadlineCompletion != null) {
                 var context = io.fluxzero.sdk.common.ThreadLocalContext.capture();
-                // Local scheduling uses ordinary scheduler reads; keep those off the bounded reply executor.
-                java.util.function.Function<Optional<CommitModelsResult>, Optional<CommitModelsResult>> activate =
-                        context.wrap(result -> {
-                    if (result.filter(r -> r.isAccepted() && !r.isDuplicate()).isPresent()) {
-                        Fluxzero.get().messageScheduler().forNamespace(client.namespace())
-                                .deadlinesCommitted(deadlines.getDeadlineUpdates());
-                    }
-                    return result;
-                });
-                // Already completed local commits retain their synchronous completion contract.
-                return completion.isDone() ? completion.thenApply(activate)
-                        : completion.thenApplyAsync(activate,
+                java.util.function.BiConsumer<Optional<CommitModelsResult>, Throwable> activate = context.wrap((result, failure) ->
+                        deadlineCompletion.accept(committed.isCompletedExceptionally() || committed.isCancelled()
+                                ? null : committed.getNow(null)));
+                // Local commits keep synchronous completion; remote activation stays off bounded reply workers.
+                var activated = completion.isDone() ? completion.whenComplete(activate)
+                        : completion.whenCompleteAsync(activate,
                                 task -> Thread.ofVirtual().name("Fluxzero-deadline-activation").start(task));
+                // Cancellation by a caller must not abandon the internal reservation/completion callback.
+                return activated.thenApply(java.util.function.Function.identity());
             }
             return completion;
         }
@@ -2427,12 +2433,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 String commitId,
                 Outcome original,
                 CommitAttempt evaluation) {
+            return prepareUpdated(commitId, original, evaluation, ModelConflictPolicy.ACCEPT);
+        }
+
+        /** Rebuilds all deadline metadata and effects without changing the original conflict or event policy. */
+        public Outcome prepareDeadlineReevaluation(String commitId, Outcome original, CommitAttempt evaluation) {
+            return prepareUpdated(commitId, original, evaluation, original.commit().getConflictPolicy());
+        }
+
+        private Outcome prepareUpdated(String commitId, Outcome original, CommitAttempt evaluation,
+                                       ModelConflictPolicy policy) {
             if (original.commit() == null) {
                 throw new IllegalArgumentException(
                         "Cannot rebase an empty model commit");
             }
             Outcome rebased = doPrepare(
-                    commitId, evaluation, ModelConflictPolicy.ACCEPT,
+                    commitId, evaluation, policy,
                     original.commit().isMigration(), original.existingEvent);
             requireSameShape(original, rebased);
             CommitModels candidate = rebased.commit();

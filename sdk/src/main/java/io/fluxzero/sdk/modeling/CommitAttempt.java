@@ -627,6 +627,18 @@ public final class CommitAttempt {
         deadlineUpdates = List.copyOf(updates);
     }
 
+    private java.util.function.LongConsumer deadlineReevaluation;
+
+    void deadlineReevaluation(java.util.function.LongConsumer action) { deadlineReevaluation = action; }
+
+    void reevaluateDeadlines(long cutoff) {
+        if (deadlineReevaluation == null || deadlineUpdates.stream().noneMatch(update ->
+                update.schedule() != null && update.previousDeadline() != null && update.previousDeadline() <= cutoff)) {
+            throw new IllegalStateException("Runtime requested deadline reevaluation without an expired replacement");
+        }
+        deadlineReevaluation.accept(cutoff);
+    }
+
     void deadlineSteps(List<Step> value) {
         evaluated(readStateIndex(), readModelIds, applyReadModelIds, readModelTypes, value);
     }

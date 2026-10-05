@@ -93,7 +93,7 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
                 }
             }
             return () -> notifyMonitors(messages);
-        });
+        }, clock::millis);
     }
 
     public InMemoryScheduleStore() {

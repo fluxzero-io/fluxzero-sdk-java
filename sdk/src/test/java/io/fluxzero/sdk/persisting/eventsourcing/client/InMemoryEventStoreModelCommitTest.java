@@ -79,13 +79,13 @@ class InMemoryEventStoreModelCommitTest {
         InMemoryEventStore store = denseStore();
         var request = new CommitModelsWithDeadlines(commit("deadline", ModelCommitStep.builder()
                 .event(event("deadline")).targets(List.of(storedTarget("root"))).build()),
-                List.of(new ModelDeadlineUpdate("root", "default", "schedule", null, true)));
+                List.of(new ModelDeadlineUpdate("root", "default", "schedule", null, true, null)));
         AtomicInteger notifications = new AtomicInteger();
         store.setModelScheduleWriter(updates -> () -> {
             assertFalse(Thread.holdsLock(store));
             assertTrue(store.commitModels(request).join().isDuplicate());
             notifications.incrementAndGet();
-        });
+        }, System::currentTimeMillis);
         assertTrue(store.commitModels(request).join().isAccepted());
         assertEquals(1, notifications.get());
     }

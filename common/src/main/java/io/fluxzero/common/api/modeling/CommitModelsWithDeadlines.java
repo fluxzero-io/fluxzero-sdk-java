@@ -96,6 +96,12 @@ public final class CommitModelsWithDeadlines extends CommitModels {
         this.deadlineUpdates = List.copyOf(deadlineUpdates);
     }
 
+    /** Whether a proposed replacement's original scheduler time has been reached at commit acceptance. */
+    public boolean hasExpiredReplacement(long cutoff) {
+        return deadlineUpdates.stream().anyMatch(update -> update.schedule() != null
+                && update.previousDeadline() != null && update.previousDeadline() <= cutoff);
+    }
+
     @Override
     public long getBytes() {
         long size = super.getBytes();

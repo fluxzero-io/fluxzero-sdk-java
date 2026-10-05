@@ -92,8 +92,14 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
         throw new UnsupportedOperationException("This scheduler does not support Model deadlines");
     }
 
-    /** Activates local delivery after Model deadline intents have been durably committed. */
-    default void deadlinesCommitted(java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates) {
+    /**
+     * Reserves local deadline delivery before submission. Invoke the returned callback exactly once after completion,
+     * with the authoritative result or {@code null} on failure. Reservations order overlapping commit callbacks;
+     * implementations must not consult scheduler status during preparation or activation.
+     */
+    default java.util.function.Consumer<io.fluxzero.common.api.modeling.CommitModelsResult> registerDeadlineCommit(
+            java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate> updates) {
+        return ignored -> {};
     }
 
     /**

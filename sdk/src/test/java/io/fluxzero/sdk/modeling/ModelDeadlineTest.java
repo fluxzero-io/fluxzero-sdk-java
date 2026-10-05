@@ -127,6 +127,46 @@ class ModelDeadlineTest {
                 .expectNoEvents().expectNoErrors();
     }
 
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void changedCronConfigAndUnrelatedApplyPreserveFuturePlan(boolean async) {
+        var fixture = async ? TestFixture.createAsync(Timed.class, new Alarms()) : TestFixture.create(Timed.class, new Alarms());
+        fixture.withProperty("deadline.cron", "0 * * * *").atFixedTime(START)
+                .givenCommands(new PutTimed("timed", "first", 0))
+                .given(fc -> fixture.withProperty("deadline.cron", "30 * * * *"))
+                .whenCommand(new PutTimed("timed", "first", 1))
+                .expectSuccessfulResult().expectNoErrors().expectNoNewSchedules()
+                .expectThat(fc -> assertEquals(DUE, Fluxzero.loadGraph("timed", Timed.class).deadlines().get("default").deadline()))
+                .andThen().whenCommand(new PutTimed("timed", "changed", 1))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(fc -> assertEquals(START.plusSeconds(1800),
+                        Fluxzero.loadGraph("timed", Timed.class).deadlines().get("default").deadline()));
+    }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void siblingGraphChangesDoNotEvaluatePlainAncestorDeclarations(boolean async) {
+        var fixture = async ? TestFixture.createAsync(Group.class, Entry.class, Scoped.class)
+                : TestFixture.create(Group.class, Entry.class, Scoped.class);
+        fixture.atFixedTime(START).givenCommands(new CreateGroup("group"), new PutEntry("entry", "group", 1),
+                        new PutScoped("owner", "group"))
+                .given(fc -> { Scoped.plainCalls.set(0); Scoped.graphCalls.set(0); })
+                .whenCommand(new PutEntry("entry", "group", 2))
+                .expectSuccessfulResult().expectNoErrors()
+                .expectThat(fc -> { assertEquals(0, Scoped.plainCalls.get()); assertEquals(2, Scoped.graphCalls.get());
+                    assertEquals(DUE.plusSeconds(2), Fluxzero.loadGraph("owner", Scoped.class).deadlines().get("graph").deadline()); });
+    }
+
+    @Model(searchable = false)
+    record Scoped(@EntityId String scopedId, @Parent(Group.class) String groupId) {
+        static final java.util.concurrent.atomic.AtomicInteger plainCalls = new java.util.concurrent.atomic.AtomicInteger();
+        static final java.util.concurrent.atomic.AtomicInteger graphCalls = new java.util.concurrent.atomic.AtomicInteger();
+        @Deadline("plain") Schedule plain(Group group) { plainCalls.incrementAndGet(); return new Schedule("plain", DUE); }
+        @Deadline("graph") Schedule graph(Graph<Group> group) { graphCalls.incrementAndGet();
+            return new Schedule("graph", DUE.plusSeconds(group.childModels(Entry.class).stream().mapToInt(Entry::amount).sum())); }
+    }
+    record PutScoped(String scopedId, String groupId) {
+        @Apply Scoped apply(@jakarta.annotation.Nullable Scoped current) { return new Scoped(scopedId, groupId); }
+    }
+
     @Model(searchable = false)
     record ExplicitAlarm(@EntityId String alarmId, Instant deadline, String payload) {
         @Deadline

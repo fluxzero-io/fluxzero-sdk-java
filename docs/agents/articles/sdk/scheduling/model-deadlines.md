@@ -104,11 +104,15 @@ Schedule expiry(BookingPolicy policy) {
 ```
 
 Ancestor changes and relationship changes reevaluate affected declarations in the same Model operation. A Graph
-parameter also supports dependencies on descendants and siblings. Relation navigation selects connected candidates,
-and Model values use the existing batched Graph-loading path. Only declarations that inject context require this
-traversal; a local-state declaration does not add Graph reads to unrelated changes. Large dependency fan-out still
-adds work to the originating commit. All declarations must be reachable in the writing application's Model catalog,
-and every writer of the Model or its injected context must use the same declarations.
+parameter also supports dependencies on descendants and siblings. Candidate selection is scoped per declaration:
+plain ancestor parameters follow changed ancestor values or relationship routes; Graph parameters can require the
+connected component. A Graph parameter on one method does not widen other methods' scope. Navigation across
+changed roots is batched and shared, as are candidate Model loads. Only declarations that inject context require
+this traversal; a local-state declaration does not add Graph reads to unrelated changes. Large dependency fan-out
+still adds work to the originating commit. In particular, a declaration that scans all siblings for every owner can
+perform quadratic application work even when underlying storage reads are shared. All declarations must be
+reachable in the writing application's Model catalog, and every writer of the Model or its injected context must
+use the same declarations.
 
 ## Inspecting recorded deadlines
 
@@ -131,8 +135,16 @@ publishing an event. Context changes persist affected owners' metadata as part o
 
 Enable this feature only on a Runtime supporting `CommitModelsWithDeadlines`; older servers reject that distinct
 request type. Ordinary Model and scheduler requests retain their existing paths. There is no deadline projection,
-execution claim, or cancellation-status query. Local timer registration uses the scheduler's existing delivery
-checks after commit, without using those checks to decide Model deadline changes.
+execution claim, or cancellation-status query. Local timer registration uses the accepted commit effects without
+scheduler reads. The ordinary current-row check remains at actual local delivery, including when ordinary and Model
+schedules share a public ID.
+
+Runtime checks the original time again at transaction acceptance, after acquiring scheduler and owner locks.
+If a replacement has expired meanwhile, the whole attempt rolls back and the SDK rebuilds deadline effects and
+Model metadata at the same read boundary. Handlers, applies and atomic Graph callbacks are not repeated for this
+reason; ordinary conflict checks still apply. Cron/delay keeps the original evaluation anchor across this internal
+retry. The check uses scheduler millisecond precision and the Runtime clock. Reaching the planned time does not
+prove handler execution; the boundary is transaction acceptance, not the later database acknowledgement.
 
 Delivery and retries use the ordinary scheduler and command/`@HandleSchedule` contracts. Keep handlers idempotent
 and validate relevant current Model state. Cron on `@Deadline` does not make the declaration periodic; explicitly

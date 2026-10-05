@@ -30,7 +30,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * execution. Both sides of a change use the same reference clock; unchanged declarations retain
  * their recorded original time. Once that time has arrived, changed timing, payload, application
  * metadata or schedule ID cannot recreate the deadline. Return null and later a payload to start
- * a new cycle. External cancellation is neither queried nor recorded by deadline planning.
+ * a new cycle. Runtime rechecks the original time at transaction acceptance in scheduler milliseconds;
+ * an expired replacement rebuilds deadline effects and Model metadata without reexecuting applies or handlers.
+ * External cancellation is neither queried nor recorded by deadline planning. Both evaluations use current
+ * configuration, so a property change alone does not reconcile an existing deadline.
  *
  * <p>Comparison includes time, payload, application metadata and explicitly supplied schedule IDs.
  * Generated IDs, message timestamps and reserved metadata (keys starting with {@code $}) are ignored.

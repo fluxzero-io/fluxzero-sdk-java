@@ -107,10 +107,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private boolean deferModelCommitNotification;
     private java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>, Runnable> modelScheduleWriter;
 
+    private java.util.function.LongSupplier modelDeadlineClock = System::currentTimeMillis;
+
     /** Installs the LocalClient scheduler writer; effects are applied in the accepted Model commit. */
     public synchronized void setModelScheduleWriter(
-            java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>, Runnable> writer) {
+            java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>, Runnable> writer,
+            java.util.function.LongSupplier clock) {
         modelScheduleWriter = java.util.Objects.requireNonNull(writer);
+        modelDeadlineClock = java.util.Objects.requireNonNull(clock);
     }
 
 
@@ -405,6 +409,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             conflict = cascadeConflict(commit, description);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
+            }
+            if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines) {
+                long cutoff = modelDeadlineClock.getAsLong();
+                if (deadlines.hasExpiredReplacement(cutoff)) {
+                    return new ModelCommitOutcome(CommitModelsResult.reevaluateDeadlines(
+                            commit.getRequestId(), commit.getCommitId(), cutoff), List.of());
+                }
             }
             validateCommitRelationships(description);
             description.aliases().validate(modelAliases);
@@ -1241,7 +1252,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 result.getConflicts(),
                                 result.isRetryAllowed(),
                                 result.isDuplicate(),
-                                result.getRebaseStateIndex()));
+                                result.getRebaseStateIndex(), null));
         modelCommitMaterializations.replaceAll(
                 (commitId, materialization) ->
                         materialization.excluding(selected));

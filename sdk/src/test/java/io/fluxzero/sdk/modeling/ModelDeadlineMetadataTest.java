@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelDeadlineMetadataTest {
+    static final java.util.concurrent.atomic.AtomicInteger liveApplies = new java.util.concurrent.atomic.AtomicInteger();
     static final Instant START = Instant.parse("2026-01-01T00:00:00Z"), DUE = START.plusSeconds(3600);
 
     TestFixture fixture(boolean async, boolean document) {
@@ -161,6 +162,126 @@ class ModelDeadlineMetadataTest {
         }
     }
 
+    @ParameterizedTest @CsvSource({"false,FAIL", "true,FAIL", "false,ACCEPT", "true,ACCEPT", "false,RETRY", "true,RETRY"})
+    void runtimeExpiryRebuildsMetadataWithoutReapplyingOrChangingConflictPolicy(
+            boolean document, ModelConflictPolicy policy) {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(policy, context -> { fail("Expiry must not invoke the conflict resolver");
+                    return ModelConflictResolver.Resolution.RETRY; }, 0).build(client)) {
+            app.withClock(Clock.fixed(START, ZoneOffset.UTC));
+            commit(app, put(document, "first", 0));
+            var original = app.apply(fc -> graph(document).deadlines());
+            app.withClock(Clock.fixed(START.plusSeconds(60), ZoneOffset.UTC));
+            var attempts = new java.util.concurrent.atomic.AtomicInteger();
+            client.beforeCommit = request -> {
+                assertEquals(policy, request.getConflictPolicy());
+                if (attempts.incrementAndGet() == 1) {
+                    var deadlines = assertInstanceOf(io.fluxzero.common.api.modeling.CommitModelsWithDeadlines.class, request);
+                    assertEquals(DUE.toEpochMilli(), deadlines.getDeadlineUpdates().getFirst().previousDeadline());
+                    // The service clock reaches the old deadline while the application's clock stays behind.
+                    client.setClock(Clock.fixed(DUE, ZoneOffset.UTC));
+                } else {
+                    assertFalse(request instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines);
+                }
+            };
+            liveApplies.set(0);
+            commit(app, put(document, "second", 1));
+            assertEquals(1, liveApplies.get());
+            assertEquals(2, attempts.get());
+            app.apply(fc -> {
+                fc.cache().clear();
+                assertEquals(original, graph(document).deadlines());
+                assertEquals(document ? -1 : 1, graph(document).sequenceNumber());
+                assertEquals("second", document ? Fluxzero.loadGraph("alarm", DocumentAlarm.class).get().payload()
+                        : Fluxzero.loadGraph("alarm", EventAlarm.class).get().payload());
+                return null;
+            });
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void expiryDoesNotBypassASubsequentStrictConflict() {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.FAIL, context -> ModelConflictResolver.Resolution.FAIL, 0)
+                .build(client);
+             Fluxzero writer = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            app.withClock(Clock.fixed(START, ZoneOffset.UTC));
+            writer.withClock(Clock.fixed(START, ZoneOffset.UTC));
+            commit(app, put(false, "first", 0));
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            client.beforeCommit = request -> {
+                int call = calls.incrementAndGet();
+                if (call == 1) { client.setClock(Clock.fixed(DUE, ZoneOffset.UTC)); }
+                if (call == 2) { commit(writer, put(false, "concurrent", 2)); }
+            };
+            assertThrows(Exception.class, () -> commit(app, put(false, "second", 1)));
+            app.apply(fc -> { fc.cache().clear();
+                assertEquals("concurrent", Fluxzero.loadGraph("alarm", EventAlarm.class).get().payload()); return null; });
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void atomicGraphUpdateReplansDeadlinesWithoutRepeatingItsCallback() {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            app.withClock(Clock.fixed(START, ZoneOffset.UTC));
+            commit(app, put(false, "first", 0));
+            var original = app.apply(fc -> graph(false).deadlines());
+            client.beforeCommit = request -> client.setClock(Clock.fixed(DUE, ZoneOffset.UTC));
+            var callbacks = new java.util.concurrent.atomic.AtomicInteger();
+            app.apply(fc -> {
+                Graph<EventAlarm> result = Fluxzero.loadGraph("alarm", EventAlarm.class).updateAndGet(graph -> {
+                    callbacks.incrementAndGet(); return graph.update(current -> new EventAlarm("alarm", "second", 1));
+                });
+                assertEquals(1, callbacks.get());
+                assertEquals("second", result.get().payload());
+                assertEquals(original, result.deadlines());
+                fc.cache().clear(); assertEquals(original, graph(false).deadlines()); return null;
+            });
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void successiveCutoffsKeepMillisecondPrecisionAndTheOriginalDelayAnchor() {
+        GateClient client = new GateClient();
+        try (Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .configureModelConflictHandling(ModelConflictPolicy.FAIL, context -> ModelConflictResolver.Resolution.FAIL, 0)
+                .build(client)) {
+            app.withClock(Clock.fixed(START, ZoneOffset.UTC));
+            commit(app, new PutMultiple("multiple", "first", false));
+            var original = app.apply(fc -> Fluxzero.loadGraph("multiple", Multiple.class).deadlines());
+            app.withClock(Clock.fixed(START.plusSeconds(1), ZoneOffset.UTC));
+            var attempts = new java.util.concurrent.atomic.AtomicInteger();
+            var boundary = new AtomicReference<Long>();
+            client.beforeCommit = request -> {
+                int call = attempts.incrementAndGet();
+                if (call == 1) { boundary.set(request.getReadStateIndex()); }
+                assertEquals(boundary.get(), request.getReadStateIndex());
+                var deadlines = assertInstanceOf(io.fluxzero.common.api.modeling.CommitModelsWithDeadlines.class, request);
+                assertEquals(4 - call, deadlines.getDeadlineUpdates().size());
+                client.setClock(Clock.fixed(START.plusSeconds(call == 1 ? 10 : 20), ZoneOffset.UTC));
+            };
+            commit(app, new PutMultiple("multiple", "changed", true));
+            assertEquals(3, attempts.get());
+            app.apply(fc -> { fc.cache().clear(); var deadlines = Fluxzero.loadGraph("multiple", Multiple.class).deadlines();
+                assertEquals(original.get("first"), deadlines.get("first"));
+                assertEquals(original.get("second"), deadlines.get("second"));
+                assertEquals(START.plusSeconds(61), deadlines.get("new").deadline()); return null; });
+        }
+    }
+
+    @Model(searchable = false)
+    record Multiple(@EntityId String multipleId, String payload, boolean extra) {
+        @Deadline("first") Schedule first() { return new Schedule(payload, START.plusSeconds(10).plusNanos(500_000)); }
+        @Deadline("second") Schedule second() { return new Schedule(payload, START.plusSeconds(20)); }
+        @Deadline(value = "new", delay = 60, timeUnit = TimeUnit.SECONDS) String extraDeadline() { return extra ? payload : null; }
+    }
+    record PutMultiple(String multipleId, String payload, boolean extra) {
+        @Apply Multiple apply(@jakarta.annotation.Nullable Multiple current) { return new Multiple(multipleId, payload, extra); }
+    }
+
     private static void commit(Fluxzero app, Object command) {
         app.apply(fc -> fc.executeModelCommit(Message.asMessage(command)).join());
     }
@@ -200,6 +321,7 @@ class ModelDeadlineMetadataTest {
     }
     record PutEvent(String eventAlarmId, String payload, int unrelated) {
         @Apply EventAlarm apply(@jakarta.annotation.Nullable EventAlarm current) {
+            if (!Entity.isLoading()) { liveApplies.incrementAndGet(); }
             return new EventAlarm(eventAlarmId, payload, unrelated);
         }
     }
@@ -209,6 +331,7 @@ class ModelDeadlineMetadataTest {
     }
     record PutDocument(String documentAlarmId, String payload, int unrelated) {
         @Apply DocumentAlarm apply(@jakarta.annotation.Nullable DocumentAlarm current) {
+            if (!Entity.isLoading()) { liveApplies.incrementAndGet(); }
             return new DocumentAlarm(documentAlarmId, payload, unrelated);
         }
     }

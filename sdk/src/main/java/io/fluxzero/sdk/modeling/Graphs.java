@@ -678,11 +678,11 @@ public final class Graphs {
         return List.copyOf(result);
     }
 
-    /** Selects each reachable Model once, using metadata batches and retaining shared graph state. */
-    static List<Graph<?>> related(Graph<?> root, boolean includeParents) {
+    /** Traverses a union of roots once, batching each frontier and preserving shared navigation state. */
+    static List<Graph<?>> related(List<Graph<?>> roots, boolean includeParents) {
         Map<String, Graph<?>> found = new LinkedHashMap<>();
-        found.put(root.id().toString(), root);
-        List<Graph<?>> frontier = List.of(root);
+        roots.forEach(root -> found.putIfAbsent(root.id().toString(), root));
+        List<Graph<?>> frontier = List.copyOf(found.values());
         while (!frontier.isEmpty()) {
             Map<GraphState, List<GraphState.Node>> batches = new IdentityHashMap<>();
             for (Graph<?> graph : frontier) {
