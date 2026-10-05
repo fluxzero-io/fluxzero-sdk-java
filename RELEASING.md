@@ -55,6 +55,13 @@ published manually from `1.x` with an explicit patch version such as `1.247.1`; 
 
 ## Documentation-only changes
 
+Stable SDK releases notify the public website only after the `github-release` job succeeds,
+so its build-time changelog loader can retrieve the published release. The notification includes
+`sdk_version` and the exact `sdk_sha`; a release refreshes the website even without changes under
+`docs/developer/`. Failed release publication must not send a release notification. Validated
+documentation-only updates can still notify with an empty version while the release jobs are skipped.
+Run `node --test .github/scripts/site-dispatch.test.mjs` to check both notification paths.
+
 PRs and pushes classify the complete changed-file set with `.github/scripts/classify-changes.py`. Markdown,
 MDX, Markdown-text alternatives (`.markdown`, `.rst`, `.adoc`), plain text under `docs/` and conventional
 README/license/changelog text files, `LICENSE`, `NOTICE`, documentation images
