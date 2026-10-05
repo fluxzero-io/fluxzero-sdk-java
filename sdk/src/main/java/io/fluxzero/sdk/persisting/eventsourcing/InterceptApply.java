@@ -34,7 +34,7 @@ import java.util.Collection;
  *     <li>Split a single update into multiple updates</li>
  * </ul>
  * <p>
- * Interceptors are invoked <strong>before</strong> any {@link Apply @Apply} or {@link AssertLegal @AssertLegal}
+ * Unless current-input checks are enabled, interceptors are invoked <strong>before</strong> any {@link Apply @Apply} or {@link AssertLegal @AssertLegal}
  * methods. If multiple interceptors match, they are invoked recursively until the result stabilizes.
  * For independently stored models, an interceptor declared on the payload runs before an applicable interceptor
  * declared on the model. The model interceptor receives the payload interceptor's actual output. A replacement with
@@ -54,7 +54,7 @@ import java.util.Collection;
  * </ul>
  *
  * <h2>Interaction with legality assertions</h2>
- * Interception fully determines the effective update sequence before {@link AssertLegal @AssertLegal} and
+ * With current-input checks disabled, interception fully determines the effective update sequence before {@link AssertLegal @AssertLegal} and
  * {@link Apply @Apply} are considered:
  * <ul>
  *     <li>A retained update runs its matching immediate assertions before it is applied.</li>
@@ -64,8 +64,12 @@ import java.util.Collection;
  *         state produced by earlier updates.</li>
  * </ul>
  * Assertions configured with {@code @AssertLegal(afterHandler = true)} remain deferred until handler completion. If
- * an invariant must survive replacement, define it for the effective replacement (or in shared/entity-side logic)
- * rather than relying on an assertion that only matches the original update.
+ * an invariant must survive replacement, enable {@link #assertCurrent()}: the current input's immediate assertions
+ * run before interception and its after-handler assertions see final state. Suppressed inputs are checked too.
+ * Every replacement keeps its own normal assertions; a bare unchanged input is not checked twice.
+ * Model reads participate in atomic conflict checks; RETRY reevaluates and guarded ACCEPT becomes FAIL.
+ * DEFAULT follows {@code fluxzero.interceptApply.assertCurrent} ({@code FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT}),
+ * enabled from defaults version {@code 2026.10.04}. Explicit method overrides take precedence.
  *
  * <p>
  * Method parameters are automatically injected and may include:
@@ -147,4 +151,13 @@ import java.util.Collection;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface InterceptApply {
+    /**
+     * Validates the selected interceptor's current input within the same commit attempt, before interception.
+     * Immediate assertions see the current state; after-handler assertions retain this input and see final state.
+     * A suppressed input is still checked. An unchanged input is checked once per scope and phase.
+     * Only operations with legality checks enabled use this option; replay and unchecked apply remain unchanged.
+     * DEFAULT uses {@code fluxzero.interceptApply.assertCurrent}, enabled from defaults version {@code 2026.10.04}.
+     */
+    AssertCurrent assertCurrent() default AssertCurrent.DEFAULT;
+
 }

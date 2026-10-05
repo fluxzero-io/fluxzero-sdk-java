@@ -22,12 +22,18 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.api.modeling.ModelEventMetadata.COMMIT_ID;
 import static io.fluxzero.common.api.modeling.ModelEventMetadata.SUBSTEP;
@@ -120,6 +126,80 @@ class GraphChangeHandlerDecoratorTest {
                 explicit,
                 GraphChangeHandlerDecorator.wrapGraphChanges(
                         explicit, MessageType.EVENT));
+    }
+
+    @ParameterizedTest
+    @MethodSource("contextMethods")
+    void contextSignaturesSelectOnlyModelEventsAndNotifications(Method method) {
+        Parameter graphParameter = Arrays.stream(method.getParameters())
+                .filter(p -> p.getType() == Graph.class).findFirst().orElseThrow();
+        Handler<DeserializingMessage> source = new Handler<>() {
+            @Override
+            public Class<?> getTargetClass() {
+                return ContextHandler.class;
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return GraphChangeHandlerDecorator.suppliesGraph(graphParameter)
+                        ? Optional.of(HandlerInvoker.noOp(ContextHandler.class, method)) : Optional.empty();
+            }
+        };
+        for (MessageType type : new MessageType[]{MessageType.EVENT, MessageType.NOTIFICATION}) {
+            Handler<DeserializingMessage> decorated = GraphChangeHandlerDecorator.wrapGraphChanges(source, type);
+            assertNotNull(decorated.getInvokerOrNull(new DeserializingMessage(new Message(
+                    new PayloadWithoutModelIdentity(), Metadata.of(COMMIT_ID, "commit", SUBSTEP, "0")), type, null)));
+            assertNull(decorated.getInvokerOrNull(new DeserializingMessage(
+                    new Message(new PayloadWithoutModelIdentity()), type, null)));
+        }
+        assertSame(source, GraphChangeHandlerDecorator.wrapGraphChanges(source, MessageType.COMMAND));
+    }
+
+    static Stream<Method> contextMethods() {
+        return Arrays.stream(ContextHandler.class.getDeclaredMethods());
+    }
+
+    @Test
+    void leavesQualifiedMultipleAndPayloadSelectionsUntouched() {
+        for (Class<?> type : new Class<?>[]{QualifiedHandler.class, MultipleGraphsHandler.class,
+                PayloadContextHandler.class, MetadataOnlyHandler.class}) {
+            Handler<DeserializingMessage> source = handler(type);
+            assertSame(source, GraphChangeHandlerDecorator.wrapGraphChanges(source, MessageType.EVENT));
+        }
+    }
+
+    private static class ContextHandler {
+        @HandleEvent @HandleNotification
+        void messageFirst(Message message, Graph<Root> graph) {}
+
+        @HandleEvent @HandleNotification
+        void messageLast(Graph<Root> graph, Message message) {}
+
+        @HandleEvent @HandleNotification
+        void metadataFirst(Metadata metadata, Graph<Root> graph) {}
+
+        @HandleEvent @HandleNotification
+        void metadataLast(Graph<Root> graph, Metadata metadata) {}
+    }
+
+    private static class QualifiedHandler {
+        @HandleEvent
+        void handle(Metadata metadata, @Association("rootId") Graph<Root> graph) {}
+    }
+
+    private static class MultipleGraphsHandler {
+        @HandleEvent
+        void handle(Graph<Root> first, Metadata metadata, Graph<Root> second) {}
+    }
+
+    private static class PayloadContextHandler {
+        @HandleEvent
+        void handle(Metadata metadata, PayloadWithoutModelIdentity payload, Graph<Root> graph) {}
+    }
+
+    private static class MetadataOnlyHandler {
+        @HandleEvent
+        void handle(Metadata metadata, Message message) {}
     }
 
     private static Handler<DeserializingMessage> handler(Class<?> targetClass) {

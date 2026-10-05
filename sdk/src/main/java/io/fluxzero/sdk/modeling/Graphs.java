@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
@@ -26,6 +27,7 @@ import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.ServiceException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
@@ -514,6 +516,13 @@ public final class Graphs {
                 path -> path == null ? null : overrides.getOrDefault(path, path), overrides).view(source.node());
     }
 
+    /** Applies a view-local historical document fallback policy. */
+    static <T> Graph<T> withDocumentFallback(Graph<T> graph, boolean enabled) {
+        if (!enabled && !(graph instanceof GraphView<?>)) { return graph; }
+        GraphView<T> source = adapt(graph);
+        return source.context().withDocumentFallback(enabled).view(source.node());
+    }
+
     /** Returns an immutable graph view carrying response-wide typed context. */
     public static <T> Graph<T> withContext(Graph<T> graph, Collection<?> values) {
         Objects.requireNonNull(values, "values");
@@ -620,6 +629,11 @@ public final class Graphs {
         return (Graph<T>) graph;
     }
 
+    static boolean documentOnly(Class<?> type) {
+        return type != null && EntityMetadata.of(type).rootConfiguration()
+                .map(configuration -> !configuration.eventSourced()).orElse(false);
+    }
+
     static boolean matchesType(Graph<?> graph, Class<?> requested) {
         Class<?> known = graph instanceof GraphView<?> view ? view.node().data().type() : graph.type();
         return known != null && requested.isAssignableFrom(known);
@@ -630,7 +644,8 @@ public final class Graphs {
             Map<GraphState, List<GraphState.NodeData>> batches = new IdentityHashMap<>();
             for (Graph<T> graph : graphs) {
                 if (graph instanceof GraphView<T> view && view.state().metadataNavigation()
-                    && !view.context().mappedValues() && !view.node().data().entityResolved) {
+                    && !view.context().mappedValues() && !view.node().data().entityResolved
+                    && !view.context().mayFallback(view.node())) {
                     batches.computeIfAbsent(view.state(), ignored -> new ArrayList<>()).add(view.node().data());
                 }
             }
@@ -1887,7 +1902,7 @@ final class GraphState {
     static final class ViewContext {
         private static final Function<String, String> IDENTITY_PATH = Function.identity();
         private final GraphState state;
-        private final BiFunction<Node, CommitAttempt.GraphReadContext, Object> value;
+        private final BiFunction<Node, ViewContext, Object> value;
         private final Function<String, String> path;
         private final List<?> values;
         private final ViewContext contextFallback;
@@ -1899,17 +1914,18 @@ final class GraphState {
         private final Graph<?> previousRoot;
         private final BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator;
         private final boolean mappedValues;
+        private final boolean documentFallback;
         private final CommitAttempt.GraphReadProof readProof;
         private final CommitAttempt.GraphReadContext readContext;
         private final Map<Node, GraphView<?>> views = new IdentityHashMap<>();
 
         private ViewContext(
-                GraphState state, BiFunction<Node, CommitAttempt.GraphReadContext, Object> value,
+                GraphState state, BiFunction<Node, ViewContext, Object> value,
                 Function<String, String> path, List<?> values,
                 ViewContext contextFallback, Set<Node> retained, PathSelection selection,
                 boolean hideEmpty, boolean previousSpecified, Graph<?> previousRoot,
                 BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator,
-                boolean mappedValues, CommitAttempt.GraphReadProof readProof, CommitAttempt.GraphReadContext readContext) {
+                boolean mappedValues, CommitAttempt.GraphReadProof readProof, CommitAttempt.GraphReadContext readContext, boolean documentFallback) {
             this.state = state;
             this.value = value;
             this.path = path;
@@ -1924,11 +1940,51 @@ final class GraphState {
             this.mappedValues = mappedValues;
             this.readProof = readProof;
             this.readContext = readContext;
+            this.documentFallback = documentFallback;
         }
 
         static ViewContext canonical(GraphState state) {
-            return new ViewContext(state, (node, reads) -> node.data().value(), IDENTITY_PATH, List.of(), null, null, null,
-                                   false, false, null, (graph, reads) -> graph, false, null, null);
+            return new ViewContext(state, (node, options) -> options.readValue(node), IDENTITY_PATH, List.of(), null, null, null,
+                                   false, false, null, (graph, reads) -> graph, false, null, null,
+                                   state.repository instanceof ModelGraphResolver resolver && resolver.documentFallbackEnabled()
+                                   && !Entity.isLoading() && CommitAttempt.currentReadContext(state.repository) == null);
+        }
+
+        ViewContext withDocumentFallback(boolean enabled) {
+            if (enabled == documentFallback) { return this; }
+            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty,
+                                   previousSpecified, previousRoot, decorator, mappedValues, readProof, readContext, enabled);
+        }
+
+        boolean documentFallbackEnabled() { return documentFallback; }
+
+        boolean mayFallback(Node node) {
+            return documentFallback && state.historicalValues && Graphs.documentOnly(node.data().type())
+                   && !Entity.isLoading() && CommitAttempt.currentReadContext(state.repository) == null;
+        }
+
+        Object readValue(Node node) {
+            if (documentFallback && node == state.root && node.data().resolution instanceof NodeData.LazyIdentity
+                && state.metadataNavigation() && Graphs.documentOnly(node.data().type())) {
+                DeserializingMessage message = DeserializingMessage.getCurrent();
+                if (state.historicalValues || message != null
+                    && (message.getMessageType() == MessageType.EVENT || message.getMessageType() == MessageType.NOTIFICATION)
+                    && ModelEventMetadata.readBoundary(message.getMetadata(), message.getMessageType(), message.getIndex()) != null) {
+                    // Historical value-first reads retain their handler boundary even when the document is gone.
+                    // Ordinary current reads keep their existing coherent retry path; loaded roots need no discovery.
+                    state.sourceIdentity(node.data());
+                }
+            }
+            try {
+                return node.data().value();
+            } catch (RuntimeException failure) {
+                if (!documentFallback || !state.historicalValues || node.data().type() == null || Entity.isLoading()
+                    || CommitAttempt.currentReadContext(state.repository) != null
+                    || !(state.repository instanceof ModelGraphResolver resolver)) {
+                    throw failure;
+                }
+                return resolver.historicalDocumentFallback(node.data().id(), node.data().type(), state.boundary(), failure);
+            }
         }
 
         CommitAttempt.GraphReadProof readProof() {
@@ -1945,14 +2001,14 @@ final class GraphState {
             }
             return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previousSpecified, previousRoot,
                     (graph, actualReads) -> Graphs.withReadContext(Graphs.cast(decorator.apply(graph, actualReads)), actualReads),
-                    mappedValues, readProof, reads);
+                    mappedValues, readProof, reads, documentFallback);
         }
 
         ViewContext withReadProof(CommitAttempt.GraphReadProof proof) {
             return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty,
                     previousSpecified, previousRoot,
                     (graph, reads) -> Graphs.withReadProof(Graphs.cast(decorator.apply(graph, reads)), proof),
-                    mappedValues, CommitAttempt.mergeGraphReads(readProof, proof), readContext);
+                    mappedValues, CommitAttempt.mergeGraphReads(readProof, proof), readContext, documentFallback);
         }
 
         boolean mappedValues() {
@@ -1975,7 +2031,7 @@ final class GraphState {
         }
 
         Object value(Node node) {
-            return value.apply(node, readContext);
+            return value.apply(node, this);
         }
 
         String path(Node node) {
@@ -2034,7 +2090,7 @@ final class GraphState {
         }
 
         Graph<?> decorate(Graph<?> graph) {
-            return decorator.apply(graph, readContext);
+            return Graphs.withDocumentFallback(Graphs.cast(decorator.apply(graph, readContext)), documentFallback);
         }
 
         Graph<?> decorateExpanded(Graph<?> graph, Node node) {
@@ -2044,15 +2100,16 @@ final class GraphState {
         }
 
         Graph<?> decorateHistorical(Graph<?> graph) {
-            return decorator.apply(graph, null);
+            return Graphs.withDocumentFallback(Graphs.cast(decorator.apply(graph, null)), documentFallback);
         }
 
         ViewContext mapValues(Function<? super Graph<?>, ?> mapper) {
             ViewContext source = this;
-            return new ViewContext(state, (node, reads) -> mapper.apply(source.withReadContext(reads).view(node)), path, values, contextFallback,
+            return new ViewContext(state, (node, options) -> mapper.apply(source.withReadContext(options.readContext)
+                    .withDocumentFallback(options.documentFallback).view(node)), path, values, contextFallback,
                                    retained, selection, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.mapValues(Graphs.cast(decorator.apply(graph, reads)), mapper), true, readProof,
-                                   readContext);
+                                   readContext, documentFallback);
         }
 
         ViewContext remapPaths(UnaryOperator<String> mapper, Map<String, String> overrides) {
@@ -2060,14 +2117,14 @@ final class GraphState {
             return new ViewContext(state, value, raw -> mapper.apply(previous.apply(raw)), values, contextFallback,
                                    retained, selection, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.remapPaths(Graphs.cast(decorator.apply(graph, reads)), overrides),
-                                   mappedValues, readProof, readContext);
+                                   mappedValues, readProof, readContext, documentFallback);
         }
 
         ViewContext withContext(Collection<?> added) {
             List<?> stable = List.copyOf(added);
             return new ViewContext(state, value, path, stable, this, retained, selection, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.withContext(Graphs.cast(decorator.apply(graph, reads)), stable),
-                                   mappedValues, readProof, readContext);
+                                   mappedValues, readProof, readContext, documentFallback);
         }
 
         ViewContext retain(Set<Node> retained, Predicate<? super Graph<?>> predicate, CommitAttempt.GraphReadProof proof) {
@@ -2075,14 +2132,14 @@ final class GraphState {
             return new ViewContext(state, (node, reads) -> retained.contains(node) ? source.value.apply(node, reads) : null, path, values,
                                    contextFallback, retained, selection, true, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph, reads)), predicate),
-                                   mappedValues, CommitAttempt.mergeGraphReads(readProof, proof), readContext);
+                                   mappedValues, CommitAttempt.mergeGraphReads(readProof, proof), readContext, documentFallback);
         }
 
         ViewContext select(Node root, Set<String> selected) {
             PathSelection selectedPaths = new PathSelection(root, selected, path, selection);
             return new ViewContext(state, value, path, values, contextFallback, retained, selectedPaths, hideEmpty, previousSpecified, previousRoot,
                                    (graph, reads) -> Graphs.selectPaths(Graphs.cast(decorator.apply(graph, reads)), selected),
-                                   mappedValues, readProof, readContext);
+                                   mappedValues, readProof, readContext, documentFallback);
         }
 
         /** Placement-local selection, computed without loading relationships or values. */
@@ -2128,7 +2185,7 @@ final class GraphState {
 
         ViewContext withPrevious(Graph<?> previous) {
             return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, true, previous,
-                                   (graph, reads) -> graph, mappedValues, readProof, readContext);
+                                   (graph, reads) -> graph, mappedValues, readProof, readContext, documentFallback);
         }
 
         boolean previousSpecified(Node node) {
@@ -2186,6 +2243,8 @@ final class GraphView<T> implements Graph<T> {
     private volatile List<Graph<?>> directParents;
     private CommitAttempt.GraphReadProof valueReadProof;
     private volatile boolean valueResolved;
+    private boolean previousResolved;
+    private Graph<T> previousView;
     private T value;
 
     GraphView(GraphState state, GraphState.Node node, GraphState.ViewContext context) {
@@ -2212,8 +2271,18 @@ final class GraphView<T> implements Graph<T> {
     }
 
     @Override
+    public boolean isStrict() {
+        return !context.documentFallbackEnabled();
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public T get() {
+        if (context.documentFallbackEnabled()
+            && (Entity.isLoading() || CommitAttempt.currentReadContext(state.repository()) != null)) {
+            // An escaped view may already cache a current fallback. Re-enter the strict view during a mutation.
+            return context.withDocumentFallback(false).<T>view(node).get();
+        }
         if (node.data().type() == null) {
             throw node.data().unknownType();
         }
@@ -2777,6 +2846,11 @@ final class GraphView<T> implements Graph<T> {
     }
 
     @Override
+    public void reindex() {
+        state.repository().reindex(node.data().id(true), knownType().orElseThrow());
+    }
+
+    @Override
     public Graph<T> current() {
         if (node.data().type() == null) {
             throw node.data().unknownType();
@@ -2792,10 +2866,52 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public Graph<T> previous() {
+        if (!context.documentFallbackEnabled()) { return previousUncached(); }
+        synchronized (this) {
+            if (!previousResolved) {
+                previousView = previousUncached();
+                previousResolved = true;
+            }
+            return previousView;
+        }
+    }
+
+    private Graph<T> previousUncached() {
         if (context.previousSpecified(node)) {
             Graph<?> explicit = context.previous(node);
-            return explicit == null ? null : CommitAttempt.historicalGraph(Graphs.cast(explicit));
+            return explicit == null ? null : CommitAttempt.historicalGraph(
+                    Graphs.withDocumentFallback(Graphs.cast(explicit), context.documentFallbackEnabled()));
         }
+        if (context.documentFallbackEnabled() && Graphs.documentOnly(node.data().type())
+            && state.repository() instanceof ModelGraphResolver resolver) {
+            long revision = revisionStateIndex();
+            if (revision < 0) { return null; }
+            ModelGraphResolver.Identity identity;
+            try {
+                identity = resolver.resolveGraphIdentity(id(), true, type(), ModelReadBoundary.at(revision - 1));
+            } catch (Exception failure) {
+                Throwable cause = ObjectUtils.unwrapException(failure);
+                while (cause instanceof java.lang.reflect.UndeclaredThrowableException wrapper) {
+                    cause = ObjectUtils.unwrapException(wrapper.getUndeclaredThrowable());
+                }
+                if (cause instanceof ServiceException service && service.getModelHistoryUnavailable() != null
+                    && id().toString().equals(service.getModelHistoryUnavailable().modelId())
+                    && revision - 1 == service.getModelHistoryUnavailable().readStateIndex()) {
+                    // Older Runtimes reject DOCUMENT-only historical heads. Preserve the retained predecessor
+                    // (or null) that previous() supplied before metadata-based traversal was introduced.
+                    return previousRetained();
+                }
+                throw failure;
+            }
+            if (identity == null || !identity.hasIdentity()) { return null; }
+            Graph<T> previous = GraphState.identity(identity.modelId(), identity.modelId(), true, type(), state.repository())
+                    .retainIdentity(identity).valueHistory(true).root();
+            return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(previous)));
+        }
+        return previousRetained();
+    }
+
+    private Graph<T> previousRetained() {
         if (node.data().previousStateIndex() != null && node == state.rootNode()) {
             return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
                     id().toString(), node.data().type(), node.data().previousStateIndex(), Graph.Options.DEFAULT))));
@@ -2807,6 +2923,15 @@ final class GraphView<T> implements Graph<T> {
         }
         Entity<T> previous = entity.previous();
         if (previous == null) {
+            if (entity instanceof ModelRoot<?> root && root.sequenceNumber() > 0 && root.stateIndex() >= 0
+                && root.rootConfiguration().eventSourced() && state.repository() != null) {
+                // Snapshot loads and bounded caches need not retain an in-memory predecessor.
+                return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(
+                        context.documentFallbackEnabled() && state.repository() instanceof ModelGraphResolver
+                                ? Graphs.changedGraph(id().toString(), type(), root.stateIndex() - 1, state.repository())
+                                : state.repository().loadGraphBefore(id().toString(), type(), root.stateIndex(),
+                                        Graph.Options.DEFAULT))));
+            }
             return null;
         }
         long currentStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= -1L
@@ -2831,8 +2956,10 @@ final class GraphView<T> implements Graph<T> {
         if (node.data().type() == null) {
             throw node.data().unknownType();
         }
-        return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
-                id().toString(), node.data().type(), stateIndex, Graph.Options.DEFAULT))));
+        Graph<?> historical = context.documentFallbackEnabled() && state.repository() instanceof ModelGraphResolver
+                ? Graphs.changedGraph(id().toString(), node.data().type(), stateIndex, state.repository())
+                : state.repository().loadGraphAt(id().toString(), node.data().type(), stateIndex, Graph.Options.DEFAULT);
+        return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(historical)));
     }
 
     @Override

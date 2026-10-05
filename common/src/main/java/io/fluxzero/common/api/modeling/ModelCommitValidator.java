@@ -292,7 +292,7 @@ public final class ModelCommitValidator {
             throw new IllegalArgumentException(
                     "Target model %s has an invalid snapshot period".formatted(target.getModelId()));
         }
-        if (snapshot.getMaxSnapshotCount() < 1) {
+        if (snapshot.getMaxSnapshotCount() == 0) {
             throw new IllegalArgumentException(
                     "Target model %s has an invalid maximum snapshot count".formatted(target.getModelId()));
         }

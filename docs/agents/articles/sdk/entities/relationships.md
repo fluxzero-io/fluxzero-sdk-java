@@ -57,6 +57,8 @@ not modify direct Models, histories or relationships.
 
 ## Embedded members
 
+Prefer separate Models for new domain state: each retains its own history as relationships evolve, while one
+operation can still commit changes across Models atomically. `@Member` remains supported and is not deprecated.
 `@Model` plus `@Member` is the intentional shared-stream option:
 
 ```java

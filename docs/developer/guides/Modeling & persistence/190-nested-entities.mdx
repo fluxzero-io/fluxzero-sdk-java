@@ -11,6 +11,10 @@ import { Aside } from '@astrojs/starlight/components';
 
 For a complete companion, derived-preference and execution walkthrough, see [Model recipes](./197-model-recipes.mdx).
 
+Prefer separate Models for new domain state. Their relationships can change while each Model keeps its own history;
+a child can move to another parent, gain another relationship, or evolve without expanding a shared root.
+A business operation can still update several Models atomically. A collection in a view does not require embedding.
+
 Independent Models can form a Graph without sharing a storage boundary or implying ownership on every edge.
 Choose which relationships belong in the Graph first, then choose the deletion policy for each relationship.
 A meaningful Graph relation without ownership is a normal use of `@Parent`, not an exception to the model.
@@ -515,13 +519,17 @@ root before releasing an awaited command result.
 
 Each node in a materialized graph retains its own serialized Model type and `@Revision`. Ordinary serializer upcasters
 therefore evolve the root and descendants independently and lazily; there is no Graph-wide revision or Graph upcaster.
-Read-time upcasting is enough for correctness. To persist the evolved JSON back into the derived search projection,
-return the complete Graph from `@HandleDocument`. That rematerialization cannot change the
-root, state boundary, nodes or placements, and never modifies direct Models or relationships.
+Read-time upcasting gives application values the new shape but does not update stored search paths. Returning the
+unchanged complete Graph from `@HandleDocument` migrates evolved verified current nodes, including at NONE, and
+refreshes affected projections durably. Business values, history and relationships remain unchanged. Use
+`graphMigration = GraphMigrationTarget.PROJECTION` to migrate only a stored composition. See
+[document migrations](../tracking-and-updating-documents#evolving-a-materialized-model-graph) for concurrency and completion.
 
 ## Embedded members
 
-Use `@Member` inside a model when the nested value intentionally shares everything with its owner:
+`@Member` remains supported and is not deprecated. Use it inside a Model when an entity deliberately shares
+its owner's creation, changes, history, retention and deletion. Plain details values need no `@Member` annotation.
+For example, these invoice notes are identified embedded entities whose complete lifecycle belongs to the invoice:
 
 <Tabs>
 <TabItem label="Java">
@@ -545,15 +553,13 @@ data class Invoice(@EntityId val invoiceId: InvoiceId, @Member val notes: List<I
 </TabItem>
 </Tabs>
 
-This produces the compact one-stream, one-document behavior historically associated with aggregates, without
-introducing a second root concept. Embedded members are appropriate when they:
+The notes share the invoice's persistence boundary, including its stream, snapshots and any stored root document.
+An update to a note therefore loads and updates its owning Model. Choose this because the lifecycle belongs to the
+invoice; searchability, update frequency and convenient whole-document storage do not determine that boundary.
 
-- never move independently;
-- do not need independent search or deletion;
-- share retention and privacy lifecycle with the owner;
-- are acceptable to load whenever the model is loaded.
-
-Promote a member to its own `@Model` when any of these statements stops being true.
+If a note needs its own history, retention, deletion or changing relationships, model it separately with `@Parent`.
+Changing an existing member into a Model requires a deliberate data migration; adding `@Model` alone does not
+transfer its history. Members also remain supported in [stateful handlers](./210-stateful-handlers.mdx#stateful-members).
 
 ## Deletion and detached descendants
 

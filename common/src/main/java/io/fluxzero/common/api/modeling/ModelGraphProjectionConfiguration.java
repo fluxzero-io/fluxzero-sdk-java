@@ -58,8 +58,8 @@ public class ModelGraphProjectionConfiguration {
     /**
      * Logical Model names that can occur in this projection and the revision of their direct document schema.
      * <p>
-     * The ordered list is part of the durable projection definition. Changing any participating model revision
-     * therefore advances the Runtime's existing configuration fence and triggers a complete rebuild.
+     * Participating Model types define the projection scope. Revision changes alone do not require a complete
+     * rebuild: schema rewrites of individual sources update only affected roots.
      */
     List<ModelRevision> modelRevisions;
 
@@ -146,6 +146,16 @@ public class ModelGraphProjectionConfiguration {
                                         override.getProjectionPath()));
             }
         }
+    }
+
+    /** Tests whether composition, scope or storage changed, ignoring individual source schema revisions. */
+    public boolean hasSameComposition(ModelGraphProjectionConfiguration other) {
+        return other != null && rootModelType.equals(other.rootModelType)
+                && rootCollection.equals(other.rootCollection) && collection.equals(other.collection)
+                && composition.equals(other.composition) && pathOverrides.equals(other.pathOverrides)
+                && storeGraph == other.storeGraph
+                && modelRevisions.stream().map(ModelRevision::modelType).toList()
+                        .equals(other.modelRevisions.stream().map(ModelRevision::modelType).toList());
     }
 
     private static String requireText(String value, String description) {

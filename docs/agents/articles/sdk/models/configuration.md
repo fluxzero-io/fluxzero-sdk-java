@@ -49,7 +49,13 @@ Important settings:
   internal state maintenance for a non-searchable DOCUMENT Model. Use normal Model commands for business changes.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
-- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
+- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations. A positive `snapshotPeriod` enables
+  periodic snapshots. Positive `maxSnapshotCount` values set the cleanup target, zero keeps one, and **any negative value**
+  retains all periodic snapshots. Explicit physical erasure still removes them; event-history retention is separate.
+  Upgrade the Runtime before enabling negative counts; older Runtime versions reject them. Existing snapshots are
+  retained from activation onward; snapshots already removed by an earlier limit are not recovered.
+  Concurrent writes may retain excess until a later bounded snapshot write; idle Models have no cleanup deadline.
+  Snapshot insertion still completes before successful commit acknowledgement. This applies to Java and Kotlin.
 - `checkpointPeriod`: bounds repeated replay work within one reconstruction session.
 - `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
 - `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
@@ -69,6 +75,15 @@ and replay checkpoints are rejected on DOCUMENT-only Models.
 In Kotlin, annotation arrays use `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` and nested annotations
 omit `@`, for example `searchSettings = SearchSettings(includeDescendants = false)`.
 
+## Historical Graph strictness
+
+`fluxzero.model.graph.strict` (`FLUXZERO_MODEL_GRAPH_STRICT`) defaults to false, independently of
+`fluxzero.defaults.version`. Ordinary historical Graphs use current DOCUMENT-only values when their historical
+revision is unavailable. Set the property to true for strict historical reads, or use `graph.strict(true)` for one
+view. `graph.strict(false)` restores ordinary reads even under a strict application default. Historical absence and
+relationships remain pinned; mutations, assertions and replay always stay strict. Read
+`/docs/sdk/models/temporal-graphs` for Runtime compatibility and the complete contract.
+
 ## Document handler scope
 
 `@HandleDocument` infers the searchable node from `Task` and logical root-plus-descendants scope from `Graph<Task>`.
@@ -76,7 +91,10 @@ Use `source = DocumentSource.MODEL_STATE` with a Model value for internal schema
 DOCUMENT state. There is no fallback and no implicit activation. Ancestor-only content changes do not trigger a Task
 Graph; `@GraphProperty` adds no subscriptions. Moves update old and new ancestor Graphs.
 
-NONE retains small durable root update markers and hydrates indexed nodes on read. Its Graph returns never rewrite
-nodes or store a composition, and `previous()` is unavailable. ASYNC/AWAIT returns can conditionally migrate only the
-stored aggregate. Node schema rewrites preserve state/head and durably schedule affected definitions for rebuilding;
-that maintenance can also notify other roots in those definitions.
+NONE retains small durable root update markers and hydrates indexed nodes on read; `previous()` is unavailable.
+Returning the unchanged injected Graph migrates evolved canonical nodes in every mode. Each write upcasts the
+verified current source and preserves business state/head/history. Only affected roots receive durable projection
+updates or NONE markers. Revision-only registration preserves rebuild cursors; composition/type-scope changes still
+require rebuilding. Use `graphMigration = GraphMigrationTarget.PROJECTION` to migrate only an existing ASYNC/AWAIT
+composition; this option is observational at NONE. Handler completion confirms node storage, while projections follow
+asynchronously; AWAIT applies to ordinary Model commits.

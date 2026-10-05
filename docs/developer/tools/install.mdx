@@ -1,0 +1,97 @@
+---
+title: Install and update
+description: Install the Fluxzero CLI with Homebrew or WinGet, verify prerequisites and understand component updates.
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+Install the fz command with your platform's package manager or the official installer. For setup through your coding agent, follow [Set up your agent](/docs/tools/agent-plugin).
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Install the CLI
+
+   <Tabs>
+   <TabItem label="macOS">
+
+   With [Homebrew](https://brew.sh/) available:
+
+   ```sh
+   brew install fluxzero-io/tap/fluxzero
+   ```
+
+   Homebrew installs `fz` and its `fluxzero` alias. To update later:
+
+   ```sh
+   brew update
+   brew upgrade fluxzero
+   ```
+
+   </TabItem>
+   <TabItem label="Windows">
+
+   Use WinGet in PowerShell or Windows Terminal:
+
+   ```powershell
+   winget install --exact --id Fluxzero.FluxzeroCLI
+   ```
+
+   To update later:
+
+   ```powershell
+   winget upgrade --exact --id Fluxzero.FluxzeroCLI
+   ```
+
+   Without WinGet, use the native assets or installer from the [official release page](https://github.com/fluxzero-io/fluxzero-cli/releases/latest).
+
+   </TabItem>
+   <TabItem label="Linux">
+
+   Use the official installer:
+
+   ```sh
+   curl -sSL https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/install.sh | sh
+   ```
+
+   Follow its PATH instructions for `~/.fluxzero/bin`, then open a new terminal. Manual native assets are available on the [release page](https://github.com/fluxzero-io/fluxzero-cli/releases/latest).
+
+   </TabItem>
+   </Tabs>
+
+2. ## Verify the environment
+
+   The native CLI itself does not need Java. The Dev Server and SDK 2.x projects require Java 25; use Java 25.0.3 or newer for SDK development. Check the project's README for any frontend or example prerequisites.
+
+   In a new terminal, run:
+
+   ```sh
+   fz version
+   fz mcp --help
+   java -version
+   ```
+
+   The first command should identify the CLI; the second should show MCP options. The Java command should identify a suitable JDK when you are going to run development. The native CLI, the legacy JAR distribution and a project's build tools have different requirements; use the native distribution for a new installation.
+
+   If the terminal finds `fz` but the agent does not, check the agent application's PATH and refresh its plugin/MCP session after setup. Do not add a second MCP registration to compensate for an installation that is not active yet. See [MCP troubleshooting](/docs/tools/mcp#when-the-connection-does-not-work).
+
+   <div className="guide-result"><strong>Installation checked</strong><p>The terminal finds fz, MCP help is available, and the development prerequisites match the project.</p></div>
+
+</Steps>
+</div>
+
+## Update the intended component
+
+| Change | What to do |
+| --- | --- |
+| CLI installed by a package manager | Use that package manager's upgrade command |
+| CLI installed directly | Use `fz upgrade` and check `fz version` afterwards |
+| Dev Server | Review the available update and project pin, then restart the environment when local state may safely be replaced |
+| SDK | Change the project's dependency/BOM version deliberately and verify its application tests |
+| Agent plugin | Update through the client's plugin mechanism, then activate the updated package |
+
+A full environment restart can replace ephemeral local state. Save code changes and establish which profile and services are involved first. Keep the installation method consistent: multiple `fz` binaries on PATH can make the terminal and agent use different versions.
+
+## Remove a package-manager installation
+
+Use `brew uninstall fluxzero` on Homebrew or `winget uninstall --exact --id Fluxzero.FluxzeroCLI` on WinGet. This removes the CLI package; it is not a request to delete your repositories. Stop development environments you no longer need before removing their launcher. For direct installations and cache locations, use the [CLI installation reference](https://github.com/fluxzero-io/fluxzero-cli#installation).

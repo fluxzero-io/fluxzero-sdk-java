@@ -95,7 +95,9 @@ final class ModelSnapshotStore {
                      document.getId(),
                      facetValue(document,
                                 MODEL_ID_FACET),
-                     e);
+                     ModelReadException.failure(ModelReadException.Kind.DECODING_FAILURE,
+                             ModelReadException.Operation.READ_SNAPSHOT, facetValue(document, MODEL_ID_FACET),
+                             null, null, document.serializedDataIfPresent().orElse(null), serializer, e));
             documentStore.deleteDocument(document.getId(), SNAPSHOT_COLLECTION, io.fluxzero.common.Guarantee.STORED);
             return Optional.empty();
         }

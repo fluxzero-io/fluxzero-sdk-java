@@ -1,5 +1,10 @@
 # Model relationships and lazy Graphs (Java)
 
+For a rule that guards a Model and all its known descendants, use
+[`@AssertLegal(cascade = true)`](actions-java.md#guard-a-model-and-its-descendants). For example, closing a Project
+can block changes to its Tasks and their children. `@Parent(validateAncestors = false)` cuts one inheritance route;
+per-action exceptions belong on `@Apply(ancestorValidation = AncestorValidation.DISABLED)`.
+
 ## Relationships
 
 A web handler can return a `Graph<T>` directly or as a `WebResponse` payload. The transported response contains
@@ -61,7 +66,7 @@ The child remains an independent Model with its own lifecycle boundary. This tas
 Graph relation and cascade ownership. Being displayed below or deleted with the parent does not make it a `@Member`.
 
 - Updating `projectId` moves the task.
-- The parent and siblings do not need to load for a task-only change.
+- The parent and siblings do not need to load for a task-only change unless applicable cascading assertions need parent state.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
 - For one polymorphic typed relation, use `@Parent(types = {Project.class, Folder.class}, ...) Id<?> parentId`; the
   concrete typed ID selects one statically declared parent type. Use separate properties for distinct relation roles.
@@ -275,12 +280,12 @@ Persistent instability fails with an explicit platform error.
 
 ## Complete graph-change handlers
 
-Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one
-of its descendants:
+Use one unqualified `Graph<T>` parameter to subscribe to every durable change of that root or one
+of its descendants. Optional `Message` and `Metadata` context parameters may appear in any order:
 
 ```java
 @HandleEvent
-void projectChanged(Graph<Project> graph) {
+void projectChanged(Graph<Project> graph, Message message, Metadata metadata) {
     Graph<Project> before = graph.previous();
 }
 ```
@@ -290,7 +295,7 @@ Creation has no previous graph; deletion supplies an empty current graph and the
 cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
 payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
 
-Cascade deletions use the same contract: a sole `Graph<Task>` handler sees an empty Task and its previous value even
+Cascade deletions use the same contract: a complete-change `Graph<Task>` handler sees an empty Task and its previous value even
 when a Project deletion caused it. No parent-specific cleanup handler or extra public technical event is required.
 The original domain event identifies the internal deletion boundary. Ordinary payload handlers keep their own event
 boundary; a child updated and subsequently cascaded in one commit is observed at each change's own boundary. Surviving
@@ -300,13 +305,16 @@ an ancestor already deleted in an earlier substep is no longer reachable. It doe
 This linkage is emitted by new commits, not retroactively added to older events. Suppressed event publication and
 physical erasure are not new domain-event notifications. Handlers remain subject to normal retry/redelivery rules.
 
-Historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with `DOCUMENT`),
-previous values can be replayed after a cache clear; cache depth and snapshots do not automatically prune Model events.
-`DOCUMENT` alone maintains current state, not document versions: a normal loaded Model has no durable `previous()`,
-and an event-boundary read cannot recover an overwritten document. Historical Graph values must be available for
-every node you actually inspect. Use event sourcing when before/after processing is required, not duplicated
-`previous...` fields as a general workaround. Explicit physical erasure or intentionally incomplete history remains
-a separate limit; there is no general automatic event-retention policy implied here.
+Exact historical value comparison requires stored Model history. With `EVENT_SOURCED` (also when combined with
+`DOCUMENT`), previous values can be replayed after a cache clear; cache depth and snapshots do not automatically
+prune Model events. `DOCUMENT` alone maintains current state, not document versions. Historical Graph views normally
+use current DOCUMENT-only values when history is unavailable. Use `graph.strict(true)` or the application property
+`fluxzero.model.graph.strict=true` to require exact history; `graph.strict(false)` restores ordinary reads. See
+`/docs/sdk/models/temporal-graphs`.
+An unavailable document then uses the current value of the same canonical ID, including a recreation, or `null`
+after current deletion. Historical relationships and proven historical absence stay pinned. `previous()` can
+therefore retain a historical boundary without providing an old document value. Use event sourcing when exact
+before/after values are required. Physical erasure and unrelated replay failures remain strict.
 
 ## Search and graph composition
 
@@ -319,11 +327,22 @@ canonical sources. `searchable = false` means no independent request; participat
 
 Use `@HandleDocument` with a node value for node updates, or `Graph<T>` for root and included-descendant updates.
 `source = DocumentSource.MODEL_STATE` explicitly selects internal state, including non-searchable DOCUMENT Models.
-NONE handlers stitch current nodes after a durable notification; their `previous()` is unavailable and Graph returns
-are observational. ASYNC/AWAIT maintain a separate composed document whose schema can be conditionally evolved.
+NONE handlers stitch current nodes after a durable notification; their `previous()` is unavailable. Returning an
+unchanged Graph migrates evolved verified current nodes in every mode; affected projections follow durably. Set
+`graphMigration = GraphMigrationTarget.PROJECTION` for only an ASYNC/AWAIT composition; that option is observational
+at NONE. See `/docs/sdk/models/migration-testing` for concurrency and completion boundaries.
 Ancestor-only content changes do not trigger a child Graph handler.
 
 Identity-based Graph navigation needs neither searchability nor composition paths. Search Graphs follow composition
 paths and read current documents, without inheriting an event handler's historical boundary or transaction readset.
 Counts, grouped statistics and facets work in all modes; live statistics may read many documents. Broad child filters
 or sorts can require many compositions before paging. Use stored materialization for those workloads.
+
+## Rebuild the current search source
+
+`graph.reindex()` refreshes this node's canonical source from latest committed state, including missing event-sourced
+sources, without changing Model history. It ignores stale Graph values and staged updates. The customer selects IDs
+or replays events; descendants are separate calls. A bounded consumer uses its fixed `maxIndexExclusive` to skip
+already refreshed sources before replay. Follow the [cutover and replay contract](migration-testing.md#explicit-current-state-reindexing),
+including draining old materializations. AWAIT completion waits for affected stored projections, including ancestors,
+even when the cutoff skips the source write; other derived Graph work continues asynchronously.

@@ -110,6 +110,148 @@ class InMemoryEventStoreModelCommitTest {
     }
 
     @Test
+    void ordinaryPublicationSurvivesAFailingSchemaMaterialization() {
+        var store = denseStore();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create"))
+                .targets(List.of(storedTarget("a"), storedTarget("b"))).build())).join();
+        store.setModelGraphProjectionMaterializer((configuration, roots, boundary, rebuild) -> () -> { });
+        var configuration = new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration(
+                "example.Model", "roots", "graphs", io.fluxzero.common.api.search.ModelGraphComposition.builder().build(),
+                List.of(new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision("example.Model", 0)),
+                List.of(), false);
+        store.registerModelGraphProjection(new io.fluxzero.common.api.modeling.RegisterModelGraphProjection(configuration, false)).join();
+        AtomicInteger published = new AtomicInteger();
+        store.setModelGraphProjectionMaterializer(new InMemoryEventStore.ModelGraphProjectionMaterializer() {
+            @Override
+            public Runnable materialize(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration c,
+                                        java.util.Set<String> roots, long boundary, boolean rebuild) {
+                return roots.contains("a") ? published::incrementAndGet : () -> { };
+            }
+            @Override
+            public Runnable materializeSchema(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration c,
+                                              java.util.Set<String> roots, long boundary) {
+                assertEquals(java.util.Set.of("b"), roots);
+                throw new IllegalStateException("Temporary schema failure");
+            }
+        });
+        store.invalidateModelGraphSchema("b", "example.Model");
+        var updated = store.commitModels(commit("update-a", 0L, ModelConflictPolicy.ACCEPT, ModelCommitStep.builder().event(event("update-a"))
+                .targets(List.of(storedTarget("a"))).build())).join();
+        assertTrue(updated.getConflicts().isEmpty());
+        store.invalidateModelGraphSchema("b", "example.Model");
+        assertEquals(1, published.get(), "An accepted ordinary write must retain its notification on schema failure");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void schemaPublicationSurvivesAnAbsentOrFailingOrdinaryCallback(boolean failOrdinary) {
+        var store = denseStore();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create"))
+                .targets(List.of(storedTarget("root"))).build())).join();
+        store.setModelGraphProjectionMaterializer((configuration, roots, boundary, rebuild) -> null);
+        var configuration = new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration(
+                "example.Model", "roots", "graphs", io.fluxzero.common.api.search.ModelGraphComposition.builder().build(),
+                List.of(new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision("example.Model", 0)),
+                List.of(), false);
+        store.registerModelGraphProjection(new io.fluxzero.common.api.modeling.RegisterModelGraphProjection(configuration, false)).join();
+        AtomicInteger published = new AtomicInteger();
+        store.setModelGraphProjectionMaterializer(new InMemoryEventStore.ModelGraphProjectionMaterializer() {
+            @Override
+            public Runnable materialize(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration c,
+                                        java.util.Set<String> roots, long boundary, boolean rebuild) {
+                return failOrdinary ? () -> { throw new IllegalStateException("Notification failure"); } : null;
+            }
+            @Override
+            public Runnable materializeSchema(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration c,
+                                              java.util.Set<String> roots, long boundary) {
+                assertEquals(java.util.Set.of("root"), roots);
+                return published::incrementAndGet;
+            }
+        });
+        if (failOrdinary) {
+            assertThrows(IllegalStateException.class, () -> store.invalidateModelGraphSchema("root", "example.Model"));
+        } else {
+            store.invalidateModelGraphSchema("root", "example.Model");
+        }
+        assertEquals(1, published.get());
+    }
+
+    @Test
+    void pendingOrdinarySignalsCannotHideASchemaRewriteAtTheSameBoundary() {
+        var store = denseStore();
+        var search = new io.fluxzero.sdk.persisting.search.client.InMemorySearchStore(
+                java.time.Duration.ofDays(1), null, store::resolveCurrentGraph, store::resolveModelDocumentCollections);
+        store.setModelCommitMaterializer(search::prepareModelCommit);
+        search.setModelNodeSchemaInvalidation(store::invalidateModelGraphSchema);
+        var unavailable = new java.util.concurrent.atomic.AtomicBoolean();
+        store.setModelGraphProjectionMaterializer(new InMemoryEventStore.ModelGraphProjectionMaterializer() {
+            @Override
+            public Runnable materialize(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration c,
+                                        java.util.Set<String> roots, long boundary, boolean rebuild) {
+                if (c.getCollection().equals("otherGraphs") && unavailable.get()) {
+                    throw new IllegalStateException("Temporary other projection failure");
+                }
+                return search.prepareModelGraphProjection(c, roots, boundary, rebuild);
+            }
+            @Override
+            public Runnable materializeSchema(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration c,
+                                              java.util.Set<String> roots, long boundary) {
+                if (c.getCollection().equals("otherGraphs") && unavailable.get()) {
+                    throw new IllegalStateException("Temporary other projection failure");
+                }
+                return search.prepareModelGraphSchemaProjection(c, roots, boundary);
+            }
+        });
+        var document = new io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer()
+                .toDocument(java.util.Map.of("value", "current"), "root", "roots", null, null);
+        var target = storedTarget("root").toBuilder().updateState(true)
+                .document(new ModelDocumentMutation("roots", document)).build();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create")).targets(List.of(target)).build())).join();
+        for (String collection : List.of("graphs", "otherGraphs")) {
+            var configuration = new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration(
+                    "example.Model", "roots", collection, io.fluxzero.common.api.search.ModelGraphComposition.builder().build(),
+                    List.of(new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision("example.Model", 0)),
+                    List.of(), true);
+            store.registerModelGraphProjection(new io.fluxzero.common.api.modeling.RegisterModelGraphProjection(configuration, false)).join();
+        }
+        unavailable.set(true);
+        var committed = store.commitModels(commit("update", 0L, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("update")).targets(List.of(target)).build())).join();
+        assertTrue(committed.getConflicts().isEmpty());
+        var source = search.fetchModelDocument(new io.fluxzero.common.api.search.GetDocument("root", "roots", true, true));
+        var revised = new io.fluxzero.common.api.search.SerializedDocument(
+                source.getDocument().deserializeDocument().toBuilder().revision(1).build());
+        search.rewriteModelSourceDocument(new io.fluxzero.common.api.search.RewriteModelSourceDocument(
+                revised, source.getModelHead(), io.fluxzero.common.modeling.ModelDocumentProof.of(
+                source.getDocument(), source.getModelHead()), Guarantee.STORED)).join();
+        unavailable.set(false);
+        store.invalidateModelGraphSchema("root", "example.Model");
+        for (String collection : List.of("graphs", "otherGraphs")) {
+            var projected = search.fetch(new io.fluxzero.common.api.search.GetDocument("root", collection)).orElseThrow();
+            var manifest = io.fluxzero.common.search.ModelGraphDocumentManifest.from(projected).orElseThrow();
+            assertEquals(1, manifest.nodes().getFirst().revision());
+            assertEquals(source.getModelHead().getStateIndex(), manifest.stateIndex());
+        }
+    }
+
+    @Test
+    void hardErasurePurgesPendingSchemaIdentityAndRejectsLateInvalidation() {
+        var store = denseStore();
+        store.commitModels(commit("create", ModelCommitStep.builder().event(event("create"))
+                .targets(List.of(storedTarget("root"))).build())).join();
+        store.invalidateModelGraphSchema("root", "example.Model");
+        // Inspect retained identities because an erased pending ID cannot be exposed through public graph reads.
+        var pending = io.fluxzero.common.reflection.ReflectionUtils.<java.util.Map<?, ?>>getFieldValue(
+                "modelNodeSchemaInvalidations", store).orElseThrow();
+        assertTrue(pending.containsKey("root"));
+        store.deleteModel(DeleteModel.builder().deletionId("erase").modelId("root")
+                .cascade(ModelDeletionCascade.NONE).maxDepth(1).maxModels(1).build()).join();
+        assertFalse(pending.containsKey("root"));
+        store.invalidateModelGraphSchema("root", "example.Model");
+        assertTrue(pending.isEmpty());
+    }
+
+    @Test
     void hardErasureCleanupRunsOutsideTheModelLockAndRetriesBeforeAdvancingItsFence() {
         InMemoryEventStore store = denseStore();
         store.commitModels(commit("create", ModelCommitStep.builder().event(event("create"))

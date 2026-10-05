@@ -100,17 +100,20 @@ import java.lang.annotation.Target;
  *
  * <h2>Interaction with intercepted updates</h2>
  * {@link io.fluxzero.sdk.persisting.eventsourcing.InterceptApply @InterceptApply} resolves the effective update or
- * updates first. Assertions therefore run for a retained update, do not run for a suppressed update, and run only for
+ * updates first when current-input checks are disabled. Assertions then run for a retained update, do not run for a suppressed update, and run only for
  * the replacement when the original update is replaced. Expanded updates are processed in encounter order: each
  * update's immediate assertions run before its apply methods and see state produced by earlier updates. Assertions
  * configured with {@link #afterHandler()} remain deferred until handler completion.
  *
- * <p>If a rule must also hold after an interceptor replaces the original payload, define that rule for the effective
- * replacement or place it in shared/entity-side assertion logic that matches the replacement. An assertion that only
- * matches the original payload is intentionally not invoked after replacement.</p>
+ * <p>{@code @InterceptApply(assertCurrent = AssertCurrent.ENABLED)} retains checks for that interceptor's input.
+ * Immediate checks run before interception within the commit attempt; retained after-handler checks use final state.
+ * This applies even to suppressed input. DEFAULT enables this from defaults version {@code 2026.10.04}, unless
+ * {@code fluxzero.interceptApply.assertCurrent} overrides it. Explicit annotation settings win.</p>
  *
  * <h2>Ordering</h2>
- * Multiple legality methods may be invoked. For independently stored models, assertions declared on the payload run
+ * Cascading rules prevalidate resolved scopes before ordinary assertions; result-dependent routes are checked
+ * after the pure apply returns, against the logical before-state. Multiple ordinary legality methods may be invoked.
+ * For independently stored models, ordinary assertions declared on the payload run
  * before assertions declared on the model. Within each phase their execution order is determined by
  * {@link #priority()}, with higher values taking precedence. Methods with the same priority are invoked in
  * deterministic order by method name and signature. Immediate assertions see the state before apply; deferred
@@ -134,6 +137,24 @@ public @interface AssertLegal {
      * first. Methods with the same priority are invoked in deterministic order by method name and signature.
      */
     int priority() default DEFAULT_PRIORITY;
+
+    /**
+     * Also validates mutations of known descendants through enabled {@link Parent} relationships.
+     * The declaring Model's own mutations remain subject to this assertion. Defaults to false.
+     * Only Model methods opt into cascading; ordinary aggregate assertions retain their existing semantics.
+     * All known enabled routes participate, including old and new routes when reparenting. Shared ancestors run
+     * once per effective update/phase. Immediate rules see the logical before-state; after-handler rules see final state.
+     * Result-bound routes are checked once the pure apply returns. Normal payload and context injection is retained.
+     * <p>This is SDK-side validation; unavailable classes and missing parent values stop traversal, and replay does not
+     * execute assertions. Deploy the rule to every writer. Read ancestors participate in atomic conflict validation:
+     * RETRY reevaluates; configured ACCEPT becomes FAIL for guarded attempts. No new Runtime protocol is required.</p>
+     * @see Parent#validateAncestors()
+     * @see io.fluxzero.sdk.persisting.eventsourcing.Apply#ancestorValidation()
+     */
+    boolean cascade() default false;
+
+    /** Restricts independent-Model assertion methods to assignable payload classes/interfaces; empty means unrestricted. */
+    Class<?>[] allowedClasses() default {};
 
     /**
      * Determines if the legality check should be performed immediately (the default), or when the current handler is

@@ -1,0 +1,36 @@
+---
+title: Publish an update
+description: Release a checked code revision and verify the version and user flow running in the cloud.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use this guide for an application whose [first deployment](/docs/tutorials/cloud-deployment) and integration already work. You need the reviewed code revision, its pipeline, the target cluster/application and any accompanying configuration changes.
+
+<div className="guide-context"><span>Live application</span><span>Existing release workflow</span></div>
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Prepare the version
+
+   Use [Check and improve a feature](/docs/building/test-and-improve) to review the change. Save it in Git and identify the exact commit/release. Ask the agent whether it changes stored data, configuration or external-provider behavior, and which earlier version can safely run afterwards.
+
+   Review the workflow trigger. A push publishes only when that branch/event is configured to deploy. If the workflow is manual, select the intended revision and destination explicitly. Prefer an immutable image reference so retries use the same artifact.
+
+2. ## Deliver and observe
+
+   Run the agreed release workflow. Follow build/tests, image publication and deployment as separate stages. If one fails, use [Investigate a failed deployment](/docs/building/deployment-problems) before retrying side effects.
+
+   In the dashboard, open **Applications → your app**. Compare its version with the expected artifact, inspect **Tasks** and check **History** for the change. Wait for the workload to become ready rather than equating a successful request with a completed rollout.
+
+   Open the live address and repeat the changed flow, including sign-in and the relevant integration. Check recent monitoring for errors associated with that action. Record the version and outcome so a later investigation can identify when behavior changed.
+
+   <div className="guide-result"><strong>Release checked</strong><p>The expected version is running and the changed flow works at the live address.</p></div>
+
+</Steps>
+</div>
+
+## If the result is wrong
+
+Establish which version is actually serving traffic. Decide whether to fix forward, restore configuration or redeploy a compatible earlier image. [Recover a version or data](/docs/building/recovery) explains the distinction. Releasing older code does not reverse data changes, payments or messages already sent.

@@ -59,6 +59,22 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
+     * Reindexes the current durable state of exactly one Model. Custom repositories must implement the guarded
+     * capability explicitly. See {@link Graph#reindex()} for cutoff and completion semantics.
+     */
+    default void reindex(@NonNull String modelId, @NonNull Class<?> modelType) {
+        throw new UnsupportedOperationException("Model reindex is not supported by this repository");
+    }
+
+    /**
+     * Returns an explicit bounded dev/CI catalog inspector for this repository's namespace. Custom repositories
+     * may expose their own inspector; the default declines rather than inspecting a different store or namespace.
+     */
+    default ModelDiagnostics diagnostics() {
+        throw new UnsupportedOperationException("Model contract diagnostics are not supported by this repository");
+    }
+
+    /**
      * Loads a model using the type carried by a typed identifier.
      */
     default <T> Entity<T> load(@NonNull Id<T> modelId) {

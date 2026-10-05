@@ -1061,7 +1061,7 @@ data class TaskStatus(
 
 For Task `task-a`, the status has storage ID `task-status-task-a`. Its identity scheme allows one status per Task without merging their state. Load it with `Fluxzero.loadModel(taskId, TaskStatus.class)` (Kotlin: `TaskStatus::class.java`). The parent edge follows Task's lifecycle; its `status` composition path is still a collection.
 
-Updating status does not append to Task's stream. Task history also does not provide old status values: a historical Graph that consumes an overwritten DOCUMENT-only value may fail to reconstruct it. Choose both persistence modes for the status when durable historical processing is required. The [mixed-persistence contract](#state-indexes-and-mixed-persistence) explains that boundary.
+Updating status does not append to Task's stream. Task history also does not provide old status values: a strict historical Graph that consumes an overwritten DOCUMENT-only value fails to reconstruct it; a fallback view can use its current value. Choose both persistence modes for the status when durable historical processing is required. The [mixed-persistence contract](#state-indexes-and-mixed-persistence) explains that boundary.
 
 #### Which documents are stored?
 
@@ -1244,9 +1244,15 @@ Read each row as one Model's history. The vertical line selects boundary 30. Pro
 
 State indexes encode time in the same way as message indexes. `IndexUtils.timestampFromIndex(index)` decodes the timestamp. For a time-based view, use `graph.atStateIndex(IndexUtils.maxIndexFromMillis(instant.toEpochMilli()))` to include the commits through that millisecond. This requires retained reconstructible history; it cannot undo physical erasure.
 
-A mixed Graph can contain event-sourced Project/Task nodes and a DOCUMENT-only status node. If the status at 10:00 was overwritten at 10:05, reading that node in the 10:00 Graph cannot silently return the newer status. The SDK keeps the historical boundary and fails the value read if it cannot reconstruct the requested revision. Lazy navigation means a handler that never reads that status may still use the reconstructible parts of the Graph.
+A mixed Graph can contain event-sourced Project/Task nodes and a DOCUMENT-only status node. Historical values use
+retained event history where available. An overwritten DOCUMENT-only value normally uses the current value of the same ID. It becomes
+`null` after current deletion and may come from a recreation. Historical absence and relationships remain pinned.
+This also applies to `previous()`; fallback values do not represent exact before/after document versions.
 
-`previous()` does not make a DOCUMENT-only node stay current inside an otherwise historical Graph. A standalone current DOCUMENT-only Model may have no previous value (`previous() == null` after cache loss); a complete Graph-change handler's explicit before-boundary still cannot manufacture missing document history. Event injection has the same restriction. Keep `EVENT_SOURCED` when historical processing is required and enable `searchable` separately for search. Add `DOCUMENT` only when internal current-document state is also required. Use an explicitly separate current read when current status is the actual question.
+Use `graph.strict(true)` for exact historical values and `graph.strict(false)` to return to ordinary reads.
+Set `fluxzero.model.graph.strict=true` for a strict application default; this is independent of defaults versions. Assertions, applies and replay stay strict in either mode. Fallback
+values are retained per view after reading, but separate nodes do not form an atomic current snapshot. See
+[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for configuration, Java/Kotlin examples and Runtime compatibility.
 
 ### 5. React to the whole Graph, without enumerating its events
 
@@ -1254,14 +1260,16 @@ In the project-management example, the overview should change when a Task change
 Project itself receives an update.
 You should not have to maintain a list of every command or event that might affect that overview.
 
-Use an unqualified `Graph<Project>` as the single parameter for complete Graph-change delivery. In the current SDK, adding a `Message`, `Metadata` or payload parameter makes this a different handler signature; the complete-change selector currently requires exactly one parameter. Read message context through `DeserializingMessage.getCurrent()` inside this handler when needed:
+Use one unqualified `Graph<Project>` parameter for complete Graph-change delivery. You can add `Message` and
+`Metadata` context parameters in any order. Adding an explicit payload parameter, an association-qualified Graph
+or another Graph keeps the method on ordinary handler selection:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
 
 ```java
 @HandleEvent
-void projectChanged(Graph<Project> project) {
+void projectChanged(Graph<Project> project, Message message, Metadata metadata) {
     Graph<Project> before = project.previous();
     // React to this Graph transition, whether the root or a descendant changed.
 }
@@ -1272,7 +1280,7 @@ void projectChanged(Graph<Project> project) {
 
 ```kotlin
 @HandleEvent
-fun projectChanged(project: Graph<Project>) {
+fun projectChanged(metadata: Metadata, project: Graph<Project>, message: Message) {
     val before = project.previous()
     // React to this Graph transition, whether the root or a descendant changed.
 }
@@ -1321,7 +1329,7 @@ fun projectViewChanged(project: Graph<Project>) {
 </TabItem>
 </Tabs>
 
-This route can skip superseded intermediate versions. NONE retains durable update markers and composes current indexed nodes when handled; ASYNC/AWAIT read the stored composition. Neither supplies historical `previous()` values. An ancestor-only content change does not wake a child-root handler, and `@GraphProperty` does not add subscriptions. Use events for individual published transitions and documents to reconcile current search state. Returning a Graph can migrate only an ASYNC/AWAIT composition; a NONE return has no storage side effect. See [document handlers](/docs/guides/modeling-and-persistence/tracking-and-updating-documents#handler-configuration) and [schema evolution](#evolving-stored-graphs-with-handledocument).
+This route can skip superseded intermediate versions. NONE retains durable update markers and composes current indexed nodes when handled; ASYNC/AWAIT read the stored composition. Neither supplies historical `previous()` values. An ancestor-only content change does not wake a child-root handler, and `@GraphProperty` does not add subscriptions. Use events for individual published transitions and documents to reconcile current search state. Returning the unchanged Graph migrates evolved canonical nodes in every mode, including NONE; affected projections follow durably. Use `graphMigration = GraphMigrationTarget.PROJECTION` for only a stored composition. See [document handlers](/docs/guides/modeling-and-persistence/tracking-and-updating-documents#handler-configuration) and [schema evolution](#evolving-stored-graphs-with-handledocument).
 
 ### Watch the Graph evolve
 
@@ -2271,7 +2279,7 @@ and caster chains. See [Model migration tests](/docs/guides/modeling-and-persist
 Read-time upcasting gives application code the new shape, but it does not change the paths already indexed
 for search. A predicate on `details/name` cannot match a stored document that still has only `name`.
 
-For the Project variant with `graphProjection.mode = ASYNC` or AWAIT, register the caster and this consumer:
+Register the caster and this consumer for NONE, ASYNC or AWAIT:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2301,17 +2309,19 @@ class EvolveProjectGraphs {
 </Tabs>
 
 The bare annotation infers the Graph subscription from `Graph<Project>`. It works for NONE as well as ASYNC/AWAIT.
-The stored-projection schema rewrite shown here applies to ASYNC/AWAIT. NONE hydrates current canonical nodes and
-ignores Graph returns; migrate the source schemas instead. It does not provide a retained previous Graph.
+NONE hydrates current canonical nodes and does not retain previous Graphs.
 
-**The handler returns the Graph it received.** The SDK applies the registered node upcasters and
-serializes the complete evolved Graph. When a node's serialized type or revision changed, it conditionally
-replaces the stored projection. Returning an already-current Graph is a no-op. Use a higher `@Revision`
-for a schema change; changing JSON without advancing the type or revision does not trigger this migration.
+**The handler returns the Graph it received.** The SDK identifies evolved nodes, then upcasts each verified current
+canonical source and checks its full head/proof before storing it. It does not copy potentially stale Graph business
+values. Contention is re-read with bounded retries; a persistent race fails handling. Already-current sources are
+no-ops. Raise `@Revision` for a schema change; JSON changes alone do not trigger migration.
+
+Node storage completes before the handler completes. Affected stored Graphs or NONE markers follow durably, without
+restarting scans for unrelated roots. AWAIT continues to wait for ordinary Model commits, not schema handlers.
 
 The consumer starts at the beginning of the document stream to process existing projections as well as new
-ones. It sees retained current documents, not every intermediate version. After catch-up, the new stored
-Graph supports the new query path:
+ones. It sees retained current documents, not every intermediate version. After both the consumer and affected
+projections catch up, the new Graph supports the new query path:
 
 <Tabs syncKey="language">
 <TabItem label="Java">
@@ -2346,7 +2356,8 @@ that choice explicit:
 
 | Handler | Representation it evolves | What that enables |
 | --- | --- | --- |
-| `@HandleDocument` with `Graph<Project>` (ASYNC/AWAIT) | The complete materialized Graph | New root and nested paths in stored Graph searches |
+| `@HandleDocument` with `Graph<Project>` | Evolved verified current nodes in every mode, then affected projections | Updated node, live Graph and stored Graph paths |
+| `@HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)` with `Graph<Project>` | Only the handled ASYNC/AWAIT composition; observational at NONE | A deliberate derived-only migration |
 | `@HandleDocument(source = DocumentSource.MODEL_STATE)` | The verified internal current Model source | Updated source paths for live composition and related-content searches |
 | `@HandleDocument` with `Project` | The same canonical source, requiring effective searchability | Updated paths for node and live Graph queries |
 
@@ -2660,13 +2671,18 @@ contract libraries so discovery works from a cold start.
 
 ### Aggregate is a migration API
 
-Treat `@Aggregate` as deprecated for application design, although the Java annotation does not yet carry
-`@Deprecated`. Use `@Model` for domain state. Keeping the Aggregate API available lets existing stored applications
-continue to work while their owners plan a data migration; it is not a second recommended modeling style.
+`@Aggregate` is the legacy/migration API and is annotated with `@Deprecated(forRemoval = true)`.
+It remains supported in 2.x and is scheduled for removal in SDK 3.0. Plan an explicit migration to Models
+before upgrading to 3.0.
+Java and Kotlin callers receive deprecation warnings, which can fail builds configured to treat warnings as errors.
+Keeping this API available in 2.x lets existing stored applications continue to work while their owners plan
+a data migration. Use independent `@Model` types for new domain state: each Model keeps
+its history as relationships evolve, and an operation can still commit changes across several Models atomically.
 
-`@Member` has a narrower role: embedded state whose creation, changes, history, retention and deletion all belong
-to its owner. Plain details values need no such annotation. Prefer independent Models joined by `@Parent` for
-recognizable child lifecycles; a collection field alone is not a reason to choose members.
+`@Member` remains supported and is not deprecated. Its role is deliberately embedded state whose creation,
+changes, history, retention and deletion all belong to its owner, including nested handlers in `@Stateful` objects.
+Plain details values need no such annotation. Prefer independent Models joined by `@Parent` for recognizable
+child lifecycles; a collection field alone is not a reason to choose members.
 
 Applications that used prerelease member handling should reconstruct affected Model state from events if snapshots
 were produced while member handlers were skipped. Correct replay does not retroactively repair those snapshots.
@@ -2913,7 +2929,7 @@ you do not need a parallel validation or messaging vocabulary.
 
 ### Upgrading existing 2.x search configurations
 
-This contract requires coordinated Runtime and writer upgrades. Existing applications should set `searchable = true` only on Models that independently activate search and replace the removed `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and `HandleDocument.modelState` settings. Keep canonical collection identities stable; preserve DOCUMENT-only state and its head proofs. Missing node documents need a controlled backfill; the SDK currently has no public operation to create those missing canonical sources safely, so that case blocks migration. Existing indexes need reindexing, and registered Graph definitions must be updated explicitly. Stopping an old projector in one process does not remove its durable Runtime definition.
+This contract requires coordinated Runtime and writer upgrades. Existing applications should set `searchable = true` only on Models that independently activate search and replace the removed `DocumentProjection`, `materializeGraph`, `HandleDocument.modelGraph` and `HandleDocument.modelState` settings. Keep canonical collection identities stable; preserve DOCUMENT-only state and its head proofs. Missing node documents need a customer-controlled `Graph.reindex()` backfill from current authoritative state; use a fixed consumer cutoff after draining old writers and materializations. The operation preserves Model history and refreshes one node at a time. AWAIT completion also waits for affected stored Graph projections, including ancestors, so queries after `reindex()` see the refresh. Existing indexes need reindexing, and registered Graph definitions must be updated explicitly. Stopping an old projector in one process does not remove its durable Runtime definition.
 
 Follow the [complete upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade) before resuming writers or exposing the changed queries. Reading the old stored definition format is supported; concurrent old/new Model writers are not.
 
@@ -2933,7 +2949,7 @@ additional behavior alongside the resolved policy.
 | `publicationStrategy` | `DEFAULT` | Where produced events are stored/published. Event-sourced changes must retain reconstructing events. |
 | `ignoreUnknownEvents` | `false` | Explicit replay compatibility policy; ignoring an event is not generally a safe solution to a missing contract. |
 | `snapshotPeriod` | `0` | Opt into periodic snapshots after measuring replay cost. Zero disables periodic snapshots. |
-| `maxSnapshotCount` | `1` | How many snapshots to retain; not how much event history to keep. |
+| `maxSnapshotCount` | `1` | How many snapshots to retain: negative means unlimited, zero keeps one. Does not limit event history. |
 | `cached` | `true` | Shared application caching of the latest Model state. Commit-local state is a separate concern. |
 | `cachingDepth` | `1` | Older versions retained in cache: `0` keeps only current; `-1` retains all available cached versions. This is not durable history retention. |
 | `checkpointPeriod` | `100` | Intermediate replay checkpoints within a reconstruction session, not extra stored document versions. |

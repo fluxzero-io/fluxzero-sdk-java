@@ -87,14 +87,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         this.handlerDecorator = Objects.requireNonNull(handlerDecorator, "handlerDecorator");
         this.commandDispatchInterceptor = Objects.requireNonNull(commandDispatchInterceptor, "commandDispatchInterceptor");
         MutationPlan.Compiler shared = repository.modelDefinitionCompiler();
-        this.definitions = new MutationPlan.Catalog(
-                shared == null ? new MutationPlan.Compiler(parameterResolvers) : shared,
-                automaticHandling);
+        MutationPlan.Compiler compiler = shared == null ? new MutationPlan.Compiler(parameterResolvers) : shared;
+        this.definitions = new MutationPlan.Catalog(compiler, automaticHandling);
         this.pipeline = new ModelPipeline(
                 repository, eventStoreClient, serializer, snapshotSerializer,
                 documentSerializer, eventDispatchInterceptor, source,
                 conflictPolicy, conflictResolver, maxConflictRetries,
-                graphProjectionCompletion, definitions::get,
+                graphProjectionCompletion, compiler, definitions::get,
                 () -> localHandlingEnabled, definitions::contextualDeadlineTypes);
         this.decoratedHandler = handlerDecorator.wrap(pipeline.handler(null));
     }

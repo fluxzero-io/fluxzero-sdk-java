@@ -57,6 +57,12 @@ jobs:
           check-latest: true
           cache: 'maven'
 
+      - name: Test release title policy
+        run: python3 .github/scripts/set-release-title.test.py
+
+      - name: Test website dispatch policy
+        run: node --test .github/scripts/site-dispatch.test.mjs
+
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 

@@ -210,4 +210,28 @@ class MessagePackIOTest {
             assertThrows(IndexOutOfBoundsException.class, () -> new MessagePackIO.Reader(first, 1, Integer.MAX_VALUE));
         }
     }
+
+    @Test
+    void skipStringPreservesFramingAndBoundsWithoutDecodingText() throws Exception {
+        for (int size : new int[]{0, 31, 32, 255, 256, 65535, 65536}) {
+            try (var writer = MessagePack.newDefaultBufferPacker()) {
+                writer.packString("é".repeat(size)).packInt(42);
+                try (var reader = new MessagePackIO.Reader(writer.toByteArray())) {
+                    reader.skipString();
+                    assertEquals(42, reader.unpackInt());
+                }
+            }
+        }
+        // Binary strings and malformed UTF-8 have always been accepted by unpackString.
+        try (var reader = new MessagePackIO.Reader(new byte[]{(byte) 0xc4, 2, (byte) 0xc0, (byte) 0xaf, 42})) {
+            reader.skipString();
+            assertEquals(42, reader.unpackInt());
+        }
+        for (byte[] invalid : new byte[][]{{}, {1}, {(byte) 0xa1}, {(byte) 0xd9},
+                {(byte) 0xdb, -1, -1, -1, -1}, {(byte) 0xc4, 2, 1}}) {
+            try (var reader = new MessagePackIO.Reader(invalid)) {
+                assertThrows(IOException.class, reader::skipString);
+            }
+        }
+    }
 }

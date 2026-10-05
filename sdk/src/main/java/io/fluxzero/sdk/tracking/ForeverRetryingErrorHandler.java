@@ -24,38 +24,42 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * A specialized {@link RetryingErrorHandler} that retries failed operations indefinitely until they succeed.
- * <p>
- * This handler is useful in scenarios where failure is considered temporary and must eventually resolve before
- * processing can proceed. It ensures **no message is ever skipped or dropped**, regardless of how many attempts
- * are required.
+ * A {@link RetryingErrorHandler} with no retry-count limit for eligible failures.
  *
- * <p><strong>Behavior:</strong>
+ * <p>Start with the default {@link LoggingErrorHandler}. Choose unlimited retries when an effect must survive a
+ * recoverable outage before processing can advance, and repeating the operation is safe. Examples include replacing
+ * a search document by stable ID or reconciling schedules from durable current intent. Every completed side effect
+ * must be idempotent; an uncertain remote outcome can still have taken effect.
+ *
+ * <p><strong>Operational cost:</strong> the affected tracker/batch waits while retries continue. A permanent failure
+ * can therefore block progress indefinitely and grow the backlog. Monitor lag and retry failures, and provide a way to
+ * repair a poison message or its cause. This policy does not itself guarantee delivery or exactly-once effects.
+ *
+ * <p><strong>Retry boundaries:</strong>
  * <ul>
- *     <li>Applies retry logic to all errors that match the provided {@code errorFilter} (default: non-functional errors).</li>
- *     <li>Uses capped exponential backoff by default, starting at 10 seconds and capped at 1 minute.</li>
- *     <li>Never stops the consumer or throws — tracking continues until the retry succeeds.</li>
- *     <li>Logs retry attempts and outcomes via inherited {@link RetryConfiguration}.</li>
+ *     <li>The initial {@code errorFilter} defaults to excluding {@link FunctionalException}. An excluded initial error
+ *     is logged and returned without retry; tracking may continue.</li>
+ *     <li>The first retry is immediate. After failed retries, default backoff starts at 10 seconds and caps at 1 minute.</li>
+ *     <li>The initial filter is not reapplied to later failures. The separate {@link RetryConfiguration} error test
+ *     controls failures during retries and excludes {@link Error} by default. A functional failure on a later attempt
+ *     can therefore keep retrying.</li>
+ *     <li>Interruption or a rejected retry failure can end the loop. A rejected retry failure returns {@code null}
+ *     by default; interruption normally returns the mapped original error. These paths do not deliberately stop the
+ *     consumer. Custom filters, mappers or logging can themselves throw.</li>
  * </ul>
  *
- * <p><strong>Use Cases:</strong>
- * <ul>
- *     <li>Systems that rely on eventual consistency and cannot tolerate message loss</li>
- *     <li>Recoverable infrastructure failures (e.g., DB outages, network timeouts)</li>
- *     <li>Replaying old messages into strict projections</li>
- * </ul>
- *
- * <p><strong>Usage Example:</strong>
+ * <p><strong>Explicit opt-in:</strong>
  * <pre>{@code
- * @Consumer(name = "criticalProjection", errorHandler = ForeverRetryingErrorHandler.class)
- * public class StrictProjectionHandler {
+ * @Consumer(name = "reconciled-projection", errorHandler = ForeverRetryingErrorHandler.class)
+ * public class ReconciledProjection {
  *     @HandleEvent
- *     void on(FinancialTransaction event) {
- *         // Will retry forever on failure until the event is handled successfully
+ *     void on(ItemChanged event) {
+ *         // Replace the projection by stable ID; alert on sustained retry/consumer lag
  *     }
  * }
  * }</pre>
  *
+ * @see LoggingErrorHandler
  * @see RetryingErrorHandler
  * @see ErrorHandler
  * @see FunctionalException
@@ -77,7 +81,7 @@ public class ForeverRetryingErrorHandler extends RetryingErrorHandler {
      * @param delay               the delay between retries
      * @param errorFilter         predicate to select which errors should trigger retries
      * @param logFunctionalErrors whether to log functional errors
-     * @param errorMapper         maps the final error into a result (though retries never exhaust)
+     * @param errorMapper         maps an excluded initial error or an error after the retry loop terminates into a result
      */
     public ForeverRetryingErrorHandler(Duration delay, Predicate<Throwable> errorFilter, boolean logFunctionalErrors,
                                        Function<Throwable, ?> errorMapper) {

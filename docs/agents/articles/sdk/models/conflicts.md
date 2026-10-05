@@ -2,6 +2,12 @@
 
 This contract applies to both Java and Kotlin applications.
 
+An attempt that consumes an opted-in `@AssertLegal(cascade = true)` rule protects its ancestor reads, including absence.
+For that attempt, `ACCEPT` resolves to `FAIL`: stale permission cannot survive a concurrent parent change. `RETRY`
+retains its ordinary reevaluation behavior. Commits without applicable cascading validation keep their existing policy.
+See the [Java](actions-java.md#guard-a-model-and-its-descendants) and
+[Kotlin](actions-kotlin.md#guard-a-model-and-its-descendants) guides for scope and exceptions.
+
 ## Conflict policy
 
 Model commits default to `ModelConflictPolicy.DEFAULT`, resolved from apply/model, builder configuration or application

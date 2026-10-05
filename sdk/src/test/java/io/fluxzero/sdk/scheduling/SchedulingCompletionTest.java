@@ -34,6 +34,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULT_DELIVERY_GUARANTEE_PROPERTY;
@@ -47,13 +49,18 @@ class SchedulingCompletionTest {
         LocalClient client = client();
         SchedulingClient transport = client.getSchedulingClient();
         CompletableFuture<Void> acknowledgement = new CompletableFuture<>();
-        when(transport.schedule(eq(Guarantee.STORED), any(SerializedSchedule[].class))).thenReturn(acknowledgement);
+        CountDownLatch invoked = new CountDownLatch(1);
+        when(transport.schedule(eq(Guarantee.STORED), any(SerializedSchedule[].class))).thenAnswer(ignored -> {
+            invoked.countDown();
+            return acknowledgement;
+        });
         try (Fluxzero app = application(client)) {
             Schedule schedule = new Schedule("periodic", "id", Instant.now().plusSeconds(60));
             try (var task = new TestTask(() -> app.execute(ignored -> new SchedulingInterceptor()
                     .initializePeriodicSchedule(app.messageScheduler(), schedule, null)),
                                         () -> acknowledgement.complete(null))) {
-                task.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(2));
+                assertTrue(invoked.await(2, TimeUnit.SECONDS), "Expected transport invocation");
+                task.awaitBlockedIn(CompletableFuture.class, "get", Duration.ofSeconds(2));
                 verify(transport).schedule(eq(Guarantee.STORED), any(SerializedSchedule[].class));
                 acknowledgement.complete(null);
                 task.awaitCompletion(Duration.ofSeconds(2));
@@ -67,11 +74,18 @@ class SchedulingCompletionTest {
         LocalClient client = client();
         SchedulingClient transport = client.getSchedulingClient();
         CompletableFuture<Void> acknowledgement = new CompletableFuture<>();
+        CountDownLatch invoked = new CountDownLatch(1);
         when(transport.bindScheduleParents(anyList())).thenReturn(CompletableFuture.completedFuture(Map.of("parent", 1L)));
         when(transport.schedule(any(), any(SerializedSchedule[].class)))
-                .thenAnswer(ignored -> AsyncCompletionScope.register(acknowledgement));
+                .thenAnswer(ignored -> {
+                    invoked.countDown();
+                    return AsyncCompletionScope.register(acknowledgement);
+                });
         when(transport.scheduleBoundToParents(any(), anyMap(), any(SerializedSchedule[].class)))
-                .thenAnswer(ignored -> AsyncCompletionScope.register(acknowledgement));
+                .thenAnswer(ignored -> {
+                    invoked.countDown();
+                    return AsyncCompletionScope.register(acknowledgement);
+                });
         try (Fluxzero app = application(client)) {
             Metadata metadata = Metadata.of(Schedule.scheduleIdMetadataKey, "id");
             if (parentBound) {
@@ -81,7 +95,8 @@ class SchedulingCompletionTest {
             try (var task = new TestTask(() -> app.execute(ignored -> AsyncCompletionScope.runAndAwaitBeforeCommit(
                     () -> new SchedulingInterceptor().handleResult(Duration.ofMinutes(1), source, Instant.now(), null))),
                                         () -> acknowledgement.complete(null))) {
-                task.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(2));
+                assertTrue(invoked.await(2, TimeUnit.SECONDS), "Expected transport invocation");
+                task.awaitBlockedIn(CompletableFuture.class, "get", Duration.ofSeconds(2));
                 if (parentBound) {
                     verify(transport).scheduleBoundToParents(eq(Guarantee.STORED), anyMap(), any(SerializedSchedule[].class));
                 } else {
@@ -98,14 +113,19 @@ class SchedulingCompletionTest {
         LocalClient client = client();
         SchedulingClient transport = client.getSchedulingClient();
         CompletableFuture<Void> acknowledgement = new CompletableFuture<>();
-        when(transport.cancelSchedule("id", Guarantee.SENT)).thenReturn(acknowledgement);
+        CountDownLatch invoked = new CountDownLatch(1);
+        when(transport.cancelSchedule("id", Guarantee.SENT)).thenAnswer(ignored -> {
+            invoked.countDown();
+            return acknowledgement;
+        });
         try (Fluxzero app = application(client)) {
             DeserializingMessage source = new DeserializingMessage(new Message("periodic",
                     Metadata.of(Schedule.scheduleIdMetadataKey, "id")), SCHEDULE, app.serializer());
             try (var task = new TestTask(() -> app.execute(ignored -> assertThrows(SchedulerException.class,
                     () -> new SchedulingInterceptor().handleExceptionalResult(new CancelPeriodic(), source, Instant.now(), null))),
                                         () -> acknowledgement.complete(null))) {
-                task.awaitBlockedIn(AsyncCompletionScope.class, "await", Duration.ofSeconds(2));
+                assertTrue(invoked.await(2, TimeUnit.SECONDS), "Expected transport invocation");
+                task.awaitBlockedIn(CompletableFuture.class, "get", Duration.ofSeconds(2));
                 verify(transport).cancelSchedule("id", Guarantee.SENT);
                 acknowledgement.completeExceptionally(new IllegalStateException("cancel rejected"));
                 task.awaitCompletion(Duration.ofSeconds(2));

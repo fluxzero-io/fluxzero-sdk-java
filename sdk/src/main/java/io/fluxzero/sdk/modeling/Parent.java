@@ -80,7 +80,8 @@ import java.lang.annotation.Target;
  * before-state through the original published event, just as for a direct logical deletion. Reading that before-state
  * requires stored history; DOCUMENT-only persistence does not retain previous document versions.
  * <p>
- * Declaring metadata does not cause a parent to be loaded when the child is loaded or updated.
+ * Declaring metadata does not load a parent on child reads. Mutations load parents only when otherwise needed,
+ * including applicable {@link AssertLegal#cascade() cascading assertions}.
  * A one-to-one companion model may annotate the same property with {@link EntityId}; entity-ID affixes affect only
  * the companion's repository identity and do not alter the parent reference value.
  *
@@ -92,6 +93,13 @@ import java.lang.annotation.Target;
 @Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Parent {
+
+    /**
+     * Whether cascading assertions on this parent and its ancestors apply to this child and its descendants.
+     * False stops only this route; other parent routes and the child's own assertions remain active.
+     * This is local SDK policy, independent of deletion/search policies; annotation changes need no stored rewrite.
+     */
+    boolean validateAncestors() default true;
 
     /**
      * Explicit parent model type for an untyped ID. Must match the inferred {@link Id} target when both are present.

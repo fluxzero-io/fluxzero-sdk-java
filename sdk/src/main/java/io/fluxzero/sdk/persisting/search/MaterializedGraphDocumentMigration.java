@@ -80,6 +80,7 @@ public final class MaterializedGraphDocumentMigration {
         Map<String, SerializedDocument> documents = new LinkedHashMap<>();
         Map<String, String> modelTypes = new LinkedHashMap<>();
         List<ModelGraphEdge> edges = new ArrayList<>();
+        Metadata metadata = DocumentMessageReader.sourceMetadata(message).without(METADATA_KEY);
         boolean evolved = false;
         for (int index = 0; index < placements.size(); index++) {
             Placement placement = placements.get(index);
@@ -90,7 +91,7 @@ public final class MaterializedGraphDocumentMigration {
                 throw incompatible("node %s is empty".formatted(source.id()));
             }
             SerializedDocument direct = serializer.toDocument(
-                    value, source.id(), collection, start, end, Metadata.empty());
+                    value, source.id(), collection, start, end, index == 0 ? metadata : Metadata.empty());
             if (!direct.getDocument().getType().equals(placement.graph().type().getName())) {
                 throw incompatible("node %s serialized as %s instead of %s".formatted(
                         source.id(), direct.getDocument().getType(), placement.graph().type().getName()));
@@ -127,7 +128,7 @@ public final class MaterializedGraphDocumentMigration {
         return Optional.of(new Migration(expectedManifest, replacement));
     }
 
-    private static void validateRoot(
+    static void validateRoot(
             Graph<?> graph,
             DeserializingMessage message,
             ModelGraphDocumentManifest manifest) {
@@ -140,7 +141,7 @@ public final class MaterializedGraphDocumentMigration {
         }
     }
 
-    private static void validatePlacement(
+    static void validatePlacement(
             Placement placement,
             ModelGraphDocumentManifest.Node source,
             ModelGraphDocumentManifest manifest,
@@ -158,7 +159,7 @@ public final class MaterializedGraphDocumentMigration {
         }
     }
 
-    private static void addPlacements(
+    static void addPlacements(
             Graph<?> graph,
             int parent,
             String path,
@@ -203,7 +204,7 @@ public final class MaterializedGraphDocumentMigration {
             SerializedDocument replacement) {
     }
 
-    private record Placement(
+    record Placement(
             Graph<?> graph,
             int parent,
             String path,

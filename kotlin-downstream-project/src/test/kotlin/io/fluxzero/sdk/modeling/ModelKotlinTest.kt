@@ -10,6 +10,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.junit.jupiter.api.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -45,6 +46,18 @@ class ModelKotlinTest {
                 assertEquals(2L, fc.eventStore().getEvents("owner").count())
                 assertEquals(0L, fc.eventStore().getEvents("member").count())
             }
+    }
+
+    @Test
+    fun graphStrictnessUsesAnImmutableViewAndBooleanGetter() {
+        TestFixture.create().whenExecuting { _ ->
+            val graph = Fluxzero.loadGraph("unloaded", KotlinModel::class.java)
+            val strict = graph.strict(true)
+            assertTrue(strict.isStrict)
+            assertFalse(graph.isStrict)
+            assertFalse(strict.strict(false).isStrict)
+            assertTrue(strict.isStrict)
+        }.expectSuccessfulResult().expectNoErrors()
     }
 
     @Test

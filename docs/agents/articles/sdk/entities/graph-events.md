@@ -2,12 +2,12 @@
 
 ## Complete graph-change handlers
 
-Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one
-of its descendants:
+Use one unqualified `Graph<T>` parameter to subscribe to every durable change of that root or one
+of its descendants. Optional `Message` and `Metadata` context parameters may appear in any order:
 
 ```java
 @HandleEvent
-void projectChanged(Graph<Project> graph) {
+void projectChanged(Graph<Project> graph, Message message, Metadata metadata) {
     Graph<Project> before = graph.previous();
 }
 ```

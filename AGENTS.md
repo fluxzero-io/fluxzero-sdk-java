@@ -172,6 +172,11 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - In `docs/developer/`, present equivalent Java and Kotlin examples together in one Starlight `Tabs` group with a `TabItem` for each language. Keep their behavior and scope aligned; do not separate translations with prose or collect them in a later language-specific section. Standalone examples are appropriate only for explicitly language-specific guidance, such as `package-info.java`, Kotlin compiler configuration, or Gradle Kotlin DSL.
 - Never create a feature-specific property utility or resolve configuration by reading environment variables, system properties, or property files directly. Always use the `ApplicationProperties` infrastructure; at builder or configuration boundaries, read from that component's configured `PropertySource` so application-local overrides and tests remain isolated. This shared path owns source precedence, conventional environment-variable normalization, placeholders, and decryption. Document the property key and conventional environment-variable name prominently, with builder methods presented as programmatic overrides or alternatives.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
+- Prefer separate `@Model` types for new domain state: independent histories and evolving `@Parent` relationships
+  allow models to move, gain relationships, and participate in atomic operations without expanding a shared root.
+  `@Aggregate` is the legacy/migration API, deprecated for removal in SDK 3.0; retain its 2.x behavior and plan
+  data migrations explicitly before upgrading to 3.0. `@Member` remains supported and is not deprecated,
+  including within `@Stateful` handlers.
 - Choose `@Model` versus `@Member` by domain lifecycle before storage or object shape. State with independent creation,
   changes, history, retention, or deletion is a separate Model connected with `@Parent`, even when it appears in a
   parent collection; a parent-scoped identity is sufficient. Use `@Member` only when all of those concerns deliberately
@@ -183,6 +188,26 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Keep this repository customer-neutral. Do not add customer or downstream-application names, captured production data,
   fixtures, logs, or application-specific diagnostics. Preserve generally applicable SDK evidence here and keep
   downstream-specific proof in the repository that owns that application.
+
+## Release Note Format
+
+- Follow [RELEASING.md](RELEASING.md#release-notes) for every release description, including manual edits,
+  feature releases, maintenance releases and repairs of existing notes. The generated structure is mandatory.
+- Use `VERSION – Mon D, YYYY` for release titles (for example `2.15.1 – Oct 5, 2026`), using the exact tag
+  and original GitHub `published_at` date in UTC. Preserve this date on edits and reruns; use the shared
+  `set-release-title.py` helper for authorized title changes. Start the body with the generated linked version/date heading.
+  An optional short opening may follow that heading, but the categorized change lists must follow it.
+- Preserve the generator's categories (`Features`, `Bug Fixes`, `Documentation`, etc.), HTML lists, commit/PR
+  references and expandable `<details><summary>` explanations. A feature belongs in `Features`, even when it
+  is the release's only change. Never replace the lists with a feature article, a Highlights section or
+  GitHub's generic What's Changed list.
+- Put longer feature explanations and migration/compatibility details inside the relevant item's expandable
+  body. Keep essential upgrade warnings visible in the short opening as well. Correct superseded claims
+  against the final tagged diff without discarding other changes or their references.
+- Before any authorized release-description update, save the existing body and metadata, generate the exact
+  tag range, and review the complete replacement. After updating, read the body back and check the rendered
+  version/date heading, category lists and expandable details; verify tags, assets and release flags are unchanged.
+  See RELEASING.md for the local generation command. Editing notes does not authorize a new release or Deploy rerun.
 
 ## Commit Messages
 

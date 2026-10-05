@@ -1,0 +1,112 @@
+---
+title: Model contract diagnostics
+slug: docs/guides/modeling-and-persistence/model-contract-diagnostics
+description: Diagnose missing local contracts and inspect bounded Model history without replaying application code
+sidebar:
+   order: 208
+---
+
+A reader needs the contracts for the state it reconstructs. Sharing a logical Model name does not automatically
+share historical event classes, revisions, upcasters or replay handlers. Use
+[Model discovery and contract packaging](../model-persistence#model-discovery-and-contract-packaging) to include the
+required contracts; registering a type alias only maps an identifier, and does not provide missing behavior.
+
+## Read failures and recovery
+
+`ModelReadException` extends `EventSourcingException`. It retains the original cause and adds `kind` and `context`.
+The context names the failing operation, Model identity, Graph read root when known, logical and local Model types,
+original serialized type/revision, local identifier registration and failing event state index when available.
+`unresolvedType` and `unresolvedRevision` identify a type that remains unknown after upcasting or inside a state
+envelope; they can differ from the original stored representation. Missing context is unavailable information.
+
+| Kind | Meaning and next step |
+| --- | --- |
+| `MISSING_MODEL_CONTRACT` | Include the shared `@Model` contract and annotation-processor index, or deliberately scope the Graph read to supported nodes. |
+| `MISSING_SERIALIZED_TYPE` | Supply the historical event/state contract, alias or upcaster. A maintained current-state document may support a deliberate current-state read. |
+| `MISSING_REPLAY_HANDLER` | Provide the Model's replay handler and qualify representative historical events. Do not silently skip unknown history. |
+| `INVALID_DATA` | Invalid structural metadata or confirmed malformed stored JSON syntax. Inspect and repair/restore the stored input. |
+| `CATALOG_FAILURE` | Inspect local discovery, duplicate logical names, class availability and configuration. |
+| `APPLICATION_FAILURE` | The replay phase failed in application code; inspect the cause and exercise cold replay. |
+| `DECODING_FAILURE` | Decoding failed without sufficient evidence to blame stored data or application code. Check the format, revision, custom decoder and upcasters. |
+
+A parser exception from application code does not by itself prove corrupt storage. Stored-JSON syntax attribution
+uses the built-in Jackson serializer’s configured parser for a failure-only token scan of at most 1 MiB; custom
+serializer/mapper implementations, larger inputs or ambiguous decoder/upcaster failures remain decoding
+failures. Known registration cannot prove compatible fields, upcasters, constructors, replay handlers or business logic.
+
+The exception message adds bounded identifiers, never payloads or message metadata. Its original cause remains
+unchanged and may contain decoder/application text; apply the application's normal sensitive-log handling to that cause.
+These categories cover Model type resolution, replay and direct document decoding. Existing transport, verification and
+other storage errors can retain their existing exception types. An undecodable optional snapshot retains the existing
+policy: log the contextual failure, delete that snapshot and attempt event replay. Diagnostics do not change recovery,
+retry, ordering, conflict checks, ownership or current-state freshness verification.
+
+## Explicit bounded inspection
+
+Use the repository belonging to the application and namespace being qualified:
+
+```java
+var diagnostics = fluxzero.modelRepository().diagnostics();
+var limits = new ModelDiagnostics.Limits(32, 8, 256 * 1024, 3);
+var report = diagnostics.inspectStreams(
+        List.of("project-1", "note-1"), ModelReadBoundary.current(), limits);
+var graphSample = diagnostics.inspectGraph("project-1", ModelReadBoundary.at(report.stateIndex()), limits);
+```
+
+The same API is available in Kotlin:
+
+```kotlin
+val diagnostics = fluxzero.modelRepository().diagnostics()
+val limits = ModelDiagnostics.Limits(32, 8, 256 * 1024L, 3)
+val report = diagnostics.inspectStreams(listOf("project-1", "note-1"), ModelReadBoundary.current(), limits)
+val graphSample = diagnostics.inspectGraph("project-1", ModelReadBoundary.at(report.stateIndex()), limits)
+```
+
+Imports come from `io.fluxzero.sdk.persisting.repository` (`ModelDiagnostics`) and
+`io.fluxzero.common.api.modeling` (`ModelReadBoundary`). For another namespace, select
+`fluxzero.modelRepository().forNamespace(namespace).diagnostics()` explicitly. A custom `ModelRepository` must expose
+its own correctly scoped inspector; the default method throws `UnsupportedOperationException`.
+
+Each call performs one storage request with no automatic pagination. It reads the first event page from each selected
+stream, or one descendant Graph sample. Limits allow at most 256 Models, 1,024 events per Model, 4,096 memberships
+across the request, a positive transport byte budget up to 16 MiB, and Graph depth 0–64. Default limits are 64 Models,
+16 events each, 1 MiB and depth 4. The byte budget is soft: existing transport may transfer an oversized event or packed
+block, so it is not a hard network or heap ceiling. Packed envelopes are expanded to read their type metadata.
+
+No payload deserialization, structural upcasting, replay, writes, automatic contract imports or handler registration
+occurs. Identifier lookup can load local classes, including their normal class initialization; custom serializers and
+catalog implementations remain responsible for their lookup behavior. The result retains only bounded structural
+metadata, not event payload objects.
+
+Interpret the report explicitly:
+
+- `stateIndex` and `exactBoundary` describe the resolved namespace boundary. Use a pinned selector for comparisons.
+- `headPresent` distinguishes an absent Model from a Model with an unknown local contract. `modelType` is the stored
+  logical name; nullable `localModelType` is the local catalog result.
+- `historyComplete` is storage's retained-history declaration. `eventsComplete` additionally requires every sequence
+  from zero through the sampled head. Neither flag proves replay succeeds.
+- `graphSample` always marks a bounded sample, never a proof of full Graph closure. No continuation is followed.
+- `observedTypes` lists distinct stored type/revision/format tuples. `localType` reports `KNOWN`, `UNKNOWN` or
+  `UNAVAILABLE`, the alias-resolved identifier and local revision where available. Revision equality is not a
+  compatibility guarantee. An `UNKNOWN` input may still be transformed by an upcaster; inspection does not run it.
+
+`Serializer.inspectType(String)` exposes the same identifier-only lookup. The built-in serializer honors aliases;
+custom serializers default to `UNAVAILABLE` and may implement their own lookup. No match is an observation for the
+sample, not proof that the entire retained stream is compatible.
+
+## Qualify actual replay separately
+
+Use `TestFixture` in both synchronous and asynchronous modes to exercise real reconstruction and failing handlers.
+`givenModelEvents` is useful for synthetic reconstruction, but creates commits using the current SDK and can prepare
+state while seeding. It is not a byte-preserving import of old storage or proof of a cold reader.
+
+For retained-history qualification, start with an old writer, close it, then use a fresh candidate reader against the
+same retained test store and namespace, without reseeding or warming its Model cache. Register candidate upcasters
+before the read and assert current values, historical values, relevant children and failure behavior. Use
+[Model migration testing](../model-migration-tests) for the writer/reader recipe and its storage-upgrade limits.
+The existing fixture and client APIs support this workflow; inspection intentionally adds no replay switch or
+implicit import. A small metadata sample cannot qualify business logic, the full Graph, snapshots, encryption,
+external key-value references, or retained-store upgrades.
+
+Keep scoped Graph reads, deliberate partiality and verified current-state reads explicit. A missing replay contract
+does not trigger an automatic document fallback or authorize another application to mutate the Model.

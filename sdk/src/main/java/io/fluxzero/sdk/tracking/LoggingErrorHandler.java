@@ -24,8 +24,10 @@ import java.util.concurrent.Callable;
  * The default {@link ErrorHandler} implementation used by Fluxzero consumers.
  * <p>
  * This handler logs errors that occur during message tracking and processing, then allows tracking to continue. It is
- * intended for general-purpose use where robustness is more important than fail-fast behavior, but silent failure is
- * undesirable.
+ * the recommended starting point for consumer configuration. The failed operation is not retried: a normally completed
+ * batch can advance its position past the failure. Monitor these failures and arrange reconciliation or replay when
+ * needed. Choose {@link ForeverRetryingErrorHandler} only for effects whose recoverable failures must hold up progress;
+ * choose {@link ThrowingErrorHandler} only when an operator-controlled stop and explicit restart are intended.
  *
  * <p><strong>Logging Behavior:</strong>
  * <ul>
@@ -49,7 +51,7 @@ import java.util.concurrent.Callable;
  * public class MyHandler {
  *     @HandleEvent
  *     void on(UserRegistered event) {
- *         // Recoverable errors will be logged and processing continues
+ *         // Failures are logged; processing continues without retry
  *     }
  * }
  * }</pre>

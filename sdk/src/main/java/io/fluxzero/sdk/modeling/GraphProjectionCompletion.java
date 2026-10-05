@@ -17,7 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 /**
- * Controls whether command-result completion waits for affected materialized model-graph documents.
+ * Controls whether command results and explicit Graph reindex completion wait for affected materialized Graphs.
  */
 public enum GraphProjectionCompletion {
     /**
@@ -31,7 +31,7 @@ public enum GraphProjectionCompletion {
     ASYNC,
 
     /**
-     * Delay the handler result until all affected graph roots crossed the committed model state boundary.
+     * Delay the handler result or explicit reindex completion until affected graph roots reflect the operation.
      */
     AWAIT;
 

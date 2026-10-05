@@ -202,11 +202,10 @@ aggregate behavior); that is not permission to mix old and new writers.
    authoritative DOCUMENT-only state and its Model heads/proofs. A formerly public Model collection is not a source.
 2. Keep canonical collection names stable. A `SearchSettings.collection` or logical-name change requires a separate
    controlled state migration; changing an annotation alone does not copy or adopt existing data.
-3. Backfill all newly searchable node types before exposing queries. Types without existing node documents require
-   reconstruction from their authoritative state through a controlled migration. A document consumer cannot visit
-   documents that do not exist. There is currently no public, fenced operation to create a missing canonical source
-   from an existing Model head. Treat this case as a migration blocker until a dedicated backfill is implemented and
-   qualified. Ordinary index writes or fabricated domain events are not substitutes for that operation.
+3. Backfill newly searchable nodes with `Graph.reindex()` from current authoritative state, selecting IDs or replaying
+   retained events yourself. Follow the [fixed-cutoff contract](../models/migration-testing.md#explicit-current-state-reindexing).
+   A document consumer cannot visit absent sources. Ordinary index writes or fabricated events cannot certify Model
+   provenance; missing DOCUMENT-only state without authoritative history still cannot be recovered.
 4. Reindex existing canonical sources with their exact search summaries/exclusions, facets and sortables. An unchanged
    type/revision handler return is a no-op; use an explicit schema revision and a state-preserving upcast when using
    the guarded source migration route. A source rewrite never acts as a business-state update.

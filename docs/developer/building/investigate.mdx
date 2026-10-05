@@ -1,0 +1,47 @@
+---
+title: Investigate unexpected behavior
+description: Give your agent a reproducible problem and follow the evidence to a verified fix.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+import AgentPrompt from '~/components/docs/AgentPrompt.astro';
+
+Use this guide when the application runs but a user flow behaves unexpectedly. For a failed release or a workload that never starts, use [Investigate a failed deployment](/docs/building/deployment-problems).
+
+<div className="guide-context"><span>A reproducible problem</span><span>Local or authorized live evidence</span></div>
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Capture one occurrence
+
+   Write down the environment, screen, user role, approximate time, steps, observed result and expected result. For example:
+
+   <AgentPrompt text={"In my local Ticketing preview, I cancelled a reservation around 14:20. After refreshing, the places still looked unavailable. I expected the cancelled hold to release them. Investigate that occurrence and show me what happened before changing the code."} />
+
+   Use a local reproduction where possible. Avoid pasting passwords, tokens or unrelated customer records into a conversation.
+
+2. ## Follow the evidence
+
+   First confirm the project, profile and running version. Then ask the agent to find the relevant request in **Audit trail**, follow its **Trace**, inspect associated **Logs** or **Issues**, and compare the saved state in **Documents** with the screen.
+
+   | Finding | Next check |
+   | --- | --- |
+   | No request in the selected scope | Environment, time filter, browser action and whether the request was sent |
+   | Request refused | Validation, identity and permission rule; refusal may be correct |
+   | Work accepted but not completed | The next recorded step, scheduled work or external response |
+   | Saved state is right but the screen is wrong | Query, projection and UI refresh behavior |
+   | Latest build failed | Build diagnostics; the preview may show the previous working version |
+
+   [Monitoring reference](/docs/building/monitoring) describes the available views. Local tools can expose this evidence to the agent. For production, first establish an authorized connection or provide a minimal, relevant excerpt; the local plugin alone does not grant cloud access.
+
+3. ## Verify the fix
+
+   Ask the agent to explain the cause in product terms and reproduce it in an appropriate test. Agree on the corrected outcome before it implements the fix. Have it inspect the managed environment's new results, then repeat your original user flow.
+
+   Record any remaining limitation, save a reviewed code checkpoint and update Progress. If the fault occurred live, [publish the checked update](/docs/building/publish-updates) and verify that same flow in the live environment. Resolving an issue in the monitoring UI is bookkeeping; it does not repair the underlying application.
+
+   <div className="guide-result"><strong>A verified fix</strong><p>The original flow now gives the agreed result, with a check that can catch the same fault later.</p></div>
+
+</Steps>
+</div>

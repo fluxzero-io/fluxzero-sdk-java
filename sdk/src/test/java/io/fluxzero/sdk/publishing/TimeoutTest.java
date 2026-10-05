@@ -170,9 +170,10 @@ class TimeoutTest {
         class UnhandledRequest { }
 
         TestFixture fixture = TestFixture.create();
+        ExecutorService responseExecutor = Executors.newSingleThreadExecutor();
         DefaultRequestHandler requestHandler = new DefaultRequestHandler(
                 fixture.getFluxzero().client(), MessageType.RESULT, Duration.ofSeconds(60),
-                "timeout-cancel-test");
+                "timeout-cancel-test", responseExecutor);
         SerializedMessage request = new SerializedMessage(
                 new Data<>(new byte[0], UnhandledRequest.class.getName(), 0),
                 Metadata.empty(), "message-id", System.currentTimeMillis());
@@ -185,10 +186,13 @@ class TimeoutTest {
             requestHandler.handleResults(List.of(chunk("final", true, request.getRequestId())));
 
             assertEquals("final", new String(future.get(1, TimeUnit.SECONDS).getData().getValue()));
+            // Future completion can wake this test before its dependent cleanup callback finishes.
+            responseExecutor.submit(() -> {}).get(1, TimeUnit.SECONDS);
             assertEquals(0, timeoutExecutor.getQueue().size());
         } finally {
             future.cancel(true);
             requestHandler.close();
+            responseExecutor.shutdownNow();
         }
     }
 

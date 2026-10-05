@@ -1,0 +1,66 @@
+---
+title: System API
+description: Reference the supported cloud configuration and deployment endpoints and their completion semantics.
+---
+
+import { LinkCard, Aside } from '@astrojs/starlight/components';
+
+The System API is the cloud automation interface used by delivery tools. Its base URL is `https://api.dashboard.fluxzero.io`. Use it from a trusted pipeline with credentials authorized for the intended team, cluster and application.
+
+The operations below summarize deployment and configuration. Use the live schema for the complete request contract.
+
+<LinkCard title="Live OpenAPI reference" description="Exact request schemas, constraints and responses." href="https://api.dashboard.fluxzero.io/openapi.json" />
+
+## Operations
+
+All listed operations use `POST` with a JSON body and the configured bearer authentication.
+
+| Path | Request fields | Effect |
+| --- | --- | --- |
+| `/configure-cluster` | `details` | Create/update a cluster using its case-insensitive name as the lookup key |
+| `/configure-application` | `clusterName`, `details` | Create/update an application; create the cluster if missing and authorized |
+| `/deploy-application` | `clusterName`, `applicationName`, `imageName`, optional `imageReference` and `version` | Select an image for deployment; missing cluster/application may be created if authorized |
+| `/redeploy-application` | `clusterName`, `applicationName`, `stopFirst` | Redeploy an existing application; both resources must already exist |
+
+The `details` objects have operation-specific fields in OpenAPI. Do not assume configuration requests are arbitrary partial patches. Inspect the schema and intended resulting configuration before updating an existing resource.
+
+Names are resource selectors. A spelling change in an operation that permits creation can address a new resource instead of the one you meant. Match destination names and scope deliberately. The `stopFirst` redeploy option changes availability during the operation; choose it only when that behavior is intended.
+
+## Deploy request
+
+This is an illustrative body for an image already published in your organization's registry namespace. Replace the example identifiers and version with the actual artifact and destination before submitting it.
+
+```json
+{
+  "clusterName": "Production",
+  "applicationName": "My app",
+  "imageName": "my-app",
+  "imageReference": "registry.fluxzero.io/your-organisation-id/my-app:sha-your-commit",
+  "version": "sha-your-commit"
+}
+```
+
+`imageReference`, when supplied, takes precedence for selecting the image. It must reference `registry.fluxzero.io` and include a tag or digest. Without it, the platform resolves the image name/version in the authorized organization's registry context. `version` defaults to `latest`; use an explicit immutable artifact for repeatable releases.
+
+The API does not build or upload the image. Use [Build and publish](/docs/tools/build-and-publish) first, then the [GitHub Actions workflow](/docs/tools/github-actions) or your own authorized client. Do not put credentials into URLs or committed request files.
+
+## Authentication and results
+
+GitHub workflows can obtain a deployment credential through the configured Integration and JWT Action's OIDC flow. Registry login credentials and deployment credentials have different roles. A local developer-tools MCP connection is not itself a System API authorization.
+
+| Response | Meaning |
+| --- | --- |
+| `204` | Command handling completed successfully, with no response body |
+| `400` | Request validation failed |
+| `401` | Authentication is missing or invalid |
+| `403` | The command was rejected for the caller's authorization/context |
+
+<Aside type="note" title="Command completed; verify the workload">
+A `204` does **not** mean the new workload is ready. The command's effects are carried out through the platform's deployment process. Verify the selected version, task state and user flow in the [dashboard](/docs/building/dashboard).
+</Aside>
+
+If a connection fails after sending the request, check the destination's history and current state before retrying. Do not infer exactly-once execution from a client timeout. Keep the intended artifact unchanged during a retry unless you deliberately choose a different release.
+
+## Marketplace maintainers
+
+`/release-marketplace-application` releases an image version for an existing Marketplace application. It has separate maintainer authorization and can roll out to multiple installed clusters asynchronously. Use the [Marketplace release action](https://github.com/fluxzero-io/fluxzero-deploy-action/tree/v1/release-marketplace) and its schema for that audience; it is not needed to deploy your own ordinary application.

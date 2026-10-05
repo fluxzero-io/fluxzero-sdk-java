@@ -34,6 +34,7 @@ public record Change(
         UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion,
         EntityMetadata metadata,
         ModelConflictPolicy conflictPolicy,
+        AncestorValidation ancestorValidation,
         GraphProjectionCompletion graphProjectionCompletion,
         boolean active, boolean storeEvent, boolean publishEvent,
         boolean updateState, boolean deadlineOnly, java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) {
@@ -114,21 +115,21 @@ public record Change(
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, directReplay, cascadedDeletion,
                 metadata,
-                conflictPolicy, graphProjectionCompletion, active,
+                conflictPolicy, ancestorValidation, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState, deadlineOnly, deadlines);
     }
 
     /** Attaches the complete SDK-computed metadata for this exact revision. */
     public Change withDeadlines(java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> value) {
         return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after, handler,
-                directReplay, cascadedDeletion, metadata, conflictPolicy, graphProjectionCompletion, active,
+                directReplay, cascadedDeletion, metadata, conflictPolicy, ancestorValidation, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState, deadlineOnly, value == null ? null : java.util.Map.copyOf(value));
     }
 
     /** Marks a revision whose sole purpose is retaining computed deadline metadata. */
     Change asDeadlineUpdate() {
         return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after, handler,
-                directReplay, cascadedDeletion, metadata, configuration().conflictPolicy(), graphProjectionCompletion, active,
+                directReplay, cascadedDeletion, metadata, configuration().conflictPolicy(), ancestorValidation, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState, true, deadlines);
     }
 
@@ -140,7 +141,7 @@ public record Change(
     /** A checked replacement always writes a revision, even if its value compares equal. */
     Change checkedReplacement() {
         return new Change(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex, before, after,
-                          handler, directReplay, false, metadata, ModelConflictPolicy.FAIL, graphProjectionCompletion,
+                          handler, directReplay, false, metadata, ModelConflictPolicy.FAIL, ancestorValidation, graphProjectionCompletion,
                           true, configuration().eventSourced(), false, true, deadlineOnly, deadlines);
     }
 
@@ -181,7 +182,7 @@ public record Change(
                 modelId, declaredType,
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, directReplay, cascadedDeletion,
-                metadata, settings.conflict(),
+                metadata, settings.conflict(), overrides.ancestorValidation(),
                 overrides.graphProjectionCompletion(),
                 decision.active(), decision.storeEvent(),
                 decision.publishEvent(), decision.updateState(), false, null);

@@ -54,6 +54,16 @@ import java.lang.annotation.Target;
  * </ul>
  *
  * <p>
+ * Ordinary document replacements preserve all metadata embedded in the handled stored version, including when
+ * the payload was upcast. Derived search indexes/exclusions are regenerated from the replacement. Tracking-envelope metadata is not copied into the document. Return a
+ * {@link io.fluxzero.sdk.common.Message} to replace the complete document metadata explicitly; empty metadata removes
+ * it. Only the returned Message's payload and metadata participate in document replacement; its message ID,
+ * message timestamp, routing key and any subclass-specific envelope fields are not used for that write. The
+ * payload must still have a higher revision. The handled document's ID and collection remain unchanged;
+ * indexed start/end times retain the existing values unless the payload declares timestamp/end paths.
+ * A plain {@code null} result still deletes the document.
+ * </p>
+ * <p>
  * Independent Model values use the stricter schema-only contract described by {@link #source()}.
  * This mechanism supports fully-automated data migrations: handlers can evolve or patch documents over time,
  * and changes are persisted across application restarts.
@@ -120,11 +130,25 @@ public @interface HandleDocument {
      * be combined with an explicit collection. There is no automatic fallback between sources.
      * <p>
      * Returning an injected Model value may persist a higher-revision schema upcast, but must preserve identity and
-     * business state. Use Model commands for business changes. Returning a stored Graph can migrate only its
-     * aggregate projection under a concurrency guard; returning a live Graph never writes its nodes. A void handler
-     * only observes. Neither route creates historical Graph snapshots that the selected storage does not maintain.
+     * business state. Use Model commands for business changes. Returning the injected Graph migrates evolved
+     * canonical nodes by default, including live Graphs in projection mode NONE; see {@link #graphMigration()}.
+     * A void handler only observes. Neither route creates historical Graph snapshots that the selected storage does not maintain.
      */
     DocumentSource source() default DocumentSource.SEARCH;
+
+    /**
+     * Migration target when this handler returns its complete injected Graph. The default upcasts the verified
+     * current source of each evolved node, preserving business state, identity, relationships and history. Returning
+     * a Graph with modified values or topology is rejected. Nodes are migrated individually and idempotently;
+     * concurrent changes are re-read, and persistent contention fails handling so the consumer can retry.
+     * Custom serializers must implement {@link io.fluxzero.sdk.persisting.search.DocumentSerializer#modelStateSnapshot(Object)}
+     * for this default route; the PROJECTION override retains the previous serializer contract.
+     * <p>
+     * Completion confirms node storage. Affected projections follow durably, including for Models configured with
+     * AWAIT, whose waiting guarantee applies to ordinary Model commits. Select {@link GraphMigrationTarget#PROJECTION}
+     * to retain projection-only migration; this does not write canonical nodes and is observational for live Graphs.
+     */
+    GraphMigrationTarget graphMigration() default GraphMigrationTarget.MODEL_STATE;
 
     /**
      * If {@code true}, disables this handler during discovery.

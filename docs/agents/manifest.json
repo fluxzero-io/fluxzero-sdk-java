@@ -336,7 +336,10 @@
         "@HandleDocument(source = MODEL_STATE)",
         "internal Model source",
         "canonical Model document",
-        "schema reindexing"
+        "schema reindexing",
+        "Graph.reindex()",
+        "maxIndexExclusive",
+        "modelStorageIndex"
       ],
       "links": [
         {
@@ -354,6 +357,10 @@
         {
           "path": "/docs/sdk/reference/test-fixture-signatures",
           "description": "Check synthetic setup and complete active schedule assertions"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -2189,6 +2196,14 @@
         {
           "description": "Control event publication compatibility checks and reconstructed entity history",
           "path": "/docs/sdk/entities/publication-and-history"
+        },
+        {
+          "path": "/docs/sdk/entities/relationships",
+          "description": "Choose independent Models or deliberate embedded Members"
+        },
+        {
+          "path": "/docs/sdk/entities/legacy-migration",
+          "description": "Retain legacy Aggregates during a deliberate data migration"
         }
       ]
     },
@@ -3047,6 +3062,10 @@
         {
           "description": "Configure replay windows and consumer failure behavior",
           "path": "/docs/sdk/tracking"
+        },
+        {
+          "description": "Choose retry versus stop and monitor recovery",
+          "path": "/docs/sdk/tracking/error-policy"
         },
         {
           "description": "Commit transition intent before post-commit effects",
@@ -5799,7 +5818,8 @@
         "Entity",
         "@AssertLegal(afterHandler = true)",
         "suppressed assertions",
-        "replacement assertions"
+        "replacement assertions",
+        "io.fluxzero.sdk.persisting.eventsourcing.AssertCurrent"
       ],
       "links": [
         {
@@ -6052,7 +6072,10 @@
         "autoHead",
         "autoOptions",
         "forwardWebRequestsToLocalServer",
-        "content negotiation"
+        "content negotiation",
+        "fluxzero.proxy.http2MaxResponseHeaderSize",
+        "FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE",
+        "HTTP/2 response header limit HPACK buffer pool"
       ],
       "links": [
         {
@@ -6426,7 +6449,7 @@
     {
       "path": "/docs/sdk/tracking/error-policy",
       "title": "Consumer Error Policies",
-      "summary": "Choose whether a failed tracked message is skipped, retried, or stops tracking, then verify positions and effects.",
+      "summary": "Start with LoggingErrorHandler; choose unlimited retries for repeatable recoverable effects, and recognize that ThrowingErrorHandler can stop tracking until explicit restart.",
       "source": "articles/sdk/tracking/error-policy.md",
       "symbols": [
         "ErrorHandler",
@@ -6437,7 +6460,10 @@
         "SilentErrorHandler",
         "awaitOutgoingWrites",
         "ConsumerConfiguration.errorHandler",
-        "tracker position after failure"
+        "tracker position after failure",
+        "consumer stopped until restart",
+        "unlimited retry poison message",
+        "default consumer error handler"
       ],
       "links": [
         {
@@ -7366,6 +7392,10 @@
         {
           "path": "/docs/sdk/models/published-event-migration",
           "description": "Replay published Aggregate events, coordinate readers and adopt at a verified cutover"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -7433,7 +7463,7 @@
     {
       "path": "/docs/sdk/models/actions-java",
       "title": "Model commands and atomic commits (Java)",
-      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Java applications.",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Java applications. Guard Models and known descendants with cascading assertions, payload filters and relation/action exceptions.",
       "source": "articles/sdk/models/actions-java.md",
       "symbols": [
         "@Apply",
@@ -7446,7 +7476,12 @@
         "previous()",
         "EVENT_SOURCED",
         "dynamic write targets",
-        "cascade deletion"
+        "cascade deletion",
+        "AssertLegal.cascade",
+        "AssertLegal.allowedClasses",
+        "Parent.validateAncestors",
+        "Apply.ancestorValidation",
+        "AncestorValidation"
       ],
       "links": [
         {
@@ -7507,7 +7542,11 @@
         "Model.searchable",
         "SearchSettings",
         "GraphProjectionMode",
-        "DocumentSource"
+        "DocumentSource",
+        "GraphMigrationTarget",
+        "Graph.reindex()",
+        "maxIndexExclusive",
+        "modelStorageIndex"
       ],
       "links": [
         {
@@ -7537,6 +7576,10 @@
         {
           "path": "/docs/sdk/models/recipes-java",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -7676,7 +7719,7 @@
     {
       "path": "/docs/sdk/models/actions-kotlin",
       "title": "Model commands and atomic commits (Kotlin)",
-      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Kotlin applications.",
+      "summary": "Apply actions, Assertions and interceptors, Combine payload and Model handlers, Recursive Model assertions, Multi-model commits, Batch-local command consistency, Testing for Kotlin applications. Guard Models and known descendants with cascading assertions, payload filters and relation/action exceptions.",
       "source": "articles/sdk/models/actions-kotlin.md",
       "symbols": [
         "@Apply",
@@ -7689,7 +7732,12 @@
         "previous()",
         "EVENT_SOURCED",
         "dynamic write targets",
-        "cascade deletion"
+        "cascade deletion",
+        "AssertLegal.cascade",
+        "AssertLegal.allowedClasses",
+        "Parent.validateAncestors",
+        "Apply.ancestorValidation",
+        "AncestorValidation"
       ],
       "links": [
         {
@@ -7750,7 +7798,11 @@
         "Model.searchable",
         "SearchSettings",
         "GraphProjectionMode",
-        "DocumentSource"
+        "DocumentSource",
+        "GraphMigrationTarget",
+        "Graph.reindex()",
+        "maxIndexExclusive",
+        "modelStorageIndex"
       ],
       "links": [
         {
@@ -7780,6 +7832,10 @@
         {
           "path": "/docs/sdk/models/recipes-kotlin",
           "description": "Use companions, derived preferences and explicit execution boundaries"
+        },
+        {
+          "path": "/docs/sdk/models/contract-diagnostics",
+          "description": "Diagnose missing contracts and compare a bounded metadata sample before qualifying replay"
         }
       ]
     },
@@ -7801,10 +7857,14 @@
         {
           "path": "/docs/sdk/models/state-java",
           "description": "Read the current detailed Model contract and compatibility boundaries"
+        },
+        {
+          "path": "/docs/sdk/sagas/members-and-lifecycle",
+          "description": "Use supported embedded Members in stateful handlers"
         }
       ],
       "title": "Independent Model Relationships",
-      "summary": "Independent Model Relationships for this SDK version."
+      "summary": "Prefer independent Models and evolving Parent relationships; choose supported Members for deliberate embedding."
     },
     {
       "path": "/docs/sdk/entities/graphs",
@@ -7880,6 +7940,7 @@
         "GraphProjectionMode",
         "SearchSettings.includeDescendants",
         "DocumentSource",
+        "GraphMigrationTarget",
         "@HandleDocument",
         "coordinated 2.x upgrade"
       ],
@@ -7912,7 +7973,10 @@
       "path": "/docs/sdk/entities/legacy-migration",
       "source": "articles/sdk/entities/legacy-migration.md",
       "symbols": [
-        "SDK upgrade"
+        "SDK upgrade",
+        "@Aggregate",
+        "io.fluxzero.sdk.modeling.Aggregate",
+        "Aggregate migration"
       ],
       "links": [
         {
@@ -7925,7 +7989,7 @@
         }
       ],
       "title": "SDK upgrade guidance",
-      "summary": "Find the dedicated SDK upgrade chapter and distinguish storage migration from schema evolution."
+      "summary": "Retain legacy Aggregate applications while planning a deliberate migration to independent Models."
     },
     {
       "path": "/docs/sdk/testing/model-transitions",
@@ -8041,6 +8105,7 @@
         "Parent.propagateSearch",
         "propagateSearch",
         "DocumentSource",
+        "GraphMigrationTarget",
         "GraphProjectionMode",
         "GraphProjection",
         "snapshotPeriod",
@@ -8059,6 +8124,46 @@
         {
           "path": "/docs/sdk/models/state-boundaries",
           "description": "Understand persistence and protection"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/models/contract-diagnostics",
+      "title": "Model contract diagnostics and replay qualification",
+      "summary": "Distinguish missing local contracts, invalid data and application failures; compare bounded stream/Graph metadata without importing or replaying it.",
+      "source": "articles/sdk/models/contract-diagnostics.md",
+      "symbols": [
+        "ModelDiagnostics",
+        "ModelDiagnostics.Limits",
+        "ModelDiagnostics.inspectStreams",
+        "ModelDiagnostics.inspectGraph",
+        "ModelRepository.diagnostics",
+        "ModelReadException",
+        "Serializer.inspectType",
+        "TypeInspection",
+        "cold replay",
+        "missing Model contract"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Choose Model persistence and contract packaging"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Scope Java Graph reads explicitly"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-kotlin",
+          "description": "Scope Kotlin Graph reads explicitly"
+        },
+        {
+          "path": "/docs/sdk/models/migration-testing",
+          "description": "Qualify old-writer and fresh-reader retained history"
+        },
+        {
+          "path": "/docs/sdk/serialization/type-aliases",
+          "description": "Resolve historical serialized identifiers"
         }
       ]
     }

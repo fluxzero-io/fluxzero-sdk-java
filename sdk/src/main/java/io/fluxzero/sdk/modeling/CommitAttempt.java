@@ -153,6 +153,9 @@ public final class CommitAttempt {
         deadlineOrigins = null;
         deferredBoundary = null;
         failedPreparationReads = null;
+        protectedAssertions = false;
+        cascadeInvocations = null;
+        currentAssertions = null;
         graphReadGeneration++;
         graphReadTypes = null;
         graphReadEntities = null;
@@ -194,7 +197,7 @@ public final class CommitAttempt {
     boolean mutationContext() { return graphReadOwner != null && !Entity.isLoading(); }
 
     ModelReducer.SubstepResolver readResolver() {
-        return graphReadOwner.readResolver;
+        return graphReadOwner == null ? readResolver : graphReadOwner.readResolver;
     }
 
     void joinReads(CommitAttempt parent) {
@@ -1118,7 +1121,46 @@ public final class CommitAttempt {
         return cascadeRootIds;
     }
 
+    private boolean protectedAssertions;
+    private Map<Integer, Set<ModelReducer.CascadeInvocation>> cascadeInvocations;
+    private List<ModelReducer.CurrentAssertion> currentAssertions;
+
+    void retainCurrentAssertion(ModelReducer.CurrentAssertion check) {
+        if (currentAssertions == null) { currentAssertions = new ArrayList<>(); }
+        currentAssertions.add(check);
+    }
+
+    List<ModelReducer.CurrentAssertion> currentAssertions() {
+        return currentAssertions == null ? List.of() : currentAssertions;
+    }
+
+    boolean markCascadeInvocation(int step, String id, java.lang.reflect.Executable method) {
+        if (cascadeInvocations == null) { cascadeInvocations = new java.util.HashMap<>(); }
+        return cascadeInvocations.computeIfAbsent(step, ignored -> new java.util.HashSet<>())
+                .add(new ModelReducer.CascadeInvocation(id, method));
+    }
+
+    private CommitAttempt cascadeParent;
+    void cascadeParent(CommitAttempt parent) { cascadeParent = parent; }
+
+    void protectAssertionReads() {
+        protectedAssertions = true;
+        if (cascadeParent != null) {
+            (cascadeParent.graphReadOwner == null ? cascadeParent : cascadeParent.graphReadOwner).protectAssertionReads();
+        }
+    }
+
+    void bindCascadeReads(CommitAttempt loaded) {
+        if (cascadeParent == null) { loaded.bindGraphReads(this); }
+        else { loaded.joinReads(cascadeParent); }
+    }
+
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
+        ModelConflictPolicy result = resolveConflictPolicy(configured);
+        return protectedAssertions && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
+    }
+
+    private ModelConflictPolicy resolveConflictPolicy(ModelConflictPolicy configured) {
         ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
         if (changes.size() == 1 && readModelTypes.size() == 1
             && readModelTypes.containsKey(changes.getFirst().modelId())) {
@@ -1230,10 +1272,20 @@ public final class CommitAttempt {
         return Collections.unmodifiableMap(values);
     }
 
-    /** One ordered mutation journal entry. */
+    /**
+     * One ordered mutation journal entry.
+     * @param cascadeCause index of the effective update causing an automatic deletion, or -1 for an ordinary update;
+     *                     used only for local validation, never serialized
+     */
     public record Step(
             DeserializingMessage message,
-            List<Change> changes) {
+            List<Change> changes,
+            int cascadeCause) {
+        /** An ordinary effective update, with no automatic-deletion cause. */
+        public Step(DeserializingMessage message, List<Change> changes) {
+            this(message, changes, -1);
+        }
+
         public Step {
             changes = List.copyOf(changes);
             if (!changes.isEmpty()) {

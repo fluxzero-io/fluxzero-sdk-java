@@ -11,48 +11,63 @@ package io.fluxzero.sdk.test.contracts;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.ErrorResult;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.ServiceException;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.FluxzeroBuilder;
+import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.AssertLegal;
+import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelPersistence;
-import io.fluxzero.sdk.modeling.ModelConflictResolver;
 import io.fluxzero.sdk.modeling.ModelCommitConflictException;
+import io.fluxzero.sdk.modeling.ModelConflictResolver;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Parent;
-import io.fluxzero.sdk.common.Message;
-import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.configuration.DefaultFluxzero;
-import io.fluxzero.sdk.configuration.FluxzeroBuilder;
-import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.Association;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import jakarta.annotation.Nullable;
+import lombok.EqualsAndHashCode;
+import lombok.Value;
+import lombok.experimental.NonFinal;
+import lombok.experimental.SuperBuilder;
+import lombok.extern.jackson.Jacksonized;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -329,7 +344,7 @@ public abstract class DocumentGraphContract {
     }
 
     @ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"delete", "replace", "recreate"})
+    @ValueSource(strings = {"delete", "replace", "recreate"})
     void cascadeConflictIdentifiesTheUnavailableDescendant(String change) {
         try (var h = new Harness()) {
             write(h.writer, new SetRoot("root", 1));
@@ -667,6 +682,380 @@ public abstract class DocumentGraphContract {
     }
 
     @ParameterizedTest
+    @CsvSource({"replace,false", "replace,true", "delete,false", "delete,true", "recreate,false", "recreate,true"})
+    void historicalDocumentValuesRequireTheOriginalRevision(String change, boolean warm) {
+        try (var h = new Harness()) {
+            write(h.writer, new SetRoot("root", 1));
+            write(h.writer, new SetDocument("one", "root", "alias", 1));
+            long boundary = h.reader.apply(fc -> Fluxzero.loadCurrentGraph("one", Document.class).stateIndex());
+            if (warm) {
+                h.reader.apply(fc -> { assertEquals(1, graph(false, "one").get().version()); return null; });
+            }
+            if (!change.equals("replace")) { write(h.writer, new SetDocument("one", "root", "alias", null)); }
+            if (!change.equals("delete")) { write(h.writer, new SetDocument("one", "root", "alias", 2)); }
+            write(h.writer, new SetDocument("later", "root", "later", 3));
+            h.reader.apply(fc -> {
+                assertThrows(EventSourcingException.class,
+                             () -> Fluxzero.loadGraph("root", Root.class).strict(true).atStateIndex(boundary));
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void olderRuntimePreservesColdDocumentPrevious(boolean wrapped) {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.set(2);
+            h.reader.apply(fc -> {
+                var graph = graph(true, "one");
+                assertEquals(2, graph.get().version());
+                long boundary = graph.revisionStateIndex() - 1;
+                var refusal = new ServiceException("Historical head unavailable",
+                        new ErrorResult.ModelHistoryUnavailable("doc-one", boundary));
+                h.refusedHistoricalBoundary = boundary;
+                h.historicalHeadFailure = wrapped ? new java.util.concurrent.ExecutionException(refusal) : refusal;
+                assertNull(graph.previous());
+                assertNull(graph.previous());
+                assertEquals(1, h.refusedHistoricalReads.get(), "The view retains its legacy previous result");
+                assertThrows(Exception.class, () -> graph.atStateIndex(boundary).get());
+                assertEquals(2, h.refusedHistoricalReads.get(), "Explicit historical reads must still reach storage");
+                assertEquals(2, graph.get().version());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"unrelated", "other-model", "other-boundary"})
+    void previousDoesNotHideOtherMetadataFailures(String reason) {
+        try (var h = new Harness()) {
+            h.set(1);
+            h.set(2);
+            h.reader.apply(fc -> {
+                var graph = graph(true, "one");
+                assertEquals(2, graph.get().version());
+                long boundary = graph.revisionStateIndex() - 1;
+                h.refusedHistoricalBoundary = boundary;
+                h.historicalHeadFailure = new ServiceException(reason, reason.equals("unrelated") ? null
+                        : new ErrorResult.ModelHistoryUnavailable(reason.equals("other-model") ? "other" : "doc-one",
+                                reason.equals("other-boundary") ? boundary - 1 : boundary));
+                assertSame(h.historicalHeadFailure, assertThrows(ServiceException.class, graph::previous));
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,replace", "true,replace", "false,delete", "true,delete",
+                "false,recreate", "true,recreate", "false,move", "true,move"})
+    void historicalChangeGraphsUseCurrentDocumentsWithPinnedRelationships(boolean async, String change) {
+        Client[] clients = clients("historical-document-" + UUID.randomUUID());
+        try (Fluxzero writer = app(clients[0])) {
+            write(writer, new SetRoot("root", 1));
+            write(writer, new SetRoot("other", 1));
+            write(writer, new SetDocument("one", "root", "alias", 1));
+            write(writer, new SetDocument("two", "root", "alias-two", 1));
+            write(writer, new SetEventChild("event-child", "root", 1));
+            write(writer, new SetRoot("root", 2));
+            boolean descendantChange = change.equals("move");
+            if (descendantChange) { write(writer, new SetEventChild("event-child", "root", 2)); }
+            var stored = clients[0].getEventStoreClient().getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest(descendantChange ? "event-child" : "root", -1, 100)),
+                    ModelReadBoundary.current(), 0)).getPayloads().getLast().getEvent();
+            if (change.equals("delete") || change.equals("recreate")) {
+                write(writer, new SetDocument("one", "root", "alias", null));
+            }
+            if (!change.equals("delete")) {
+                write(writer, new SetDocument("one", change.equals("move") ? "other" : "root", "alias", 2));
+            }
+            write(writer, new SetDocument("two", "root", "alias-two", 2));
+            write(writer, new SetDocument("later", "root", "later", 3));
+            write(writer, new SetRoot("root", 3));
+            CompletableFuture<Graph<Root>> retained = new CompletableFuture<>();
+            Object handler = new Object() {
+                @HandleEvent
+                void changed(Graph<Root> graph, Message message) {
+                    if (stored.getMetadata().get("$modelCommitId").equals(message.getMetadata().get("$modelCommitId"))) {
+                        retained.complete(graph);
+                    }
+                }
+            };
+            var reader = new TestFixture(
+                    DefaultFluxzero.builder(),
+                    fc -> List.of(), clients[1], !async) {};
+            ((DefaultModelRepository) reader.getFluxzero().modelRepository())
+                    .configureModelTypes(() -> List.of(Root.class, Document.class, EventChild.class));
+            reader.registerHandlers(handler);
+            // Async tracking must consume the original event: republishing its commit metadata gives it a new,
+            // invalid membership index and can hide the failure behind the successful original delivery.
+            var result = async ? reader.whenExecuting(fc -> retained.get(10, TimeUnit.SECONDS))
+                    : reader.whenEvent(new Message(descendantChange ? new SetEventChild("event-child", "root", 2)
+                            : new SetRoot("root", 2), stored.getMetadata()));
+            result.expectNoErrors().expectThat(fc -> {
+                        Graph<Root> graph = retained.getNow(null);
+                        assertNotNull(graph);
+                        assertEquals(2, graph.get().version());
+                        assertEquals(descendantChange ? 2 : 1, graph.previous().get().version());
+                        for (Graph<Root> view : List.of(graph, graph.previous())) {
+                            var models = view.childModels(Document.class);
+                            assertEquals(change.equals("delete") ? 1 : 2, models.size());
+                            assertTrue(models.stream().allMatch(document -> document.version() == 2));
+                            assertFalse(view.isStrict());
+                            var children = view.children("children", Document.class);
+                            assertTrue(children.stream().noneMatch(Graph::isStrict));
+                            assertTrue(view.strict(true).children("children", Document.class).stream().allMatch(Graph::isStrict));
+                            assertEquals(List.of("doc-one", "doc-two"), children.stream().map(Graph::id).toList());
+                            Document expected = change.equals("delete") ? null
+                                    : new Document("one", change.equals("move") ? "other" : "root", "alias", 2);
+                            assertEquals(expected, children.getFirst().get());
+                            assertThrows(EventSourcingException.class,
+                                         () -> children.getFirst().strict(true).get());
+                        }
+                        write(writer, new SetDocument("one", "root", "alias", 4));
+                        assertEquals(change.equals("delete") ? null : 2,
+                                     graph.children("children", Document.class).getFirst().optional().map(Document::version).orElse(null));
+                    });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void graphStrictnessRetainsAbsenceAndPreviousBoundaries(boolean strictDefault) {
+        try (var h = new Harness(builder -> builder.replacePropertySource(ignored -> key ->
+                key.equals("fluxzero.model.graph.strict") ? Boolean.toString(strictDefault) : null))) {
+            h.set(1);
+            long created = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
+            h.set(2);
+            long updated = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
+            h.set(null);
+            long deleted = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
+            h.set(3);
+            h.reader.apply(fc -> {
+                var applicationView = graph(true, "one");
+                assertEquals(strictDefault, applicationView.isStrict());
+                if (strictDefault) {
+                    assertThrows(EventSourcingException.class, () -> applicationView.atStateIndex(updated).get());
+                } else {
+                    assertEquals(3, applicationView.atStateIndex(updated).get().version());
+                }
+                var current = applicationView.strict(false);
+                assertFalse(current.isStrict());
+                assertEquals(strictDefault, applicationView.isStrict());
+                var strictView = current.strict(true);
+                assertTrue(strictView.isStrict());
+                assertFalse(current.isStrict());
+                assertNull(current.atStateIndex(created - 1).get());
+                assertNull(current.atStateIndex(deleted).get());
+                var historical = current.atStateIndex(updated);
+                assertEquals(3, historical.get().version());
+                assertEquals(3, historical.strict(true).strict(false).get().version());
+                var mapped = historical.filterNodes(ignored -> true);
+                assertEquals(3, mapped.get().version());
+                assertThrows(EventSourcingException.class, () -> mapped.strict(true).get());
+                assertThrows(EventSourcingException.class,
+                             () -> historical.strict(true).filterNodes(ignored -> true).get());
+                assertEquals(updated, historical.revisionStateIndex());
+                var previous = historical.previous();
+                assertNotNull(previous);
+                assertFalse(previous.isStrict());
+                assertTrue(previous.strict(true).isStrict());
+                assertSame(previous, historical.previous());
+                assertEquals(created, previous.revisionStateIndex());
+                assertEquals(3, previous.get().version());
+                assertNull(previous.previous());
+                assertThrows(EventSourcingException.class, () -> historical.strict(true).get());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void escapedFallbackCannotSupplyAnAssertionOrApply(boolean assertion) {
+        try (var h = new Harness()) {
+            h.set(1);
+            long historical = h.reader.apply(fc -> graph(true, "one").revisionStateIndex());
+            h.set(2);
+            h.reader.apply(fc -> {
+                var escaped = graph(true, "one").atStateIndex(historical);
+                assertEquals(2, escaped.get().version());
+                RuntimeException failure = assertThrows(RuntimeException.class,
+                        () -> fc.executeModelCommit(new Message(new ReadHistoricalGraph("receipt", escaped, assertion))).join());
+                assertTrue(hasCause(failure, EventSourcingException.class));
+                assertTrue(Fluxzero.loadCurrentGraph("receipt", Receipt.class).isEmpty());
+                return null;
+            });
+        }
+    }
+
+    public record ReadHistoricalGraph(String receiptId,
+                                      @JsonIgnore Graph<Document> graph,
+                                      boolean assertion) {
+        @AssertLegal void check() { if (assertion) { graph.strict(false).get(); } }
+        @Apply Receipt apply(@Nullable Receipt previous) { return new Receipt(receiptId, graph.get().version()); }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void payloadHandlersCanInjectLazyHistoricalDocumentGraphs(boolean async) {
+        Client[] clients = clients("document-injection-" + UUID.randomUUID());
+        try (Fluxzero writer = app(clients[0])) {
+            write(writer, new SetDocument("one", null, "alias", 1));
+            write(writer, new SetDocument("two", null, "alias-two", 1));
+            write(writer, new SetDocumentEventChild(new DocumentChildId("child"), "one"));
+            write(writer, new SetRoot("root", 1));
+            var stored = clients[0].getEventStoreClient().getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest("root", -1, 100)),
+                    ModelReadBoundary.current(), 0)).getPayloads().getLast().getEvent();
+            write(writer, new SetDocument("one", null, "alias", 2));
+            AtomicInteger headRequests = new AtomicInteger();
+            AtomicInteger largestHeadBatch = new AtomicInteger();
+            AtomicReference<Graph<Document>> retained = new AtomicReference<>();
+            Object handler = new Object() {
+                @HandleEvent
+                void observe(ObserveDocument event, Graph<Document> document) { retained.set(document); }
+                @HandleEvent
+                void observeMany(ObserveDocuments event,
+                                 @Association("ids") List<Graph<Document>> documents) {
+                    assertEquals(1, headRequests.get(), "Injection must resolve heads in one batch");
+                    assertEquals(2, largestHeadBatch.get());
+                    assertEquals(2, documents.size());
+                    assertEquals(1, documents.getLast().get().version());
+                    retained.set(documents.getFirst());
+                }
+                @HandleEvent
+                void observeAncestor(ObserveDocumentChild event, Graph<Document> document) { retained.set(document); }
+                @HandleEvent
+                void observeMixed(ObserveMixed event, Graph<Document> document, Graph<Root> root) {
+                    assertEquals(1, root.get().version());
+                    retained.set(document);
+                }
+                @HandleEvent
+                void observePlain(ObservePlain event, Root root, Graph<Document> document) {
+                    assertEquals(1, root.version());
+                    retained.set(document);
+                }
+                @HandleEvent
+                void observeEntity(ObserveEntity event, Graph<Document> document, Entity<Root> root) {
+                    assertEquals(1, root.get().version());
+                    retained.set(document);
+                }
+            };
+            var reader = new TestFixture(
+                    DefaultFluxzero.builder(),
+                    fc -> List.of(handler), countHeadRequests(clients[1], headRequests, largestHeadBatch), !async) {};
+            for (Object event : List.of(new ObserveDocument("one"), new ObserveDocuments(List.of("one", "two")),
+                                        new ObserveDocumentChild(new DocumentChildId("child")),
+                                        new ObserveMixed("one", "root"), new ObservePlain("one", "root"),
+                                        new ObserveEntity("one", "root"))) {
+                retained.set(null);
+                headRequests.set(0);
+                largestHeadBatch.set(0);
+                reader.whenEvent(new Message(event, stored.getMetadata()))
+                    .expectNoErrors().expectThat(fc -> {
+                        assertEquals(2, retained.get().get().version());
+                        assertEquals("doc-one", retained.get().id());
+                        assertThrows(EventSourcingException.class, () -> retained.get().strict(true).get());
+                        assertNull(Fluxzero.loadGraph("missing").previous());
+                    });
+            }
+        }
+    }
+
+    @Test
+    void historicalDocumentInjectionRetainsTheStoredSubtype() {
+        Client[] clients = clients("document-subtype-" + UUID.randomUUID());
+        try (Fluxzero writer = app(clients[0])) {
+            write(writer, new SetSpecialDocument("special", 1));
+            write(writer, new SetRoot("root", 1));
+            var stored = clients[0].getEventStoreClient().getModelEvents(new GetModelEvents(
+                    List.of(new ModelEventStreamRequest("root", -1, 100)),
+                    ModelReadBoundary.current(), 0)).getPayloads().getLast().getEvent();
+            write(writer, new SetSpecialDocument("special", 2));
+            Object handler = new Object() {
+                @HandleEvent
+                void observe(ObserveSpecialDocument event, Graph<BaseDocument> graph) {
+                    assertEquals(SpecialDocument.class, graph.type());
+                    assertEquals(SpecialDocument.class, graph.knownType().orElseThrow());
+                    assertEquals(2, graph.get().getVersion());
+                }
+            };
+            var reader = new TestFixture(DefaultFluxzero.builder(),
+                    fc -> List.of(handler), clients[1], true) {};
+            ((DefaultModelRepository) reader.getFluxzero().modelRepository())
+                    .configureModelTypes(() -> List.of(SpecialDocument.class, BaseDocument.class));
+            reader.whenEvent(new Message(new ObserveSpecialDocument("special"), stored.getMetadata())).expectNoErrors();
+        }
+    }
+
+    @Value
+    @NonFinal
+    @SuperBuilder(toBuilder = true)
+    @Jacksonized
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
+    public static class BaseDocument {
+        @EntityId String specialId;
+        int version;
+    }
+    @Value
+    @EqualsAndHashCode(callSuper = true)
+    @SuperBuilder(toBuilder = true)
+    @Jacksonized
+    @Model(searchable = false, persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
+    public static class SpecialDocument extends BaseDocument {
+        String marker;
+    }
+    public record SetSpecialDocument(String specialId, int version) {
+        @Apply SpecialDocument apply(@Nullable SpecialDocument previous) {
+            return SpecialDocument.builder().specialId(specialId).version(version).marker("special").build();
+        }
+    }
+    public record ObserveSpecialDocument(String specialId) {}
+
+    private static Client countHeadRequests(Client delegate, AtomicInteger requests, AtomicInteger largestBatch) {
+        return proxy(Client.class, delegate, (method, args, invoke) -> switch (method) {
+            case "forNamespace" -> countHeadRequests((Client) invoke.get(), requests, largestBatch);
+            case "getEventStoreClient" -> proxy(EventStoreClient.class, (EventStoreClient) invoke.get(),
+                    (operation, parameters, call) -> {
+                        if (operation.equals("getModelEvents") && ((GetModelEvents) parameters[0]).getRequests()
+                                .stream().allMatch(request -> request.getMaxSize() == 0)) {
+                            requests.incrementAndGet();
+                            largestBatch.accumulateAndGet(((GetModelEvents) parameters[0]).getRequests().size(), Math::max);
+                        }
+                        return call.get();
+                    });
+            default -> invoke.get();
+        });
+    }
+
+    @Model(searchable = false, name = "DocumentGraphContractEventChild")
+    public record EventChild(@EntityId String childId, @Parent(value = Root.class, pathInParent = "children") String rootId,
+                             int version) {}
+    public record SetEventChild(String childId, String rootId, int version) {
+        @Apply EventChild apply(@Nullable EventChild previous) { return new EventChild(childId, rootId, version); }
+    }
+
+    public static final class DocumentChildId extends Id<DocumentEventChild> {
+        public DocumentChildId(String value) { super(value); }
+    }
+    @Model(searchable = false, name = "DocumentGraphContractDocumentEventChild")
+    public record DocumentEventChild(@EntityId DocumentChildId childId, @Parent(Document.class) String documentId) {}
+    public record SetDocumentEventChild(DocumentChildId childId, String documentId) {
+        @Apply DocumentEventChild apply(@Nullable DocumentEventChild previous) {
+            return new DocumentEventChild(childId, documentId);
+        }
+    }
+    public record ObserveDocumentChild(DocumentChildId childId) {}
+    public record ObserveDocuments(List<String> ids) {}
+
+    public record ObserveDocument(String id) {}
+    public record ObserveMixed(String id, String rootId) {}
+    public record ObservePlain(String id, String rootId) {}
+    public record ObserveEntity(String id, String rootId) {}
+
+    @ParameterizedTest
     @CsvSource({"canonical,replace", "alias,replace", "canonical,delete", "alias,delete", "alias,move"})
     void currentRootUsesRealPendingBatchState(String lookup, String change) {
         try (var h = new Harness()) {
@@ -727,6 +1116,9 @@ public abstract class DocumentGraphContract {
         volatile CompletableFuture<Void> commitGate;
         final CompletableFuture<Void> commitEntered = new CompletableFuture<>();
         boolean forbidReplay;
+        long refusedHistoricalBoundary = -2;
+        Exception historicalHeadFailure;
+        final AtomicInteger refusedHistoricalReads = new AtomicInteger();
         final Fluxzero writer, reader;
 
         Harness() {
@@ -746,6 +1138,12 @@ public abstract class DocumentGraphContract {
                 case "forNamespace" -> instrument((Client) invoke.get());
                 case "getEventStoreClient" -> proxy(EventStoreClient.class, (EventStoreClient) invoke.get(),
                         (operation, parameters, call) -> {
+                            if (operation.equals("getModelEvents") && historicalHeadFailure != null
+                                && java.util.Objects.equals(((GetModelEvents) parameters[0]).getBoundary().stateIndex(),
+                                                           refusedHistoricalBoundary)) {
+                                refusedHistoricalReads.incrementAndGet();
+                                throw historicalHeadFailure;
+                            }
                             if (operation.equals("getModelEvents") && ((GetModelEvents) parameters[0]).getRequests()
                                     .stream().anyMatch(request -> request.getModelId().equals("receipt"))) {
                                 receiptHeads.incrementAndGet();

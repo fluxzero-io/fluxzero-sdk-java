@@ -33,7 +33,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class ModelStorageContractTest {
     static Stream<Arguments> storageModes() {
         return Stream.of(DefaultCounter.class, LatestCounter.class, HistoryCounter.class, UncachedCounter.class,
-                         SnapshotCounter.class, ClampedSnapshotCounter.class, CheckpointCounter.class,
+                         SnapshotCounter.class, ClampedSnapshotCounter.class, UnlimitedSnapshotCounter.class,
+                         MinimumSnapshotCounter.class, CheckpointCounter.class,
                          DocumentCounter.class, CombinedCounter.class).flatMap(type ->
                 Stream.of(false, true).map(async -> Arguments.of(type, async)));
     }
@@ -70,7 +71,9 @@ class ModelStorageContractTest {
         return Stream.of(false, true).flatMap(async -> Stream.of(
                 Arguments.of(DefaultCounter.class, async, 0L),
                 Arguments.of(SnapshotCounter.class, async, 2L),
-                Arguments.of(ClampedSnapshotCounter.class, async, 1L)));
+                Arguments.of(ClampedSnapshotCounter.class, async, 1L),
+                Arguments.of(UnlimitedSnapshotCounter.class, async, 3L),
+                Arguments.of(MinimumSnapshotCounter.class, async, 3L)));
     }
 
     @ParameterizedTest
@@ -227,6 +230,18 @@ class ModelStorageContractTest {
     record ClampedSnapshotCounter(@EntityId String id, int value) implements Counter<ClampedSnapshotCounter> {
         @Apply static ClampedSnapshotCounter create(Create event) { return new ClampedSnapshotCounter(event.id(), 1); }
         public ClampedSnapshotCounter withValue(int value) { return new ClampedSnapshotCounter(id, value); }
+    }
+
+    @Model(searchable = false, snapshotPeriod = 2, maxSnapshotCount = -1, cached = false)
+    record UnlimitedSnapshotCounter(@EntityId String id, int value) implements Counter<UnlimitedSnapshotCounter> {
+        @Apply static UnlimitedSnapshotCounter create(Create event) { return new UnlimitedSnapshotCounter(event.id(), 1); }
+        public UnlimitedSnapshotCounter withValue(int value) { return new UnlimitedSnapshotCounter(id, value); }
+    }
+
+    @Model(searchable = false, snapshotPeriod = 2, maxSnapshotCount = Integer.MIN_VALUE, cached = false)
+    record MinimumSnapshotCounter(@EntityId String id, int value) implements Counter<MinimumSnapshotCounter> {
+        @Apply static MinimumSnapshotCounter create(Create event) { return new MinimumSnapshotCounter(event.id(), 1); }
+        public MinimumSnapshotCounter withValue(int value) { return new MinimumSnapshotCounter(id, value); }
     }
 
     @Model(searchable = false, checkpointPeriod = 1, cached = false)

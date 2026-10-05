@@ -105,3 +105,45 @@ active/inactive/missing state, warm caches and a second writer between read and 
 Before adding a workaround, identify the values and relationships that carry the invariant, their ID binding,
 read boundary and conflict policy. `@AssertLegal`, a current read or RETRY alone does not make arbitrary I/O
 transactional. The query guide at `/docs/sdk/entities/graph-search` covers document/search consistency separately.
+
+## Cascading rules on independent Models
+
+Use `@AssertLegal(cascade = true)` on an independent Model to guard its own mutations and known descendants.
+`allowedClasses` selects payload families without requiring an unused payload argument. This opt-in does not change
+ordinary aggregate/entity assertions. Read the [Java](../models/actions-java.md#guard-a-model-and-its-descendants) or
+[Kotlin](../models/actions-kotlin.md#guard-a-model-and-its-descendants) guide for timing, injection, exceptions and
+conflicts: an attempt using these guards upgrades ACCEPT to FAIL to protect validation reads.
+
+For matching cascade rules on initially resolved targets or known result-bound write candidates, a new operation
+selects a storage-current boundary before loading its initial state. This prevents an old child cache cursor from
+hiding a changed parent. Nested checks keep the active operation's boundary and staged changes; dynamically
+discovered targets also join that boundary. This does not turn an independent check into a reservation.
+
+## Validate the current interceptor input
+
+Use `@InterceptApply(assertCurrent = AssertCurrent.ENABLED)` to retain legality checks for the input of that
+interceptor. `AssertCurrent` is in `io.fluxzero.sdk.persisting.eventsourcing`.
+`DEFAULT` follows `fluxzero.interceptApply.assertCurrent` (`FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT`): when absent,
+it is enabled from `fluxzero.defaults.version=2026.10.04` and disabled for older or absent defaults versions.
+An explicit annotation choice wins over the application property, which wins over the defaults version.
+Use `DISABLED`, or property `false` for unconfigured interceptors, when rewriting is deliberately allowed before
+checking legality. Configuration is resolved for the owning application when its helpers/plans are created.
+
+Current immediate assertions run before the selected interceptor, inside the same commit attempt and against its
+current state. The input is checked once even when it splits into several outputs or is suppressed. Every replacement
+keeps its normal checks. A bare unchanged input is not checked twice in the same scope; a new instance or message
+envelope receives its own checks. In A → B → C, each interceptor controls its own current input, not always A.
+Payload, Message, metadata, user and custom parameter injection use that input's context. There is no combined
+original/replacement parameter. Existing nested legality checks also participate.
+
+Retained current `afterHandler=true` assertions keep the input context and run against the final composed state:
+for Models this is the end of the atomic Model operation, including automatic child deletions; for Aggregate/Entity
+it is the existing handler-completion phase. Existing effective-update assertions keep their established timing.
+Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
+start running assertions. Interceptors and assertions must remain free of external side effects.
+
+Model assertion reads participate in the pinned commit and conflict checks. RETRY evaluates them again; an attempt
+that validates a current input upgrades configured ACCEPT to FAIL, so concurrent changes cannot retain stale
+permission. Other ACCEPT operations retain their behavior. S285 rules still guard effective Model mutations;
+an output's Apply exception does not undo current-input checks. This requires no new Runtime protocol or Runtime
+upgrade. With current-input checks disabled, no validation history or additional Model reads are retained.
