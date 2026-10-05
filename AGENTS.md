@@ -183,6 +183,24 @@ For wire or persisted formats, also test old-data reads and new-data round trips
   fixtures, logs, or application-specific diagnostics. Preserve generally applicable SDK evidence here and keep
   downstream-specific proof in the repository that owns that application.
 
+## Release Note Format
+
+- Follow [RELEASING.md](RELEASING.md#release-notes) for every release description, including manual edits,
+  feature releases, maintenance releases and repairs of existing notes. The generated structure is mandatory.
+- Keep the established release title and start the body with the generated linked version/date heading.
+  An optional short opening may follow that heading, but the categorized change lists must follow it.
+- Preserve the generator's categories (`Features`, `Bug Fixes`, `Documentation`, etc.), HTML lists, commit/PR
+  references and expandable `<details><summary>` explanations. A feature belongs in `Features`, even when it
+  is the release's only change. Never replace the lists with a feature article, a Highlights section or
+  GitHub's generic What's Changed list.
+- Put longer feature explanations and migration/compatibility details inside the relevant item's expandable
+  body. Keep essential upgrade warnings visible in the short opening as well. Correct superseded claims
+  against the final tagged diff without discarding other changes or their references.
+- Before any authorized release-description update, save the existing body and metadata, generate the exact
+  tag range, and review the complete replacement. After updating, read the body back and check the rendered
+  version/date heading, category lists and expandable details; verify tags, assets and release flags are unchanged.
+  See RELEASING.md for the local generation command. Editing notes does not authorize a new release or Deploy rerun.
+
 ## Commit Messages
 
 - Use ordinary Conventional Commit messages for documentation; do not add `[skip ci]`. Markdown/MDX, similar

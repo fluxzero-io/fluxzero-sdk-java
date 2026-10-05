@@ -95,9 +95,40 @@ tags from the previous major. Prereleases are excluded from that automatic stabl
 same selection as first publication. The generator's explicit `PREVIOUS_TAG` override remains available for an
 intentional custom comparison; prerelease generation retains its existing tag selection.
 
-The generated commit list is a starting point for release notes. Review the final release diff and edit the published
-description when intermediate commits describe behavior that was changed again before publication. Include directly
-pushed changes as well as pull requests, and verify the comparison link against the preceding release.
+The generated commit list is the required structure for release notes, including editorial updates. Review the final
+release diff and correct descriptions of intermediate behavior that changed again before publication, while retaining
+the categorized lists, directly pushed changes, pull requests and their references.
 
 Run `node --test .github/scripts/generate-release-notes.test.mjs` to check release-note boundaries in temporary Git
 repositories without publishing artifacts.
+
+### Required published format
+
+Keep the established release title (`Fluxzero VERSION`). The body starts with the generated
+`## [VERSION](comparison-url) (YYYY-MM-DD)` heading. A short introductory paragraph is optional immediately below
+it. Then retain the generated `### Features`, `### Bug Fixes`, `### Documentation` and other applicable categories,
+with their HTML `<ul>`/`<li>` lists, commit/PR references and expandable `<details><summary>` explanations.
+Feature releases use exactly the same structure as fixes: a single feature is still a list item under Features.
+Do not replace these lists with a standalone feature article, Highlights, or GitHub's generic What's Changed output.
+The generator's explicit size-limit fallback remains available for genuinely oversized histories.
+
+Put substantial feature explanations, examples and migration guidance inside the relevant item's expandable body.
+Essential upgrade warnings may also appear in the short opening so they remain visible with details collapsed.
+Preserve previous editorial corrections against the final tagged diff; blindly regenerating a release can restore
+superseded claims. Do not remove unrelated categories or commits while adding a feature explanation.
+
+For an authorized correction, save the existing release body and metadata first. Generate a local reference from
+the immutable release tag using the repository's current generator (replace VERSION and the output path):
+
+```bash
+RELEASE_VERSION=VERSION RELEASE_TAG=VERSION CURRENT_REF=VERSION \
+  GITHUB_REPOSITORY=fluxzero-io/fluxzero-sdk-java \
+  RELEASE_NOTES_PATH=/absolute/path/to/release-notes.md \
+  node .github/scripts/generate-release-notes.mjs
+```
+
+Review the comparison baseline and the entire replacement before sending it with `gh release edit VERSION
+--notes-file /absolute/path/to/release-notes.md`. Re-read the published body and inspect its rendered heading,
+categories, list entries and expanded details. Verify the release title, tag target, prerelease/draft status and
+asset identities/digests remain unchanged. A notes-only repair must not rerun Deploy or republish artifacts.
+CI generation does not prevent a later manual/API edit from replacing the body; this format also binds those edits.
