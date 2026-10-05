@@ -167,6 +167,13 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - When changing message handling, tracking, scheduling, websocket, persistence, serialization, or reflection behavior, add focused tests in the owning module and consider both synchronous and asynchronous `TestFixture` paths.
 - Do not commit build outputs from `target/`, generated local artifacts, or release-only zips.
 
+## Release Titles
+
+- Use `VERSION – Mon D, YYYY` (for example `1.292.8 – Oct 5, 2026`), using the exact release tag and the
+  original GitHub `published_at` date in UTC, English month abbreviations and an unpadded day.
+- Use `.github/scripts/set-release-title.py` for authorized title changes; preserve the original publication date
+  on edits and reruns. The helper changes only the title, leaving notes, tags, assets and release flags intact.
+
 ## Commit Messages
 
 - Use ordinary Conventional Commit messages for documentation; do not add `[skip ci]`. Markdown/MDX, similar
