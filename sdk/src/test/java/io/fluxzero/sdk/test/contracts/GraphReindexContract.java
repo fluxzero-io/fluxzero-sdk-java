@@ -13,6 +13,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.modeling.*;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.modeling.ModelDocumentProof;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -47,11 +48,12 @@ public abstract class GraphReindexContract {
                 // Seed the event-only storage envelope independently of current searchable declarations.
                 seed(app, type, 1);
                 Graph<?> historical = Fluxzero.loadGraph("node", type);
-                assertTrue(historical.get().toString().contains("version=1"));
+                assertEquals(value(type, 1), historical.get());
                 seed(app, type, 2);
                 var events = heads(app);
                 assertNull(source(app, type).getDocument());
-                long cutoff = (System.currentTimeMillis() - 1) << 16;
+                // A fixed past boundary suffices for an absent source; no host/storage clock comparison is needed.
+                long cutoff = 1L;
                 Tracker old = Tracker.current.get();
                 Tracker.current.set(new Tracker("reindex", MessageType.EVENT, null,
                         ConsumerConfiguration.builder().name("reindex").maxIndexExclusive(cutoff).build(), null));
@@ -62,17 +64,15 @@ public abstract class GraphReindexContract {
                                 "AWAIT must expose the new projection immediately after reindex");
                     }
                     var written = source(app, type);
-                    assertTrue(written.isModelStateVerified());
                     assertNotNull(written.getModelStorageIndex());
+                    assertSource(app, type, written, events, 2);
                     assertTrue(written.getModelStorageIndex() >= cutoff);
                     assertEquals(events.getStreams(), heads(app).getStreams());
                     assertEquals(events.getStateIndex(), heads(app).getStateIndex());
-                    assertTrue(app.documentStore().getSerializer().fromDocument(written.getDocument(), type)
-                            .toString().contains("version=2"));
                     for (int i = 0; i < 20; i++) { historical.reindex(); }
                     assertEquals(written.getModelStorageIndex(), source(app, type).getModelStorageIndex());
-                    assertTrue(historical.get().toString().contains("version=1"));
-                    assertTrue(Fluxzero.loadGraph("node", type).previous().get().toString().contains("version=1"));
+                    assertEquals(value(type, 1), historical.get());
+                    assertEquals(value(type, 1), Fluxzero.loadGraph("node", type).previous().get());
                 } finally { Tracker.current.set(old); }
                 fc.modelRepository().registerGraphProjection(type, true).join();
                 io.fluxzero.common.TimingUtils.retryOnFailure(() -> {
@@ -85,10 +85,19 @@ public abstract class GraphReindexContract {
                         CompletableFuture.runAsync(historical::reindex)).toArray(CompletableFuture[]::new)).join();
                 assertEquals(events.getStreams(), heads(app).getStreams());
                 assertEquals(events.getStateIndex(), heads(app).getStateIndex());
-                long normalCutoff = (System.currentTimeMillis() - 1) << 16;
+                long beforeCommit = source(app, type).getModelStorageIndex();
                 app.executeModelCommit(new Message(event(type, 3))).join();
+                if (mode == GraphProjectionMode.AWAIT) {
+                    assertEquals(1, Fluxzero.searchGraph(type).match(3, "version").fetchAll().size(),
+                            "AWAIT must expose the new projection immediately after commit");
+                }
                 var normal = source(app, type);
-                assertTrue(normal.getModelStorageIndex() >= normalCutoff);
+                var committed = heads(app);
+                assertSource(app, type, normal, committed, 3);
+                assertNotEquals(events.getStreams().getFirst().getHead(), normal.getModelHead());
+                assertTrue(normal.getModelStorageIndex() >= beforeCommit);
+                long normalCutoff = normal.getModelStorageIndex();
+                awaitPastCutoff(normalCutoff);
                 Tracker.current.set(new Tracker("normal", MessageType.EVENT, null,
                         ConsumerConfiguration.builder().name("normal").maxIndexExclusive(normalCutoff).build(), null));
                 try {
@@ -96,12 +105,18 @@ public abstract class GraphReindexContract {
                     assertEquals(normal.getModelStorageIndex(), source(app, type).getModelStorageIndex());
                 } finally { Tracker.current.set(old); }
                 // A later migration boundary must refresh even though the Model's business head is unchanged.
-                long nextCutoff = ((normal.getModelStorageIndex() >>> 16) + 1) << 16;
-                io.fluxzero.common.TimingUtils.retryOnFailure(() -> {
-                    assertTrue((System.currentTimeMillis() << 16) >= nextCutoff);
-                    return null;
+                // Observe a later write in the same source store. Advancing only the SDK clock says nothing
+                // about PostgreSQL's storage clock, which may lag behind it.
+                app.executeModelCommit(new Message(event(type, "boundary", 1))).join();
+                var boundary = Fluxzero.loadGraph("boundary", type);
+                long nextCutoff = io.fluxzero.common.TimingUtils.retryOnFailure(() -> {
+                    boundary.reindex();
+                    long index = source(app, type, "boundary").getModelStorageIndex();
+                    assertTrue(index > normal.getModelStorageIndex());
+                    return index;
                 }, io.fluxzero.common.RetryConfiguration.builder().maxRetries(100).delay(Duration.ofMillis(10))
                         .errorTest(failure -> failure instanceof AssertionError).throwOnFailingErrorTest(true).build());
+                awaitPastCutoff(nextCutoff);
                 Tracker.current.set(new Tracker("next", MessageType.EVENT, null,
                         ConsumerConfiguration.builder().name("next").maxIndexExclusive(nextCutoff).build(), null));
                 try {
@@ -109,6 +124,7 @@ public abstract class GraphReindexContract {
                     var refreshed = source(app, type);
                     assertTrue(refreshed.getModelStorageIndex() >= nextCutoff);
                     assertEquals(normal.getModelHead(), refreshed.getModelHead());
+                    assertSource(app, type, refreshed, committed, 3);
                 } finally { Tracker.current.set(old); }
                 app.modelRepository().deleteModel("node", ModelDeletionCascade.NONE).join();
                 historical.reindex();
@@ -135,8 +151,7 @@ public abstract class GraphReindexContract {
                 assertFalse(fc.client().getEventStoreClient().reindexModel(stale).join());
                 // A source left behind by an older writer can be refreshed against a newer authoritative head.
                 graph.reindex();
-                assertTrue(app.documentStore().getSerializer().fromDocument(source(app, type).getDocument(), type)
-                        .toString().contains("version=2"));
+                assertSource(app, type, source(app, type), heads(app), 2);
                 var trusted = source(app, type);
                 assertEquals(2L, trusted.getDocument().getTimestamp());
                 var untrusted = new io.fluxzero.common.api.search.SerializedDocument(trusted.getDocument().deserializeDocument()
@@ -156,8 +171,32 @@ public abstract class GraphReindexContract {
         }
     }
 
-    private static io.fluxzero.common.api.search.GetDocumentResult source(Fluxzero app, Class<?> type) {
-        return app.client().getSearchClient().fetchModelDocument(new GetDocument("node",
+    private static void assertSource(Fluxzero app, Class<?> type, GetDocumentResult source,
+                                     GetModelEventsResult events, int version) {
+        assertTrue(source.isModelStateVerified());
+        assertNotNull(source.getDocument());
+        assertEquals(events.getStreams().getFirst().getHead(), source.getModelHead());
+        assertEquals(version - 1L, source.getModelHead().getSequenceNumber());
+        assertEquals(value(type, version),
+                app.documentStore().getSerializer().fromDocument(source.getDocument(), type));
+    }
+
+    private static void awaitPastCutoff(long cutoff) {
+        // The public API rejects future cutoffs against the SDK clock. This wait only satisfies that guard
+        // when storage is ahead; the tested source write and AWAIT completion are asserted without retries.
+        io.fluxzero.common.TimingUtils.retryOnFailure(() -> {
+            assertTrue((System.currentTimeMillis() << 16) >= cutoff);
+            return null;
+        }, io.fluxzero.common.RetryConfiguration.builder().maxRetries(500).delay(Duration.ofMillis(10))
+                .errorTest(failure -> failure instanceof AssertionError).throwOnFailingErrorTest(true).build());
+    }
+
+    private static GetDocumentResult source(Fluxzero app, Class<?> type) {
+        return source(app, type, "node");
+    }
+
+    private static GetDocumentResult source(Fluxzero app, Class<?> type, String id) {
+        return app.client().getSearchClient().fetchModelDocument(new GetDocument(id,
                 EntityMetadata.of(type).modelSourceDocumentCollection("").orElseThrow(), true, true));
     }
 
@@ -166,11 +205,23 @@ public abstract class GraphReindexContract {
                 List.of(new ModelEventStreamRequest("node", -1L, 100)), ModelReadBoundary.current(), 0));
     }
 
-    private static Object event(Class<?> type, int version) {
+    private static Object value(Class<?> type, int version) {
         return switch (type.getSimpleName()) {
-            case "ReindexLive" -> new PutLive("node", version);
-            case "ReindexAsync" -> new PutAsync("node", version);
-            default -> new PutAwait("node", version);
+            case "ReindexLive" -> new ReindexLive("node", version);
+            case "ReindexAsync" -> new ReindexAsync("node", version);
+            default -> new ReindexAwait("node", version);
+        };
+    }
+
+    private static Object event(Class<?> type, int version) {
+        return event(type, "node", version);
+    }
+
+    private static Object event(Class<?> type, String id, int version) {
+        return switch (type.getSimpleName()) {
+            case "ReindexLive" -> new PutLive(id, version);
+            case "ReindexAsync" -> new PutAsync(id, version);
+            default -> new PutAwait(id, version);
         };
     }
 
