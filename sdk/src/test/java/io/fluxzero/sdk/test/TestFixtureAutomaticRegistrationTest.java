@@ -16,9 +16,9 @@
 
 package io.fluxzero.sdk.test;
 
-import io.fluxzero.common.TestTask;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.TestTask;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.TrackSelf;
