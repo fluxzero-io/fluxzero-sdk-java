@@ -15,8 +15,6 @@
 
 package io.fluxzero.sdk.common;
 
-import java.util.Iterator;
-import java.util.Optional;
 import java.util.ServiceLoader;
 
 /**
@@ -46,16 +44,7 @@ import java.util.ServiceLoader;
  *
  * @see UuidFactory
  */
-public interface IdentityProvider {
-
-    /**
-     * The default identity provider, resolved using {@link ServiceLoader}, or falling back to {@link UuidFactory}.
-     */
-    IdentityProvider defaultIdentityProvider = Optional.of(ServiceLoader.load(IdentityProvider.class))
-            .map(ServiceLoader::iterator)
-            .filter(Iterator::hasNext)
-            .map(Iterator::next)
-            .orElseGet(UuidFactory::new);
+public interface IdentityProvider extends IdentityProviderDefaults {
 
     /**
      * Returns a new functional ID, suitable for user-visible or application-level tracking.

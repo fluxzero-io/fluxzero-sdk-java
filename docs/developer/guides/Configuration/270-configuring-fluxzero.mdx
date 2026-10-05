@@ -82,6 +82,11 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
 - `replaceCorrelationDataProvider(...)` to define how correlation metadata is attached to outbound messages.
 - `registerUserProvider(...)` to integrate custom user authentication and inject `User` into handlers.
 
+`IdentityProvider.defaultIdentityProvider` selects the first ServiceLoader provider using the context class loader
+of the thread that first accesses the field, with `UuidFactory` as fallback. The selected instance is shared;
+constructing a provider directly does not trigger that discovery. Use `replaceIdentityProvider(...)` for an
+application-specific provider. This contract is the same for Java and Kotlin.
+
 ### Caching and snapshotting
 
 - `replaceCache(...)` and `withAggregateCache(...)` to plug in custom caching backends.
