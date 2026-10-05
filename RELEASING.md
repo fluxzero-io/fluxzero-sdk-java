@@ -104,7 +104,15 @@ repositories without publishing artifacts.
 
 ### Required published format
 
-Keep the established release title (`Fluxzero VERSION`). The body starts with the generated
+Use `VERSION – Mon D, YYYY` as the release title, for example `2.15.1 – Oct 5, 2026`.
+Use the exact release tag as VERSION, English three-letter month names and an unpadded day. The date is the
+original GitHub `published_at` converted to UTC, never the commit date, local date or last edit time.
+This applies to stable, maintenance and prerelease titles. Drafts have no publication date yet.
+Deploy normalizes the title after publication with `.github/scripts/set-release-title.py`; reruns preserve the
+original date. For an authorized title-only repair, run `python3 .github/scripts/set-release-title.py OWNER/REPO TAG`.
+The helper patches only `name`, leaving the release body, tag, assets and release flags intact.
+
+The body starts with the generated
 `## [VERSION](comparison-url) (YYYY-MM-DD)` heading. A short introductory paragraph is optional immediately below
 it. Then retain the generated `### Features`, `### Bug Fixes`, `### Documentation` and other applicable categories,
 with their HTML `<ul>`/`<li>` lists, commit/PR references and expandable `<details><summary>` explanations.

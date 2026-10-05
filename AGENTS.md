@@ -187,7 +187,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 - Follow [RELEASING.md](RELEASING.md#release-notes) for every release description, including manual edits,
   feature releases, maintenance releases and repairs of existing notes. The generated structure is mandatory.
-- Keep the established release title and start the body with the generated linked version/date heading.
+- Use `VERSION – Mon D, YYYY` for release titles (for example `2.15.1 – Oct 5, 2026`), using the exact tag
+  and original GitHub `published_at` date in UTC. Preserve this date on edits and reruns; use the shared
+  `set-release-title.py` helper for authorized title changes. Start the body with the generated linked version/date heading.
   An optional short opening may follow that heading, but the categorized change lists must follow it.
 - Preserve the generator's categories (`Features`, `Bug Fixes`, `Documentation`, etc.), HTML lists, commit/PR
   references and expandable `<details><summary>` explanations. A feature belongs in `Features`, even when it
