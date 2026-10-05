@@ -53,3 +53,18 @@ bash .github/scripts/resolve-release-version.test.sh
 
 This validates the update train, first-major release, milestones, release candidates and exceptional maintenance
 patches without creating tags or publishing artifacts.
+
+## Release titles
+
+Use `VERSION – Mon D, YYYY` (for example `1.292.8 – Oct 5, 2026`) for every published release.
+VERSION is the exact tag. Use the original GitHub `published_at` date converted to UTC, English month
+abbreviations and an unpadded day. Never use the commit date, local date or last edit time.
+Deploy normalizes the title after publication; reruns preserve the original date. Drafts have no publication date.
+For an authorized title-only correction, use:
+
+```bash
+python3 .github/scripts/set-release-title.py OWNER/REPO TAG
+```
+
+This patches only `name`; notes, tags, assets and release flags remain unchanged. Validate the policy with
+`python3 .github/scripts/set-release-title.test.py`. Title corrections do not require a Deploy rerun.

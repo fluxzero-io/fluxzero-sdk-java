@@ -30,6 +30,9 @@ jobs:
           java-version: '25'
           cache: 'maven'
 
+      - name: Test release title policy
+        run: python3 .github/scripts/set-release-title.test.py
+
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 

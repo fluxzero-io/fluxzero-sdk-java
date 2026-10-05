@@ -138,6 +138,13 @@ For wire or persisted formats, also test old-data reads and new-data round trips
   fixtures, logs, or application-specific diagnostics. Preserve generally applicable SDK evidence here and keep
   downstream-specific proof in the repository that owns that application.
 
+## Release Titles
+
+- Use `VERSION – Mon D, YYYY` (for example `1.292.8 – Oct 5, 2026`), using the exact release tag and the
+  original GitHub `published_at` date in UTC, English month abbreviations and an unpadded day.
+- Use `.github/scripts/set-release-title.py` for authorized title changes; preserve the original publication date
+  on edits and reruns. The helper changes only the title, leaving notes, tags, assets and release flags intact.
+
 ## Commit Messages
 
 - Use Conventional Commits with a clear domain scope for human-authored commits.
