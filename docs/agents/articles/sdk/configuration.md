@@ -42,6 +42,11 @@ Spring auto-configuration registers annotated handlers, upcasters, downcasters, 
 
 `DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, host metrics, web request forwarding, and fetch byte limits. Keep these settings centralized near application bootstrap.
 
+`IdentityProvider.defaultIdentityProvider` selects the first ServiceLoader provider using the context class loader
+of the thread that first accesses the field, with `UuidFactory` as fallback. The selected instance is shared;
+constructing a provider directly does not trigger that discovery. Use `replaceIdentityProvider(...)` for an
+application-specific provider. This contract is the same for Java and Kotlin.
+
 The builder initializes its default task scheduler only on `taskScheduler()` access or `build(...)`.
 Use `replaceTaskScheduler(...)` before that to supply a scheduler without starting an unused default.
 Closing the built Fluxzero instance shuts down the selected scheduler.

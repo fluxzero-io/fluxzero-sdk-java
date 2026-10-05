@@ -465,11 +465,13 @@ public final class Graphs {
 
     /** Description of one placement in a materialized graph manifest. */
     public record MaterializedNode(
-            String id, Class<?> type, int parent, String relationshipPath, Supplier<?> value) {
+            String id, Class<?> type, int parent, String relationshipPath, Supplier<?> value,
+            Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) {
         public MaterializedNode {
             Objects.requireNonNull(id, "id");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(value, "value");
+            deadlines = deadlines == null ? Map.of() : Map.copyOf(deadlines);
             if (parent < -1) {
                 throw new IllegalArgumentException("Materialized graph parent must be at least -1");
             }
@@ -689,6 +691,36 @@ public final class Graphs {
             frontier = next;
         }
         return List.copyOf(result);
+    }
+
+    /** Traverses a union of roots once, batching each frontier and preserving shared navigation state. */
+    static List<Graph<?>> related(List<Graph<?>> roots, boolean includeParents) {
+        Map<String, Graph<?>> found = new LinkedHashMap<>();
+        roots.forEach(root -> found.putIfAbsent(root.id().toString(), root));
+        List<Graph<?>> frontier = List.copyOf(found.values());
+        while (!frontier.isEmpty()) {
+            Map<GraphState, List<GraphState.Node>> batches = new IdentityHashMap<>();
+            for (Graph<?> graph : frontier) {
+                if (graph instanceof GraphView<?> view && view.state().metadataNavigation()) {
+                    batches.computeIfAbsent(view.state(), ignored -> new ArrayList<>()).add(view.node());
+                }
+            }
+            batches.forEach((state, nodes) -> {
+                state.prepareChildren(nodes);
+                if (includeParents) { state.prepareParents(nodes); }
+            });
+            List<Graph<?>> next = new ArrayList<>();
+            for (Graph<?> graph : frontier) {
+                List<Graph<?>> adjacent = new ArrayList<>(graph instanceof GraphView<?> view
+                        ? view.scopedChildren(null, null, false, true) : graph.children());
+                if (includeParents) { adjacent.addAll(graph.parents()); }
+                for (Graph<?> candidate : adjacent) {
+                    if (found.putIfAbsent(candidate.id().toString(), candidate) == null) { next.add(candidate); }
+                }
+            }
+            frontier = next;
+        }
+        return List.copyOf(found.values());
     }
 
     /** Identity lookup traverses metadata; ordinary stream/serialization retains its full-value contract. */
@@ -934,7 +966,7 @@ final class GraphState {
                                 .formatted(specification.parent(), specification.id()));
             }
             NodeData data = NodeData.materialized(
-                    specification.id(), specification.type(), specification.value());
+                    specification.id(), specification.type(), specification.value(), specification.deadlines());
             Node parent = specification.parent() < 0 ? null : placements.get(specification.parent());
             Node node = new Node(data, parent, specification.relationshipPath(), false);
             if (parent != null) {
@@ -1368,6 +1400,13 @@ final class GraphState {
         }
     }
 
+    void prepareParents(List<Node> nodes) {
+        if (metadataNavigation()) {
+            navigation().prepare(nodes.stream().map(node -> node.data().id()).toList(),
+                                 ModelRelationshipRead.Direction.PARENTS);
+        }
+    }
+
     void registerKnownType(String name, Class<?> type) {
         Navigation current = navigation;
         if (current != null) {
@@ -1634,8 +1673,12 @@ final class GraphState {
         }
 
         static NodeData materialized(
-                String id, Class<?> type, Supplier<?> value) {
-            return new NodeData(id, type, new Materialized(value), false);
+                String id, Class<?> type, Supplier<?> value, Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) {
+            return new NodeData(id, type, new Materialized(value, deadlines), false);
+        }
+
+        Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> materializedDeadlines() {
+            return resolution instanceof Materialized materialized ? materialized.deadlines() : null;
         }
 
         static NodeData external(Graph<?> graph) {
@@ -1751,7 +1794,7 @@ final class GraphState {
         private record LazyIdentity(Object requestedId, boolean exact) implements Resolution {
         }
 
-        private record Materialized(Supplier<?> value) implements Resolution {
+        private record Materialized(Supplier<?> value, Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines) implements Resolution {
         }
 
         private record External(Graph<?> graph) implements Resolution {
@@ -2358,6 +2401,16 @@ final class GraphView<T> implements Graph<T> {
         }
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().sequenceNumber() : entity.sequenceNumber();
+    }
+
+    @Override
+    public java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines() {
+        CommitAttempt.graphValueRead(this);
+        Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> materialized = node.data().materializedDeadlines();
+        if (materialized != null) { return materialized; }
+        Entity<?> entity = node.data().entity();
+        return entity == null ? node.data().durable().deadlines()
+                : io.fluxzero.sdk.scheduling.DeadlineMetadata.get(entity);
     }
 
     @Override

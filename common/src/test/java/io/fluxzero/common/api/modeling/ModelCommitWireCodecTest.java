@@ -42,6 +42,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void deadlineEffectsRoundTripOnEveryTransport() throws Exception {
+        CommitModels ordinary = commit("deadline-wire", false);
+        ordinary.getSubsteps().getFirst().getEvent().setIndex(null);
+        String owner = ordinary.getReadModelIds().getFirst();
+        var schedule = new io.fluxzero.common.api.scheduling.SerializedSchedule("explicit-id", 1234L,
+                new SerializedMessage(new Data<>(new byte[]{1}, "payload", 0), Metadata.empty(), "message", 0L), false);
+        var request = new CommitModelsWithDeadlines(ordinary,
+                List.of(new ModelDeadlineUpdate(owner, "expiry", "previous-id", schedule, true, 1200L)));
+        ModelCommitValidator.validate(request);
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            var decoded = assertInstanceOf(RequestBatch.class, codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+            var received = assertInstanceOf(CommitModelsWithDeadlines.class, decoded.getRequests().getFirst());
+            assertEquals(request.getDeadlineUpdates(), received.getDeadlineUpdates());
+            assertEquals(request.getSubsteps(), received.getSubsteps());
+        }
+    }
+
+    @Test
+    void deadlineReevaluationRoundTripsAndOrdinaryResultsKeepTheirWireShape() throws Exception {
+        var result = CommitModelsResult.reevaluateDeadlines(1L, "deadline", 1234L);
+        assertFalse(result.isAccepted());
+        assertEquals(1234L, result.forRequest(2L).getDeadlineReevaluationTime());
+        assertFalse(JsonUtils.writer.writeValueAsString(CommitModelsResult.accepted(1L, "ordinary", List.of()))
+                .contains("deadlineReevaluationTime"));
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            var decoded = assertInstanceOf(CommitModelsResult.class, codec.decode(codec.encode(result)));
+            assertEquals(1234L, decoded.getDeadlineReevaluationTime());
+            assertFalse(decoded.isAccepted());
+            assertFalse(decoded.isRebaseRequired());
+        }
+    }
+
+    @Test
+    void previousScheduleIdentityMustNotBeBlank() {
+        CommitModels ordinary = commit("invalid-cancellation", false);
+        var invalid = new ModelDeadlineUpdate(ordinary.getReadModelIds().getFirst(), "expiry", " ", null, true, null);
+        assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(
+                new CommitModelsWithDeadlines(ordinary, List.of(invalid))));
+    }
+
+    @Test
     void parentSearchExclusionPreservesLegacyWireDefaults() throws Exception {
         var legacy = ModelRelationship.builder().parentId("parent").parentType("Project").path("children")
                 .deleteOnParentDeletion(true).build();

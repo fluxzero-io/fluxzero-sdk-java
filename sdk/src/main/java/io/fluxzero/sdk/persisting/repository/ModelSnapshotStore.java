@@ -20,6 +20,8 @@ import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.modeling.ModelStateIndexCodec;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.scheduling.DeadlineMetadata;
 import io.fluxzero.common.api.search.constraints.BetweenConstraint;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -84,7 +86,10 @@ final class ModelSnapshotStore {
                     facetLong(document,
                               STATE_INDEX),
                     Instant.ofEpochMilli(
-                            document.getTimestamp())));
+                            document.getTimestamp()),
+                    Metadata.of(document.getFacets().stream()
+                            .filter(f -> f.getName().startsWith(DeadlineMetadata.PREFIX))
+                            .collect(java.util.stream.Collectors.toMap(FacetEntry::getName, FacetEntry::getValue)))));
         } catch (DeserializationException e) {
             log.warn("Failed to deserialize model snapshot {} for {}. Deleting snapshot.",
                      document.getId(),
@@ -123,6 +128,6 @@ final class ModelSnapshotStore {
     }
 
     record Snapshot(
-            Object value, long sequenceNumber, long stateIndex, Instant timestamp) {
+            Object value, long sequenceNumber, long stateIndex, Instant timestamp, Metadata metadata) {
     }
 }

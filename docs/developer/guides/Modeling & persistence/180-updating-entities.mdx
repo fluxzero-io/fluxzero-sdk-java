@@ -68,6 +68,9 @@ expected refusals from technical failures.
 
 Automatic handling can also be declared on the model:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Product(@EntityId ProductId productId, ProductDetails details) {
@@ -78,12 +81,29 @@ record Product(@EntityId ProductId productId, ProductDetails details) {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Product(@EntityId val productId: ProductId, val details: ProductDetails) {
+    @Apply
+    fun rename(command: RenameProduct) = copy(details = details.copy(name = command.name))
+}
+```
+
+</TabItem>
+</Tabs>
+
 Register the model class as a handler when receiver methods are used. Payload-side applies are discovered from the
 registered command payload.
 
 ## Calling the model pipeline explicitly
 
 An explicit command handler can enter the same pipeline exactly once:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @HandleCommand
@@ -93,12 +113,39 @@ String handle(RenameProduct command) {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@HandleCommand
+fun handle(command: RenameProduct): String {
+    Fluxzero.assertAndApply(command)
+    return "renamed"
+}
+```
+
+</TabItem>
+</Tabs>
+
 Use this when the command must return a custom result or when automatic handling has been disabled. Metadata can be
 attached without changing the update:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 Fluxzero.assertAndApply(command, Metadata.of("source", "admin"));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.assertAndApply(command, Metadata.of("source", "admin"))
+```
+
+</TabItem>
+</Tabs>
 
 ## Flushing an existing automatic commit early
 
@@ -106,9 +153,22 @@ Fluxzero normally commits Model changes automatically at the configured handler 
 later in the same handling context can exceptionally request that an already produced automatic commit be made
 durable immediately:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 CompletableFuture<Void> durable = Fluxzero.commit();
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val durable: CompletableFuture<Void> = Fluxzero.commit()
+```
+
+</TabItem>
+</Tabs>
 
 `Fluxzero.commit()` does not apply an update and does not create a second commit. It releases the current commit through
 the ordinary conflict, retry, document, snapshot, relationship and completion path and returns that commit's existing
@@ -124,6 +184,9 @@ block on it from inside `@Apply`: applies must remain pure and have not returned
 
 An apply without a current value can create a model:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 record CreateProduct(@NotNull ProductId productId, @NotNull @Valid ProductDetails details) {
     @Apply
@@ -132,6 +195,22 @@ record CreateProduct(@NotNull ProductId productId, @NotNull @Valid ProductDetail
     }
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class CreateProduct(
+    @field:NotNull val productId: ProductId,
+    @field:NotNull @field:Valid val details: ProductDetails
+) {
+    @Apply
+    fun apply() = Product(productId, details)
+}
+```
+
+</TabItem>
+</Tabs>
 
 A create-only factory requires absence; a non-null current-Model parameter requires presence. Violations reject the
 whole action with the functional already-exists/not-found error, rather than silently succeeding. Use a nullable
@@ -142,6 +221,9 @@ events retain their replay behavior.
 
 Returning `null` from a model apply logically deletes the target:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 record RemoveProduct(ProductId productId) {
     @Apply
@@ -150,6 +232,19 @@ record RemoveProduct(ProductId productId) {
     }
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class RemoveProduct(val productId: ProductId) {
+    @Apply
+    fun apply(product: Product): Product? = null
+}
+```
+
+</TabItem>
+</Tabs>
 
 The delete update is still an event according to the model's publication settings. The current model and direct search
 document disappear, while the model stream remains available for audit and reconstruction. Returning `void` is not
@@ -161,6 +256,9 @@ an explicit, confirmed deletion plan.
 ## Reading other models during an action
 
 Any directly referenced model can be injected into assertions, interceptors and applies:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 record PlaceOrder(
@@ -182,10 +280,33 @@ record PlaceOrder(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class PlaceOrder(val orderId: OrderId, val inventoryId: InventoryId, val quantity: Int) {
+    @AssertLegal
+    fun assertAvailable(inventory: Inventory) {
+        if (inventory.available < quantity) {
+            throw IllegalCommandException("Insufficient inventory")
+        }
+    }
+
+    @Apply
+    fun create(inventory: Inventory) = Order(orderId, inventory.inventoryId, quantity)
+}
+```
+
+</TabItem>
+</Tabs>
+
 `Inventory` is not required to be family of `Order`. It is loaded because the payload carries an `InventoryId`. A
 direct dependency is read-only unless an apply returns that model.
 
 When two properties refer to the same model type, qualify each parameter:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Apply
@@ -199,11 +320,28 @@ Account credit(@Association("destinationId") Account destination) {
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Apply
+fun debit(@Association("sourceId") source: Account): Account = source.debit(amount)
+
+@Apply
+fun credit(@Association("destinationId") destination: Account): Account = destination.credit(amount)
+```
+
+</TabItem>
+</Tabs>
+
 ## Parents and ancestors
 
 If no direct payload property identifies an injected model, Fluxzero follows stored ancestor relations at the
 action's pinned state boundary. Injection is a read; returning that ancestor from a singular Model-returning
 `@Apply` also makes it a write target, without requiring its ID to be duplicated in the command:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @AssertLegal
@@ -213,6 +351,18 @@ void assertOwner(
         Customer customer) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@AssertLegal
+fun assertOwner(line: LineItem, order: Order, customer: Customer) {
+}
+```
+
+</TabItem>
+</Tabs>
 
 Parents, grandparents and further ancestors are loaded only when explicitly requested. Use
 `@Association("billingLines")` when multiple ancestor edges of the same type are reachable; the qualifier then matches
@@ -326,6 +476,9 @@ use a shared consumer and routing key when application-level command order matte
 
 `@InterceptApply` can reject, replace or expand an incoming update before applies run:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 record ImportOrder(List<ImportLine> lines) {
     @InterceptApply
@@ -334,6 +487,19 @@ record ImportOrder(List<ImportLine> lines) {
     }
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class ImportOrder(val lines: List<ImportLine>) {
+    @InterceptApply
+    fun expand(): List<CreateLine> = lines.map { it.toCreateLine() }
+}
+```
+
+</TabItem>
+</Tabs>
 
 Every emitted update runs through the same assertions and apply machinery. Interceptors may inject the same direct
 models and ancestors as assertions and applies.

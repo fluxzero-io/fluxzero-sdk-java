@@ -23,6 +23,9 @@ package io.fluxzero.sdk.modeling;
  */
 public interface ModelRoot<T> extends PersistedRoot<T> {
 
+    /** Returns the recorded deadline categories belonging to this Model revision. */
+    default java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines() { return java.util.Map.of(); }
+
     /**
      * Opaque, time-derived namespace-wide state boundary at which this model revision became current.
      * Callers may compare boundaries and decode their approximate timestamp with

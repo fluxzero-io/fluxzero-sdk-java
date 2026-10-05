@@ -47,7 +47,7 @@ class ModelSnapshotStoreTest {
                 new ModelSnapshotMutation(
                         serializer.serialize("value"),
                         timestamp.toEpochMilli(),
-                        2, 3)
+                        2, 3, null)
                         .toDocument("model-1", 5L, 8L);
 
         ModelSnapshotStore.Snapshot snapshot =
@@ -64,10 +64,10 @@ class ModelSnapshotStoreTest {
         var fluxzero = TestFixture.create().getFluxzero();
         List<SerializedDocument> snapshots = List.of(
                 new ModelSnapshotMutation(
-                        serializer.serialize("previous"), 1L, 1, 2)
+                        serializer.serialize("previous"), 1L, 1, 2, null)
                         .toDocument("model-1", 1L, Long.MAX_VALUE - 1L),
                 new ModelSnapshotMutation(
-                        serializer.serialize("latest"), 2L, 1, 2)
+                        serializer.serialize("latest"), 2L, 1, 2, null)
                         .toDocument("model-1", 2L, Long.MAX_VALUE));
         fluxzero.client().getSearchClient()
                 .index(snapshots, Guarantee.STORED, false)
@@ -90,7 +90,7 @@ class ModelSnapshotStoreTest {
     void unreadableSnapshotStillDeletesAndReturnsEmptyForReplay() {
         var fluxzero = TestFixture.create().getFluxzero();
         var document = new ModelSnapshotMutation(new io.fluxzero.common.api.Data<>("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8),
-                "missing.snapshot.type", 5, "application/json"), 1L, 1, 2).toDocument("model-1", 1L, 2L);
+                "missing.snapshot.type", 5, "application/json"), 1L, 1, 2, null).toDocument("model-1", 1L, 2L);
         fluxzero.client().getSearchClient().index(List.of(document), Guarantee.STORED, false).join();
         var store = new ModelSnapshotStore(fluxzero.documentStore(), serializer);
         org.junit.jupiter.api.Assertions.assertTrue(store.getSnapshot("model-1", 2L).isEmpty());

@@ -105,6 +105,18 @@ import static java.util.Collections.synchronizedMap;
 public class InMemoryEventStore extends InMemoryMessageStore implements EventStoreClient {
 
     private boolean deferModelCommitNotification;
+    private java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>, Runnable> modelScheduleWriter;
+
+    private java.util.function.LongSupplier modelDeadlineClock = System::currentTimeMillis;
+
+    /** Installs the LocalClient scheduler writer; effects are applied in the accepted Model commit. */
+    public synchronized void setModelScheduleWriter(
+            java.util.function.Function<java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>, Runnable> writer,
+            java.util.function.LongSupplier clock) {
+        modelScheduleWriter = java.util.Objects.requireNonNull(writer);
+        modelDeadlineClock = java.util.Objects.requireNonNull(clock);
+    }
+
 
     private final ConcurrentHashMap<String, Long> scheduleParentEpochs = new ConcurrentHashMap<>();
     private final String scheduleParentTokenPrefix = java.util.UUID.randomUUID().toString();
@@ -347,6 +359,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 outcome = commitModelsSynchronized(commit);
             }
             notifyScheduleParentDeletions();
+            if (outcome.schedulesStored() != null) { outcome.schedulesStored().run(); }
             completeModelCommitMaterialization(
                     commit.getCommitId());
             if (!outcome.publishedEvents().isEmpty()) {
@@ -367,6 +380,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         modelCommits.get(commit.getCommitId())
                                 .asDuplicateForRequest(
                                 commit.getRequestId()), List.of());
+            }
+            if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines
+                && modelScheduleWriter == null) {
+                throw new UnsupportedOperationException("Model commit scheduling is not configured");
             }
             Map<Long, SerializedMessage> existingEvents = existingEvents(commit);
             commit.getSubsteps().stream()
@@ -432,6 +449,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             conflict = cascadeConflict(commit, description);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
+            }
+            if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines) {
+                long cutoff = modelDeadlineClock.getAsLong();
+                if (deadlines.hasExpiredReplacement(cutoff)) {
+                    return new ModelCommitOutcome(CommitModelsResult.reevaluateDeadlines(
+                            commit.getRequestId(), commit.getCommitId(), cutoff), List.of());
+                }
             }
             validateCommitRelationships(description);
             description.aliases().validate(modelAliases);
@@ -521,6 +545,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 commit, List.copyOf(updates),
                                 Set.of()));
             }
+            Runnable schedulesStored = commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
+                    ? modelScheduleWriter.apply(deadlines.getDeadlineUpdates()) : null;
             modelCommits.put(commit.getCommitId(), result);
             modelGraphProjectionSignals.add(
                     new ModelGraphProjectionSignal(
@@ -535,7 +561,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 modelUpdateMonitor.notifyAll();
             }
             return new ModelCommitOutcome(
-                    modelCommits.get(commit.getCommitId()), publishedEvents);
+                    modelCommits.get(commit.getCommitId()), publishedEvents, schedulesStored);
     }
 
     private CommitModelsResult cascadeConflict(
@@ -645,7 +671,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
 
     private record ModelCommitOutcome(
             CommitModelsResult result,
-            List<SerializedMessage> publishedEvents) {
+            List<SerializedMessage> publishedEvents, Runnable schedulesStored) {
+        ModelCommitOutcome(CommitModelsResult result, List<SerializedMessage> publishedEvents) {
+            this(result, publishedEvents, null);
+        }
     }
 
     @Override
@@ -1263,7 +1292,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 result.getConflicts(),
                                 result.isRetryAllowed(),
                                 result.isDuplicate(),
-                                result.getRebaseStateIndex()));
+                                result.getRebaseStateIndex(), null));
         modelCommitMaterializations.replaceAll(
                 (commitId, materialization) ->
                         materialization.excluding(selected));

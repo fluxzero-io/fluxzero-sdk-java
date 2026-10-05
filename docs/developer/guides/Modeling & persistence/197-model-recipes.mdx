@@ -206,10 +206,24 @@ intact; removing the parent cascades to the companion. Set a non-owning deletion
 lifecycle. This companion is not parent-scoped: affixes already provide a separate global identity.
 
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 ProjectStatus status = Fluxzero.loadModel(projectId, ProjectStatus.class).get();
 List<ProjectStatus> statuses = Fluxzero.loadGraph(projectId).childModels("status", ProjectStatus.class);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val status: ProjectStatus? = Fluxzero.loadModel(projectId, ProjectStatus::class.java).get()
+val statuses: List<ProjectStatus> = Fluxzero.loadGraph(projectId).childModels("status", ProjectStatus::class.java)
+```
+
+</TabItem>
+</Tabs>
 
 ## One preference, multiple Graph views
 
@@ -321,10 +335,24 @@ An alternate policy may clear the old preference in the same multi-Model command
 perform a nested command inside `@Apply`.
 
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.sendCommandAndWait(new SelectPrimary(spaceId, null));
 Fluxzero.sendCommandAndWait(new MoveDevice(deviceId, destinationSpaceId));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendCommandAndWait<Any?>(SelectPrimary(spaceId, null))
+Fluxzero.sendCommandAndWait<Any?>(MoveDevice(deviceId, destinationSpaceId))
+```
+
+</TabItem>
+</Tabs>
 
 After the move, the old Space no longer contains the Device; it is not automatically selected in the destination.
 Deleting it now succeeds. If either its old Space or the Device changes concurrently, normal conflict reevaluation
@@ -465,9 +493,25 @@ This is not a document-only state read; authoritative loading may still require 
 the inspected Model needs event-sourced history.
 
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Graph<Project> historical = Fluxzero.loadGraph(projectId); // inside an event handler
 historical.get(); // pin the lazy source while still inside this event handler
 Graph<Project> current = historical.current();
 // historical still represents that event; current uses its own newly pinned boundary.
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val historical: Graph<Project> = Fluxzero.loadGraph(projectId) // inside an event handler
+historical.get() // pin the lazy source while still inside this event handler
+val current: Graph<Project> = historical.current()
+// historical still represents that event; current uses its own newly pinned boundary.
+```
+
+</TabItem>
+</Tabs>

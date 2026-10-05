@@ -173,6 +173,9 @@ navigation is independent of moving `name`; live search composition still uses t
 
 To migrate the materialized Graph, register the node casters and replay its document collection with this consumer:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Consumer(name = "project-graph-schema-2", minIndex = 0)
 class RematerializeProjects {
@@ -180,6 +183,20 @@ class RematerializeProjects {
     Graph<Project> migrate(Graph<Project> graph) { return graph; }
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Consumer(name = "project-graph-schema-2", minIndex = 0)
+class RematerializeProjects {
+    @HandleDocument
+    fun migrate(graph: Graph<Project>): Graph<Project> = graph
+}
+```
+
+</TabItem>
+</Tabs>
 
 If a node's Java type name changes, register a type alias too, even when its `Data` upcaster returns the new type name.
 The Graph replacement guard needs a content-independent rename mapping. A root must upcast to exactly one state;
@@ -215,16 +232,19 @@ searchability. ASYNC/AWAIT additionally store the composed Graph. Schema rewrite
 
 After registering the value-preserving upcasters above and raising the Model schema revision, use explicit consumers:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Consumer(name = "project-source-schema-2", minIndex = 0)
 class ReindexProjectSources {
     @HandleDocument(source = DocumentSource.MODEL_STATE)
     Project migrate(Project project) { return project; }
 }
-
 ```
 
-Kotlin has the same contract:
+</TabItem>
+<TabItem label="Kotlin">
 
 ```kotlin
 @Consumer(name = "project-source-schema-2", minIndex = 0)
@@ -233,6 +253,9 @@ class ReindexProjectSources {
     fun migrate(project: Project): Project = project
 }
 ```
+
+</TabItem>
+</Tabs>
 
 The source handler receives the upcast value. Return it unchanged: identity, type and logical serialized state must
 remain equal, including for mutable objects. Returning `null`, splitting/dropping the upcast state or changing business

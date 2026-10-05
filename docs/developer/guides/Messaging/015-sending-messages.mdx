@@ -47,15 +47,24 @@ For a per-call override, use `send(payload, metadata, guarantee)` or
 `Fluxzero.sendCommand`, `sendCommandAndWait`, `query`, and `queryAndWait`. Typed `Request<R>` payloads retain
 result-type inference. Pass `Metadata.empty()` when no metadata is needed.
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT);
 Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED);
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
 ```kotlin
-Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT)
-Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED)
+Fluxzero.sendCommand<Any?>(command, Metadata.empty(), Guarantee.SENT)
+Fluxzero.queryAndWait<Any?>(query, Metadata.empty(), Guarantee.STORED)
 ```
+
+</TabItem>
+</Tabs>
 
 `DEFAULT` follows this shared property and the major-version request fallback when unconfigured.
 Existing calls without a guarantee use the same policy. `NONE`, `SENT`, or `STORED` overrides only this invocation.
@@ -96,16 +105,25 @@ Arbitrary application-created background work is also outside the tracked scope.
 Outside tracking there is no consumer-position barrier. To observe acknowledgement or asynchronous failure,
 keep the returned future:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 CompletableFuture<Void> delivery = Fluxzero.get().eventGateway()
         .publish(new Message(event), Guarantee.DEFAULT);
 delivery.join(); // Wait at an explicit application boundary, not once per event in a handler.
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
 ```kotlin
 val delivery = Fluxzero.get().eventGateway().publish(Message(event), Guarantee.DEFAULT)
 delivery.join()
 ```
+
+</TabItem>
+</Tabs>
 
 Locally handled or suppressed messages retain their existing local behaviour; `STORED` does not force a local-only
 message into the Runtime. Request/response calls keep their response-completion contract. Metrics/transport diagnostics, internal durable persistence and position-store operations retain their explicit
@@ -146,17 +164,26 @@ serialized data, such as values recovered from private storage.
 
 For a logical identity change, return a replacement rather than mutating a cached serialized representation:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Message replacement = incoming.toMessage().withMessageId("new-logical-id");
 DeserializingMessage view = incoming.withMessage(replacement);
 Fluxzero.sendCommand(view);
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
 ```kotlin
 val replacement = incoming.toMessage().withMessageId("new-logical-id")
 val view = incoming.withMessage(replacement)
-Fluxzero.sendCommand(view)
+Fluxzero.sendCommand<Any?>(view)
 ```
+
+</TabItem>
+</Tabs>
 
 For an edited serialized envelope, finish edits before calling `serializer.deserializeMessage(...)`.
 Treat input as read-only afterwards: a `DeserializingMessage` lazily caches its logical Message, and later
@@ -203,10 +230,23 @@ Fluxzero.schedule(RetryPayment(...), Duration.ofMinutes(5))
 
 Messages can include metadata:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.sendCommand(new CreateUser("Bob"),
                      Metadata.of("source", "admin-ui"));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendCommand<Any?>(CreateUser("Bob"), Metadata.of("source", "admin-ui"))
+```
+
+</TabItem>
+</Tabs>
 
 <Aside type="tip">
   Messages are not addressed to specific destinations. Fluxzero handles routing based on message type, not location.
@@ -220,22 +260,61 @@ Commands trigger domain behavior and optionally return a result.
 
 **Fire-and-forget:**
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.sendAndForgetCommand(new CreateUser("Alice"));
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendAndForgetCommand(CreateUser("Alice"))
+```
+
+</TabItem>
+</Tabs>
+
 **Send and wait:**
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 UserId id = Fluxzero.sendCommandAndWait(new CreateUser("Charlie"));
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val id: UserId = Fluxzero.sendCommandAndWait(CreateUser("Charlie"))
+```
+
+</TabItem>
+</Tabs>
+
 **Async:**
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 CompletableFuture<UserId> future =
     Fluxzero.sendCommand(new CreateUser("Bob"));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val future: CompletableFuture<UserId> = Fluxzero.sendCommand(CreateUser("Bob"))
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
@@ -245,17 +324,43 @@ Queries retrieve state from read models or projections.
 
 **Blocking:**
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 UserProfile profile =
     Fluxzero.queryAndWait(new GetUserProfile("user456"));
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val profile: UserProfile = Fluxzero.queryAndWait(GetUserProfile("user456"))
+```
+
+</TabItem>
+</Tabs>
+
 **Async:**
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 CompletableFuture<UserProfile> result =
     Fluxzero.query(new GetUserProfile("user123"));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val result: CompletableFuture<UserProfile> = Fluxzero.query(GetUserProfile("user123"))
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
@@ -263,9 +368,22 @@ CompletableFuture<UserProfile> result =
 
 Events can be published via:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.publishEvent(new UserLoggedIn("user789"));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.publishEvent(UserLoggedIn("user789"))
+```
+
+</TabItem>
+</Tabs>
 
 By default:
 
@@ -282,21 +400,50 @@ By default:
 
 Schedule messages for future delivery:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.schedule(new ReminderFired(), Duration.ofMinutes(5));
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.schedule(ReminderFired(), Duration.ofMinutes(5))
+```
+
+</TabItem>
+</Tabs>
+
 Schedule periodic tasks:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 Fluxzero.schedulePeriodic(new PollExternalApi());
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.schedulePeriodic(PollExternalApi())
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
 ### Web requests
 
 Send outbound HTTP calls through the Fluxzero Runtime:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 WebRequest request = WebRequest
@@ -305,16 +452,40 @@ WebResponse response = Fluxzero.get()
     .webRequestGateway().sendAndWait(request);
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val request = WebRequest.get("https://api.example.com/data").build()
+val response = Fluxzero.get().webRequestGateway().sendAndWait(request)
+```
+
+</TabItem>
+</Tabs>
+
 ---
 
 ### Metrics
 
 Send custom metric messages:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.publishMetrics(
     new SystemLoadMetric(cpu, memory));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.publishMetrics(SystemLoadMetric(cpu, memory))
+```
+
+</TabItem>
+</Tabs>
 
 ---
 
@@ -483,18 +654,45 @@ data class OrderPlaced(
 
 Apply `@Timeout` to a payload class (command or query) to enforce maximum wait time for blocking calls:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Timeout(value = 3, timeUnit = TimeUnit.SECONDS)
 public record CalculatePremium(UserProfile profile)
     implements Request<BigDecimal> {}
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Timeout(value = 3, timeUnit = TimeUnit.SECONDS)
+data class CalculatePremium(val profile: UserProfile) : Request<BigDecimal>
+```
+
+</TabItem>
+</Tabs>
+
 When sent using `queryAndWait(...)`, this timeout is respected:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 BigDecimal result = Fluxzero
     .queryAndWait(new CalculatePremium(user));
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val result: BigDecimal = Fluxzero.queryAndWait(CalculatePremium(user))
+```
+
+</TabItem>
+</Tabs>
 
 If no response arrives in time, a `TimeoutException` is thrown.
 

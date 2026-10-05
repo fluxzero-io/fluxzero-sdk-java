@@ -24,12 +24,12 @@ import java.beans.Transient;
 import java.util.List;
 
 /**
- * Result of an accepted, rebase-requested, or conflict-rejected
+ * Result of an accepted, rebase-requested, deadline-reevaluation-requested, or conflict-rejected
  * {@link CommitModels}.
  * <p>
  * Accepted results are durable and include completion of direct document and snapshot materialization. A duplicate
  * accepted {@code commitId} returns the same logical result with the new request ID used for response correlation.
- * Rebase and conflict results are not retained under the idempotency key.
+ * Rebase, deadline reevaluation and conflict results are not retained under the idempotency key.
  */
 @Value
 public class CommitModelsResult extends AbstractRequestResult {
@@ -58,7 +58,7 @@ public class CommitModelsResult extends AbstractRequestResult {
      * Whether the runtime permits an SDK retry. For strict conflict results
      * this means the scoped relationships were unchanged; a default-policy
      * apply-only rebase is always retryable at
-     * {@link #rebaseStateIndex}.
+     * {@link #rebaseStateIndex}. Deadline-only reevaluation is also retryable, at the original Model read boundary.
      */
     boolean retryAllowed;
 
@@ -78,11 +78,18 @@ public class CommitModelsResult extends AbstractRequestResult {
     long timestamp = System.currentTimeMillis();
 
     /**
+     * Runtime cutoff in epoch milliseconds when deadline effects must be recalculated at the same Model read
+     * boundary. Nothing was committed. This is independent of the application's conflict policy and retry budget.
+     */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    Long deadlineReevaluationTime;
+
+    /**
      * Creates a model commit result, normalizing omitted compatibility fields to empty collections.
      */
     @ConstructorProperties({
             "requestId", "commitId", "updates", "conflicts", "retryAllowed",
-            "duplicate", "rebaseStateIndex"})
+            "duplicate", "rebaseStateIndex", "deadlineReevaluationTime"})
     public CommitModelsResult(
             long requestId,
             String commitId,
@@ -90,7 +97,8 @@ public class CommitModelsResult extends AbstractRequestResult {
             List<ModelCommitConflict> conflicts,
             boolean retryAllowed,
             boolean duplicate,
-            Long rebaseStateIndex) {
+            Long rebaseStateIndex,
+            Long deadlineReevaluationTime) {
         this.requestId = requestId;
         this.commitId = commitId;
         this.updates = updates == null ? List.of() : List.copyOf(updates);
@@ -98,6 +106,7 @@ public class CommitModelsResult extends AbstractRequestResult {
         this.retryAllowed = retryAllowed;
         this.duplicate = duplicate;
         this.rebaseStateIndex = rebaseStateIndex;
+        this.deadlineReevaluationTime = deadlineReevaluationTime;
     }
 
     /**
@@ -107,7 +116,7 @@ public class CommitModelsResult extends AbstractRequestResult {
             long requestId, String commitId, List<ModelUpdate> updates) {
         return new CommitModelsResult(
                 requestId, commitId, updates, List.of(), false,
-                false, null);
+                false, null, null);
     }
 
     /** Creates the common one-substep, one-target accepted result. */
@@ -142,7 +151,12 @@ public class CommitModelsResult extends AbstractRequestResult {
             boolean retryAllowed) {
         return new CommitModelsResult(
                 requestId, commitId, List.of(), conflicts, retryAllowed,
-                false, null);
+                false, null, null);
+    }
+
+    /** Rejects only the time-sensitive deadline plan; no idempotency receipt is retained. */
+    public static CommitModelsResult reevaluateDeadlines(long requestId, String commitId, long cutoff) {
+        return new CommitModelsResult(requestId, commitId, List.of(), List.of(), true, false, null, cutoff);
     }
 
     /**
@@ -150,7 +164,7 @@ public class CommitModelsResult extends AbstractRequestResult {
      */
     @Transient
     public boolean isAccepted() {
-        return conflicts.isEmpty() && !isRebaseRequired();
+        return conflicts.isEmpty() && !isRebaseRequired() && deadlineReevaluationTime == null;
     }
 
     /**
@@ -167,7 +181,7 @@ public class CommitModelsResult extends AbstractRequestResult {
     public CommitModelsResult forRequest(long requestId) {
         return new CommitModelsResult(
                 requestId, commitId, updates, conflicts, retryAllowed,
-                duplicate, rebaseStateIndex);
+                duplicate, rebaseStateIndex, deadlineReevaluationTime);
     }
 
     /**
@@ -176,7 +190,7 @@ public class CommitModelsResult extends AbstractRequestResult {
     public CommitModelsResult asDuplicateForRequest(long requestId) {
         return new CommitModelsResult(
                 requestId, commitId, updates, conflicts, retryAllowed,
-                true, rebaseStateIndex);
+                true, rebaseStateIndex, deadlineReevaluationTime);
     }
 
     /** Returns whether this result contains exactly one committed target position. */
@@ -196,7 +210,7 @@ public class CommitModelsResult extends AbstractRequestResult {
             long rebaseStateIndex) {
         return new CommitModelsResult(
                 requestId, commitId, List.of(), changedModels, true,
-                false, rebaseStateIndex);
+                false, rebaseStateIndex, null);
     }
 
     /**

@@ -54,6 +54,9 @@ The default Fluxzero payload validator checks field constraints, including conta
 field-based `@Valid` cascades, before the containing object's method constraints. Pure constraint methods may
 dereference values required by active field constraints without repeating null guards. For example:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 public record ConfigureReminder(@NotNull Duration delay) {
     @AssertTrue(message = "Choose a non-negative delay.")
@@ -62,6 +65,19 @@ public record ConfigureReminder(@NotNull Duration delay) {
     }
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+data class ConfigureReminder(@field:NotNull val delay: Duration?) {
+    @AssertTrue(message = "Choose a non-negative delay.")
+    fun hasNonNegativeDelay(): Boolean = !delay!!.isNegative
+}
+```
+
+</TabItem>
+</Tabs>
 
 For collections, require both the container and its elements, for example
 `@NotNull List<@NotNull @Valid ReminderDetails> reminders`. `@Valid` checks a present nested value; it does not

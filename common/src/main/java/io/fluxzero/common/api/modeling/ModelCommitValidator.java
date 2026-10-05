@@ -52,8 +52,34 @@ public final class ModelCommitValidator {
         requireNonEmpty(commit.getSubsteps(), "Model commit must contain at least one substep");
         if (!commit.getReadAliasIds().isEmpty()) {
             Set<String> aliases = uniqueIds(commit.getReadAliasIds(), "read alias");
-            if (!(commit instanceof CommitModelsWithAliasReads) || !commit.getReadModelIds().containsAll(aliases)) {
+            if (!(commit instanceof CommitModelsWithAliasReads || commit instanceof CommitModelsWithDeadlines) || !commit.getReadModelIds().containsAll(aliases)) {
                 throw new IllegalArgumentException("Alias reads require an alias-aware commit and exact lookup head reads");
+            }
+        }
+        if (commit instanceof CommitModelsWithDeadlines deadlines) {
+            Set<String> categories = new HashSet<>();
+            Set<String> scheduleIds = new HashSet<>();
+            for (ModelDeadlineUpdate update : deadlines.getDeadlineUpdates()) {
+                if (update == null || update.modelId() == null || update.modelId().isBlank()
+                    || update.category() == null || update.category().isBlank()
+                    || !commit.getReadModelIds().contains(update.modelId()) || !categories.add(update.slotId())) {
+                    throw new IllegalArgumentException("Deadline updates require unique categories and checked Model reads");
+                }
+                if (update.schedule() != null && (update.schedule().getScheduleId() == null || update.schedule().getScheduleId().isBlank()
+                    || !scheduleIds.add(update.schedule().getScheduleId())
+                    || update.schedule().isIfAbsent() || update.schedule().getMessage() == null
+                    || update.schedule().getMessage().getMessageId() == null)) {
+                    throw new IllegalArgumentException("Deadline updates require an unconditional replacement schedule with a message ID");
+                }
+                if (update.previousDeadline() != null && (update.previousScheduleId() == null || update.schedule() == null)) {
+                    throw new IllegalArgumentException("An original deadline time requires a replacement of existing work");
+                }
+                if (update.previousScheduleId() != null && update.previousScheduleId().isBlank()) {
+                    throw new IllegalArgumentException("Previous schedule ID must not be blank");
+                }
+            }
+            if (commit.isMigration()) {
+                throw new IllegalArgumentException("Historical migrations cannot change Model deadlines");
             }
         }
         if (validateSimpleCommit(commit)) {
@@ -66,11 +92,8 @@ public final class ModelCommitValidator {
             if (substep == null) {
                 throw new IllegalArgumentException("Model commit substep %d is null".formatted(i));
             }
-            if (substep.getTargets() == null
-                || substep.getTargets().isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Model commit substep %d has no targets"
-                                .formatted(i));
+            if (substep.getTargets() == null || substep.getTargets().isEmpty()) {
+                throw new IllegalArgumentException("Model commit substep %d has no targets".formatted(i));
             }
             boolean requiresEvent = substep.isPublishEvent();
             if (!requiresEvent) {
@@ -185,7 +208,7 @@ public final class ModelCommitValidator {
                 }
                 validateDocument(target, target.getDocument());
                 if (target.getDocumentProjection() != null) {
-                    if (!(commit instanceof CommitModelsWithDocumentProjections
+                    if (!((commit instanceof CommitModelsWithDocumentProjections || commit instanceof CommitModelsWithDeadlines)
                           || commit instanceof CommitModelsWithAliasReads) || commit.isMigration()) {
                         throw new IllegalArgumentException("Independent document projections require a projection-aware, non-migration commit");
                     }

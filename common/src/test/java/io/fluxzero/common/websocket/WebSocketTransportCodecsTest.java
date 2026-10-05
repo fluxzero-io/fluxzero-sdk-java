@@ -467,7 +467,7 @@ class WebSocketTransportCodecsTest {
                                 new byte[]{7, 8},
                                 "com.example.Order",
                                 2, "application/json"),
-                        123L, 100, 2))
+                        123L, 100, 2, null))
                 .updateRelationships(true)
                 .relationships(List.of(ModelRelationship.builder()
                                                .parentId("customer-1")

@@ -258,10 +258,64 @@ class ModelCascadingAssertionsTest {
                 new SeedDeleteChild("child", "root", "guard"))
                 .whenCommand(new DeleteRoot("root")).expectExceptionalResult(CLOSED);
     }
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void deadlinePlanningPreservesTheCauseOfAutomaticDeletion(boolean async) {
+        fixture(async).givenCommands(new SeedDeadlineDeleteRoot("root"), new SeedDeleteGuard("guard"),
+                new SeedDeadlineDeleteChild("child", "root", "guard"))
+                .whenCommand(new DeleteDeadlineRoot("root")).expectExceptionalResult(CLOSED);
+        assertTrue(fixture.getFluxzero().modelRepository().load("root", DeadlineDeleteOwner.class).get() != null);
+        assertTrue(fixture.getFluxzero().client().getSchedulingClient().getSchedule("delete-deadline") != null);
+    }
+    @Model(searchable = false) record DeadlineDeleteOwner(@EntityId String rootId) {
+        @io.fluxzero.sdk.scheduling.Deadline
+        io.fluxzero.sdk.scheduling.Schedule expiry() {
+            return new io.fluxzero.sdk.scheduling.Schedule("expiry", "delete-deadline",
+                    java.time.Instant.parse("2030-01-01T00:00:00Z"));
+        }
+    }
+    @Model(searchable = false) record DeadlineDeleteChild(@EntityId String childId,
+            @Parent(DeadlineDeleteOwner.class) String rootId,
+            @Parent(value = DeleteGuard.class, deleteOnParentDeletion = false) String guardId) {}
+    record SeedDeadlineDeleteRoot(String rootId) {
+        @Apply DeadlineDeleteOwner apply() { return new DeadlineDeleteOwner(rootId); }
+    }
+    record SeedDeadlineDeleteChild(String childId, String rootId, String guardId) {
+        @Apply DeadlineDeleteChild apply() { return new DeadlineDeleteChild(childId, rootId, guardId); }
+    }
+    record DeleteDeadlineRoot(String rootId) {
+        @Apply DeadlineDeleteOwner apply(DeadlineDeleteOwner owner) { return null; }
+    }
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void deadlineMetadataDoesNotTriggerBusinessCascadeAssertions(boolean async) {
+        fixture(async).givenCommands(new ChangeDeadlinePolicy("policy", 1), new SeedDeleteGuard("guard"),
+                new SeedDeadlinePolicyChild("child", "policy", "guard"))
+                .whenCommand(new ChangeDeadlinePolicy("policy", 2)).expectSuccessfulResult();
+        assertEquals("expiry:2", fixture.getFluxzero().apply(fc ->
+                fc.messageScheduler().getSchedule("policy-deadline").orElseThrow().getPayload()));
+    }
+    @Model(searchable = false) record DeadlinePolicy(@EntityId String policyId, int version) {}
+    record ChangeDeadlinePolicy(String policyId, int version) {
+        @Apply DeadlinePolicy apply(@Nullable DeadlinePolicy current) { return new DeadlinePolicy(policyId, version); }
+    }
+    @Model(searchable = false) record DeadlinePolicyChild(@EntityId String childId,
+            @Parent(DeadlinePolicy.class) String policyId, @Parent(DeleteGuard.class) String guardId) {
+        @io.fluxzero.sdk.scheduling.Deadline(command = false)
+        io.fluxzero.sdk.scheduling.Schedule expiry(DeadlinePolicy policy) {
+            return new io.fluxzero.sdk.scheduling.Schedule("expiry:" + policy.version(), "policy-deadline",
+                    java.time.Instant.parse("2030-01-01T00:00:00Z").plusSeconds(policy.version()));
+        }
+    }
+    record SeedDeadlinePolicyChild(String childId, String policyId, String guardId) {
+        @Apply DeadlinePolicyChild apply() { return new DeadlinePolicyChild(childId, policyId, guardId); }
+    }
     @Model(searchable = false) record DeleteOwner(@EntityId String rootId) {}
     @Model(searchable = false) record DeleteGuard(@EntityId String guardId) {
         @AssertLegal(cascade = true, allowedClasses = DeleteRoot.class)
         void prevent(DeleteRoot command) { throw CLOSED; }
+        @AssertLegal(cascade = true, allowedClasses = DeleteDeadlineRoot.class)
+        void prevent(DeleteDeadlineRoot command) { throw CLOSED; }
+        @AssertLegal(cascade = true, allowedClasses = ChangeDeadlinePolicy.class)
+        void prevent(ChangeDeadlinePolicy command) { throw CLOSED; }
     }
     @Model(searchable = false) record DeleteChild(@EntityId String childId,
             @Parent(DeleteOwner.class) String rootId,

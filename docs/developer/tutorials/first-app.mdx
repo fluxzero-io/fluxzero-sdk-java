@@ -2044,6 +2044,9 @@ In Fluxzero, outgoing web requests — like sending a Slack message — are trea
 
 When you call:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.sendWebRequest(
     WebRequest.post(slackUrl)
@@ -2051,6 +2054,20 @@ Fluxzero.sendWebRequest(
               .build()
 );
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendWebRequest(
+    WebRequest.post(slackUrl)
+        .payload(mapOf("text" to message))
+        .build()
+)
+```
+
+</TabItem>
+</Tabs>
 
 By default, the request travels through Fluxzero's WebRequest log and forward proxy. This keeps external calls
 observable alongside internal messages. You can also configure native HTTP dispatch; see

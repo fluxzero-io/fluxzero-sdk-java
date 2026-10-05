@@ -1156,7 +1156,7 @@ public final class ModelReducer {
                 pending.add(new PendingSubstep(
                         step.message(), null, InterceptionPhase.NONE));
             }
-            changes.stream().filter(Change::directMutation).forEach(change ->
+            changes.stream().filter(Change::directMutation).filter(c -> !c.deadlineOnly()).forEach(change ->
                     pending.add(new PendingSubstep(
                             step.message(), change.forRebase(), InterceptionPhase.NONE)));
         }
@@ -1233,6 +1233,7 @@ public final class ModelReducer {
                             prepared.context().bindGraphReads(attempt);
                             List<Change> transitions = prepared.reducer().apply(
                                     current.message(), prepared.context(), true, true, new LinkedHashSet<>(), null);
+                            prepared.context().retainDeadlineOrigins(transitions);
                             attempt.evaluated(
                                     prepared.context().readStateIndex(),
                                     List.of(target.modelId()),
@@ -1311,6 +1312,7 @@ public final class ModelReducer {
                     stagedValues.put(
                             change.modelId(), change.after());
                     applyReadModelIds.add(change.modelId());
+                    context.retainDeadlineOrigins(List.of(change));
                     if (mode.assertions && resolver.compiler() != null
                         && !resolver.compiler().cascadePlan(change.modelType()).empty()) {
                         // Each guarded Graph mutation retains its own logical before-state and assertion identity.
@@ -1376,6 +1378,7 @@ public final class ModelReducer {
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context, mode.applyHandlers, mode.assertions,
                         applyReadModelIds, assertionLoader, current.asserted());
+                context.retainDeadlineOrigins(transitions);
                 readStateIndex = context.readStateIndex();
                 if (!pending.isEmpty()) { context.retainWriteOrigins(transitions); }
                 for (Change transition : transitions) {
@@ -1633,7 +1636,8 @@ public final class ModelReducer {
         boolean relevant = false;
         for (CommitAttempt.Step step : attempt.steps()) {
             for (Change change : step.changes()) {
-                if (change.updateState() && compiler.cascadePlan(change.modelType()).matches(cascadeValidationMessage(attempt, step),
+                if (change.updateState() && !change.deadlineOnly()
+                    && compiler.cascadePlan(change.modelType()).matches(cascadeValidationMessage(attempt, step),
                         change.ancestorValidation() != AncestorValidation.DISABLED)) {
                     relevant = true;
                     break;
@@ -1699,7 +1703,8 @@ public final class ModelReducer {
                 }
                 Map<String, CascadeOwner> owners = new LinkedHashMap<>();
                 for (Change change : changes) {
-                    if (!change.updateState()) { continue; }
+                    // Retaining derived deadline metadata does not introduce another business mutation.
+                    if (!change.updateState() || change.deadlineOnly()) { continue; }
                     MutationPlan.CascadePlan plan = compiler.cascadePlan(change.modelType());
                     boolean ancestors = change.ancestorValidation() != AncestorValidation.DISABLED;
                     if (!plan.matches(step.message(), ancestors)) { continue; }

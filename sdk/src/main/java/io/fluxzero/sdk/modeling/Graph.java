@@ -298,6 +298,15 @@ public interface Graph<T> {
     /** Returns the model-local sequence number, using pinned head evidence without replay when available. */
     long sequenceNumber();
 
+    /**
+     * Returns the immutable deadline categories recorded with this Model revision. Values describe planned times,
+     * not scheduler execution or external cancellation. Reading them never evaluates declarations or schedules work.
+     * Custom Graphs without deadline metadata return an empty map.
+     */
+    default java.util.Map<String, io.fluxzero.sdk.scheduling.DeadlineInfo> deadlines() {
+        return java.util.Map.of();
+    }
+
     /** Returns the timestamp of this model revision. */
     Instant timestamp();
 

@@ -6,6 +6,8 @@ sidebar:
    order: 205
 ---
 
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
 Choose persistence, searchability and Graph materialization separately. A composition path describes where a child
 appears in a Graph; it never activates storage or search.
 
@@ -51,6 +53,9 @@ rewrite Model state does not provide Model consistency guarantees.
 
 ## A searchable Project and its Tasks
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model(searchable = true)
 record Project(@EntityId ProjectId projectId, String status) {}
@@ -66,6 +71,30 @@ List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
         .whereChild(Task.class, MatchConstraint.match("open", "status"))
         .fetch(10);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(searchable = true)
+data class Project(@EntityId val projectId: ProjectId, val status: String)
+
+@Model(searchable = false, searchSettings = SearchSettings(timestampPath = "createdAt"))
+data class Task(
+    @EntityId val taskId: TaskId,
+    @Parent(pathInParent = "tasks") val projectId: ProjectId,
+    val status: String,
+    val createdAt: Instant
+)
+
+val openTasks: List<Task> = Fluxzero.search(Task::class.java).match("open", "status").fetchAll()
+val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
+    .whereChild(Task::class.java, MatchConstraint.match("open", "status"))
+    .fetch(10)
+```
+
+</TabItem>
+</Tabs>
 
 Each Task remains an independent Model. This example spells out `searchable = false` deliberately to show that local
 false does not veto inherited activation; ordinary descendants can omit it because false is the default. The Project
@@ -103,6 +132,9 @@ relationship-policy migration is provided.
 
 ## IDs and related content
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 List<Task> projectTasks = Fluxzero.search(Task.class)
         .whereAncestor(projectId)
@@ -112,6 +144,22 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
         .whereAncestor(Project.class, MatchConstraint.match("active", "status"))
         .fetchAll();
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val projectTasks: List<Task> = Fluxzero.search(Task::class.java)
+    .whereAncestor(projectId)
+    .fetch(100)
+
+val activeProjectTasks: List<Task> = Fluxzero.search(Task::class.java)
+    .whereAncestor(Project::class.java, MatchConstraint.match("active", "status"))
+    .fetchAll()
+```
+
+</TabItem>
+</Tabs>
 
 The ID overload needs only the searchable result nodes and durable relationships. The ancestor need not have a
 search document. A predicate on ancestor **content** requires that ancestor to be searchable. A typed `Id<T>` supplies
@@ -123,11 +171,25 @@ These predicates select result roots; they never prune the returned Graph's chil
 
 ## Optional stored Graph
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model(searchable = true,
        graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC))
 record Project(@EntityId ProjectId projectId, String status) {}
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(searchable = true, graphProjection = GraphProjection(mode = GraphProjectionMode.ASYNC))
+data class Project(@EntityId val projectId: ProjectId, val status: String)
+```
+
+</TabItem>
+</Tabs>
 
 This additionally stores the composed Graph. The default collection is the logical Model name plus `-graphs`, or the
 explicit node collection plus `-graphs`. A configured Graph collection must differ from the canonical node collection.
@@ -155,12 +217,28 @@ temporary memory and response bytes; materialization mainly saves query-time com
 
 Typed Graph results require complete documents. For partial output, request JSON explicitly:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 List<ObjectNode> rows = Fluxzero.searchGraph(Project.class)
         .match("open", "tasks/status")
         .includeOnly("tasks")
         .fetch(10, ObjectNode.class);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val rows: List<ObjectNode> = Fluxzero.searchGraph(Project::class.java)
+    .match("open", "tasks/status")
+    .includeOnly("tasks")
+    .fetch(10, ObjectNode::class.java)
+```
+
+</TabItem>
+</Tabs>
 
 Node/relationship and Graph searches support synchronous/asynchronous retrieval, counts, grouped numeric statistics
 and facets. Statistics cover the entire filtered selection; result paging and field selection do not limit them.

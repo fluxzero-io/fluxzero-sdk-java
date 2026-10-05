@@ -166,7 +166,7 @@ class ModelCommitValidatorTest {
     @Test
     void rejectsSnapshotsThatCannotBeReconstructed() {
         ModelCommitTarget invalid = target("order-1").toBuilder()
-                .snapshot(new ModelSnapshotMutation(null, 0L, 10, 2))
+                .snapshot(new ModelSnapshotMutation(null, 0L, 10, 2, null))
                 .build();
 
         assertThrows(
@@ -180,7 +180,7 @@ class ModelCommitValidatorTest {
             CommitModels base = publishedCommit(-1L);
             var step = base.getSubsteps().getFirst();
             var target = step.getTargets().getFirst().toBuilder()
-                    .snapshot(new ModelSnapshotMutation(new Data<>(new byte[]{1}, "order", 0), 1L, 1, maximum))
+                    .snapshot(new ModelSnapshotMutation(new Data<>(new byte[]{1}, "order", 0), 1L, 1, maximum, null))
                     .build();
             var request = new CommitModels(base.getCommitId(), base.getReadStateIndex(), base.getReadModelIds(),
                     List.of(step.toBuilder().targets(List.of(target)).build()), base.getConflictPolicy(),

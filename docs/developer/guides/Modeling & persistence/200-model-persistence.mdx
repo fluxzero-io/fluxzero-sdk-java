@@ -6,7 +6,7 @@ sidebar:
    order: 200
 ---
 
-import { Aside } from '@astrojs/starlight/components';
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Every `@Model` has an independent persisted identity. Start with the default: event sourcing, without a direct
 document or periodic snapshots.
@@ -16,6 +16,9 @@ relations, status and execution bookkeeping distinct. [Designing Model state](..
 criteria and shows validated Java/Kotlin creation and targeted updates. A plain details value requires neither a
 separate Model nor `@Member`; its owner determines persistence.
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Account(
@@ -23,6 +26,17 @@ record Account(
         Money balance) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Account(@EntityId val accountId: AccountId, val balance: Money)
+```
+
+</TabItem>
+</Tabs>
 
 The persisted key is exactly `accountId.toString()`. A model name or Java type is not concatenated into the identity.
 
@@ -76,11 +90,25 @@ Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history
 
 Event sourcing is the default:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Account(@EntityId AccountId accountId, Money balance) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Account(@EntityId val accountId: AccountId, val balance: Money)
+```
+
+</TabItem>
+</Tabs>
 
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
@@ -144,10 +172,24 @@ deeper placements. Each accepts a final `boolean knownOnly`, defaulting to `true
 known Model types, not necessarily every stored child. Pass `false` when a quota or inventory must include
 unknown types:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 var reservations = graph.namedChildren("stock-reservation", false);
 int count = reservations.size(); // No child values or historical events are loaded.
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val reservations = graph.namedChildren("stock-reservation", false)
+val count = reservations.size // No child values or historical events are loaded.
+```
+
+</TabItem>
+</Tabs>
 
 Names are exact resolved logical Model names, including any configured prefix, not serializer aliases or
 Java supertypes. The same name in two applications denotes the same shared contract, not separate ownership.
@@ -205,11 +247,25 @@ Persistent instability fails with an explicit platform error.
 
 Select `DOCUMENT` to load state from its internal current document. Search remains an independent choice:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model(persistence = ModelPersistence.DOCUMENT)
 record UserPreferences(@EntityId UserId userId, Preferences preferences) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(persistence = [ModelPersistence.DOCUMENT])
+data class UserPreferences(@EntityId val userId: UserId, val preferences: Preferences)
+```
+
+</TabItem>
+</Tabs>
 
 The document is maintained synchronously with the Model commit. It supports authoritative identity reads without
 making the value searchable. `persistence` controls state storage and loading, not event publication: applied updates
@@ -286,6 +342,9 @@ does not split one multi-Model action into separate commits.
 
 Use `searchable` for a searchable current representation while retaining the chosen persistence policy:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model(searchable = true, searchSettings = @SearchSettings(collection = "line-items"))
 record LineItem(
@@ -294,6 +353,21 @@ record LineItem(
         ProductId productId) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(searchable = true, searchSettings = SearchSettings(collection = "line-items"))
+data class LineItem(
+    @EntityId val lineItemId: LineItemId,
+    @Parent(pathInParent = "lines") val orderId: OrderId,
+    val productId: ProductId
+)
+```
+
+</TabItem>
+</Tabs>
 
 This Model remains event-sourced. Searchability maintains a canonical indexed node document; it does not require
 adding DOCUMENT persistence. For DOCUMENT-only Models, the same canonical document is also authoritative state.
@@ -342,6 +416,9 @@ Only introduce periodic snapshots when a Model's measured replay cost/history si
 by default (`snapshotPeriod = 0`) and do not enable search. For an account with a long, frequently replayed history,
 the following is an illustrative tuning choice, not a standard Model configuration:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model(
     snapshotPeriod = 1000,
@@ -351,6 +428,17 @@ the following is an illustrative tuning choice, not a standard Model configurati
 record Account(@EntityId AccountId accountId, Money balance) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(snapshotPeriod = 1000, maxSnapshotCount = 2, checkpointPeriod = 100)
+data class Account(@EntityId val accountId: AccountId, val balance: Money)
+```
+
+</TabItem>
+</Tabs>
 
 - `snapshotPeriod` writes a durable snapshot after the configured number of model events;
 - `maxSnapshotCount` sets the cleanup target: positive values target that many, `0` keeps one,

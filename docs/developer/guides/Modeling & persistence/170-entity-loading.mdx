@@ -13,11 +13,25 @@ A Fluxzero `@Model` has its own identity, persistence boundary and lifecycle. It
 document and snapshots are enabled independently through the model settings. Loading one model therefore never requires
 loading its parent, siblings or children.
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 public record Order(@EntityId OrderId orderId, OrderStatus status) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Order(@EntityId val orderId: OrderId, val status: OrderStatus)
+```
+
+</TabItem>
+</Tabs>
 
 Use a typed `Id<T>` whenever possible. Besides making application code safer, it lets Fluxzero infer the requested
 model type without storing the type as part of the identity.
@@ -37,12 +51,28 @@ model type without storing the type as part of the identity.
 
 Load a lazy `Graph<T>` when code also needs relationship context, history or transition operations:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Graph<Order> graph = Fluxzero.loadGraph(orderId);
 Order order = graph.get();
 Graph<Order> previous = graph.previous();
 List<LineItem> lines = graph.childModels("lines", LineItem.class);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val graph: Graph<Order> = Fluxzero.loadGraph(orderId)
+val order: Order? = graph.get()
+val previous: Graph<Order>? = graph.previous()
+val lines: List<LineItem> = graph.childModels("lines", LineItem::class.java)
+```
+
+</TabItem>
+</Tabs>
 
 `Graph<T>` carries:
 
@@ -71,13 +101,29 @@ a Graph remains a snapshot, not a live view of later commits.
 
 An untyped ID can be loaded by supplying the model class explicitly:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Order order = Fluxzero.loadModel("order-123", Order.class).get();
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val order: Order? = Fluxzero.loadModel("order-123", Order::class.java).get()
+```
+
+</TabItem>
+</Tabs>
+
 ## Alternative model identifiers
 
 Use `@Alias` when an independently stored model must also be addressable by a current business or external identifier:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 @Model
@@ -91,6 +137,23 @@ Customer customer = Fluxzero.loadModel(
         "email:info@example.com", Customer.class).get();
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Customer(
+    @EntityId val customerId: CustomerId,
+    @Alias(prefix = "email:") val email: String,
+    val details: CustomerDetails
+)
+
+val customer: Customer? = Fluxzero.loadModel("email:info@example.com", Customer::class.java).get()
+```
+
+</TabItem>
+</Tabs>
+
 Fluxzero stores the complete alias set atomically with every model transition. When the annotated value changes, the
 old alias stops resolving after the commit; logical or physical deletion removes the current aliases as well.
 
@@ -101,6 +164,9 @@ always resolved before an equal alias. Use parent-scoped primary identities when
 
 Use `@EntityId(parentScoped = true)` when a parent-owned child ID is intentionally unique only inside one parent:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Line(
@@ -109,15 +175,42 @@ record Line(
 }
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Line(
+    @EntityId(parentScoped = true) val lineId: String,
+    @Parent(value = Order::class, pathInParent = "lines") val orderId: OrderId
+)
+```
+
+</TabItem>
+</Tabs>
+
 The field remains `"one"`; Fluxzero only scopes the persisted model identity. Automatic apply routing selects the
 deepest non-null parent relation present in the payload. Within a loaded graph,
 `order.find("one", Line.class)` therefore keeps using the functional child ID. An explicit direct load includes the
 parent identity and type:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Graph<Line> line = Fluxzero.loadGraph(
         orderId, Order.class, "one", Line.class);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val line: Graph<Line> = Fluxzero.loadGraph(orderId, Order::class.java, "one", Line::class.java)
+```
+
+</TabItem>
+</Tabs>
 
 All non-null parents must resolve to one unambiguous nearest parent. Parent-scoped identity is unsuitable for a model
 that moves while retaining its identity, because changing the parent changes the persisted identity.
@@ -135,11 +228,25 @@ See [Model recipes](./197-model-recipes.mdx) for examples, including direct comp
 
 Event sourcing is the default:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model
 record Order(@EntityId OrderId orderId, OrderStatus status) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Order(@EntityId val orderId: OrderId, val status: OrderStatus)
+```
+
+</TabItem>
+</Tabs>
 
 Fluxzero first checks the model cache, then an applicable snapshot or checkpoint, and finally reads only the required
 suffix of that model's stream. Events are replayed through their `@Apply` methods.
@@ -171,11 +278,25 @@ Background cache replay runs in that repository's configured application context
 
 Select document persistence to load the current model directly from its synchronously maintained document:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @Model(persistence = ModelPersistence.DOCUMENT)
 record Country(@EntityId CountryId countryId, CountryDetails details) {
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Model(persistence = [ModelPersistence.DOCUMENT])
+data class Country(@EntityId val countryId: CountryId, val details: CountryDetails)
+```
+
+</TabItem>
+</Tabs>
 
 This changes only the normal **load** strategy. Applied updates are still stored and published as events unless
 `eventPublication` or `publicationStrategy` says otherwise. Its internal current-state document completes with the Model commit. Enable `searchable` separately when node or Graph queries are required.
@@ -188,12 +309,28 @@ SDK instances are invalidated or refreshed after remote commits.
 Every selected message handler can inject directly addressed models and their ancestors. When an event or notification
 was produced by a model commit, Fluxzero pins those loads to that action's persisted state boundary:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @HandleEvent
 void on(ItemReserved event, Order order, Graph<Inventory> inventory) {
     // order and inventory are exactly as they existed for this event
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@HandleEvent
+fun on(event: ItemReserved, order: Order, inventory: Graph<Inventory>) {
+    // order and inventory are exactly as they existed for this event
+}
+```
+
+</TabItem>
+</Tabs>
 
 Parameter injection uses the ID properties in the event:
 
@@ -209,12 +346,28 @@ metadata because they discover every affected root rather than only IDs addresse
 
 Parents, grandparents and further ancestors can be injected without repeating their IDs:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @HandleQuery
 OrderView inspect(InspectLine query, LineItem line, Order order, Customer customer) {
     // query only needs the typed LineItemId; relations resolve Order and Customer
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@HandleQuery
+fun inspect(query: InspectLine, line: LineItem, order: Order, customer: Customer): OrderView {
+    // query only needs the typed LineItemId; relations resolve Order and Customer
+}
+```
+
+</TabItem>
+</Tabs>
 
 The child parameter may be omitted. A typed child ID in the payload is enough to anchor graph traversal when the
 selected handler only requests an ancestor. Use `@Association("billingLines")` to select the relation path if several
@@ -228,10 +381,24 @@ what event and notification handlers need. Use `loadCurrentGraph(...)` when curr
 after a synchronous nested command, or in a scheduling reconciler deciding which deadlines still belong despite
 receiving an old event. For example:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Fluxzero.sendCommandAndWait(new ReserveItem(itemId));
 Graph<Item> current = Fluxzero.loadCurrentGraph(itemId);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendCommandAndWait<Any?>(ReserveItem(itemId))
+val current: Graph<Item> = Fluxzero.loadCurrentGraph(itemId)
+```
+
+</TabItem>
+</Tabs>
 
 This explicit escape prevents a handler from accidentally mixing the event-visible past with unrelated latest state.
 
@@ -245,12 +412,28 @@ repository I/O.
 Use one unqualified `Graph<T>` parameter to subscribe to every durable change of that root or one of
 its descendants. Optional `Message` and `Metadata` context parameters may appear in any order:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 @HandleEvent
 void organisationChanged(Graph<Organisation> graph) {
     Graph<Organisation> before = graph.previous();
 }
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@HandleEvent
+fun organisationChanged(graph: Graph<Organisation>) {
+    val before: Graph<Organisation>? = graph.previous()
+}
+```
+
+</TabItem>
+</Tabs>
 
 Fluxzero reads the affected model identities from the exact durable model-commit substep, so the published event does
 not need to repeat the root ID. Each affected root is invoked once, even when several models in that graph changed in
@@ -292,19 +475,47 @@ Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history
 Relations declared with `@Parent` can be traversed without turning the models back into one permanent consistency
 boundary:
 
+<Tabs>
+<TabItem label="Java">
+
 ```java
 Graph<Order> graph = Fluxzero.loadGraph(orderId);
 ```
 
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val graph: Graph<Order> = Fluxzero.loadGraph(orderId)
+```
+
+</TabItem>
+</Tabs>
+
 The source value remains lazy; the runtime pins one `stateIndex` when model state is first required and reconstructs
 related nodes in batches on the first traversal. Every returned child is itself a graph with its own parent, root and history operations. Use
 `loadGraphAt(...)` for an historical graph:
+
+<Tabs>
+<TabItem label="Java">
 
 ```java
 Graph<Order> historical = Fluxzero.get()
         .modelRepository()
         .loadGraphAt(orderId, stateIndex);
 ```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val historical: Graph<Order> = Fluxzero.get()
+    .modelRepository()
+    .loadGraphAt(orderId, stateIndex)
+```
+
+</TabItem>
+</Tabs>
 
 Graph loads have no caller-imposed depth or model-count limit by default. Pass explicit `Graph.Options` when an
 operation intentionally accepts only a bounded graph; use a direct model load when the command needs only one model.

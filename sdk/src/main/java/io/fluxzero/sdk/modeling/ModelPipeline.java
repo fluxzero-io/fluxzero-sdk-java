@@ -67,6 +67,7 @@ final class ModelPipeline {
             CompletableFuture.completedFuture(null);
 
     private final DefaultModelRepository repository;
+    private final DeadlinePlan deadlines;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
@@ -93,8 +94,9 @@ final class ModelPipeline {
             GraphProjectionCompletion graphProjectionCompletion,
             MutationPlan.Compiler compiler,
             BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
-            java.util.function.BooleanSupplier localHandlingEnabled) {
+            java.util.function.BooleanSupplier localHandlingEnabled, Supplier<List<Class<?>>> knownModelTypes) {
         this.repository = Objects.requireNonNull(repository, "repository");
+        this.deadlines = new DeadlinePlan(repository, serializer, knownModelTypes);
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
@@ -174,10 +176,11 @@ final class ModelPipeline {
                 }
                 throw translated;
             }
-            Commit.Outcome prepared = repositoryCommit.prepare(
-                    message.getMessageId(), evaluation, ModelConflictPolicy.FAIL);
+            var prepared = new java.util.concurrent.atomic.AtomicReference<>(repositoryCommit.prepare(
+                    message.getMessageId(), evaluation, ModelConflictPolicy.FAIL));
+            var captured = ThreadLocalContext.capture();
             return repositoryCommit.trackLocalCommit(evaluation, message, false,
-                    () -> repositoryCommit.commitPrepared(prepared, null, -1)).thenAccept(result -> {
+                    () -> commitAtomicPrepared(evaluation, prepared, captured)).thenAccept(result -> {
                 CommitModelsResult committed = result.orElseThrow(() ->
                         new IllegalStateException("An atomic Graph update must submit a checked revision"));
                 if (!committed.isAccepted()) {
@@ -186,11 +189,27 @@ final class ModelPipeline {
                     throw operation.rejected;
                 }
                 operation.after = repository.committedGraph(
-                        prepared, committed, operation.modelId, operation.previous);
+                        prepared.get(), committed, operation.modelId, operation.previous);
             });
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
+    }
+
+    private CompletableFuture<Optional<CommitModelsResult>> commitAtomicPrepared(
+            CommitAttempt evaluation, java.util.concurrent.atomic.AtomicReference<Commit.Outcome> prepared,
+            ThreadLocalContext.Snapshot context) {
+        return repositoryCommit.commitPrepared(prepared.get(), null, -1).thenCompose(result -> {
+            if (result.isEmpty() || result.get().getDeadlineReevaluationTime() == null) {
+                return CompletableFuture.completedFuture(result);
+            }
+            return invoke(context, () -> {
+                evaluation.reevaluateDeadlines(result.get().getDeadlineReevaluationTime());
+                prepared.set(repositoryCommit.prepareDeadlineReevaluation(
+                        prepared.get().commit().getCommitId(), prepared.get(), evaluation));
+                return commitAtomicPrepared(evaluation, prepared, context);
+            }, "Atomic deadline reevaluation returned null", !localHandlingEnabled.getAsBoolean());
+        });
     }
 
     private void requireNoAtomicCallback() {
@@ -634,6 +653,16 @@ final class ModelPipeline {
                         return CompletableFuture.completedFuture(optional);
                     }
                     CommitModelsResult result = optional.get();
+                    if (result.getDeadlineReevaluationTime() != null) {
+                        return invoke(context, () -> {
+                            evaluation.reevaluateDeadlines(result.getDeadlineReevaluationTime());
+                            Commit.Outcome recalculated = repositoryCommit.prepareDeadlineReevaluation(
+                                    commitId, prepared, evaluation);
+                            return commit(repositoryCommit, commitId, evaluation, conflictPolicy,
+                                    original, recalculated, retry, context, attempts, null, -1,
+                                    asynchronousReevaluation, admissionSession, namespace);
+                        }, "Deadline reevaluation returned null", asynchronousReevaluation);
+                    }
                     if (retry.accepting()) {
                         if (!result.isRebaseRequired()) {
                             return CompletableFuture.completedFuture(optional);
@@ -921,7 +950,7 @@ final class ModelPipeline {
     private CommitAttempt expandCascadeDeletes(
             CommitAttempt evaluation, DeserializingMessage message) {
         try {
-            return expandCascadeDeletes(evaluation);
+            return deadlines.evaluate(expandCascadeDeletes(evaluation), message);
         } catch (Exception failure) {
             throw repository.preparationFailure(message.getMessageId(), evaluation.readStateIndex(), failure);
         }

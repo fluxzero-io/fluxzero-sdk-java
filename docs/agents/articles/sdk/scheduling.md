@@ -51,7 +51,7 @@ it does not remember that an ID existed before cancellation. In a tracked event 
 therefore recreate cancelled work. Reconcile the complete desired active set from current Model state instead of
 blindly repeating the historical event's effect.
 
-When a deadline is caused by a new Model transition, do not schedule or cancel it immediately after `assertAndApply(...).get()` in the same handler. That value is not a commit acknowledgement. Persist the deadline intent, then let a registered tracked post-commit consumer create or cancel the stable schedule; read Model commit and effect boundaries.
+For Model-derived delayed work, prefer `@Deadline`: return a `Schedule`, or a payload with one-shot cron/delay on the annotation. Concrete scheduler changes and reserved Model metadata participate in the same commit. Graph.deadlines() exposes the recorded time per category; a passed original time suppresses replacement until an explicit null-to-payload cycle. Ancestor/Graph parameters enable targeted reevaluation. Reads and replay do not schedule work. See declarative Model deadlines. For manual scheduling, do not schedule or cancel immediately after `assertAndApply(...).get()` in the same handler: that value is not a commit acknowledgement. Persist intent and use a tracked post-commit consumer instead.
 
 ```java
 Fluxzero.schedule(
