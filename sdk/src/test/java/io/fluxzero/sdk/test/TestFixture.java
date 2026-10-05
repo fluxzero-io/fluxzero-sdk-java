@@ -394,7 +394,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final String observationTestId;
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
-    private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
+    private final Map<Class<?>, CompletableFuture<Void>> automaticHandlerRegistrations = new ConcurrentHashMap<>();
 
     /**
      * Closes all fixtures associated with the current execution thread.
@@ -625,7 +625,8 @@ public class TestFixture implements Given<TestFixture>, When {
     /**
      * Registers one or more message handlers with the fixture.
      * <p>
-     * In async mode, all handlers for the same consumer must be registered together.
+     * In async mode, concurrent automatic discovery waits for registration to finish before dispatching that type.
+     * A failed registration is retained rather than retrying partially installed handlers.
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     public TestFixture registerHandlers(List<?> handlers) {
@@ -635,14 +636,11 @@ public class TestFixture implements Given<TestFixture>, When {
                 return;
             }
             warnIfDuplicateHandlers(handlers);
-            handlers.stream().map(this::handlerType)
-                    .filter(ClientUtils::isSelfTracking)
-                    .forEach(registeredTrackSelfHandlers::add);
             if (fixture.synchronous) {
                 fixture.rememberConsumerAssignments(handlers);
             }
             if (!fixture.synchronous) {
-                fixture.registration = fixture.registration.merge(fc.registerHandlers(handlers));
+                fixture.registerAsyncHandlers(handlers);
                 return;
             }
             HandlerFilter handlerFilter = (c, e) -> true;
@@ -1999,9 +1997,37 @@ public class TestFixture implements Given<TestFixture>, When {
             return;
         }
         Class<?> payloadClass = message.getPayloadClass();
-        if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)
-            && registeredTrackSelfHandlers.add(payloadClass)) {
-            registration = registration.merge(fluxzero.registerHandlers(payloadClass));
+        if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)) {
+            var existing = automaticHandlerRegistrations.get(payloadClass);
+            if (existing != null && existing.isDone()) {
+                existing.join();
+                return;
+            }
+            synchronized (automaticHandlerRegistrations) {
+                existing = automaticHandlerRegistrations.get(payloadClass);
+                if (existing == null) {
+                    registerAsyncHandlers(List.of(payloadClass));
+                } else if (existing.isDone()) {
+                    existing.join();
+                }
+                // An incomplete registration under this reentrant lock belongs to this thread's initializer.
+            }
+        }
+    }
+
+    private void registerAsyncHandlers(List<?> handlers) {
+        synchronized (automaticHandlerRegistrations) {
+            var completion = new CompletableFuture<Void>();
+            handlers.stream().map(this::handlerType)
+                    .forEach(type -> automaticHandlerRegistrations.putIfAbsent(type, completion));
+            try {
+                registration = registration.merge(fluxzero.registerHandlers(handlers));
+                completion.complete(null);
+            } catch (RuntimeException | Error e) {
+                // Registration may already have installed some handlers. Do not retry and install duplicates.
+                completion.completeExceptionally(e);
+                throw e;
+            }
         }
     }
 
