@@ -407,7 +407,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final String observationTestId;
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
-    private final Set<Class<?>> registeredAutomaticHandlers = ConcurrentHashMap.newKeySet();
+    private final Map<Class<?>, CompletableFuture<Void>> automaticHandlerRegistrations = new ConcurrentHashMap<>();
 
     /**
      * Closes all fixtures associated with the current execution thread.
@@ -670,6 +670,8 @@ public class TestFixture implements Given<TestFixture>, When {
      * Additional handlers may be registered after tracking has started. When extending an existing consumer, keep
      * its configuration identical; registration is not a live consumer-reconfiguration API. Late registration does
      * not rewind that consumer's position to deliver already consumed messages to the new handler.
+     * Concurrent automatic discovery waits for registration to finish before dispatching that type. If registration
+     * fails after installing some handlers, automatic discovery retains the failure rather than retrying partial work.
      * <p>
      * Absolute HTTP stubs use normal consumer selection, just like application endpoints. Give a blocking external
      * stub its own test consumer when it represents a separate service; the URL alone does not separate consumers.
@@ -682,13 +684,11 @@ public class TestFixture implements Given<TestFixture>, When {
                 return;
             }
             warnIfDuplicateHandlers(handlers);
-            handlers.stream().map(this::handlerType)
-                    .forEach(registeredAutomaticHandlers::add);
             if (fixture.synchronous) {
                 fixture.rememberConsumerAssignments(handlers);
             }
             if (!fixture.synchronous) {
-                fixture.registration = fixture.registration.merge(fc.registerHandlers(handlers));
+                fixture.registerAsyncHandlers(handlers);
                 return;
             }
             HandlerFilter handlerFilter = (c, e) -> true;
@@ -2133,9 +2133,37 @@ public class TestFixture implements Given<TestFixture>, When {
         Class<?> payloadClass = message.getPayloadClass();
         boolean automaticHandler = ClientUtils.isSelfTracking(payloadClass)
                                    || hasAutomaticModelHandler(payloadClass);
-        if (automaticHandler && matchesTrackSelfConditions(payloadClass)
-            && registeredAutomaticHandlers.add(payloadClass)) {
-            registration = registration.merge(fluxzero.registerHandlers(payloadClass));
+        if (automaticHandler && matchesTrackSelfConditions(payloadClass)) {
+            var existing = automaticHandlerRegistrations.get(payloadClass);
+            if (existing != null && existing.isDone()) {
+                existing.join();
+                return;
+            }
+            synchronized (automaticHandlerRegistrations) {
+                existing = automaticHandlerRegistrations.get(payloadClass);
+                if (existing == null) {
+                    registerAsyncHandlers(List.of(payloadClass));
+                } else if (existing.isDone()) {
+                    existing.join();
+                }
+                // An incomplete registration under this reentrant lock belongs to this thread's initializer.
+            }
+        }
+    }
+
+    private void registerAsyncHandlers(List<?> handlers) {
+        synchronized (automaticHandlerRegistrations) {
+            var completion = new CompletableFuture<Void>();
+            handlers.stream().map(this::handlerType)
+                    .forEach(type -> automaticHandlerRegistrations.putIfAbsent(type, completion));
+            try {
+                registration = registration.merge(fluxzero.registerHandlers(handlers));
+                completion.complete(null);
+            } catch (RuntimeException | Error e) {
+                // Registration may already have installed some handlers. Do not retry and install duplicates.
+                completion.completeExceptionally(e);
+                throw e;
+            }
         }
     }
 

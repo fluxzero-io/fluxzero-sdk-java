@@ -17,6 +17,8 @@ Typical checks:
 
 `TestFixture.create(...)` runs synchronously in the same thread and is the default for focused behavior tests. Use `TestFixture.createAsync(...)` when testing asynchronous consumers, tracking behavior, and `@HandleError`. Given steps are processed and at rest before the When step runs; later Then assertions focus on the When step, not every setup message. For multi-step helpers, exact message counts, result extraction, and active-versus-new schedules, read scenario phases.
 
+The asynchronous fixture registers newly discovered `@TrackSelf` payloads and automatic Model commands before concurrent dispatch proceeds. A failed registration remains a failure for that type; use a fresh fixture after correcting its configuration, rather than retrying a partially installed handler.
+
 Use the fixture APIs rather than mocking internals:
 
 - `givenCommands`, `givenEvents`, `givenDocuments`, `givenStateful`, and schedule setup for preconditions.
