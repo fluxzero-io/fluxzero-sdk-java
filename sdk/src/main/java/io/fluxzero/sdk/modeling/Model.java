@@ -30,7 +30,12 @@ import java.lang.annotation.Target;
 /**
  * Marks an independently identified and stored domain model.
  * <p>
- * Unlike an {@link Aggregate}, a model is its own persistence and lifecycle boundary. Loading or updating it does not
+ * Prefer separate models for new domain state. Each model keeps its own history as relationships change; a model
+ * can move to another parent or gain additional relationships without transferring a containing root's history.
+ * Several models can still participate in one atomic operation through {@link Graph}.
+ * <p>
+ * Unlike an embedded member in a legacy {@link Aggregate}, a model is its own persistence and lifecycle boundary.
+ * Loading or updating it does not
  * require loading a parent, sibling, child, or an artificial aggregate root. A model may still contain embedded
  * entities declared with {@link Member @Member}; those members share the model's stream, cache, search document,
  * snapshots, and lifecycle.
@@ -162,7 +167,13 @@ public @interface Model {
     int snapshotPeriod() default 0;
 
     /**
-     * Maximum number of snapshots retained for this model. Values below {@code 1} are treated as {@code 1}.
+     * Target number of newest snapshots retained for this model. Any negative value retains all periodic snapshots;
+     * {@code 0} is treated as {@code 1}. This does not enable snapshots: {@link #snapshotPeriod()} must be positive.
+     * Unlimited retention does not prevent explicit physical erasure and does not change event-history retention.
+     * Enable negative values only after upgrading the Runtime to support unlimited Model snapshot retention.
+     * Concurrent Runtime writes may retain more; this is a cleanup target, not an exact count at commit completion.
+     * A later bounded snapshot write also trims earlier excess. An idle Model may retain excess until another such
+     * write; snapshot storage still completes before the commit is acknowledged.
      */
     int maxSnapshotCount() default 1;
 

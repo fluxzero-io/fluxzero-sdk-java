@@ -68,6 +68,26 @@ class ModelSourceDocumentMigrationTest {
                 });
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void returnedLiveGraphMigratesItsCanonicalNode(boolean async) {
+        TestFixture fixture = TestFixture.create(new GraphRewrite()).registerCasters(new MoveName());
+        if (async) { fixture = fixture.async(); }
+        fixture.whenExecuting(ModelSourceDocumentMigrationTest::seed)
+                .expectNoErrors().expectNoEvents().expectThat(fc -> {
+                    var current = fc.client().getSearchClient().fetchModelDocument(new GetDocument("project", SOURCE, true, true));
+                    assertEquals(1, current.getDocument().getDocument().getRevision());
+                    assertEquals(-1, current.getModelHead().getSequenceNumber());
+                    assertEquals(new Project("project", new Details("Legacy name")),
+                            Fluxzero.loadCurrentModelState("project", Project.class).value());
+                });
+    }
+
+    static class GraphRewrite {
+        @HandleDocument
+        io.fluxzero.sdk.modeling.Graph<Project> rewrite(io.fluxzero.sdk.modeling.Graph<Project> graph) { return graph; }
+    }
+
     @org.junit.jupiter.api.Test
     void sourceHandlerUsesItsConsumerNamespaceInsteadOfTheApplicationNamespace() {
         TestFixture.createAsync(new ArchiveRewrite()).registerCasters(new MoveName())

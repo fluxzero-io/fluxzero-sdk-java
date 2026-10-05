@@ -74,6 +74,7 @@ final class ModelPipeline {
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
+    private final MutationPlan.Compiler compiler;
     private final BiFunction<Class<?>, Class<?>, MutationPlan> definitions;
     private final java.util.function.BooleanSupplier localHandlingEnabled;
     private final ModelCommitAdmission commitAdmission = new ModelCommitAdmission();
@@ -90,6 +91,7 @@ final class ModelPipeline {
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
+            MutationPlan.Compiler compiler,
             BiFunction<Class<?>, Class<?>, MutationPlan> definitions,
             java.util.function.BooleanSupplier localHandlingEnabled) {
         this.repository = Objects.requireNonNull(repository, "repository");
@@ -101,6 +103,7 @@ final class ModelPipeline {
             throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
         }
         this.maxConflictRetries = maxConflictRetries;
+        this.compiler = Objects.requireNonNull(compiler, "compiler");
         this.definitions = Objects.requireNonNull(definitions, "definitions");
         this.localHandlingEnabled = Objects.requireNonNull(localHandlingEnabled, "localHandlingEnabled");
         this.awaitAfterHandlerCommitsBeforeResults =
@@ -162,7 +165,7 @@ final class ModelPipeline {
             CommitAttempt context = loader.resolveGraph(operation.modelId, operation.modelType, null, Map.of()).context();
             CommitAttempt evaluation;
             try {
-                evaluation = expandCascadeDeletes(operation.evaluate(context, loader, message), message);
+                evaluation = validateCascadingAssertions(expandCascadeDeletes(operation.evaluate(context, loader, message), message));
             } catch (Exception failure) {
                 Exception translated = repository.preparationFailure(
                         message.getMessageId(), context.readStateIndex(), failure);
@@ -428,8 +431,11 @@ final class ModelPipeline {
             boolean retry,
             boolean batched) {
         return switch (request.mode()) {
-            case ASSERT -> ModelReducer.assertLegal(
-                    attempt, request.message(), new CommitLoader(null));
+            case ASSERT -> {
+                CommitLoader loader = new CommitLoader(null);
+                loader.assertionsOnly = true;
+                yield ModelReducer.assertLegal(attempt, request.message(), loader);
+            }
             case REPLAY, MIGRATE -> ModelReducer.reapply(
                     attempt, List.of(request.message()),
                     new CommitLoader(null, true, request.mode() == Mode.MIGRATE));
@@ -823,9 +829,9 @@ final class ModelPipeline {
                 retryStateIndex(
                         staleEvaluation,
                         conflict);
-        return reevaluate(entry, message, () -> expandCascadeDeletes(
+        return reevaluate(entry, message, () -> validateCascadingAssertions(expandCascadeDeletes(
                 ModelReducer.retry(message, new CommitLoader(
-                        retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message));
+                        retryStateIndex, false, false, readsDocumentModel(staleEvaluation)), conflict), message)));
     }
 
     private static long retryStateIndex(
@@ -860,12 +866,18 @@ final class ModelPipeline {
             CommitAttempt attempt,
             DeserializingMessage initialMessage,
             PrefetchSlot prefetched) {
-        return expandCascadeDeletes(
+        return validateCascadingAssertions(expandCascadeDeletes(
                 ModelReducer.apply(
                         attempt, List.of(initialMessage),
                         new CommitLoader(
                                 null, false, false, false,
-                                initialMessage, prefetched)), initialMessage);
+                                initialMessage, prefetched)), initialMessage));
+    }
+
+    private CommitAttempt validateCascadingAssertions(CommitAttempt evaluation) {
+        ModelReducer.assertCurrentAfter(evaluation);
+        ModelReducer.assertCascades(evaluation, compiler);
+        return evaluation;
     }
 
     private CommitAttempt rebase(
@@ -1018,7 +1030,7 @@ final class ModelPipeline {
             List<String> roots = List.copyOf(rootsByCause.get(cause));
             DeserializingMessage cascadeMessage = source.withMessage(new Message(
                     new CascadedModelDeletion(roots), source.getMetadata(), null, source.getTimestamp()));
-            steps.add(new CommitAttempt.Step(cascadeMessage, List.copyOf(changes)));
+            steps.add(new CommitAttempt.Step(cascadeMessage, List.copyOf(changes), cause));
         });
         LinkedHashSet<String> readModelIds =
                 new LinkedHashSet<>(evaluation.readModelIds());
@@ -1115,6 +1127,7 @@ final class ModelPipeline {
     private final class CommitLoader implements ModelReducer.SubstepResolver {
         @Override
         public DefaultModelRepository repository() { return repository; }
+        @Override public MutationPlan.Compiler compiler() { return compiler; }
 
         private Long pinnedStateIndex;
         private final boolean applyOnly;
@@ -1123,6 +1136,7 @@ final class ModelPipeline {
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private boolean requiresStorageBoundary;
+        private boolean assertionsOnly;
         private boolean durableOnly;
         private boolean permitsDeferredBoundary;
         private CommitAttempt deferredContext;
@@ -1214,6 +1228,26 @@ final class ModelPipeline {
                             explicitTarget == null ? null : explicitTarget.modelId(),
                             explicitTarget == null ? null : explicitTarget.modelType(),
                             applyOnly);
+            if (boundary == null && !applyOnly && !requiresStorageBoundary) {
+                for (MutationPlan.ResolvedModel target : resolution.models()) {
+                    if ((assertionsOnly || target.access().writes())
+                        && definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        // A child cache cursor does not prove that a later-read ancestor is still current.
+                        // Standalone assertions have no commit conflict check to repair a stale successful result.
+                        requiresStorageBoundary = true;
+                        break;
+                    }
+                }
+            }
+            if (boundary == null && !applyOnly && !requiresStorageBoundary) {
+                for (MutationPlan.DeferredWriteTarget target : resolution.deferredWrites()) {
+                    if (definition.reducer().requiresCascadeStorageBoundary(substep, target.modelType(), assertionsOnly)) {
+                        // Result-bound writes can have only read-only inputs until Apply selects the actual target.
+                        requiresStorageBoundary = true;
+                        break;
+                    }
+                }
+            }
             return new ModelReducer.ResolvedSubstep(
                     resolve(resolution, boundary, stagedValues), definition.reducer());
         }
@@ -1308,6 +1342,12 @@ final class ModelPipeline {
                 }
                 return new MutationPlan.ResolvedModel(resolved, target.modelType(), target.access(), target.sourceProperties());
             }).toList();
+        }
+
+        @Override
+        public CommitAttempt resolveValidation(String id, Class<?> type, long boundary, Map<String, Object> values) {
+            return resolve(new MutationPlan.Resolution(List.of(new MutationPlan.ResolvedModel(
+                    id, type, MutationPlan.Access.READ_ONLY, List.of())), List.of()), boundary, values).withValues(values);
         }
 
         @Override
@@ -1521,6 +1561,8 @@ final class ModelPipeline {
             return null;
         }
         MutationPlan.ResolvedModel target = targets.resolveSingle(message);
+        if (target.access().writes()
+            && definition.reducer().requiresCascadeStorageBoundary(message, target.modelType(), false)) { return null; }
         // A cached document alone cannot establish the initial namespace boundary for later manual Graph reads.
         return EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().eventSourced()
                 ? new PrefetchSlot(target) : null;

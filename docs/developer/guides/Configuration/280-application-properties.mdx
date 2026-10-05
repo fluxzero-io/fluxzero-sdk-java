@@ -105,6 +105,14 @@ complete behavior.
 
 ---
 
+## Historical Graph strictness
+
+`fluxzero.model.graph.strict` (`FLUXZERO_MODEL_GRAPH_STRICT`) defaults to `false`. Historical Graphs normally use
+current DOCUMENT-only values when the historical document revision is unavailable, while retaining historical
+relationships and proven absence. Set it to `true` for exact historical reads, or use `graph.strict(true)` for one view.
+`graph.strict(false)` restores ordinary reads for that view. This property is independent of `fluxzero.defaults.version`;
+assertions, applies and replay remain strict. See [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs).
+
 ## Versioned defaults
 
 `fluxzero.defaults.version` lets new applications opt into newer SDK defaults while existing applications keep
@@ -122,6 +130,10 @@ An explicit `fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT
 Independent Model conflict handling is not version-gated: it defaults to `RETRY` for updates and creations.
 Use `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`) for an explicit `ACCEPT` or `FAIL` policy.
 
+Proxy HTTP/2 response headers default to a 16 KiB maximum independently of the defaults date.
+Override it with `fluxzero.proxy.http2MaxResponseHeaderSize`
+(`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE`); HTTP/1 and incoming header limits are unaffected.
+
 | Defaults version | Equivalent property | What changes |
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
@@ -129,6 +141,7 @@ Use `fluxzero.model.conflictPolicy` (`FLUXZERO_MODEL_CONFLICT_POLICY`) for an ex
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
+| `>= 2026.10.04` | `fluxzero.interceptApply.assertCurrent = true` | Validating operations check the current input before each selected interceptor. Annotation ENABLED/DISABLED overrides the property; set false to retain replacement-only checks. |
 
 For example:
 

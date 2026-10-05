@@ -55,8 +55,9 @@ searchable node and has a guarded, schema-only return contract: return its upcas
 revision. `source = DocumentSource.MODEL_STATE` permits the same maintenance for internal, non-searchable DOCUMENT
 state. Use Model commands to change business state or delete a Model.
 
-A `Graph<Project>` parameter observes Project and its included descendants. Returning that Graph can migrate only
-an ASYNC/AWAIT aggregate document; at NONE a return value has no storage side effect. See
+A `Graph<Project>` parameter observes Project and its included descendants. Returning that Graph migrates evolved
+canonical nodes in NONE, ASYNC and AWAIT. Select `graphMigration = GraphMigrationTarget.PROJECTION` for only the stored
+ASYNC/AWAIT composition. See
 [Testing Model migrations](../model-migration-tests).
 
 `@HandleDocument` can also be used to **update documents in place**.
@@ -83,6 +84,43 @@ If the handler returns a **newer revision** of the document, Fluxzero will reind
 </Tabs>
 
 The returned value replaces the previous document (same ID), **only if** it has a **higher `@Revision`**.
+
+A plain returned document retains all metadata from the exact stored version being handled, including through
+upcasting. Derived search indexes/exclusions are regenerated from the replacement. Tracking metadata such as the envelope's `$start` and `$end` is not persisted as document metadata.
+Existing document timestamps remain in effect unless the returned type declares timestamp/end paths.
+
+For an ordinary document, return a `Message` to explicitly replace the complete metadata map. Its payload still
+needs a higher revision; its message ID and timestamp do not override the document's identity or indexed times.
+Use `Metadata.empty()` to remove all document metadata. Returning `null` directly retains the deletion behavior.
+Only payload and metadata participate in this write; other Message envelope fields are ignored.
+
+A custom `Serializer.deserializeMessages(...)` implementation may buffer, reorder or split a document batch.
+If it constructs entirely new envelopes or decoded messages, call
+`DocumentMessageReader.retainSource(decodedOutput, originalInput)` for every corresponding output, keeping the
+original stored input before transformations. Standard input-envelope `withData`, `withMetadata` and `withSegment`
+operations preserve that source automatically. The helper transfers the original document bytes for metadata
+preservation; the custom serializer still owns ordinary message identity, revision and transport fields.
+See `DocumentMessageReader.retainSource` Javadoc for the complete extension contract.
+
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @HandleDocument("users")
+    Message upgrade(UserAccount user) {
+        return new Message(user, Metadata.of("source", "migration"));
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @HandleDocument("users")
+    fun upgrade(user: UserAccount): Message =
+        Message(user, Metadata.of("source", "migration"))
+    ```
+  </TabItem>
+</Tabs>
+
 
 <Aside type="tip">
 This creates a powerful and durable upgrade path — ideal for data normalization, filling missing fields, or
@@ -188,15 +226,41 @@ JSON for search, return the complete Graph from a dedicated handler:
   </TabItem>
 </Tabs>
 
-Fluxzero writes only when at least one node's serialized type or revision evolved. A JSON-shape migration requires a revision change; changing JSON alone at the same type and revision does not trigger a rewrite. The returned Graph must retain
-the handled root, state boundary, nodes and placements. The operation changes only the derived projection: direct
-Models, their event histories, relationships and projection progress remain untouched. The Runtime compares the
-original manifest atomically, so a delayed handler cannot overwrite a newer projection; returning an already-current
-Graph is a no-op. A root deletion remains observational and cannot be rematerialized.
+Fluxzero migrates only nodes whose serialized type or revision evolved. Raise `@Revision` for a JSON-shape change.
+The returned Graph must retain its injected values, root, state boundary, nodes and placements; business mutations
+are rejected. Each evolved node is deduplicated and the SDK upcasts its **verified current canonical source**. It never
+copies stale business values from the handled Graph into newer Modelstate. The write checks the complete Model head
+and source proof; contention is re-read up to three writes, then fails handling. The consumer's error policy determines
+whether that failure is retried, logged with continuation (the default), or stops the affected tracker until explicit
+restart. Deleted nodes stay deleted. An already-migrated source is a no-op.
 
-This projection-replacement operation requires a Runtime that supports it. An older Runtime fails the unsupported
-request explicitly instead of applying a partial fallback. Applications that do not use this handler remain on their
-existing compatible protocol path.
+This works in NONE too. The Runtime records each changed node durably and refreshes only affected ancestor/root
+projections or update markers, respecting search scope and depth. Schema-only revision changes do not restart full
+scans. Changes to composition settings, participating Model types or an explicit rebuild still can.
+
+Node writes complete before the handler completes. Derived projections follow durably; `AWAIT` continues to promise
+completion for ordinary **Model commits**, not a schema-migration barrier. Verify new query paths after migration
+catch-up. Migration is per node and idempotent after partial failure, not an atomic business operation over a Graph.
+Model history, relationships and business-state indexes remain unchanged. Custom `DocumentSerializer` implementations
+must provide `modelStateSnapshot` for immutable logical-state comparison; the built-in Jackson serializer does so.
+The projection-only option below retains the earlier serializer contract.
+
+For a deliberate projection-only migration, use the same Java or Kotlin handler with:
+
+```java
+@HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)
+```
+
+This preserves the earlier contract: compare the handled manifest and rewrite only its stored ASYNC/AWAIT
+composition. Custom projection metadata is preserved while the evolved Graph manifest replaces its previous value.
+NONE returns are observational. A later projection rebuilt from unchanged canonical sources may restore
+old paths, so use this option only when maintaining a derived representation is intentional.
+
+Deploy the compatible Runtime before enabling migration consumers. Older Runtimes supporting source rewrites can
+still upcast nodes but may rebuild entire Modeltype projections; upgrade all projector instances for targeted work
+and its schema fence. Existing type-only invalidations are drained through the legacy rebuild route. No defaults
+version is needed: canonical-node migration is the default for Graph returns; the annotation provides the explicit
+compatibility option.
 
 ---
 

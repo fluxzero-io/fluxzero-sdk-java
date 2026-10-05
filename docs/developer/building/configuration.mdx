@@ -1,0 +1,40 @@
+---
+title: Configure settings and secrets
+description: Put live application configuration at the intended scope and verify how the workload receives it.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+Use this guide when your app needs a live setting such as an external-service endpoint, provider credential or sign-in configuration. You need access to manage variables for the intended organization, cluster or application.
+
+<div className="guide-context"><span>Dashboard → Variables</span><span>Application or shared scope</span></div>
+
+<div className="guide-steps">
+<Steps>
+
+1. ## Identify the exact setting
+
+   Ask your agent for the property name, purpose, expected format, whether it is secret and how the application reads it. A local demo value is not a production value. Establish whether the setting belongs to one application or is deliberately shared.
+
+   Open the target's **Variables** page in the dashboard. Check existing and inherited values before adding another. Editing a shared source can affect more than the application you are currently looking at; inspect the source label and scope before saving.
+
+2. ## Store it with the right access method
+
+   Enter the required key/value and enable **Store as secret** for credentials or other sensitive settings. In the advanced secret options, **Fluxzero configuration** is the default access method; **Process environment** is available when the receiving program needs an environment variable.
+
+   Match that choice to the consumer. An application using Fluxzero configuration and an external process reading an environment variable do not necessarily read the same channel. Let the agent identify the required method without copying the secret value into a prompt, committed file or log.
+
+   Stored secrets can be replaced; the stored reference is not the original value. Retain any previous value needed for rollback in your own approved secret store.
+
+3. ## Apply and verify
+
+   Save the setting. Ask your agent how the running application loads that particular property and whether deployment/restart is required. Do not assume an already-running process has reread it just because the dashboard saved it.
+
+   Check the intended application version and tasks, then try the flow that uses the setting. Verify connection success or expected behavior without printing the credential. If it fails, inspect the scope, key spelling, delivery method and relevant runtime error before changing multiple settings together.
+
+   For a failed change, restore the previous configuration through the same scope and repeat the appropriate restart/deployment and functional check. Code rollback alone does not restore variables. See [deployment troubleshooting](/docs/building/deployment-problems) and [recovery](/docs/building/recovery).
+
+   <div className="guide-result"><strong>Setting verified</strong><p>The intended running app can use the setting, and its related user flow succeeds without exposing the secret.</p></div>
+
+</Steps>
+</div>

@@ -26,6 +26,7 @@ import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
+import io.fluxzero.sdk.tracking.handling.GraphMigrationTarget;
 import io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics;
 
 import java.lang.annotation.Annotation;
@@ -82,6 +83,11 @@ public final class MaterializedGraphParameterResolver
         return input -> {
             DeserializingMessage message = requireDocumentMessage(input);
             Graph<?> graph = create(message, rootType, pathOverrides);
+            if (annotation.graphMigration() == GraphMigrationTarget.MODEL_STATE
+                    && parameter.getDeclaringExecutable() instanceof java.lang.reflect.Method method
+                    && Graph.class.isAssignableFrom(method.getReturnType())) {
+                GraphSourceDocumentMigration.capture(message, method, graph, documentSerializer);
+            }
             return DocumentMessageReader.isLiveGraph(message) ? io.fluxzero.sdk.modeling.Graphs.withoutHistory(graph) : graph;
         };
     }

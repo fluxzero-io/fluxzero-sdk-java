@@ -237,10 +237,23 @@ public class LocalClient extends AbstractClient {
                 .setModelCommitMaterializer(
                         result::prepareModelCommit);
         eventStore.getMessageStore().setModelErasureMaterializer(result::eraseModels);
+        eventStore.getMessageStore().setModelReindexer(result, result::prepareModelReindex);
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(
-                        result::prepareModelGraphProjection);
-        result.setModelSchemaInvalidation(eventStore.getMessageStore()::invalidateModelGraphSchema);
+                        new io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionMaterializer() {
+                            @Override
+                            public Runnable materialize(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration configuration,
+                                                        java.util.Set<String> roots, long boundary, boolean rebuild) {
+                                return result.prepareModelGraphProjection(configuration, roots, boundary, rebuild);
+                            }
+
+                            @Override
+                            public Runnable materializeSchema(io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration configuration,
+                                                              java.util.Set<String> roots, long boundary) {
+                                return result.prepareModelGraphSchemaProjection(configuration, roots, boundary);
+                            }
+                        });
+        result.setModelNodeSchemaInvalidation(eventStore.getMessageStore()::invalidateModelGraphSchema);
         return result;
     }
 

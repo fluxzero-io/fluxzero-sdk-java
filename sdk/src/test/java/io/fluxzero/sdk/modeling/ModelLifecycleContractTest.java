@@ -316,7 +316,7 @@ class ModelLifecycleContractTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void documentOnlyDoesNotPromiseHistoricalModelState(boolean async) {
+    void documentOnlyGraphUsesRetainedEventsForPreviousValues(boolean async) {
         fixture(async).givenCommands(new PutDocumentOnly("document-only", 1))
                 .whenCommand(new PutDocumentOnly("document-only", 2))
                 .expectSuccessfulResult().expectNoErrors()
@@ -324,7 +324,10 @@ class ModelLifecycleContractTest {
                     fc.cache().clear();
                     Graph<DocumentOnly> graph = Fluxzero.loadGraph("document-only", DocumentOnly.class);
                     assertEquals(2, graph.get().value());
-                    assertNull(graph.previous());
+                    // This DOCUMENT model also stores its events, so the exact older value remains reconstructible.
+                    assertEquals(1, graph.previous().get().value());
+                    assertTrue(graph.previous().revisionStateIndex() < graph.revisionStateIndex());
+                    assertNull(graph.strict(true).previous());
                 });
     }
 

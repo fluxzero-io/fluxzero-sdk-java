@@ -131,6 +131,7 @@ public class InMemorySearchStore implements SearchClient {
             ConcurrentHashMap.newKeySet();
     private final Map<String, Long> documentIndices =
             new ConcurrentHashMap<>();
+    private final Map<String, Long> modelStorageIndices = new ConcurrentHashMap<>();
     private final AtomicLong nextDocumentIndex = new AtomicLong();
     private volatile long modelStateIndex = -1L;
     private final Map<String, Long>
@@ -485,14 +486,58 @@ public class InMemorySearchStore implements SearchClient {
                                             + "; use a Model commit to update state, not an ordinary document write");
         }
         return new GetDocumentResult(
-                request.getRequestId(), document, head, request.isVerifyModelState());
+                request.getRequestId(), document, head, request.isVerifyModelState(),
+                document == null ? null : modelStorageIndices.get(asIdentifier(request.getCollection(), request.getId())));
     }
 
-    private java.util.function.Consumer<String> modelSchemaInvalidation = ignored -> { };
+    private java.util.function.BiConsumer<String, String> modelSchemaInvalidation = (id, type) -> { };
 
     /** Binds schema-only source rewrites to the local worker's retained rebuild requests. */
     public void setModelSchemaInvalidation(java.util.function.Consumer<String> listener) {
+        java.util.Objects.requireNonNull(listener);
+        modelSchemaInvalidation = (id, type) -> listener.accept(type);
+    }
+
+    /** Binds schema rewrites to retained work for individual Model nodes. */
+    public void setModelNodeSchemaInvalidation(java.util.function.BiConsumer<String, String> listener) {
         modelSchemaInvalidation = java.util.Objects.requireNonNull(listener);
+    }
+
+    /**
+     * Prepares one source write while the owning Model store holds its head lock. Publications run after that lock.
+     * A null result means a conflict; a no-op publication is a successful cutoff skip.
+     */
+    public synchronized Runnable prepareModelReindex(io.fluxzero.common.api.modeling.ReindexModel request) {
+        request.validate();
+        var document = request.getDocument();
+        String key = asIdentifier(document.getCollection(), document.getId());
+        if (isErasedModel(document.getId())) { return null; }
+        DirectDocumentVersion version = modelDocumentVersions.get(key);
+        SerializedDocument current = documents.get(key);
+        if (version == null) {
+            if (current != null || request.getExpectedProof() != null || !request.getExpectedHead().isHistoryComplete()) {
+                return null;
+            }
+        } else {
+            if (version.projection() || version.head().getStateIndex() > request.getExpectedHead().getStateIndex()
+                || version.head().isDeleted() || !Objects.equals(version.head().getModelType(), request.getExpectedHead().getModelType())
+                || !Objects.equals(version.proof(), of(current, version.head()))) { return null; }
+            Long stored = modelStorageIndices.get(key);
+            if (current != null && version.head().equals(request.getExpectedHead()) && request.getCutoff() != null && stored != null && stored >= request.getCutoff()) {
+                return () -> { };
+            }
+            if (!Objects.equals(request.getExpectedProof(), version.proof())) { return null; }
+        }
+        documents.put(key, document);
+        collections.add(document.getCollection());
+        documentIndices.put(key, nextDocumentIndex.incrementAndGet());
+        modelStorageIndices.put(key, System.currentTimeMillis() << 16);
+        modelDocumentVersions.put(key, new DirectDocumentVersion(document.getCollection(), request.getExpectedHead(), document));
+        Runnable publication = prepareMessages(Map.of(key, document));
+        return () -> {
+            modelSchemaInvalidation.accept(document.getId(), request.getExpectedHead().getModelType());
+            publication.run();
+        };
     }
 
     @Override
@@ -510,11 +555,12 @@ public class InMemorySearchStore implements SearchClient {
                 return CompletableFuture.completedFuture(null);
             }
             documents.put(key, document);
+            modelStorageIndices.put(key, System.currentTimeMillis() << 16);
             documentIndices.put(key, nextDocumentIndex.incrementAndGet());
             modelDocumentVersions.put(key, new DirectDocumentVersion(document.getCollection(), version.head(), document));
             publication = prepareMessages(Map.of(key, document));
         }
-        modelSchemaInvalidation.accept(request.getExpectedHead().getModelType());
+        modelSchemaInvalidation.accept(request.getDocument().getId(), request.getExpectedHead().getModelType());
         publication.run();
         return CompletableFuture.completedFuture(null);
     }
@@ -782,6 +828,7 @@ public class InMemorySearchStore implements SearchClient {
                 return false;
             }
             documentIndices.remove(entry.getKey());
+            modelStorageIndices.remove(entry.getKey());
             return true;
         });
         return CompletableFuture.completedFuture(null);
@@ -794,6 +841,7 @@ public class InMemorySearchStore implements SearchClient {
             String key = identifier.apply(document);
             documents.remove(key);
             documentIndices.remove(key);
+            modelStorageIndices.remove(key);
         });
         return index(matches.stream().map(d -> d.withCollection(targetCollection)).toList(),
                      guarantee, false);
@@ -804,6 +852,7 @@ public class InMemorySearchStore implements SearchClient {
         String key = asIdentifier(collection, documentId);
         documents.remove(key);
         documentIndices.remove(key);
+        modelStorageIndices.remove(key);
         return CompletableFuture.completedFuture(null);
     }
 
@@ -847,6 +896,7 @@ public class InMemorySearchStore implements SearchClient {
         String key = asIdentifier(collection, documentId);
         SerializedDocument document = documents.remove(key);
         documentIndices.remove(key);
+        modelStorageIndices.remove(key);
         if (document == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -1003,6 +1053,7 @@ public class InMemorySearchStore implements SearchClient {
                             if (document == null) {
                                 documents.remove(documentKey);
                                 documentIndices.remove(documentKey);
+                                modelStorageIndices.remove(documentKey);
                             } else {
                                 documents.put(
                                         identifier.apply(document),
@@ -1010,6 +1061,7 @@ public class InMemorySearchStore implements SearchClient {
                                 documentIndices.put(
                                         documentKey,
                                         nextDocumentIndex.incrementAndGet());
+                                if (role == 0) { modelStorageIndices.put(documentKey, System.currentTimeMillis() << 16); }
                                 indexed.put(
                                         identifier.apply(document),
                                         document);
@@ -1071,6 +1123,7 @@ public class InMemorySearchStore implements SearchClient {
         removed.forEach(key -> {
             documents.remove(key);
             documentIndices.remove(key);
+            modelStorageIndices.remove(key);
             modelGraphProjectionStateIndices.remove(key);
         });
         modelDocumentVersions.entrySet().removeIf(entry -> modelIds.contains(entry.getValue().head().getModelId()));
@@ -1125,8 +1178,14 @@ public class InMemorySearchStore implements SearchClient {
             boolean rebuild) {
         synchronized (this) {
             return prepareModelGraphProjectionSynchronized(
-                    configuration, rootIds, stateIndex, rebuild);
+                    configuration, rootIds, stateIndex, rebuild, false);
         }
+    }
+
+    /** Re-materializes only affected roots at the same business boundary after a source schema rewrite. */
+    public synchronized Runnable prepareModelGraphSchemaProjection(
+            ModelGraphProjectionConfiguration configuration, Set<String> rootIds, long stateIndex) {
+        return prepareModelGraphProjectionSynchronized(configuration, rootIds, stateIndex, false, true);
     }
 
     private Runnable prepareModelGraphProjectionSynchronized(
@@ -1134,7 +1193,7 @@ public class InMemorySearchStore implements SearchClient {
                     configuration,
             Set<String> rootIds,
             long stateIndex,
-            boolean rebuild) {
+            boolean rebuild, boolean schemaChange) {
         if (modelGraphResolver == null
             || modelDocumentCollectionResolver
                == null) {
@@ -1187,8 +1246,7 @@ public class InMemorySearchStore implements SearchClient {
                     modelGraphProjectionStateIndices
                             .getOrDefault(
                                     projectionKey, -1L);
-            if (!rebuild
-                && current >= stateIndex) {
+            if (!rebuild && (current > stateIndex || current == stateIndex && !schemaChange)) {
                 continue;
             }
             SerializedDocument root =
@@ -1323,6 +1381,9 @@ public class InMemorySearchStore implements SearchClient {
     private void trimModelSnapshots(
             String modelId,
             int configuredMaximum) {
+        if (configuredMaximum < 0) {
+            return;
+        }
         int maximum =
                 Math.max(1, configuredMaximum);
         List<SerializedDocument> snapshots =
@@ -1408,6 +1469,7 @@ public class InMemorySearchStore implements SearchClient {
                     return false;
                 }
                 documentIndices.remove(entry.getKey());
+                modelStorageIndices.remove(entry.getKey());
                 return true;
             });
             messageLogs.remove(collection);

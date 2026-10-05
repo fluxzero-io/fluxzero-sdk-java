@@ -162,6 +162,31 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
     private boolean automaticModelRouting;
+    private GraphProjectionCompletion reindexProjectionCompletion = GraphProjectionCompletion.ASYNC;
+    private boolean documentFallback = true;
+
+    /** Configures the application default before this repository is used. Namespace views inherit it. */
+    public void configureGraphStrict(boolean strict) { documentFallback = !strict; }
+
+    @Override
+    public boolean documentFallbackEnabled() { return documentFallback; }
+
+    @Override
+    public Object historicalDocumentFallback(String modelId, Class<?> modelType, ModelReadBoundary boundary,
+                                              RuntimeException failure) {
+        if (!(failure instanceof ModelReplayCursor.GraphBoundaryMovedException moved)
+            || !modelId.equals(moved.documentModelId) || !boundary.historical()
+            || EntityMetadata.validate(modelType).rootConfiguration().orElseThrow().eventSourced()) {
+            throw failure;
+        }
+        ModelReadBoundary selected = boundary.before()
+                ? ModelReadBoundary.at(boundary.stateIndex() - 1) : boundary;
+        ModelGraphResolver.Identity identity = graphIdentity(modelId, true, modelType, selected);
+        if (!identity.present()) { return null; }
+        // Exact persisted ID: an alias reassignment must never redirect a historical node's fallback.
+        return resolveCurrentGraphIdentity(modelId, true, modelType, ModelBatchScope.Snapshot.EMPTY).entity().get().get();
+    }
+
     private UnaryOperator<DeserializingMessage> replayRestoration = UnaryOperator.identity();
 
     public DefaultModelRepository(
@@ -186,9 +211,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             String modelNamePrefix) {
+        this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache, parameterResolvers,
+             modelNamePrefix, ApplicationProperties.assertCurrent());
+    }
+
+    /** Creates a repository with the owning application's resolved interceptor validation default. */
+    public DefaultModelRepository(Client client, DocumentStore documentStore, Serializer serializer,
+                                  EntityHelper entityHelper, Serializer snapshotSerializer, Cache cache,
+                                  List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                                  String modelNamePrefix, boolean assertCurrentDefault) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
              new MutationPlan.Compiler(Objects.requireNonNull(
-                     parameterResolvers, "parameterResolvers")),
+                     parameterResolvers, "parameterResolvers"), assertCurrentDefault),
              new AtomicReference<>(), modelNamePrefix, new ConcurrentHashMap<>(), new Object(), new AtomicReference<>());
     }
 
@@ -257,6 +291,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName, cacheOwner, owningApplication);
         result.configureModelTypes(modelTypes);
         result.configureAutomaticModelRouting(automaticModelRouting);
+        result.configureGraphProjectionCompletion(reindexProjectionCompletion);
+        result.configureGraphStrict(!documentFallback);
         result.configureReplayRestoration(replayRestoration);
         return result;
     }
@@ -668,6 +704,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         automaticModelRouting = enabled;
     }
 
+    /** Configures the application default for explicit reindex completion before the repository is used. */
+    public void configureGraphProjectionCompletion(GraphProjectionCompletion completion) {
+        reindexProjectionCompletion = Objects.requireNonNull(completion).orElse(GraphProjectionCompletion.ASYNC);
+    }
+
+    @Override
+    public ModelDiagnostics diagnostics() {
+        return new ModelDiagnostics(client.getEventStoreClient(), this, serializer);
+    }
+
     @Override
     public String modelName(Class<?> modelType) {
         String name = io.fluxzero.sdk.modeling.ModelNames.name(modelType, modelNamePrefix);
@@ -970,6 +1016,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
         ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected);
         pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public Map<String, ModelGraphResolver.Identity> resolveBoundGraphIdentities(Map<String, Class<?>> modelTypes) {
+        modelTypes.values().forEach(this::modelName);
+        PinnedBoundary handler = handlerBoundary();
+        ModelReadBoundary selected = handler == null ? ModelReadBoundary.current() : boundary(handler);
+        var result = replayCursor.boundGraphIdentities(modelTypes, selected, modelCacheTracker);
+        result.values().stream().findFirst().ifPresent(identity -> pin(handler, identity.boundary().stateIndex()));
         return result;
     }
 
@@ -1758,6 +1814,76 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     @Override
+    public void reindex(@NonNull String modelId, @NonNull Class<?> modelType) {
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        String collection = sourceCollection(metadata).orElseThrow(() ->
+                new IllegalArgumentException("Reindex requires a maintained Model source: " + modelType.getName()));
+        Long cutoff = io.fluxzero.sdk.tracking.Tracker.current()
+                .map(tracker -> tracker.getConfiguration().getMaxIndexExclusive()).orElse(null);
+        if (cutoff != null && (cutoff <= 0 || cutoff > (System.currentTimeMillis() << 16))) {
+            throw new IllegalArgumentException("Reindex requires a fixed past consumer time cutoff");
+        }
+        GraphProjectionCompletion completion = Tracker.current().map(Tracker::getConfiguration)
+                .map(configuration -> configuration.getGraphProjectionCompletion()).orElse(GraphProjectionCompletion.DEFAULT);
+        List<Class<?>> awaited = EntityMetadata.graphProjectionRoots(modelType, modelTypes).stream()
+                .filter(root -> completion.orElse(root.projection().mode().completion())
+                        .orElse(reindexProjectionCompletion) == GraphProjectionCompletion.AWAIT)
+                .map(EntityMetadata.GraphProjectionRoot::modelType).distinct().toList();
+        awaited.forEach(type -> registerGraphProjection(type, false).join());
+        var searchClient = client.getSearchClient();
+        DocumentSerializer documents = documentStore.getSerializer();
+        for (int attempt = 0; attempt < 8; attempt++) {
+            var source = searchClient.fetchModelDocument(new GetDocument(modelId, collection, true, true));
+            if (!source.isModelStateVerified()) {
+                throw new UnsupportedOperationException("Reindex requires verified Model source support");
+            }
+            if (source.getDocument() != null && cutoff != null && source.getModelStorageIndex() != null
+                && source.getModelStorageIndex() >= cutoff) {
+                awaitReindexProjections(awaited, modelId, source.getModelHead().getStateIndex());
+                return;
+            }
+            var expected = replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current()).heads().get(modelId);
+            if (expected == null || expected.isDeleted()) { return; }
+            if (!modelName(modelType).equals(expected.getModelType())) {
+                throw new IllegalArgumentException("Reindex Model type does not match stored head: " + modelId);
+            }
+            if (source.getModelHead() != null
+                && source.getModelHead().getStateIndex() > expected.getStateIndex()) { continue; }
+            // Bypass both historical handler boundaries and uncommitted batch overlays.
+            Entity<?> current = loadDurable(modelId, modelType, ModelReadBoundary.at(expected.getStateIndex()), null);
+            if (current.isEmpty() || !expected.equals(
+                    replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current()).heads().get(modelId))) { continue; }
+            var old = source.getDocument();
+            var settings = metadata.rootConfiguration().orElseThrow();
+            boolean sameHead = old != null && expected.equals(source.getModelHead());
+            Instant begin = parseTimeProperty(settings.timestampPath().isBlank() ? null : settings.timestampPath(),
+                    current.get(), false, () -> sameHead
+                            ? old.getTimestamp() == null ? null : Instant.ofEpochMilli(old.getTimestamp()) : current.timestamp());
+            Instant end = parseTimeProperty(settings.endPath().isBlank() ? null : settings.endPath(),
+                    current.get(), true, () -> sameHead
+                            ? old.getEnd() == null ? null : Instant.ofEpochMilli(old.getEnd()) : begin);
+            SerializedDocument document = documents.toDocument(current.get(), modelId, collection, begin, end,
+                    old == null ? Metadata.empty() : old.getMetadata().without(io.fluxzero.common.search.ModelSearchDocument.SUMMARY));
+            document = metadata.isSearchable() ? io.fluxzero.common.search.ModelSearchDocument.preserveSummary(document)
+                    : document.withoutSearchIndexes();
+            var request = new io.fluxzero.common.api.modeling.ReindexModel(document, expected,
+                    old == null ? null : io.fluxzero.common.modeling.ModelDocumentProof.of(old, source.getModelHead()), cutoff);
+            if (client.getEventStoreClient().reindexModel(request).join()) {
+                awaitReindexProjections(awaited, modelId, expected.getStateIndex());
+                return;
+            }
+        }
+        throw new EventSourcingException("Model changed repeatedly during reindex; retry: " + modelId);
+    }
+
+    private void awaitReindexProjections(List<Class<?>> awaited, String modelId, long stateIndex) {
+        CompletableFuture.allOf(awaited.stream().map(type -> client.getEventStoreClient().awaitModelGraphProjection(
+                new io.fluxzero.common.api.modeling.AwaitModelGraphReindex(
+                        graphProjectionDefinition(type).getCollection(), stateIndex, List.of(modelId))))
+                .toArray(CompletableFuture[]::new)).join();
+    }
+
+    @Override
     public <T> ModelState<T> loadCurrentState(@NonNull String modelId, @NonNull Class<T> modelType) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         modelName(modelType);
@@ -1773,6 +1899,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             try {
                 document = loadDocumentUnchecked(modelId, modelType, metadata, false, true);
             } catch (RuntimeException failure) {
+                if (failure instanceof ModelReadException contextual) { throw contextual; }
                 throw new EventSourcingException(
                         "Current-state read for Model '%s' (%s) failed document verification or decoding"
                                 .formatted(modelId, modelType.getName()), failure);
@@ -1853,9 +1980,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .formatted(modelId, storedType.getName(), modelType.getName()));
             }
         }
-        Object value = result.getDocument() == null
-                ? null : documentStore.getSerializer()
-                        .fromDocument(result.getDocument(), modelType);
+        Object value;
+        try {
+            value = result.getDocument() == null ? null
+                    : documentStore.getSerializer().fromDocument(result.getDocument(), modelType);
+        } catch (RuntimeException failure) {
+            var document = result.getDocument();
+            throw ModelReadException.failure(ModelReadException.Kind.DECODING_FAILURE,
+                    ModelReadException.Operation.READ_DOCUMENT, modelId,
+                    head == null ? null : head.getModelType(), modelType,
+                    document == null ? null : document.serializedDataIfPresent().orElse(null),
+                    documentStore.getSerializer() instanceof Serializer documentSerializer ? documentSerializer : null, failure);
+        }
         if (value != null && !modelType.isInstance(value)) {
             throw new EventSourcingException(
                     "Direct Model document '%s' contains %s instead of %s"

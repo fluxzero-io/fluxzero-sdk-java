@@ -39,12 +39,13 @@ class CompanionAliasTest {
         var client = spy(LocalClient.newInstance(null));
         var store = spy(client.getEventStoreClient());
         doReturn(store).when(client).getEventStoreClient();
-        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+        // Measure cold-read I/O without an independent cache-refresh worker using the same store.
+        try (var app = DefaultFluxzero.builder().disableAutomaticModelCaching()
+                .disableKeepalive().disableShutdownHook().build(client)) {
             app.apply(fc -> {
                 var id = new ProjectId("one");
                 fc.executeModelCommit(Message.asMessage(new CreateProject(id))).join();
                 fc.executeModelCommit(Message.asMessage(new CreateDetails(id, "lookup"))).join();
-                ((DefaultModelRepository) fc.modelRepository()).invalidateModels(List.of("details-" + id));
                 clearInvocations(store);
                 assertEquals(new Details(id, "lookup"), read("lookup", graph ? Read.GRAPH : Read.MODEL));
                 var requests = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);

@@ -33,7 +33,9 @@ import java.lang.annotation.Target;
  * parent stateful handler.
  *
  * <p>
- * For a {@link Model}, choose {@code @Member} only when the nested value deliberately has no independent lifecycle:
+ * {@code @Member} remains supported and is not deprecated, including its use in {@code @Stateful} handlers.
+ * Prefer separate {@link Model} types for new domain state so histories and relationships can evolve independently.
+ * Choose {@code @Member} when the nested value deliberately has no independent persistence lifecycle:
  * creation, change history, retention, and deletion all belong to the root. State that can live or evolve
  * independently is another {@link Model}, connected through {@link Parent}, even when it is normally rendered as an
  * item in a root collection. A meaningful identity is strong evidence of that independent lifecycle, but the identity

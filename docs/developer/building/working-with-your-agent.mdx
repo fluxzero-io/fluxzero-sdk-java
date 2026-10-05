@@ -1,0 +1,67 @@
+---
+title: You, your agent and Fluxzero
+description: Build effectively with short product prompts, an inside-out approach, and behavior tests that protect your progress.
+---
+
+import { Card, LinkCard } from '@astrojs/starlight/components';
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+Building with Fluxzero keeps the work focused on your product. Your agent writes its code and tests; the platform supplies the infrastructure and the plugin supplies the framework guidance. This division of work makes short prompts and a small amount of coordination effective.
+
+<div className="guide-roles">
+  <Card title="You decide" icon="pencil">The people, rules and experience that make the product useful.</Card>
+  <Card title="Your agent builds" icon="comment">Product code, behavior tests and improvements based on feedback.</Card>
+  <Card title="Fluxzero runs it" icon="setting">Hosting, data, message delivery, security mechanisms and observability.</Card>
+</div>
+
+## Keep prompts about the product
+
+A product rule gives your agent a goal it can implement and test. “Let people cancel until 24 hours before the workshop starts” is useful guidance: it describes a decision the product must enforce.
+
+Let the agent choose how to implement it. The plugin provides the technical guidance, so your prompt can stay about the behavior you want.
+
+<span id="product-choices-remain-explicit"></span>
+
+You can resolve product choices as they become relevant. Start with a useful version, try it, then refine it with concrete feedback.
+
+## Build from the inside out
+
+Establish the rules before connecting services and putting a screen on top. For a booking feature, that looks like this:
+
+<GuideFlow label="Build a feature from the inside out" stages={[
+  { title: 'Logic + tests', description: 'Reserve a place. Refuse overbooking. Check who can cancel.' },
+  { title: 'Integrations', description: 'Connect confirmation email. Check delivery, failure and retries.' },
+  { title: 'APIs + UI', description: 'Let visitors book and see their reservations. Try the whole flow.' },
+]} caption="Try it → refine it → repeat for the next feature." />
+
+This is a short loop per feature. You can skip integrations a feature does not need. A change to an existing screen can stay focused on that screen, preserving the rules underneath it.
+
+## Why the work can stay simple
+
+Fluxzero takes care of infrastructure plumbing: storing state, delivering messages, scheduling work, recovery and observability. Your agent spends its effort on product behavior instead of assembling those facilities for every app.
+
+<span id="completion-needs-evidence"></span>
+
+**Behavior tests protect your progress.** Once “a full workshop refuses another reservation” is a test, it can catch a later change that breaks that rule. The development environment runs affected tests as code changes. Keep adding scenarios as your product grows, and try the complete app as well. [Understanding the evidence](/docs/building/understanding-evidence) explains what the preview, tests and progress each tell you.
+
+## Keep instructions and coordination small
+
+**Keep your own notes short.** The plugin supplies the workflow and retrieves SDK guidance matched to the project. Record product decisions, external constraints and how to run the app. Let code, tests and Progress carry the detail.
+
+**Start with one capable agent.** You do not need an army of agents to move quickly. Bring in another agent for a clearly independent task or review when useful. Keep one coherent product conversation and one managed development environment.
+
+<span id="aim-for-a-useful-product-quickly"></span>
+
+## A short path to production
+
+The first working version already builds on the foundation your live product uses. Fluxzero provides and operates the hardened infrastructure for data, message delivery, recovery and observability. Your agent builds tests around your product rules as it implements them. Much of the work that usually separates a demo from a production product is already covered.
+
+That makes it practical to release a useful first version early. The remaining work is specific to your product: its live sign-in and settings, any external services, and checking the experience your users will get. The code and behavior tests carry forward as the product grows. See [Local and live environments](/docs/building/environments) for how the environments relate.
+
+## The code remains your project
+
+You have the code, its tests and its history in source control. You or a developer can inspect, change and extend the same project directly.
+
+<LinkCard title="Start an app from your idea" description="Give your agent a product prompt and make the first version real." href="/docs/building/start-an-app" />
+
+Already building? [Check and improve a feature](/docs/building/test-and-improve).

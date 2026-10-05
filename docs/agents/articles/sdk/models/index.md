@@ -26,7 +26,7 @@ Choose the focused state, actions or Graph article for the application's languag
 
 - State: immutable Models, details versus settings/status, validated creation and targeted edits, and typed identity.
 - Configuration: optional storage, search projections and operational settings; search is off by default, so set `@Model(searchable = true)` only where the Model should independently activate it.
-- Actions: automatic `@Apply` command handling, recursive assertions, interception and atomic multi-Model commits.
+- Actions: automatic `@Apply` command handling, cascading and recursive assertions, interception and atomic multi-Model commits.
 - Graphs: independent children via `@Parent`, lazy navigation, exact event-state injection and graph search/projections.
 - Conflicts: read dependencies, empty collections, `RETRY`/`FAIL`/`ACCEPT` and the cost of actual navigation.
 - Deletion: logical deletion, cascading lifecycles and planned physical erasure.
@@ -57,3 +57,8 @@ For an invariant over children, inject `Graph<Parent>` and inspect the required 
 An unambiguous typed parent ID needs no `@Association`; qualify only ambiguous targets or paths. Unused/value-only
 Graphs resolved directly by ID add no relationship query. Indirect ancestor selection does protect its navigation.
 Writers retain relationship-change evidence even when they do not themselves inject a Graph.
+
+For lifecycle locks such as “closed projects cannot change”, define `@AssertLegal(cascade = true)` on the owning Model.
+It covers that Model and known descendants, with explicit relation/action exceptions. Start with the
+[Java](actions-java.md#guard-a-model-and-its-descendants) or [Kotlin](actions-kotlin.md#guard-a-model-and-its-descendants)
+guide before duplicating a parent check across every child command.

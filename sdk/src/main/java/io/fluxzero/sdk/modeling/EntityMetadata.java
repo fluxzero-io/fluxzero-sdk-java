@@ -901,7 +901,7 @@ public final class EntityMetadata {
             }
             result.add(new ParentReference(
                     parentProperty.property(), pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
-                    annotation.deleteOnParentDeletion(), annotation.propagateSearch()));
+                    annotation.deleteOnParentDeletion(), annotation.propagateSearch(), annotation.validateAncestors()));
         }
         return List.copyOf(result);
     }
@@ -1405,6 +1405,7 @@ public final class EntityMetadata {
      * @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
      * @param propagateSearch whether ancestor search composition may traverse this edge
+     * @param validateAncestors whether cascading assertions may traverse this parent route
      * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
      */
     public record ParentReference(
@@ -1413,7 +1414,7 @@ public final class EntityMetadata {
             List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
             boolean deleteOnParentDeletion,
-            boolean propagateSearch) {
+            boolean propagateSearch, boolean validateAncestors) {
         public ParentReference {
             parentModelTypes = List.copyOf(parentModelTypes);
         }
@@ -1756,7 +1757,8 @@ public final class EntityMetadata {
 
         /** Resolves the shared periodic snapshot policy for this persisted root. */
         public SnapshotSettings snapshotSettings(boolean documentFallback) {
-            return new SnapshotSettings(documentFallback ? 1 : snapshotPeriod, Math.max(1, maxSnapshotCount));
+            return new SnapshotSettings(documentFallback ? 1 : snapshotPeriod,
+                    kind == RootKind.MODEL && maxSnapshotCount < 0 ? maxSnapshotCount : Math.max(1, maxSnapshotCount));
         }
     }
 

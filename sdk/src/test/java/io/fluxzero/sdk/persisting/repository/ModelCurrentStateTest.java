@@ -196,6 +196,27 @@ class ModelCurrentStateTest {
         }
     }
 
+    @Test
+    void documentDecoderFailureRetainsCauseAndReadContext() {
+        var client = LocalClient.newInstance();
+        var original = new io.fluxzero.sdk.common.serialization.DeserializationException("custom decoder failure");
+        var serializer = new JacksonSerializer() {
+            @Override public <T> T fromDocument(io.fluxzero.common.api.search.SerializedDocument document, Class<T> type) {
+                throw original;
+            }
+        };
+        try (Fluxzero writer = app(client, new JacksonSerializer()); Fluxzero reader = app(client, serializer)) {
+            commit(writer, new Create("account", "original"));
+            var failure = assertThrows(ModelReadException.class,
+                    () -> reader.modelRepository().loadCurrentState("account", Account.class));
+            assertEquals(ModelReadException.Kind.DECODING_FAILURE, failure.getKind());
+            assertEquals(ModelReadException.Operation.READ_DOCUMENT, failure.getContext().operation());
+            assertEquals("account", failure.getContext().modelId());
+            assertEquals(Account.class.getName(), failure.getContext().javaModelType());
+            assertSame(original, failure.getCause());
+        }
+    }
+
     private Fluxzero app(LocalClient client, JacksonSerializer serializer) {
         return DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().disableAutomaticModelCaching()
                 .replaceSerializer(serializer).build(client);

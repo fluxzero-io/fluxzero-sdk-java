@@ -1,0 +1,156 @@
+---
+title: Deploy with GitHub Actions
+description: Build and publish a versioned image, authenticate with Fluxzero and verify its deployment.
+---
+
+import GuideFlow from '~/components/docs/GuideFlow.astro';
+
+Use this guide when you want a GitHub workflow to deliver an app. [Publishing your app](/docs/tutorials/cloud-deployment) covers the dashboard setup and release checks. This page describes the pipeline and the two Fluxzero actions it uses.
+
+## Prerequisites
+
+Configure a Fluxzero **GitHub Integration** that matches this repository, workflow and GitHub environment, with the required registry publication and deployment authorization. The workflow job needs `id-token: write`. OIDC avoids a stored API key in the repository.
+
+The example below is for a **Maven project with a working Maven wrapper and Dockerfile**. Its Dockerfile must package the tested application and production frontend assets or declare the separate frontend delivery path. Projects using the Fluxzero Maven/Gradle publisher should keep that packaging path; see [Build and publish](/docs/tools/build-and-publish).
+
+Create these non-secret repository or GitHub environment variables for the intended destination:
+
+| Variable | Value |
+| --- | --- |
+| `FLUXZERO_ORGANISATION_ID` | Registry namespace of the authorized organization |
+| `FLUXZERO_CLUSTER` | Exact target cluster name |
+| `FLUXZERO_APPLICATION` | Application name in that cluster |
+| `FLUXZERO_IMAGE_NAME` | Package/image name, such as `my-app` |
+
+Configure the GitHub environment named `production` below, including any desired release approvals, and make its identity match the Fluxzero Integration restrictions. Existing projects can use their own environment name consistently.
+
+## Workflow
+
+<GuideFlow label="Release one checked image" stages={[
+  { title: "Build + test", description: "Check the code and create the application image." },
+  { title: "Authenticate + publish", description: "Obtain registry credentials and publish the immutable image." },
+  { title: "Deploy + verify", description: "Obtain a deployment credential, deploy and check the live flow." },
+]} />
+
+Save as `.github/workflows/deploy.yml`. This workflow has a manual trigger. It builds before obtaining the short-lived registry credential, publishes one immutable SHA-tagged image, then obtains a fresh deployment credential.
+
+```yaml
+name: Deploy application
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: fluxzero-production-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ORGANISATION_ID: ${{ vars.FLUXZERO_ORGANISATION_ID }}
+      CLUSTER_NAME: ${{ vars.FLUXZERO_CLUSTER }}
+      APPLICATION_NAME: ${{ vars.FLUXZERO_APPLICATION }}
+      IMAGE_NAME: ${{ vars.FLUXZERO_IMAGE_NAME }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Check destination and build
+        shell: bash
+        run: |
+          : "${ORGANISATION_ID:?Set FLUXZERO_ORGANISATION_ID}"
+          : "${CLUSTER_NAME:?Set FLUXZERO_CLUSTER}"
+          : "${APPLICATION_NAME:?Set FLUXZERO_APPLICATION}"
+          : "${IMAGE_NAME:?Set FLUXZERO_IMAGE_NAME}"
+          ./mvnw -B verify
+          IMAGE="registry.fluxzero.io/$ORGANISATION_ID/$IMAGE_NAME:sha-$GITHUB_SHA"
+          docker build --tag "$IMAGE" .
+          printf 'IMAGE_REFERENCE=%s\n' "$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Authenticate for publication
+        id: registry-auth
+        # Fluxzero JWT Action v2.3; reviewed immutable revision
+        uses: fluxzero-io/fluxzero-jwt-action@6a60d26838c40d6d818355517d7296fcb510aedb
+        with:
+          mode: oidc
+
+      - name: Publish the image
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ steps.registry-auth.outputs.token }}
+          REGISTRY_USER: ${{ steps.registry-auth.outputs.userId }}
+          REGISTRY_HOST: ${{ steps.registry-auth.outputs.registry-host }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$REGISTRY_HOST" --username "$REGISTRY_USER" --password-stdin
+          docker push "$IMAGE_REFERENCE"
+
+      - name: Authenticate for deployment
+        id: deploy-auth
+        uses: fluxzero-io/fluxzero-jwt-action@6a60d26838c40d6d818355517d7296fcb510aedb
+        with:
+          mode: oidc
+
+      - name: Request deployment
+        uses: fluxzero-io/fluxzero-deploy-action@3473befd98244814284f40263a40b5debda2abdd
+        with:
+          token: ${{ steps.deploy-auth.outputs.deploy-token }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+          application-name: ${{ env.APPLICATION_NAME }}
+          image-name: ${{ env.IMAGE_NAME }}
+          image-reference: ${{ env.IMAGE_REFERENCE }}
+          version: sha-${{ github.sha }}
+```
+
+Review action updates deliberately; the pinned revisions above correspond to the JWT v2 and Deploy v1 interfaces. This example does not use unpublished changes from a repository's development branch. Build commands still need to match your project: a Dockerfile that expects an assembled JAR cannot use an unrelated module's output.
+
+## Verify the rollout
+
+A successful Deploy Action means the System API request completed. Open the application's dashboard overview, compare its version/image with the intended SHA, and inspect **Tasks** and **History**. Then open the live address and try the main user flow, including sign-in and required external integrations.
+
+If a stage fails, use [deployment troubleshooting](/docs/building/deployment-problems). For very large image publications, account for the registry credential's lifetime and your publisher's refresh behavior; acquiring a credential before a long build makes expiration more likely.
+
+<div className="guide-result"><strong>Rollout verified</strong><p>The expected SHA is running in the intended application, and its live user flow works.</p></div>
+
+## Action reference
+
+<details>
+<summary>JWT Action v2: authentication modes and outputs</summary>
+
+The [JWT Action v2](https://github.com/fluxzero-io/fluxzero-jwt-action/tree/v2) defaults to token/API-key mode, so set `mode: oidc` explicitly for this workflow. OIDC exchanges the GitHub credential using the configured Fluxzero Integration.
+
+| JWT output | Use in OIDC mode |
+| --- | --- |
+| `token` | Registry authentication credential |
+| `userId` | Registry login username |
+| `registry-host` | Registry host without a URL scheme |
+| `deploy-token` | Short-lived System API deployment credential |
+
+Token/API-key mode has a different setup. Do not assume it supplies an OIDC-only output; use its versioned reference if that mode is required.
+
+</details>
+
+<details>
+<summary>Deploy Action v1: inputs and completion</summary>
+
+The [Deploy Action v1](https://github.com/fluxzero-io/fluxzero-deploy-action/tree/v1) accepts:
+
+| Input | Required | Meaning |
+| --- | --- | --- |
+| `token` | Yes | System API credential |
+| `cluster-name` | Yes | Destination cluster name |
+| `application-name` | Yes | Destination application name |
+| `image-name` | Yes | Image/package identifier |
+| `image-reference` | No | Full Fluxzero registry tag/digest reference; takes precedence over the image name/version for image selection |
+| `version` | No | Version label; defaults to `latest`, so set an immutable value for a release |
+| `deployment-endpoint` | No | Defaults to `https://api.dashboard.fluxzero.io/deploy-application` |
+
+The action has no outputs. Marketplace distribution uses a separate maintainer action and permission scope; it is not the ordinary app-deployment step. See [System API](/docs/tools/system-api) for the request contract and resource-creation behavior.
+
+</details>

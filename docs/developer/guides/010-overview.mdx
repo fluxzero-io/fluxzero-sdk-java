@@ -1,71 +1,98 @@
 ---
 title: Developer Guides
+description: Start with the core concepts, follow a tutorial, complete a development task or look up SDK behavior.
 slug: docs/guides
 sidebar:
    order: 10
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
-import UnderConstruction from '~/components/UnderConstruction.astro';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-# Developer Guides
+<span id="developer-guides"></span>
 
-Fluxzero is the cloud for your application. These guides explain its SDK and the APIs you use to build for it,
-for developers working directly in Java or Kotlin and anyone who wants a technical reference.
-They are optional when you build with a coding agent. Agents use their own SDK documentation set and development
-workflows; you can focus on your product and follow [Building with Fluxzero](/docs/getting-started/introduction).
+Work directly in the code with the Fluxzero SDK, or use these guides to understand what your agent builds.
+Examples cover Java and Kotlin. If you prefer to work through product prompts, start with
+[Building with Fluxzero](/docs/getting-started/introduction); coding agents also have their own SDK documentation.
 
-Start with [Core concepts](/docs/getting-started/core-concepts) for the building blocks, or work through the
-[to-do tutorial](/docs/tutorials/first-app). [Fluxzero 2.0](/docs/fluxzero-2) explains the release and
-migration. The guides below cover individual capabilities in depth.
+<CardGrid>
+  <LinkCard title="Core concepts" description="Start with messages, Models, handlers and tests." href="/docs/getting-started/core-concepts" />
+  <LinkCard title="Tutorials" description="Learn by building a working example, step by step." href="#tutorials" />
+  <LinkCard title="How-to guides" description="Complete a specific task in your own application." href="#how-to-guides" />
+  <LinkCard title="Reference" description="Look up precise behavior, options and error codes." href="#reference" />
+</CardGrid>
 
-## Messaging
+<span id="explanation"></span>
+For the broader programming model, read the [Fluxzero 2.0 overview](/docs/fluxzero-2) and
+[deep dive](/docs/fluxzero-2-deep-dive). These sit alongside Core concepts in the sidebar.
 
-This section explains how Fluxzero handles messages — the core of how data flows through your system. You'll learn how to:
+## Tutorials
 
-- Send and handle messages (commands, events, queries, schedules, web requests)
-- Replay past messages
-- Apply dynamic DLQ/error-log correction (see Dynamic dead-lettering)
-- Track and monitor message handling
-- Validate payloads and manage access
-- Configure and test your endpoints
-- Work with WebSocket messages and APIs
+Start with [Hello world](/docs/getting-started/hello-world) for a first working handler. Then follow
+[Building your first app](/docs/tutorials/first-app) to create and test a to-do application with Models,
+queries, an HTTP endpoint and a scheduled notification.
 
-## Modeling & Persistence
+## How-to guides
 
-Start with [Model state](/docs/guides/modeling-and-persistence/model-state) to choose domain boundaries, then
-[relationships](/docs/guides/modeling-and-persistence/nested-entities) to connect Models and
-[temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) to explore their history.
-The chapter includes Java and Kotlin examples; the focused guides below provide the detailed contracts.
+Pick a task in your own application. For project setup, use [SDK installation](/docs/getting-started/installation).
 
-This section focuses on your domain model and how Fluxzero stores and loads data. Topics include:
+### Messaging
 
-- Building rich domain models using records or classes
-- Working with nested and stateful entities
-- Using models, relationships, projections, and exact model loading
-- Persisting and updating documents
-- Indexing and searching through domain objects
+- [Replay past messages](/docs/guides/messaging/message-replays) or [retry failed commands from the error log](/docs/guides/messaging/dynamic-dead-lettering).
+- [Reconcile scheduled work with current Model state](/docs/guides/messaging/model-schedule-reconciliation).
+- [Publish and handle a custom message log](/docs/guides/messaging/custom-message-logs).
+- [Call an external API and test the integration](/docs/guides/messaging/sending-web-requests).
 
-## Data Control & Serialization
+### Modeling & persistence
 
-Here we cover how to protect and control your data. You'll find guides on:
+- [Design Model state and focused commands](/docs/guides/modeling-and-persistence/model-state).
+- [Apply Model recipes](/docs/guides/modeling-and-persistence/model-recipes) for companions, derived preferences and atomic updates.
 
-- Securing sensitive content
-- Upcasting, downcasting, and aliasing serialized type or package names
-- Dynamically filtering content per user
-- Managing document evolution over time
+### Testing
 
-## Configuration & Support
+- [Test your handlers and complete workflows](/docs/guides/messaging/testing-your-handlers).
+- [Test web endpoints](/docs/guides/messaging/testing-web-endpoints).
+- [Qualify Model migrations](/docs/guides/modeling-and-persistence/model-migration-tests).
 
-Finally, this section helps you get the most out of Fluxzero through configuration options and extension points. Learn how to:
+For local development, publishing and deployment workflows, use [Tools & automation](/docs/tools/overview).
 
-- Use Kotlin with the Fluxzero SDK
-- Set up application properties and secrets
-- Inject method parameters
-- Register message interceptors
-- Configure WebSocket clients
-- Manage dependencies and compatibility
+## Reference
 
----
+These chapters describe the available APIs, annotations, settings and behavioral contracts, with examples.
+Use them to check a detail while implementing a feature.
 
-Not sure where to start? Try the [To-do app tutorial](/docs/tutorials/first-app), or head to the section that best matches what you want to build.
+### Messages and handlers
+
+- [Sending messages](/docs/guides/messaging/sending-messages), [message handling](/docs/guides/messaging/message-handling), [tracking](/docs/guides/messaging/message-tracking) and [local handling](/docs/guides/messaging/local-handling).
+- [Response typing](/docs/guides/configuration/response-typing): the command/query result contract and type inference.
+- [Payload validation](/docs/guides/messaging/payload-validation) and [role-based access control](/docs/guides/messaging/role-based-access-control).
+- [Scheduling APIs](/docs/guides/messaging/message-scheduling) and [parent-owned schedule semantics](/docs/guides/messaging/parent-owned-schedules).
+- [HTTP handling](/docs/guides/messaging/handling-web-requests) and [WebSocket handlers](/docs/guides/messaging/handling-websocket-messages).
+- [Interceptors](/docs/guides/messaging/message-interceptors), [parameter resolvers](/docs/guides/messaging/parameter-resolvers), [metrics messages](/docs/guides/messaging/metrics-messages) and [correlation metadata](/docs/guides/messaging/correlation-data).
+
+### Model and Graph APIs
+
+- [Loading Models](/docs/guides/modeling-and-persistence/entity-loading), [temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) and [updating Models](/docs/guides/modeling-and-persistence/updating-entities).
+- [Relations and embedded members](/docs/guides/modeling-and-persistence/nested-entities) and [persistence, caching and conflict policies](/docs/guides/modeling-and-persistence/model-persistence).
+- [Model state and protection boundaries](/docs/guides/modeling-and-persistence/model-state-boundaries) and [Model and Graph query capabilities](/docs/guides/modeling-and-persistence/model-query-guide).
+- [Stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers), [document indexing and search](/docs/guides/modeling-and-persistence/document-index-and-search) and [document tracking and updates](/docs/guides/modeling-and-persistence/tracking-and-updating-documents).
+
+### Data control & serialization
+
+- [Sensitive-data protection](/docs/guides/data-control-and-serialization/protecting-sensitive-data).
+- [Upcasting, downcasting and type aliases](/docs/guides/data-control-and-serialization/upcasting-and-downcasting).
+- [User-based content filtering](/docs/guides/data-control-and-serialization/user-based-content-filtering).
+
+<span id="configuration--support"></span>
+### Configuration
+
+- [FluxzeroBuilder and Spring configuration](/docs/guides/configuration/configuring-fluxzero).
+- [WebSocket client options](/docs/guides/configuration/configuring-websocket-client).
+- [Application properties](/docs/guides/configuration/application-properties).
+
+<span id="testing-and-diagnostics"></span>
+### Diagnostics
+
+- [Error codes](/docs/errors).
+
+[Compatibility & dependencies](/docs/about/compatibility) covers SDK/runtime upgrades, language versions and integrations.
+For individual types and methods, open the [SDK Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/).

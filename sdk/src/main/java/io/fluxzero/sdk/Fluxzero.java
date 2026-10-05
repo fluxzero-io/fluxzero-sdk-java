@@ -586,6 +586,10 @@ public interface Fluxzero extends AutoCloseable {
      * Assertions marked with {@link io.fluxzero.sdk.modeling.AssertLegal#afterHandler()} are not invoked because this
      * validation-only operation does not produce a post-apply model state. This enters the model pipeline directly and
      * does not dispatch the update as a command.
+     * <p>
+     * Matching cascading rules on initially resolved targets establish a storage-current read boundary before loading
+     * the initial state. Nested checks retain the active operation's boundary and staged changes. A successful
+     * standalone check does not reserve that state against later changes.
      *
      * @param update the update payload or message to validate
      */

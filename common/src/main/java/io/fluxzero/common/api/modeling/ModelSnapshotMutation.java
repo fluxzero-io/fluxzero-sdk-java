@@ -61,7 +61,9 @@ public class ModelSnapshotMutation {
     int snapshotPeriod;
 
     /**
-     * Configured maximum number of snapshots retained for this model.
+     * Configured maximum number of snapshots retained for this model. Positive values bound retention;
+     * any negative value retains all snapshots until explicit erasure. Zero is invalid on the wire
+     * (the SDK resolves an annotation value of zero to one).
      */
     int maxSnapshotCount;
 

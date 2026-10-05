@@ -1,129 +1,29 @@
 ---
-title: Installation
-description: Start building with a coding agent, use the Fluxzero CLI, or install the SDK yourself.
+title: SDK installation
+description: Add the Fluxzero Java or Kotlin SDK to a Maven or Gradle project.
 sidebar:
    order: 20
-tableOfContents: true
 ---
 
-import { Steps, Tabs, TabItem, Aside, Badge } from '@astrojs/starlight/components';
+import { Aside } from '@astrojs/starlight/components';
 
-You can start with a coding agent or set up the codebase yourself. Both routes produce the same real project, so you can always inspect, test, and extend what is built.
+Use this page when you want to configure SDK dependencies directly. For an agent-led start, [set up your agent](/docs/tools/agent-plugin). For the native CLI, Homebrew, WinGet and updates, use [Install and update](/docs/tools/install).
+
+SDK 2.x requires Java 25. Use JDK 25.0.3 or newer for compilation. Java and Kotlin applications use the same SDK artifacts and BOM.
 
 <span id="start-with-a-coding-agent-recommended"></span>
+<span id="start-with-a-coding-agent"></span>
 
-## Start with a coding agent <Badge text="Recommended" class="heading-badge" />
+## Start with a coding agent
 
-The tools below help you build and test applications for Fluxzero, the cloud that runs them for your users.
+Follow [the plugin setup](/docs/tools/agent-plugin), then [start an app](/docs/building/start-an-app) or [explore a working example](/docs/building/local-development). The agent selects matching SDK documentation and manages the local development environment.
 
-The easiest way to get started is to open [Get started](/get-started) and copy the instruction into your coding agent. The agent will connect to the current Fluxzero guidance and can create, run, and evolve the application with you.
+<span id="set-up-the-codebase-yourself"></span>
+<span id="using-the-fluxzero-cli"></span>
 
-You stay focused on what the product should do. The agent works in the codebase, while Fluxzero supplies the backend foundation it should not have to recreate.
+## Create a project with the CLI
 
-## Set up the codebase yourself
-
-If you prefer to work directly in the code, use the Fluxzero CLI to create a project, or add the SDK to an existing project with Maven or Gradle as described below.
-
-## Using the Fluxzero CLI
-
-The **Fluxzero CLI** is the most convenient way to scaffold, build, and run Fluxzero applications.
-The CLI itself is a native executable and does not require Java. Projects using Fluxzero SDK 2.x require Java 25 or newer.
-
-<Steps>
-
-1. Get the Fluxzero CLI
-
-   <Tabs>
-      <TabItem label="macOS">
-         Install with [Homebrew](https://brew.sh/):
-
-         ```bash
-         brew install fluxzero-io/tap/fluxzero
-         ```
-
-         Homebrew installs both the `fz` command and its `fluxzero` alias. Upgrade later releases with:
-
-         ```bash
-         brew update
-         brew upgrade fluxzero
-         ```
-      </TabItem>
-
-      <TabItem label="Windows">
-         Install with WinGet from PowerShell or Windows Terminal:
-
-         ```powershell
-         winget install --exact --id Fluxzero.FluxzeroCLI
-         ```
-
-         Upgrade later releases with:
-
-         ```powershell
-         winget upgrade --exact --id Fluxzero.FluxzeroCLI
-         ```
-
-         If WinGet is unavailable, use the automated installer instead:
-
-         ```powershell
-         iwr -useb https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/install.ps1 | iex
-         ```
-      </TabItem>
-
-      <TabItem label="Linux">
-         Run the automated installer:
-
-         ```bash
-         curl -sSL https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/install.sh | sh
-         ```
-
-         The installer downloads the native executable to `~/.fluxzero/bin` and helps make the `fz` and
-         `fluxzero` commands available on your `PATH`.
-      </TabItem>
-
-      <TabItem label="Manually">
-         Native executables for macOS, Windows and Linux are available on the
-         [latest release page](https://github.com/fluxzero-io/fluxzero-cli/releases/latest).
-
-         Alternatively, download [fluxzero-cli.jar](https://github.com/fluxzero-io/fluxzero-cli/releases/latest/download/fluxzero-cli.jar)
-         and run it with Java 25 or newer when using SDK 2.x:
-
-         ```shell
-         java -jar fluxzero-cli.jar
-         ```
-      </TabItem>
-   </Tabs>
-
-   Verify the installation:
-
-   ```shell
-   fz version
-   ```
-
-2. Generate a new project
-
-   ```shell
-      fz init 
-   ```
-   This command will prompt you for a few questions to set up your project:
-
-    <img src="/terminal/fz-init-noargs.gif" />
-
-    You can also pass options directly, for example:
-
-   ```shell
-      fz init --name my-project 
-   ```
-
-   The CLI will ask you which template you want to use. See `fz --help` for more options.
-
-3. Build your project
-
-   ```shell
-      cd my-project
-      ./gradlew build
-   ```
-
-</Steps>
+The [CLI guide](/docs/tools/cli) describes project generation and local development. Follow the generated project's build instructions; Maven and Gradle templates use different wrappers. To add Fluxzero to an existing project, use the dependency configuration below.
 
 ## Manually
 

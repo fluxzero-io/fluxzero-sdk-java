@@ -105,7 +105,7 @@ A nullable read-only Model parameter also accepts a null identifying property, s
 folder ID. Both a missing Model at a non-null ID and a null reference inject null there. A write target still needs
 a non-null identity; nullable read support does not turn invalid writes or ambiguous ancestors into silent absence.
 
-Interception selects the payloads to which assertions apply:
+With current-input checks disabled, interception selects the payloads to which assertions apply:
 
 | Interceptor outcome | Assertions and application |
 |:--------------------|:---------------------------|
@@ -114,14 +114,150 @@ Interception selects the payloads to which assertions apply:
 | Replace the payload | Only the replacement's matching assertions and apply methods run |
 | Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
 
-Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
-invariant that must survive rewriting on the effective replacement or in shared/Model-side assertion logic that also
-matches it. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+## Validate the current interceptor input
+
+Use `@InterceptApply(assertCurrent = AssertCurrent.ENABLED)` to retain legality checks for the input of that
+interceptor. `AssertCurrent` is in `io.fluxzero.sdk.persisting.eventsourcing`.
+`DEFAULT` follows `fluxzero.interceptApply.assertCurrent` (`FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT`): when absent,
+it is enabled from `fluxzero.defaults.version=2026.10.04` and disabled for older or absent defaults versions.
+An explicit annotation choice wins over the application property, which wins over the defaults version.
+Use `DISABLED`, or property `false` for unconfigured interceptors, when rewriting is deliberately allowed before
+checking legality. Configuration is resolved for the owning application when its helpers/plans are created.
+
+Current immediate assertions run before the selected interceptor, inside the same commit attempt and against its
+current state. The input is checked once even when it splits into several outputs or is suppressed. Every replacement
+keeps its normal checks. A bare unchanged input is not checked twice in the same scope; a new instance or message
+envelope receives its own checks. In A → B → C, each interceptor controls its own current input, not always A.
+Payload, Message, metadata, user and custom parameter injection use that input's context. There is no combined
+original/replacement parameter. Existing nested legality checks also participate.
+
+Retained current `afterHandler=true` assertions keep the input context and run against the final composed state:
+for Models this is the end of the atomic Model operation, including automatic child deletions; for Aggregate/Entity
+it is the existing handler-completion phase. Existing effective-update assertions keep their established timing.
+Immediate-only Model `assertLegal` does not run after-handler assertions. Apply-only legacy paths and replay do not
+start running assertions. Interceptors and assertions must remain free of external side effects.
+
+Model assertion reads participate in the pinned commit and conflict checks. RETRY evaluates them again; an attempt
+that validates a current input upgrades configured ACCEPT to FAIL, so concurrent changes cannot retain stale
+permission. Other ACCEPT operations retain their behavior. S285 rules still guard effective Model mutations;
+an output's Apply exception does not undo current-input checks. This requires no new Runtime protocol or Runtime
+upgrade. With current-input checks disabled, no validation history or additional Model reads are retained.
+
+
+## Guard a Model and its descendants
+
+Put a shared rule such as “a closed project cannot change” on the Project itself. Opt in explicitly with
+`@AssertLegal(cascade = true)`; ordinary assertions do not propagate automatically.
+
+```kotlin
+@Model
+data class Project(@EntityId val projectId: ProjectId, val closed: Boolean) {
+    @AssertLegal(cascade = true)
+    fun assertOpen() {
+        if (closed) throw IllegalCommandException("This project is closed.")
+    }
+}
+
+@Model
+data class Task(@EntityId val taskId: TaskId, @Parent val projectId: ProjectId, val completed: Boolean)
+
+data class CompleteTask(val taskId: TaskId) {
+    @Apply
+    fun apply(task: Task): Task = task.copy(completed = true)
+}
+```
+
+`ProjectId : Id<Project>` and `TaskId : Id<Task>` provide the relation types. Updating a Task now checks
+its Project without repeating the rule on CompleteTask. A separate LineItem with `@Parent val taskId: TaskId` inherits
+that check too. The Project's own changes are checked as well: closing an open Project succeeds, changing it again
+fails. Use a functional exception for a business refusal and keep its customer-facing message free of IDs.
+
+### Select payloads and retain injection
+
+A no-arg method covers all effective mutation payloads. Add a typed payload parameter to select that payload family,
+or use `allowedClasses` when the method does not need the payload. Classes and interfaces match assignable types:
+
+```kotlin
+@AssertLegal(cascade = true, allowedClasses = [ProjectChange::class])
+fun assertChangeAllowed(user: User) {
+    // ProjectChange is an application-defined interface implemented by the guarded commands.
+    // Perform the same domain/authorization check for this Project and its descendants.
+}
+```
+
+Normal User, Message, Metadata, Model/Graph and custom parameter injection remains available. `allowedClasses`
+and typed payload selection both apply; neither a User-only nor a no-arg signature requires a dummy payload parameter.
+The filter applies to the Model's own changes too. Choose an unrestricted rule for a general lock; a narrow payload
+filter deliberately leaves other actions outside that rule. Interceptors select the effective payload: suppressed
+updates have no effective mutation; replacements/splits use their resulting payloads. Enabled current-input checks run separately before interception. Automatic child deletion uses
+the effective command that caused the deletion for assertion selection and injection.
+
+### Deliberate exceptions
+
+For a relation that must not inherit the parent's rules, declare
+`@Parent(validateAncestors = false) val projectId: ProjectId`. This stops that route for the child and its entire subtree.
+Local checks and checks from other enabled parent routes still apply. Deletion ownership and search propagation are
+independent settings; `validateAncestors` is SDK policy and is not persisted on the relationship.
+
+For one particular mutation, use an Apply override:
+
+```kotlin
+data class CorrectTaskStatus(val taskId: TaskId, val completed: Boolean) {
+    @Apply(ancestorValidation = AncestorValidation.DISABLED)
+    fun apply(task: Task): Task = task.copy(completed = completed)
+}
+```
+
+This exempts only that mutation from inherited cascading assertions. Payload assertions, the Task's own assertions,
+and other mutations in the same commit remain active. `DEFAULT` inherits an earlier Apply override for the same
+result, or enables validation when none exists. `ENABLED` replaces an earlier `DISABLED` during payload-then-Model
+Apply composition; it cannot reopen a `validateAncestors = false` relationship. An exception to Project's own rule
+belongs in its rule/payload selection, not in this inherited-validation override.
+
+### Timing, multiple parents and conflicts
+
+Checks use the state before each effective update, including earlier updates in the same atomic operation.
+`afterHandler = true` uses the complete final state instead. For result-bound creation, moves and multi-Model applies,
+new routes and the final Apply policy can only be known after the pure apply returns; their immediate checks still
+use the logical before-state. Applies and assertions must remain deterministic and free of external effects.
+`Fluxzero.assertLegal` checks immediate rules conservatively for its resolved targets. It does not execute Apply
+methods or apply their exemptions; result-dependent routes/policies require `assertAndApply` or ordinary command
+handling. Event replay does not run assertions.
+
+When initially resolved targets or known result-bound write candidates have matching cascading rules, the operation
+opens a storage-current read boundary before loading its initial state. A cached child's cursor alone cannot prove
+that its parent is current. Checks inside an existing operation retain its pinned boundary and staged changes;
+targets discovered later also join that boundary. A standalone `assertLegal` remains a check, not a reservation.
+
+Every enabled, locally known parent route participates, through all descendant levels. Shared ancestors are checked
+once per effective update/phase. A move checks both the old and the new route; deleting or detaching a child cannot
+escape its old parent's rule. Direct Graph mutations and automatic deletions participate too. A missing parent value
+has no instance rule to execute and stops that route; this feature does not itself require parents to exist.
+
+Read ancestors join the commit's pinned read boundary and conflict dependencies, including absence. `RETRY` reloads
+and reruns the rules; `FAIL` rejects a conflict. When cascading validation participates, configured `ACCEPT` becomes
+`FAIL` for that attempt so a concurrent close cannot silently retain stale permission. Choose `RETRY` when automatic
+reevaluation is desired. Unrelated commits retain their configured policy.
+
+### Scope and cost
+
+This is SDK-side domain logic. It needs the relevant Model classes and the entire parent route in the executing
+application; it cannot run assertions from unavailable code or protect mutations made by an older/unaware writer.
+Deploy the rule to every application that writes the protected scope. Code/annotation changes take effect in that
+writer immediately without rewriting stored relationships. No additional Runtime feature or wire field is required;
+the existing Model protocol and its atomic conflict validation remain prerequisites.
+
+With no reachable cascading rules the SDK keeps the ordinary mutation path and adds no ancestor loads or relationship
+queries. Matching rules follow relevant parent routes upwards, reuse loaded values and deduplicate shared ancestors;
+they never scan all descendants to validate one child change. Payload filters and disabled routes are checked before
+loading additional Models. The cost of active rules includes the required ancestor reads and your assertion code.
 
 ## Combine payload and Model handlers
 
 Keep action-specific handlers on the payload. Put genuinely cross-cutting state behavior on the Model when several
-payload types share it. If both owners have an applicable handler, Fluxzero always evaluates the payload phase before
+payload types share it. Cascading rules prevalidate the resolved guarded scope before ordinary assertions;
+result-dependent routes are checked after the pure apply returns, against the logical before-state. For ordinary
+non-cascading handlers, Fluxzero evaluates the payload phase before
 the Model phase for each annotation family:
 
 1. payload `@InterceptApply`, then Model `@InterceptApply`;

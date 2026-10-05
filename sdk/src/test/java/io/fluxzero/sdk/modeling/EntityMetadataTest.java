@@ -335,6 +335,20 @@ class EntityMetadataTest {
     }
 
     @Test
+    void negativeModelRetentionDoesNotChangeLegacyAggregateRetention() {
+        assertEquals(-7, EntityMetadata.of(UnlimitedSnapshotModel.class).rootConfiguration().orElseThrow()
+                .snapshotSettings(false).maxCount());
+        assertEquals(1, EntityMetadata.of(NegativeSnapshotAggregate.class).rootConfiguration().orElseThrow()
+                .snapshotSettings(false).maxCount());
+    }
+
+    @Model(snapshotPeriod = 2, maxSnapshotCount = -7)
+    record UnlimitedSnapshotModel(@EntityId String id) {}
+
+    @Aggregate(snapshotPeriod = 2, maxSnapshotCount = -7)
+    record NegativeSnapshotAggregate(@EntityId String id) {}
+
+    @Test
     void transitionSettingsSeparateWireStrategyFromEffectivePolicy() {
         EntityMetadata.TransitionSettings aggregate = EntityMetadata.of(SnapshotAggregate.class)
                 .rootConfiguration().orElseThrow().transitionSettings(null);

@@ -175,6 +175,25 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void acceptsNegativeSnapshotLimitsButRejectsZeroOnTheWire() {
+        for (int maximum : new int[]{-1, -7, Integer.MIN_VALUE, 1, 2, 0}) {
+            CommitModels base = publishedCommit(-1L);
+            var step = base.getSubsteps().getFirst();
+            var target = step.getTargets().getFirst().toBuilder()
+                    .snapshot(new ModelSnapshotMutation(new Data<>(new byte[]{1}, "order", 0), 1L, 1, maximum))
+                    .build();
+            var request = new CommitModels(base.getCommitId(), base.getReadStateIndex(), base.getReadModelIds(),
+                    List.of(step.toBuilder().targets(List.of(target)).build()), base.getConflictPolicy(),
+                    base.getGuarantee(), true);
+            if (maximum == 0) {
+                assertThrows(IllegalArgumentException.class, () -> ModelCommitValidator.validate(request));
+            } else {
+                assertDoesNotThrow(() -> ModelCommitValidator.validate(request));
+            }
+        }
+    }
+
+    @Test
     void validatesCompleteAliasReplacement() {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(commit(
                 List.of("order-1"),

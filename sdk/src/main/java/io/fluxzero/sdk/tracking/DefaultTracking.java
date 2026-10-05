@@ -65,8 +65,8 @@ import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -728,8 +728,9 @@ public class DefaultTracking implements Tracking {
     private List<DeserializingMessage> readConsumerMessages(
             List<SerializedMessage> messages, String topic, TrackingClient trackingClient,
             Map<String, ChunkedDeserializingMessage> activeChunks, ConsumerConfiguration config) {
-        DocumentMessageReader reader = messageType == MessageType.DOCUMENT ? documentReaders.get(config) : null;
-        return reader != null && reader.readsModelDocuments(topic)
+        DocumentMessageReader reader = messageType == MessageType.DOCUMENT
+                ? documentReaders.computeIfAbsent(config, ignored -> new DocumentMessageReader()) : null;
+        return reader != null
                 ? deserializeMessageList(messages, topic, trackingClient, activeChunks, config.getMaxFetchSize(), reader)
                 : deserializeMessageList(messages, topic, trackingClient, activeChunks, config.getMaxFetchSize());
     }

@@ -48,9 +48,10 @@ import java.lang.annotation.Target;
  * Notification handlers do not participate in normal message partitioning and are not tracked using the standard consumer index mechanism.
  * </p>
  *
- * <p>Like {@link HandleEvent}, a method whose sole parameter is an unqualified
+ * <p>Like {@link HandleEvent}, a method with one unqualified
  * {@link io.fluxzero.sdk.modeling.Graph Graph&lt;T&gt;} receives every durable change of that model graph, once per
- * affected root, with its complete before-state available through
+ * affected root. Optional {@link io.fluxzero.sdk.common.Message} and {@link io.fluxzero.common.api.Metadata}
+ * parameters may appear in any order. The complete before-state is available through
  * {@link io.fluxzero.sdk.modeling.Graph#previous()}.</p>
  *
  * <h2>Example:</h2>
