@@ -28,6 +28,12 @@ package io.fluxzero.common;
  */
 public class ServicePathBuilder {
 
+    /** Returns the service path for Runtime-wide namespace discovery. */
+    public static String namespacesPath() {
+        return "namespaces";
+    }
+
+
     /**
      * Returns the gateway path used to publish messages of the given {@link MessageType}.
      * <p>

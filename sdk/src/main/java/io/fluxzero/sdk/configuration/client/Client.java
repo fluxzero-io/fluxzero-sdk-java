@@ -26,6 +26,9 @@ import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.scheduling.client.SchedulingClient;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Defines the low-level client contract used by {@link FluxzeroBuilder} to construct a
  * {@link io.fluxzero.sdk.Fluxzero} instance.
@@ -78,6 +81,19 @@ public interface Client extends Namespaced<Client> {
      * Returns the namespace associated with this client instance.
      */
     String namespace();
+
+    /**
+     * Returns a sorted, duplicate-free snapshot of namespaces in this client's storage environment.
+     * The Runtime includes persisted namespaces without active clients. Local clients include namespaces created
+     * within the same root client; independent local clients remain isolated. Discovery does not create namespaces.
+     * This Runtime-wide operation requires a server and deployment route supporting namespace discovery.
+     * Custom clients that do not implement discovery fail explicitly instead of returning a partial list.
+     */
+    default CompletableFuture<List<String>> getNamespaces() {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException("Namespace discovery is not supported by this client"));
+    }
+
 
     /**
      * Returns a {@link GatewayClient} for the given message type using the default topic (typically {@code null}).

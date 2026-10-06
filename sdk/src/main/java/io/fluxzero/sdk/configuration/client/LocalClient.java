@@ -39,6 +39,8 @@ import java.lang.management.ManagementFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static io.fluxzero.common.tracking.DefaultTrackingStrategy.DEFAULT_INITIAL_POSITION_LAG;
 
@@ -165,6 +167,15 @@ public class LocalClient extends AbstractClient {
         }
         this.clock = clock;
         scheduleStore.setClock(clock);
+    }
+
+    @Override
+    public CompletableFuture<List<String>> getNamespaces() {
+        if (applicationClient != null) {
+            return applicationClient.getNamespaces();
+        }
+        return CompletableFuture.completedFuture(
+                knownNamespaces());
     }
 
     @Override

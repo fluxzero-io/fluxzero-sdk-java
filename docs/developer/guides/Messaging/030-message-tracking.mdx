@@ -189,6 +189,38 @@ Namespaces isolate message logs and tracking state, so a single Fluxzero Runtime
 - You can still set a namespace on `@Consumer(namespace = "...")` or via `ConsumerConfiguration.namespace(...)` for
   consumer-specific cross-namespace flows (for example, peeking/replaying from another namespace).
 
+### Discovering namespaces
+
+Use the application's `Client` to retrieve existing namespaces in the connected Runtime:
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+CompletableFuture<List<String>> namespaces = fluxzero.client().getNamespaces();
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+val namespaces: CompletableFuture<List<String>> = fluxzero.client().getNamespaces()
+```
+
+</TabItem>
+</Tabs>
+
+The result is sorted and contains each namespace once, including namespaces without active clients. It covers
+both Runtime databases when search uses separate storage. Asking for the overview does not create a namespace.
+The list is a momentary inventory of the whole Runtime environment, not an authorization list or a list of active apps.
+Only Fluxzero-owned schemas qualify; unrelated database schemas and other applications' Flyway schemas are excluded.
+
+This operation requires a Runtime supporting the `/namespaces` WebSocket endpoint and a deployment route that
+permits access to this environment-wide inventory. Older Runtimes do not support it. `LocalClient` returns the
+namespaces created within that root client; Test Server returns its initialized namespaces. Both local inventories
+last only as long as their in-memory environment. Custom `Client` implementations can override `getNamespaces()`;
+the default implementation fails with `UnsupportedOperationException`.
+
 ## Custom Consumers with @Consumer
 
 The `@Consumer` annotation creates or selects a named consumer that runs independently of other consumers. Each consumer maintains its own trackers and log position. This lets you:

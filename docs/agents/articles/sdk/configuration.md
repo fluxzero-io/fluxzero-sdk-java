@@ -36,6 +36,15 @@ with upcasters and programmatic overrides.
 
 `FLUXZERO_NAMESPACE` is app-wide by default. It scopes runtime interactions across messaging, tracking, event store, documents, and search unless a specific operation overrides it.
 
+To discover initialized namespaces, call `fluxzero.client().getNamespaces()` in Java or Kotlin; it returns a
+`CompletableFuture<List<String>>` sorted without duplicates. This is the connected Runtime's environment-wide
+inventory across its ordinary and search databases, including inactive namespaces. It does not create namespaces
+and is not an authorization list. Unrelated PostgreSQL and other applications' Flyway schemas are excluded.
+The Runtime and deployment route must support `/namespaces`; older Runtimes do not. `LocalClient` discovers only
+namespaces created within its root client; Test Server inventories its own initialized namespaces, in memory.
+Custom clients default to an explicitly failed future until they implement discovery.
+
+
 Spring client selection prefers a user-provided `Client`, then a `WebSocketClient.ClientConfig`, then URL/name properties such as `FLUXZERO_BASE_URL` and `FLUXZERO_APPLICATION_NAME`; otherwise it falls back to the in-memory local client.
 
 Spring auto-configuration registers annotated handlers, upcasters, downcasters, user providers, and other SDK integration beans in normal Spring Boot apps. Use a `FluxzeroCustomizer` when the app needs to adjust the default client/builder instead of forking setup code.

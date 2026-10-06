@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
@@ -109,6 +110,44 @@ public class WebSocketClient extends AbstractClient {
      */
     public static WebSocketClient newInstance(ClientConfig clientConfig) {
         return new WebSocketClient(clientConfig, null);
+    }
+
+    private final Object namespaceClientLock = new Object();
+    private WebsocketNamespaceClient namespaceClient;
+    private boolean namespaceDiscoveryClosed;
+
+    @Override
+    public CompletableFuture<List<String>> getNamespaces() {
+        if (applicationClient != null) {
+            return applicationClient.getNamespaces();
+        }
+        WebsocketNamespaceClient discovery;
+        synchronized (namespaceClientLock) {
+            if (namespaceDiscoveryClosed) {
+                return CompletableFuture.failedFuture(new IllegalStateException("Client is shut down"));
+            }
+            if (namespaceClient == null) {
+                namespaceClient = new WebsocketNamespaceClient(this);
+            }
+            discovery = namespaceClient;
+        }
+        return discovery.getNamespaces();
+    }
+
+    @Override
+    public void shutDown() {
+        WebsocketNamespaceClient discovery;
+        synchronized (namespaceClientLock) {
+            namespaceDiscoveryClosed = true;
+            discovery = namespaceClient;
+        }
+        try {
+            if (discovery != null) {
+                discovery.close();
+            }
+        } finally {
+            super.shutDown();
+        }
     }
 
     @Override

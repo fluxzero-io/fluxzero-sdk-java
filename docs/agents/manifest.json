@@ -5406,6 +5406,8 @@
       "summary": "Configure SDK applications through property precedence, FLUXZERO_CONFIG_LOCATIONS, fluxzero.properties defaults, Spring fallback, namespace defaults, and runtime URLs.",
       "source": "articles/sdk/configuration.md",
       "symbols": [
+        "Client.getNamespaces()",
+        "GetNamespaces",
         "application.properties",
         "FluxzeroSpringConfig",
         "FluxzeroCustomizer",
