@@ -329,9 +329,14 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
                     var definition = ((io.fluxzero.sdk.persisting.repository.DefaultModelRepository) fc.modelRepository())
                             .graphSearchDefinition(childType).orElseThrow();
                     var query = new io.fluxzero.common.api.search.GetDocument("a", definition.getCollection());
+                    // NONE handlers hydrate live nodes even when handling an older notification marker.
+                    // Settle preceding child updates before attributing later marker changes to the parent.
+                    awaitGraphNotifications(fc, definition.getCollection(), "a");
                     var before = fc.client().getSearchClient().fetch(query).orElseThrow();
                     set(rootType.getDeclaredConstructor(String.class, String.class, int.class).newInstance("one", "renamed", 1));
                     take(observer.roots, g -> g.id().equals("one") && g.get().toString().contains("renamed"));
+                    // Also process the parent boundary: an early read must not conceal a spurious child update.
+                    awaitGraphNotifications(fc, definition.getCollection(), "a");
                     var after = fc.client().getSearchClient().fetch(query).orElseThrow();
                     assertEquals(io.fluxzero.common.search.ModelGraphDocumentManifest.from(before),
                             io.fluxzero.common.search.ModelGraphDocumentManifest.from(after),
@@ -703,6 +708,15 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     }
     public record SetUnindexedLeaf(String id, UnindexedLeaf value) {
         @io.fluxzero.sdk.persisting.eventsourcing.Apply public UnindexedLeaf apply(@jakarta.annotation.Nullable UnindexedLeaf previous) { return value; }
+    }
+
+    private static void awaitGraphNotifications(Fluxzero app, String collection, String modelId) {
+        var events = app.client().getEventStoreClient();
+        long boundary = events.getModelEvents(new io.fluxzero.common.api.modeling.GetModelEvents(
+                List.of(new io.fluxzero.common.api.modeling.ModelEventStreamRequest(modelId, -1L, 0)),
+                io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 0)).getStateIndex();
+        events.awaitModelGraphProjection(new io.fluxzero.common.api.modeling.AwaitModelGraphProjection(
+                collection, boundary)).join();
     }
 
     private static Graph<?> take(java.util.concurrent.BlockingQueue<Graph<?>> values,
