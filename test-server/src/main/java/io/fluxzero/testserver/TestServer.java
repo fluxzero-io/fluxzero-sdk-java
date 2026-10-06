@@ -38,6 +38,7 @@ import io.fluxzero.testserver.websocket.ConsumerEndpoint;
 import io.fluxzero.testserver.websocket.EventSourcingEndpoint;
 import io.fluxzero.testserver.websocket.JettyWebsocketRouter;
 import io.fluxzero.testserver.websocket.KeyValueEndPoint;
+import io.fluxzero.testserver.websocket.NamespaceEndpoint;
 import io.fluxzero.testserver.websocket.ProducerEndpoint;
 import io.fluxzero.testserver.websocket.SchedulingEndpoint;
 import io.fluxzero.testserver.websocket.SearchEndpoint;
@@ -76,6 +77,7 @@ import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.ServicePathBuilder.eventSourcingPath;
 import static io.fluxzero.common.ServicePathBuilder.gatewayPath;
 import static io.fluxzero.common.ServicePathBuilder.keyValuePath;
+import static io.fluxzero.common.ServicePathBuilder.namespacesPath;
 import static io.fluxzero.common.ServicePathBuilder.schedulingPath;
 import static io.fluxzero.common.ServicePathBuilder.searchPath;
 import static io.fluxzero.common.ServicePathBuilder.trackingPath;
@@ -199,6 +201,9 @@ public class TestServer {
         ServerState state = new ServerState(initialPositionLag);
         latestState = state;
         JettyWebsocketRouter router = new JettyWebsocketRouter();
+        router = deploy(ignored -> new NamespaceEndpoint(
+                        () -> state.namespaces.stream().sorted().toList()),
+                        "/" + namespacesPath() + "/", router);
         CommandIdempotencyStore commandIdempotencyStore = new CommandIdempotencyStore();
         RuntimeLifecycleMetrics runtimeLifecycleMetrics = new RuntimeLifecycleMetrics(state);
         for (MessageType messageType : Arrays.asList(METRICS, EVENT, COMMAND, QUERY, RESULT, ERROR, WEBREQUEST, WEBRESPONSE)) {
@@ -356,6 +361,7 @@ public class TestServer {
     }
 
     private static class ServerState {
+        private final Set<String> namespaces = ConcurrentHashMap.newKeySet();
         private final MemoizingFunction<String, Client> clients;
         private final MemoizingFunction<String, MetricsLog> metricsLogSupplier;
 
@@ -369,7 +375,9 @@ public class TestServer {
         }
 
         private Client client(String namespace) {
-            return clients.apply(namespace);
+            Client result = clients.apply(namespace);
+            namespaces.add(namespace);
+            return result;
         }
 
         private MetricsLog metricsLog(String namespace) {

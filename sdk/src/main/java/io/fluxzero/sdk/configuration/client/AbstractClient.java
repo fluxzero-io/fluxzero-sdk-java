@@ -42,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.asConsumer;
 import static io.fluxzero.common.ObjectUtils.memoize;
@@ -101,6 +102,13 @@ public abstract class AbstractClient extends AbstractNamespaced<Client> implemen
     protected final Set<Runnable> shutdownTasks = new CopyOnWriteArraySet<>();
     Set<Client> namespaceClients = new CopyOnWriteArraySet<>();
     AtomicBoolean shutDown = new AtomicBoolean();
+
+    /** Returns a sorted snapshot of names belonging to this client and its registered namespace children. */
+    protected List<String> knownNamespaces() {
+        return Stream.concat(Stream.of(namespace()),
+                                             namespaceClients.stream().map(Client::namespace))
+                .distinct().sorted().toList();
+    }
 
     /** Registers a namespace-specific child so shutting down the application client also closes that child. */
     protected <T extends Client> T registerNamespaceClient(T namespaceClient) {

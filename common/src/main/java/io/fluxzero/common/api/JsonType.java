@@ -108,6 +108,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME)
 @JsonSubTypes({
+        @JsonSubTypes.Type(value = GetNamespaces.class, name = "getNamespaces"),
+        @JsonSubTypes.Type(value = GetNamespacesResult.class, name = "getNamespacesResult"),
         //common
         @JsonSubTypes.Type(value = VoidResult.class, name = "void"),
         @JsonSubTypes.Type(value = ErrorResult.class, name = "error"),
