@@ -58,7 +58,8 @@
         <json.doclet.version>0.0.10</json.doclet.version>
         <junit.parallelism>2</junit.parallelism>
         <test.forks>1</test.forks>
-        <test.jvmArgs>-Xmx768m</test.jvmArgs>
+        <!-- Limit compiler competition in short-lived test forks while retaining every JIT tier. -->
+        <test.jvmArgs>-Xmx768m -XX:CICompilerCount=2</test.jvmArgs>
         <mockito.version>5.24.0</mockito.version>
         <slf4j.version>2.0.20</slf4j.version>
         <fluxzero.maven.plugin.version>1.19.3</fluxzero.maven.plugin.version>

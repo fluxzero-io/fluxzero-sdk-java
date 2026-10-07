@@ -24,7 +24,8 @@ installed IntelliJ SDKs or the environment of already-running processes.
 
 The full build runs every test, including the Java/Kotlin downstream projects.
 The SDK uses four isolated test JVMs; Test Server and Proxy use two each, and
-smaller modules use one. Each JVM has a 768 MiB heap cap. Use `-Dtest.forks=1`
+smaller modules use one. Each JVM has a 768 MiB heap cap and two compiler threads,
+retaining normal tiered compilation. Use `-Dtest.forks=1`
 on a smaller machine, or override JVM options with `-Dtest.jvmArgs="-Xmx768m ..."`.
 The CI workflows select the latest Temurin 25 patch and use one fork per module for runners with few cores. Each fork runs at most two test classes;
 waiting tests do not create additional JUnit workers. Methods remain sequential unless a test explicitly opts into concurrency.
