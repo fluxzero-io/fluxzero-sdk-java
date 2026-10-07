@@ -33,6 +33,30 @@
     } ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "namespaceClient",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.namespaceClient",
+    "type" : "io.fluxzero.sdk.configuration.client.WebsocketNamespaceClient",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespaceClientLock",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.namespaceClientLock",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "namespaceDiscoveryClosed",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient.namespaceDiscoveryClosed",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "WebSocketClient",
@@ -193,6 +217,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getNamespaces",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#getNamespaces",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "id",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#id",
     "returnType" : "java.lang.String",
@@ -250,6 +288,20 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a WebSocket client using the supplied connection configuration.\n"
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

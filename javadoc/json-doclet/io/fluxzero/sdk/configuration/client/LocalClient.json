@@ -342,6 +342,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getNamespaces",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#getNamespaces",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "name",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.LocalClient#name",
     "returnType" : "java.lang.String",

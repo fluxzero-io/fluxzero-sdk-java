@@ -60,6 +60,17 @@
     "varArgs" : false,
     "documentation" : " Returns the service path for the key-value store subsystem.\n <p>\n This subsystem is largely deprecated and maintained only for backward compatibility.\n\n @return the string {@code \"keyValue\"}\n"
   }, {
+    "name" : "namespacesPath",
+    "qualifiedName" : "io.fluxzero.common.ServicePathBuilder#namespacesPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the service path for Runtime-wide namespace discovery. "
+  }, {
     "name" : "schedulingPath",
     "qualifiedName" : "io.fluxzero.common.ServicePathBuilder#schedulingPath",
     "returnType" : "java.lang.String",

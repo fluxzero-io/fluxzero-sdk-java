@@ -60,6 +60,21 @@
     "qualifiedName" : "io.fluxzero.common.api.ErrorResult$ModelHistoryUnavailable",
     "kind" : "record"
   }, {
+    "file" : "GetNamespaces.json",
+    "name" : "GetNamespaces",
+    "qualifiedName" : "io.fluxzero.common.api.GetNamespaces",
+    "kind" : "class"
+  }, {
+    "file" : "GetNamespacesResult.json",
+    "name" : "GetNamespacesResult",
+    "qualifiedName" : "io.fluxzero.common.api.GetNamespacesResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetNamespacesResult.Metric.json",
+    "name" : "GetNamespacesResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.GetNamespacesResult$Metric",
+    "kind" : "class"
+  }, {
     "file" : "HasId.json",
     "name" : "HasId",
     "qualifiedName" : "io.fluxzero.common.api.HasId",

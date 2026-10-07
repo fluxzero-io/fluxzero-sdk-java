@@ -1,0 +1,39 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.GetNamespacesResult$Metric",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "Result metric that omits namespace names. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "namespaceCount",
+    "qualifiedName" : "io.fluxzero.common.api.GetNamespacesResult$Metric.namespaceCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Number of namespaces in the snapshot. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.GetNamespacesResult$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

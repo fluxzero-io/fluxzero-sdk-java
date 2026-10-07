@@ -65,6 +65,11 @@
     "qualifiedName" : "io.fluxzero.testserver.websocket.KeyValueEndPoint",
     "kind" : "class"
   }, {
+    "file" : "NamespaceEndpoint.json",
+    "name" : "NamespaceEndpoint",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.NamespaceEndpoint",
+    "kind" : "class"
+  }, {
     "file" : "ProducerEndpoint.json",
     "name" : "ProducerEndpoint",
     "qualifiedName" : "io.fluxzero.testserver.websocket.ProducerEndpoint",

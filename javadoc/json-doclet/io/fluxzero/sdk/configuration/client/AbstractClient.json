@@ -284,6 +284,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "knownNamespaces",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#knownNamespaces",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns a sorted snapshot of names belonging to this client and its registered namespace children. "
+  }, {
     "name" : "monitorDispatch",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.AbstractClient#monitorDispatch",
     "returnType" : "io.fluxzero.common.Registration",

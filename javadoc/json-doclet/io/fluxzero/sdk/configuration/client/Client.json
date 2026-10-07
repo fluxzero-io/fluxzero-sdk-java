@@ -98,6 +98,17 @@
     "varArgs" : false,
     "documentation" : " Returns the {@link KeyValueClient} for key-value store interactions.\n <p>\n This is mostly deprecated and maintained for backward compatibility.\n"
   }, {
+    "name" : "getNamespaces",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.Client#getNamespaces",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.util.List<java.lang.String>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a sorted, duplicate-free snapshot of namespaces in this client's storage environment.\n The Runtime includes persisted namespaces without active clients. Local clients include namespaces created\n within the same root client; independent local clients remain isolated. Discovery does not create namespaces.\n This Runtime-wide operation requires a server and deployment route supporting namespace discovery.\n Custom clients that do not implement discovery fail explicitly instead of returning a partial list.\n"
+  }, {
     "name" : "getSchedulingClient",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.Client#getSchedulingClient",
     "returnType" : "io.fluxzero.sdk.scheduling.client.SchedulingClient",

@@ -25,6 +25,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "namespaces",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer$ServerState.namespaces",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ServerState",
