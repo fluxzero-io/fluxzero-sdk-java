@@ -158,6 +158,30 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Before changes that affect release packaging, generated artifacts, or Maven Central metadata, run `./mvnw -B install` and qualify `./mvnw -B -Dgpg.skip -DskipTests deploy -DaltDeploymentRepository=fluxzero::file:///absolute/path/to/temporary-repository`. Sources and Javadoc are built by default; the `sign` profile adds signatures. Never use the public destination for a packaging check.
 - Javadoc/site work should be checked with `./mvnw -B site -Pjavadoc`.
 
+## Build Performance Is A Regression Contract
+
+- Build and test duration must not regress. Treat a reproducible slowdown as a defect to fix before delivery;
+  do not accept it merely because the build is green or new tests were added. An intentional, unavoidable
+  trade-off requires explicit user agreement with measured cost and the alternatives considered.
+- For changes to tests, fixtures, shared execution paths, dependencies, build configuration or CI, inspect
+  the slowest affected suites and compare before/after timings under equivalent conditions: same JDK,
+  hardware, command, fork/worker limits and cache state. Distinguish full clean CI builds from warm local
+  runs. Repeat measurements when runner noise could explain the result; never claim an improvement from
+  one favorable run or compare a local timing with a GitHub timing.
+- Preserve every existing test case, assertion, workload, transport, persistence/recovery boundary and
+  artifact/release check. Do not obtain speed by skipping coverage, reducing evidence, weakening deadlines,
+  adding retries, suppressing failures or disabling optimizing JIT tiers. Compare test identities and skip
+  states as well as counts when changing discovery, scheduling or forks.
+- Fix redundant setup, unnecessary waiting, resource leaks and contention first. Prefer observable readiness
+  and deterministic synchronization over sleeps. Parallelize only independently owned state with bounded
+  workers, heap, containers and guaranteed cleanup; repeat full-suite qualification to detect interference.
+- Review new slow tests before committing: shared setup must retain isolation, and waiting must end as soon
+  as the required evidence exists. Check the full suite for cumulative costs; a fast isolated test does not
+  excuse a slow or unstable complete build.
+- Record commands, environment, baseline/candidate timings, slow-suite changes and coverage comparison in
+  the owning backlog dossier. Keep the previous performance baseline discoverable and update it only after
+  repeated successful qualification. Do not silently reset the baseline to a slower build.
+
 ## Coding Guidelines
 
 - Keep the root README timeless and concise: explain the product, how to start, where to find documentation, and how to contribute. Do not add release-specific narratives, versioned feature lists, Model/Graph explanations, bug-fix details, or specialized configuration contracts. Put those in the owning guides, Javadocs, and release notes instead; review the README for relevance without appending a paragraph for every change. Current build prerequisites and stable documentation links may remain.
