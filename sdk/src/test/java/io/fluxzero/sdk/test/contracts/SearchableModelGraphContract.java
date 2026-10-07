@@ -770,18 +770,41 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
         Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
                 .configureGraphProjectionCompletion(GraphProjectionCompletion.AWAIT)
                 .build(client("search-contract-" + UUID.randomUUID()));
-        app.apply(fc -> {
-            Class<?>[] types = types(mode, selfScope);
-            set(types[0].getDeclaredConstructor(String.class, String.class, int.class).newInstance("one", "alpha", 1));
-            set(types[0].getDeclaredConstructor(String.class, String.class, int.class).newInstance("two", "beta", 2));
-            for (String[] child : List.of(new String[]{"a", "one", "open", "red"},
-                    new String[]{"b", "one", "closed", "blue"}, new String[]{"c", "two", "closed", "green"})) {
-                set(types[1].getDeclaredConstructor(String.class, String.class, String.class, String.class, String.class)
-                        .newInstance(child[0], child[1], child[2], child[3], "hiddenvalue"));
+        try {
+            app.apply(fc -> {
+                Class<?>[] types = types(mode, selfScope);
+                // Seed independent roots together, then their children. Each phase retains durable/projection completion.
+                fc.executeModelCommits(List.of(
+                        command(types[0].getDeclaredConstructor(String.class, String.class, int.class)
+                                .newInstance("one", "alpha", 1)),
+                        command(types[0].getDeclaredConstructor(String.class, String.class, int.class)
+                                .newInstance("two", "beta", 2)))).join();
+                var children = new java.util.ArrayList<io.fluxzero.sdk.common.Message>();
+                for (String[] child : List.of(new String[]{"a", "one", "open", "red"},
+                        new String[]{"b", "one", "closed", "blue"}, new String[]{"c", "two", "closed", "green"})) {
+                    children.add(command(types[1].getDeclaredConstructor(
+                                    String.class, String.class, String.class, String.class, String.class)
+                            .newInstance(child[0], child[1], child[2], child[3], "hiddenvalue")));
+                }
+                fc.executeModelCommits(children).join();
+                return null;
+            });
+            return app;
+        } catch (Throwable failure) {
+            try {
+                app.close();
+            } catch (Throwable closeFailure) {
+                failure.addSuppressed(closeFailure);
             }
-            return null;
-        });
-        return app;
+            throw io.fluxzero.common.ObjectUtils.rethrow(failure);
+        }
+    }
+
+    private static io.fluxzero.sdk.common.Message command(Object value) throws Exception {
+        Class<?> type = value.getClass();
+        Class<?> commandType = Class.forName(SearchableModelGraphContract.class.getName() + "$Set" + type.getSimpleName());
+        return new io.fluxzero.sdk.common.Message(commandType.getDeclaredConstructor(String.class, type)
+                .newInstance(EntityMetadata.of(type).repositoryIdOf(value), value));
     }
 
     private static void set(Object value) throws Exception {
