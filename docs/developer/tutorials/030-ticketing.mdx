@@ -4,11 +4,19 @@ slug: docs/tutorials/ticketing
 description: Build a ticketing app from programme and seat selection through reservations, payments, admission and organizer operations.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { LinkButton, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Let's build the path from choosing seats to entering a concert. We will add a programme, reserve a group,
 expire unpaid holds, accept payments and issue tickets. Then we will add delivery, admission, transfers,
 refunds and the organizer's tools.
+
+<LinkButton href="https://github.com/fluxzero-io/fluxzero-sample-ticketing" icon="github" iconPlacement="start" variant="secondary">
+  View on GitHub
+</LinkButton>
+
+![Ticketing app with the After Hours event and upcoming performances.](../building/images/sample-ticketing.png)
+
+*The completed Ticketing app, showing its demo programme.*
 
 This continues [Building your first app](/docs/tutorials/first-app). The new challenge is coordinating several
 independent lifecycles: a reservation can expire while a payment is still in progress, and a ticket can change

@@ -4,10 +4,18 @@ slug: docs/tutorials/home-automation
 description: Build a home automation app with rooms, device controls, scenes, routines, sensor reactions and a live UI.
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { LinkButton, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Let's build a home you can control: organize rooms, dim a light, activate a scene, schedule it, and react to
 sensor readings. Then connect those actions to Home Assistant and a live browser interface.
+
+<LinkButton href="https://github.com/fluxzero-io/fluxzero-sample-home" icon="github" iconPlacement="start" variant="secondary">
+  View on GitHub
+</LinkButton>
+
+![Home dashboard with rooms, scenes, device controls and reported temperatures.](../building/images/sample-home.png)
+
+*The completed Home app, shown with its Home Assistant connection.*
 
 This continues [Building your first app](/docs/tutorials/first-app). We will use its commands, Models, queries
 and fixtures without introducing them again.
