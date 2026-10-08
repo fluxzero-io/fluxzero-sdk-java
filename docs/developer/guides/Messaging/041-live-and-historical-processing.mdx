@@ -1,0 +1,98 @@
+---
+title: Use one handler for live and historical events
+description: Correct earlier results with the same handler that continues processing live events.
+slug: docs/guides/messaging/live-and-historical-processing
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
+
+Correct earlier results with the same handler that continues processing live events.
+
+Suppose each purchase produces one reward document. The document ID is the purchase ID, so running the handler
+again replaces that purchase’s result rather than adding points twice.
+
+## Let two consumers use the handler
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record PurchaseRecorded(String purchaseId, int amountInCents) {}
+public record Reward(String purchaseId, int points) {}
+
+@Consumer(name = "rewards-live", exclusive = false)
+public class Rewards {
+    @HandleEvent
+    void handle(PurchaseRecorded purchase) {
+        Fluxzero.index(new Reward(purchase.purchaseId(), purchase.amountInCents() / 100),
+                       purchase.purchaseId(), "rewards").join();
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class PurchaseRecorded(val purchaseId: String, val amountInCents: Int)
+data class Reward(val purchaseId: String, val points: Int)
+
+@Consumer(name = "rewards-live", exclusive = false)
+class Rewards {
+    @HandleEvent
+    fun handle(purchase: PurchaseRecorded) {
+        Fluxzero.index(Reward(purchase.purchaseId, purchase.amountInCents / 100),
+                       purchase.purchaseId, "rewards").join()
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Keep the live consumer’s existing name and position. Add a bounded correction consumer before registering `Rewards`:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("rewards-correction-1")
+        .handlerFilter(h -> h instanceof Rewards)
+        .minIndex(fromInclusive)
+        .maxIndexExclusive(toExclusive)
+        .build(), MessageType.EVENT);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("rewards-correction-1")
+        .handlerFilter { it is Rewards }
+        .minIndex(fromInclusive)
+        .maxIndexExclusive(toExclusive)
+        .build(), MessageType.EVENT)
+```
+
+  </TabItem>
+</Tabs>
+
+Use fixed indices for the correction window; `IndexUtils.indexFromTimestamp(...)` converts UTC timestamps.
+`exclusive = false` allows the live handler to participate in both consumers. Each remembers its own progress.
+
+## Finish the correction
+
+Verify the corrected results and the correction consumer’s progress through the window, then remove its configuration.
+Use a fresh correction name for a new run; reusing a name resumes its saved progress.
+
+This works because each event owns one result and both consumers use the same calculation. A projection of the
+*latest* account balance needs a separate rebuild collection, so old events cannot overwrite newer state.
+Replaying this example does not send emails or repeat a payment.
+
+See [message replays](/docs/guides/messaging/message-replays) for position controls and
+<Jdoclink className="ConsumerConfiguration" /> for index bounds.

@@ -1,0 +1,109 @@
+---
+title: Prevent double bookings
+description: Let only one customer reserve a seat, even when requests arrive together.
+slug: docs/guides/modeling-and-persistence/preventing-double-bookings
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Let only one customer reserve a seat, even when requests arrive together.
+
+Store whether the seat is reserved, and put the availability rule on the command that reserves it.
+
+## Define the seat and its commands
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Model
+public record Seat(@EntityId SeatId seatId, boolean reserved) {}
+
+public final class SeatId extends Id<Seat> {
+    public SeatId(String id) { super(id); }
+}
+
+public record CreateSeat(SeatId seatId) {
+    @Apply
+    Seat apply() { return new Seat(seatId, false); }
+}
+
+public record ReserveSeat(SeatId seatId) {
+    @AssertLegal
+    void check(Seat seat) {
+        if (seat.reserved()) throw new IllegalCommandException("Seat already reserved");
+    }
+
+    @Apply
+    Seat apply(Seat seat) { return new Seat(seatId, true); }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Seat(@EntityId val seatId: SeatId, val reserved: Boolean)
+
+class SeatId(id: String) : Id<Seat>(id)
+
+data class CreateSeat(val seatId: SeatId) {
+    @Apply
+    fun apply() = Seat(seatId, false)
+}
+
+data class ReserveSeat(val seatId: SeatId) {
+    @AssertLegal
+    fun check(seat: Seat) {
+        if (seat.reserved) throw IllegalCommandException("Seat already reserved")
+    }
+
+    @Apply
+    fun apply(seat: Seat) = Seat(seatId, true)
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Send `ReserveSeat` through the command gateway. Fluxzero loads the seat, checks the rule and commits the change.
+If a competing change invalidates the read, the decision is retried against the newer state. A second reservation
+then meets the same “already reserved” rule.
+
+Register the command types in your application; Spring discovers them in its scan. The fixture discovers them
+from the supplied commands.
+
+## Check the rule
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var seatId = new SeatId("A1");
+TestFixture.create()
+    .givenCommands(new CreateSeat(seatId), new ReserveSeat(seatId))
+    .whenCommand(new ReserveSeat(seatId))
+    .expectExceptionalResult(IllegalCommandException.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val seatId = SeatId("A1")
+TestFixture.create()
+    .givenCommands(CreateSeat(seatId), ReserveSeat(seatId))
+    .whenCommand(ReserveSeat(seatId))
+    .expectExceptionalResult(IllegalCommandException::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+The check and the change belong to the same Model operation. Checking availability in a separate query before
+sending an unconditional update would leave a race between those two calls.
+
+See [Model updates](/docs/guides/modeling-and-persistence/updating-entities) for the annotations and
+[atomic changes across Models](/docs/fluxzero-2-deep-dive#2-changing-several-models-atomically)
+when a booking must create a reservation as well.

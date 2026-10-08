@@ -11,11 +11,51 @@ import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 Fluxzero allows you to simulate and verify HTTP interactions as part of your test flows. Web requests
 can be tested like any other command, query, or event.
 
+Start with one endpoint and one assertion. No HTTP server or port is needed:
 
-For endpoints that call another service, configure an explicit consumer for the external test stub;
-see [External HTTP stubs and consumers](#external-http-stubs-and-consumers).
+<Tabs>
+  <TabItem label="Java">
 
-Here’s a complete test for a POST /games handler that accepts a JSON request and publishes a command:
+```java
+class HelloEndpoint {
+    @HandleGet("/hello")
+    String hello() { return "Hello, world!"; }
+}
+
+@Test
+void greetsTheVisitor() {
+    TestFixture.create(new HelloEndpoint())
+            .whenGet("/hello")
+            .expectResult("Hello, world!");
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+class HelloEndpoint {
+    @HandleGet("/hello")
+    fun hello() = "Hello, world!"
+}
+
+@Test
+fun greetsTheVisitor() {
+    TestFixture.create(HelloEndpoint())
+        .whenGet("/hello")
+        .expectResult("Hello, world!")
+}
+```
+
+  </TabItem>
+</Tabs>
+
+The fixture also supports request bodies, headers, user context and response assertions.
+
+## Example: creating with POST
+
+In a game application, a POST handler can dispatch a command to register a game. Register the endpoint and command
+behavior with `testFixture`; the example below checks the response and resulting event.
 
 <Tabs>
   <TabItem label="Java">
@@ -266,13 +306,8 @@ Substitution uses result order only—not types or variable names—making it id
 
 ## External HTTP stubs and consumers
 
-An absolute `@HandleGet` or `@HandlePost` handler in TestFixture is an ordinary WEBREQUEST handler. Its URL
-selects a route; it does not classify a handler as a remote service or give it a separate consumer.
-
-If an application endpoint waits for an external HTTP response, give its test stub a separate explicit consumer.
-Keep the application's configured consumers unchanged. Otherwise `perPackage` can put a same-package endpoint
-and stub on one single-threaded consumer. The synchronous fixture detects that potential production deadlock;
-the async fixture really uses tracking and can wait for work the occupied consumer cannot execute.
+Test calls to an external service with an absolute-URL handler. Give the stub a separate consumer when the
+application endpoint waits for its response, so they cannot block each other on a shared consumer:
 
 <Tabs>
 <TabItem label="Java">
@@ -331,36 +366,17 @@ fun callsExternalApi() {
 </TabItem>
 </Tabs>
 
-Repeat with `createAsync` when consumer/tracking behavior is relevant. A builder-level
-`ConsumerConfiguration` with an exact handler filter is the alternative when the stub cannot be annotated.
-Use unique names for different configurations. A same-name conflict reports the registration's handler types
-without inspecting their instance values or rerunning custom filters; that list is context, not a claim that
-every listed type belongs to both conflicting configurations.
+Repeat with `createAsync` when consumer/tracking behavior is relevant. If you cannot annotate the stub,
+select it through a builder-level `ConsumerConfiguration` instead.
 
 ### Defaults and registration
 
-`fluxzero.tracking.unconfiguredHandlerConsumerMode`
-(`FLUXZERO_TRACKING_UNCONFIGURED_HANDLER_CONSUMER_MODE`) explicitly selects the fallback; otherwise
-`fluxzero.defaults.version` chooses it:
+Keep the application's consumer configuration intact and register stubs before the first request. The fixture
+should exercise the same configuration as the application; see
+[Message tracking](/docs/guides/messaging/message-tracking/#default-consumer-behavior) for defaults and explicit consumers.
 
-| Defaults version | Fallback for unconfigured handlers |
-| --- | --- |
-| Missing or before 2026.05.20 | `defaultAppConsumer`: shared application consumer |
-| 2026.05.20 through 2026.07.26 | `perHandler`: one per handler class |
-| 2026.07.27 or newer | `perPackage`: one per exact package and message type |
-
-Explicit `@Consumer` and matching custom configurations retain their normal precedence. Do not change only
-fixture defaults to hide a topology problem. Two handlers sharing a consumer must use compatible identical
-configuration; additional handlers can be registered after tracking starts, but that does not rewind its position.
-Registration is not a live reconfiguration API. Register stubs before sending requests that need them.
-
-Namespaces and authorization/interceptors still apply to stubs. Configure the stub in the namespace used by the
-outgoing gateway and test both allowed and denied callers. `...ByUser` supplies caller identity; it does not
-prove real cookie/bearer authentication. Keep raw credential-establishment tests separate.
-Configure a UserProvider that can resolve the supplied test identity; `addUser` metadata alone does not authenticate
-a real remote HTTP server. Use that server's credential contract. In async HTTP tests a rejected downstream stub
-can return an error WebResponse to the calling endpoint; the sync fixture may surface its exception directly.
-Assert the boundary actually under test rather than assuming every downstream rejection fails the outer handler.
+Stubs also use the normal namespace, authorization and interceptor rules. Test allowed and denied callers with a
+`UserProvider` that resolves their test identities. See [Testing your handlers](/docs/guides/messaging/testing-your-handlers) for fixture options.
 
 ### What this test does not simulate
 

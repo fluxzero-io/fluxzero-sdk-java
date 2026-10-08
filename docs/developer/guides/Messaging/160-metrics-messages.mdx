@@ -1,12 +1,13 @@
 ---
 title: Metrics messages
-description: Metrics messages
+description: Publish and consume operational metrics, and discover the built-in SDK and Runtime signals.
 slug: docs/guides/messaging/metrics-messages
 sidebar:
   order: 160
 ---
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
 
 Fluxzero supports a built-in message type for metrics: `MessageType.METRICS`.
 
@@ -17,125 +18,9 @@ Metrics messages are:
 - Lightweight, structured, and traceable
 - Logged like any other message
 - Routable to handlers (via @HandleMetrics)
-- Stored by default for **1 month** due to volume
+- Retained according to the metrics log configuration; export or aggregate signals you need to keep longer
 
-The following tables summarize all built‑in metric message types available in Fluxzero.
-
----
-
-## Built-in metrics overview
-
-The metrics listed below are published automatically by the Fluxzero SDK and Runtime when using common SDK functions (e.g. publishing messages, tracking, scheduling, searching, etc.).
-These metrics are essential for observability and are written to the metrics log for monitoring and analysis.
-
-All metric messages are published by the SDK, except for `ConnectEvent` and `DisconnectEvent`, which are published by the Runtime when a client connects or disconnects a WebSocket session.
-
----
-
-### Dispatch
-
-| Metric message | Description |
-|----------------|--------------|
-| **Append$Metric** | Published when messages are appended to a log. |
-| **SetRetentionTime** | Indicates that the retention time of a message log has been updated. |
-
----
-
-### Tracking
-
-| Metric message | Description |
-|----------------|--------------|
-| **Read** | Published after a new batch of messages from the tracker’s current position is requested. |
-| **ReadResult$Metric** | Reports metrics about the received batch (size, latency, etc.). |
-| **ProcessBatchEvent** | Marks the end of processing a message batch by a single tracker. |
-| **HandleMessageEvent** | Published once a handler is done handling a message. If the handler is asynchronous `HandleMessageEvent` may be published before the handler completes. |
-| **CompleteMessageEvent** | Published when an asynchronous handler completes. |
-| **IgnoreMessageEvent** | Published when a message matched a handler but was deliberately skipped before invocation. Currently used when an indexed request, such as a query, web request, or opt-in command, reached the handler after its expiry deadline. |
-| **ReadFromIndex** | Manual read starting from a specific index. |
-| **ReadFromIndexResult$Metric** | Response metrics for `ReadFromIndex`. |
-| **GetPosition** | Requests the current consumer position. |
-| **GetPositionResult** | Returns the current consumer position. |
-| **StorePosition** | Reports that the tracker position has been updated. |
-| **ResetPosition** | Indicates that a consumer’s position has been reset. |
-| **DisconnectTracker** | Published when a tracker disconnects. |
-
----
-
-### Model commits
-
-| Metric message | Description |
-|----------------|-------------|
-| **CommitModels** | Commits model events, documents, snapshots and relationship deltas as one package. |
-| **CommitModelsResult$Metric** | Reports accepted, duplicate, rebase and conflict outcomes. |
-| **GetModelEvents** | Batch-loads modelstream memberships at one state boundary. |
-| **GetModelEventsResult$Metric** | Reports stream, payload, membership and byte counts. |
-| **GetModelGraph / GetModelGraphResult$Metric** | Loads a bounded current or historical model graph. |
-| **GetModelChange / GetModelChangeResult$Metric** | Resolves the target count and exact boundary of one durable model-commit substep for a graph-change handler. |
-| **GetModelAncestors** | Resolves bounded temporal ancestor dependencies. |
-| **PlanModelDeletion / DeleteModel** | Plans or executes model hard deletion. |
-
----
-
-### Relationships
-
-| Metric message | Description |
-|----------------|--------------|
-| **GetRelationships** | Requests relationships for an entity. |
-| **GetRelationshipsResult** | Returns relationships for an entity. |
-
----
-
-### Scheduling
-
-| Metric message | Description |
-|----------------|--------------|
-| **Schedule** | Schedules one or more messages for future dispatch. |
-| **CancelSchedule** | Cancels a scheduled message. |
-| **GetSchedule** | Requests a specific schedule by ID. |
-| **GetScheduleResult** | Returns schedule details. |
-
----
-
-### Documents / Search
-
-| Metric message | Description |
-|----------------|--------------|
-| **IndexDocuments** | Indexes one or more documents for search. |
-| **SearchDocuments** | Executes a search query on a document collection. |
-| **SearchDocumentsResult** | Returns the results of a document search. |
-| **GetDocument** | Retrieves a document by ID. |
-| **GetDocumentResult** | Returns the requested document. |
-| **GetDocuments** | Retrieves multiple documents by their IDs. |
-| **GetDocumentsResult** | Returns multiple documents. |
-| **HasDocument** | Checks if a document exists. |
-| **DeleteCollection** | Deletes an entire document collection. |
-| **DeleteDocuments** | Deletes documents matching a query. |
-| **MoveDocuments** | Moves documents between collections. |
-| **DeleteDocumentById** | Deletes a single document by ID. |
-| **MoveDocumentById** | Moves a single document by ID. |
-| **BulkUpdateDocuments** | Updates documents in bulk. |
-| **GetFacetStats** | Requests facet statistics for a search query. |
-| **GetFacetStatsResult** | Returns facet statistics results. |
-
----
-
-### Common results/acknowledgements
-
-| Metric message | Description |
-|----------------|--------------|
-| **VoidResult** | Empty acknowledgement for successful commands. |
-| **ErrorResult** | Indicates that a request failed in the runtime. |
-| **BooleanResult** | Boolean response for a request. |
-| **StringResult** | String response for a request. |
-
----
-
-### Runtime connection events
-
-| Metric message | Description |
-|----------------|--------------|
-| **ConnectEvent** | Published by the runtime when a client connects a WebSocket session. |
-| **DisconnectEvent** | Published by the runtime when a client disconnects a WebSocket session. |
+Publish your own operational signals, consume them with `@HandleMetrics`, or use the built-in signals described below.
 
 ---
 
@@ -191,21 +76,6 @@ Fluxzero.get()
 
 ---
 
-## Automatic metrics from clients
-
-Many metrics are emitted automatically by the Flux Java client:
-
-- Connect/disconnect events when clients start or stop
-- Tracking stats (throughput, latency, handler timing)
-- Search, state, or document store usage
-- Web request round-trip timings
-
-<Aside type="note">
-These built-in metrics help diagnose issues and improve observability with minimal effort.
-</Aside>
-
----
-
 ## Consuming metrics
 
 You can handle metrics just like other message types:
@@ -215,7 +85,7 @@ You can handle metrics just like other message types:
 
 ```java
 @HandleMetrics
-void on(MetricEvent event) {
+void on(HandleMessageEvent event) {
     log.debug("Observed metric: {}", event);
 }
 ```
@@ -225,7 +95,7 @@ void on(MetricEvent event) {
 
 ```kotlin
 @HandleMetrics
-fun on(event: MetricEvent) {
+fun on(event: HandleMessageEvent) {
     log.debug("Observed metric: {}", event)
 }
 ```
@@ -233,7 +103,221 @@ fun on(event: MetricEvent) {
   </TabItem>
 </Tabs>
 
-Use this to feed dashboards, update counters, or trigger alerts.
+Use this to feed dashboards, update counters, or trigger alerts. For asynchronous handlers,
+`HandleMessageEvent.completed=false` means work is still pending; `CompleteMessageEvent` reports the final outcome.
+
+---
+
+## Automatic metrics from clients
+
+Handler timing, tracking, Runtime requests, application lifecycle and native HTTP outcomes are instrumented by
+the SDK. Host collection and detailed WebSocket diagnostics are optional.
+
+### Host and JVM metrics
+
+Enable periodic process-health snapshots on the application builder:
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+Fluxzero.builder().enableHostMetrics().build(client);
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.builder().enableHostMetrics().build(client)
+```
+
+</TabItem>
+</Tabs>
+
+The default interval is 60 seconds. Measurements depend on platform support; disk collection is disabled by default.
+Use <Jdoclink className="HostMetricsConfiguration" /> to choose collectors and the interval. These measurements
+observe the application process and its host, rather than managed database or cluster internals.
+
+### WebSocket diagnostics
+
+Enable `fluxzero.websocket.transportMetrics.enabled=true` (`FLUXZERO_WEBSOCKET_TRANSPORT_METRICS_ENABLED`)
+when investigating transport problems. These sparse anomaly signals complement ordinary request/result metrics.
+See [Configuring WebSocket client](../Configuration/275-configuring-websocket-client.mdx#diagnosing-stalled-connections)
+for the relevant settings.
+
+---
+
+## Built-in metrics overview
+
+These tables group the main built-in signals by purpose. The SDK publishes handler, client-operation and application
+metrics; the Runtime also publishes its own lifecycle, connection and schedule-cancellation signals.
+Availability depends on the feature in use and its metrics settings.
+
+Protocol operations often publish a smaller nested `Metric` payload through `JsonType.toMetric()`. For example,
+Java's `Append.Metric` appears as `Append$Metric` in serialized type names. Request metrics describe an attempted
+operation; inspect the result for its outcome. See <Jdoclink className="JsonType" /> for the conversion contract.
+
+---
+
+### Dispatch
+
+| Metric message | Description |
+|----------------|--------------|
+| **Append$Metric** | Summarizes an append request: message type, count and bytes. |
+| **SetRetentionTime** | Requests a change to message-log retention. |
+
+---
+
+### Tracking
+
+| Metric message | Description |
+|----------------|--------------|
+| **Read** | Published after a new batch of messages from the tracker’s current position is requested. |
+| **ReadResult$Metric** | Reports metrics about the received batch (size, latency, etc.). |
+| **PauseTrackerEvent** | A tracker paused while idle or backing off; a pause alone does not indicate failure. |
+| **ClaimSegment / ClaimSegmentResult$Metric** | A tracker requests segment ownership and receives its assigned range. |
+| **ProcessBatchEvent** | Marks the end of processing a message batch by a single tracker. |
+| **HandleMessageEvent** | Published once a handler is done handling a message. If the handler is asynchronous `HandleMessageEvent` may be published before the handler completes. |
+| **CompleteMessageEvent** | Published when an asynchronous handler completes. |
+| **IgnoreMessageEvent** | Published when a message matched a handler but was deliberately skipped before invocation. Currently used when an indexed request, such as a query, web request, or opt-in command, reached the handler after its expiry deadline. |
+| **ReadFromIndex** | Manual read starting from a specific index. |
+| **ReadFromIndexResult$Metric** | Response metrics for `ReadFromIndex`. |
+| **GetPosition** | Requests the current consumer position. |
+| **GetPositionResult** | Returns the current consumer position. |
+| **StorePosition** | Reports the submitted tracker position. |
+| **ResetPosition** | Requests a reset of the consumer position. |
+| **DisconnectTracker** | Published when a tracker disconnects. |
+
+---
+
+### Model commits
+
+| Metric message | Description |
+|----------------|-------------|
+| **CommitModels$Metric** | Summarizes an atomic Model commit request. |
+| **CommitModelsResult$Metric** | Reports accepted, duplicate, rebase and conflict outcomes. |
+| **GetModelEvents$Metric** | Batch-loads modelstream memberships at one state boundary. |
+| **GetModelEventsResult$Metric** | Reports stream, payload, membership and byte counts. |
+| **GetModelGraph$Metric / GetModelGraphResult$Metric** | Loads a bounded current or historical model graph. |
+| **GetModelChange$Metric / GetModelChangeResult$Metric** | Resolves the target count and exact boundary of one durable model-commit substep for a graph-change handler. |
+| **PlanModelDeletion$Metric / ModelDeletionPlan$Metric** | Plans Model erasure and reports its scope. |
+| **DeleteModel$Metric / ModelDeletionResult$Metric** | Requests Model erasure and reports the result. |
+| **TrackModelUpdates / TrackModelUpdatesResult$Metric** | Follows committed Model changes. |
+| **RegisterModelGraphProjection / GetModelGraphProjectionStatus / AwaitModelGraphProjection** | Registers a stored Graph projection, checks its progress or waits for it to catch up. |
+
+---
+
+### Relationships
+
+| Metric message | Description |
+|----------------|--------------|
+| **GetRelationships** | Requests relationships for an entity. |
+| **GetRelationshipsResult** | Returns relationships for an entity. |
+| **UpdateRelationships / RepairRelationships** | Updates or repairs entity relationship records. |
+| **GetAggregateIds / GetAggregateIdsResult** | Looks up aggregate identities by entity identity. |
+
+For the explicit event-store API, `AppendEvents$Metric`, `GetEvents`, `GetEventsResult$Metric` and `DeleteEvents`
+report event writes, reads and deletion. Independent Model operations use the Model metrics above.
+
+---
+
+### Scheduling
+
+| Metric message | Description |
+|----------------|--------------|
+| **Schedule$Metric** | Summarizes a request to schedule one or more messages. |
+| **CancelSchedule** | Requests cancellation of a scheduled message. |
+| **GetSchedule** | Requests a specific schedule by ID. |
+| **GetScheduleResult$Metric** | Summarizes the returned schedule. |
+| **ScheduleWithParents$Metric** | Schedules work tied to committed Model parents. |
+| **GetScheduleParents$Metric** | Summarizes parent-lifetime lookup; used for both its request and result. |
+| **ScheduleAutoCancelled** | The Runtime removed pending work because a Model parent was deleted. |
+
+See [Parent-owned schedules](./086-parent-owned-schedules.mdx) for the lifecycle behavior.
+
+---
+
+### Documents / Search
+
+| Metric message | Description |
+|----------------|--------------|
+| **IndexDocuments$Metric** | Indexes one or more documents for search. |
+| **SearchDocuments** | Executes a search query on a document collection. |
+| **SearchDocumentsResult$Metric** | Reports match count, returned bytes and response time. |
+| **GetDocument** | Retrieves a document by ID. |
+| **GetDocumentResult$Metric** | Reports whether a document was found and its size. |
+| **GetDocuments** | Retrieves multiple documents by their IDs. |
+| **GetDocumentsResult$Metric** | Summarizes the returned document batch. |
+| **HasDocument** | Checks if a document exists. |
+| **DeleteCollection** | Deletes an entire document collection. |
+| **DeleteDocuments** | Deletes documents matching a query. |
+| **MoveDocuments** | Moves documents between collections. |
+| **DeleteDocumentById** | Deletes a single document by ID. |
+| **MoveDocumentById** | Moves a single document by ID. |
+| **BulkUpdateDocuments$Metric** | Updates documents in bulk. |
+| **GetFacetStats** | Requests facet statistics for a search query. |
+| **GetFacetStatsResult$Metric** | Returns facet statistics results. |
+| **GetDocumentStats / GetDocumentStatsResult$Metric** | Computes document statistics. |
+| **GetSearchHistogram / GetSearchHistogramResult** | Computes a search histogram. |
+| **GetSearchCollections / GetSearchCollectionsResult$Metric** | Lists available search collections. |
+| **SearchModelDocuments$Metric / SearchModelGraphDocuments$Metric** | Searches Model documents or stored Graph projections. |
+
+Model migration and rematerialization operations also emit request/result metrics. See
+[Tracking & updating documents](../Modeling%20&%20persistence/230-tracking-and-updating-documents.mdx)
+for when to use those operations; the API reference describes their fields.
+
+---
+
+### Key-value storage
+
+| Metric message | Description |
+| --- | --- |
+| **StoreValues$Metric / StoreValueIfAbsent$Metric** | Summarizes values submitted for storage, including conditional writes. |
+| **GetValue / GetValueResult$Metric** | Requests a value and summarizes the response. |
+| **DeleteValue** | Requests deletion of a stored value. |
+
+### Common results/acknowledgements
+
+| Metric message | Description |
+|----------------|--------------|
+| **VoidResult** | Empty acknowledgement for successful commands. |
+| **ErrorResult** | Indicates that a request failed in the runtime. |
+| **BooleanResult** | Boolean response for a request. |
+| **StringResult** | String response for a request. |
+
+---
+
+### Runtime connection events
+
+| Metric message | Description |
+|----------------|--------------|
+| **ConnectEvent** | Published by the runtime when a client connects a WebSocket session. |
+| **DisconnectEvent** | Published by the runtime when a client disconnects a WebSocket session. |
+
+### Application and Runtime health
+
+| Metric message | Description |
+| --- | --- |
+| **ApplicationLifecycleEvent** | An SDK application started or began controlled shutdown (`STARTED` / `STOPPING`). |
+| **RuntimeLifecycleEvent** | A Runtime or Test Server started or began stopping. |
+| **HostMetrics** | A periodic snapshot containing available CPU, memory, GC, thread, class-loading, uptime, file-descriptor, disk and container measurements. Requires host collection to be enabled. |
+| **CacheEvictionEvent** | An SDK cache entry was evicted, with its identity and reason. |
+
+Host measurements are fields inside `HostMetrics`, not a separate message for every collector. A stopping metric
+is useful evidence of controlled shutdown; its absence alone does not prove the process is still running.
+See <Jdoclink className="ApplicationLifecycleEvent" /> and <Jdoclink className="RuntimeLifecycleEvent" />.
+
+### HTTP and WebSocket transport
+
+| Metric message | Description |
+| --- | --- |
+| **NativeWebRequestMetric** | Outcome and duration of a direct outbound HTTP request, including attempts, cancellation and redirect rejection. |
+| **WebsocketTransportMetric** | Opt-in diagnostics for ping timeouts, ingress backpressure, stalls/recovery, overflow and rejected executor work. |
+
+`NativeWebRequestMetric` describes the original request target. Its raw query is separate metric metadata;
+headers, bodies and exception text are excluded. Path and query can still contain sensitive application data.
+See <Jdoclink className="NativeWebRequestMetric" />. Requests sent through the Runtime proxy retain their
+handler metrics; they do not use the native-client metric.
 
 ---
 
@@ -277,7 +361,13 @@ You can also disable metrics for an entire consumer by using `batchInterceptors`
 
 ### Option 2: Disable globally in the client config
 
-When creating a WebSocket client, set `disableMetrics = true` in the configuration.
+When creating a WebSocket client, set `disableMetrics = true` in its configuration to suppress client-operation
+metrics. The standard application builder also respects this choice for native HTTP and application-lifecycle metrics.
+This does not disable every SDK publisher or metrics emitted by the Runtime.
+
+The application builder has separate `disableTrackingMetrics()`, `disableCacheEvictionMetrics()` and
+`disableApplicationLifecycleMetrics()` switches. Host collection runs only when explicitly enabled.
+See <Jdoclink className="FluxzeroBuilder" /> for their scopes.
 
 ### Option 3: Disable dynamically using a dispatch interceptor
 

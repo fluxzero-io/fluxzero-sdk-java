@@ -6,43 +6,14 @@ sidebar:
    order: 80
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
 Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
 
-Use `ScheduleId` when different schedule categories can share the same domain ID. Fluxzero uses its stable `type:id`
-representation for scheduling, lookup and cancellation.
-
-<Tabs>
-<TabItem value="Java" label="Java">
-
-```java
-ScheduleId expiryId = ScheduleId.of("account-expiry", userId);
-Fluxzero.schedule(new TerminateAccount(userId), expiryId, Duration.ofDays(30));
-Fluxzero.cancelSchedule(expiryId);
-```
-
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-val expiryId = ScheduleId.of("account-expiry", userId)
-Fluxzero.schedule(TerminateAccount(userId), expiryId, Duration.ofDays(30))
-Fluxzero.cancelSchedule(expiryId)
-```
-
-</TabItem>
-</Tabs>
-
-For Model workflows, use [current-state schedule reconciliation](./085-model-schedule-reconciliation.mdx): a sole
-`Graph<Child>` handler sees cascade deletion too, and `loadCurrentGraph` prevents old events from restoring stale work.
-
-The snippets below illustrate scheduling API calls only. A production consumer must also recheck current intent before
-creating a schedule, and a delivered command must reject stale work. Blindly replaying `AccountClosed` after reopening
-would otherwise restore a schedule that no longer belongs.
-
-Here's an API-only example that schedules a termination event 30 days after an account is closed:
+Here's an example that schedules work 30 days after an account closes and cancels it if the account reopens:
 
 <Tabs>
 <TabItem value="Java" label="Java">
@@ -65,7 +36,7 @@ class UserLifecycleHandler {
 
     @HandleSchedule
     void handle(TerminateAccount schedule) {
-        // Perform termination
+        // Recheck that the account is still closed, then perform termination
     }
 }
 ```
@@ -92,7 +63,7 @@ class UserLifecycleHandler {
 
     @HandleSchedule
     fun handle(schedule: TerminateAccount) {
-        // Perform termination
+        // Recheck that the account is still closed, then perform termination
     }
 }
 ```
@@ -100,14 +71,14 @@ class UserLifecycleHandler {
 </TabItem>
 </Tabs>
 
+<Aside type="note">
+Before performing the delayed action, check that it is still needed. For replay-safe creation and cancellation,
+see [Schedule identity and lifecycle](#schedule-identity-and-lifecycle) below.
+</Aside>
+
 ---
 
 ## Scheduling commands
-
-When the payload declares `@Parent`, the schedule belongs to that already committed Model's lifetime. Direct
-`@Apply → null`, cascade deletion and hard erasure asynchronously cancel it. See
-[parent-owned schedules](./086-parent-owned-schedules.mdx) for explicit `Schedule.withParents(...)`, replacement
-and periodic-continuation semantics. Cancellation cannot recall delivered commands.
 
 You can also schedule commands directly using `scheduleCommand(...)`.
 
@@ -157,6 +128,43 @@ class UserLifecycleHandler {
 </Tabs>
 
 ---
+
+## Schedule identity and lifecycle
+
+Use `ScheduleId` when different schedule categories can share the same domain ID. Fluxzero uses its stable `type:id`
+representation for scheduling, lookup and cancellation.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+ScheduleId expiryId = ScheduleId.of("account-expiry", userId);
+Fluxzero.schedule(new TerminateAccount(userId), expiryId, Duration.ofDays(30));
+Fluxzero.cancelSchedule(expiryId);
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+val expiryId = ScheduleId.of("account-expiry", userId)
+Fluxzero.schedule(TerminateAccount(userId), expiryId, Duration.ofDays(30))
+Fluxzero.cancelSchedule(expiryId)
+```
+
+</TabItem>
+</Tabs>
+
+### Work tied to a Model
+
+Declare `@Parent` on a scheduled payload to cancel pending work when its committed Model owner is deleted.
+See [Parent-owned schedules](./086-parent-owned-schedules.mdx).
+
+<Aside type="note" title="Check that delayed work still belongs">
+Cancellation cannot recall work that has already been delivered. Check current state before performing a delayed
+action. If an event handler manages schedules, replaying an old event should not restore obsolete work; see
+[current-state schedule reconciliation](./085-model-schedule-reconciliation.mdx) for that pattern.
+</Aside>
 
 ## Periodic scheduling
 
@@ -288,16 +296,10 @@ In this example:
 
 ## Delivery and completion
 
-In SDK 2.x, schedule and scheduled-command convenience methods use `Guarantee.DEFAULT` and return without waiting
-for a remote acknowledgement. The default is `STORED`, independent of `fluxzero.defaults.version`; configure
-`fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) to override it. Cancellation also
-uses `DEFAULT`. Active tracking batches await their outgoing scheduling commands before committing position.
-Outside tracking, use the explicit overload returning a future to observe acknowledgement/failure:
-`messageScheduler.schedule(schedule, false, Guarantee.STORED)` (Java and Kotlin). Only awaiting that future proves
-that the schedule was stored; a scheduled message's handler completes later. Already-completed failures are still
-reported synchronously by convenience methods. Parent binding and local timer installation are part of completion.
+SDK 2.x scheduling and cancellation convenience methods return without waiting for a remote acknowledgement.
+When you need confirmation that a schedule was stored, use the future-returning overload, for example
+`messageScheduler.schedule(schedule, false, Guarantee.STORED)`, and await its future. This confirms storage,
+not execution of the delayed action.
 
-Framework scheduling retains its own completion requirements: periodic initialization and automatic rescheduling
-await `STORED`, and framework cancellation awaits `SENT`. An application delivery-default override does not weaken
-these internal boundaries. Custom schedulers retain their existing cancellation contract. The public convenience
-methods remain non-blocking in SDK 2.x; SDK 1.x retains its synchronous convenience methods.
+See [Sending messages](/docs/guides/messaging/sending-messages/#delivery-defaults-and-completion) for shared delivery
+settings and <Jdoclink className="MessageScheduler" /> for the exact overloads and completion contracts.

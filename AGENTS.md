@@ -182,6 +182,46 @@ For wire or persisted formats, also test old-data reads and new-data round trips
   the owning backlog dossier. Keep the previous performance baseline discoverable and update it only after
   repeated successful qualification. Do not silently reset the baseline to a slower build.
 
+## Documentation Teaching Structure
+
+- Human developer documentation under `docs/developer/` teaches what the SDK makes possible and how to use it.
+  Explain the problem the capability solves, then show the smallest concrete example that demonstrates it.
+  Let readers see a useful result before adding more concepts; avoid hidden helper behavior, placeholder-only
+  implementations and speculative fields in introductory examples. Introduce the ordinary workflow before
+  options, guarantees, compatibility notes, edge cases, or internals. Apply this order recursively within sections:
+  refinements belong below the concept they refine, with deeper details in subordinate sections only when useful.
+- A how-to guide answers one developer task with one minimal working path. Move task walkthroughs out of reference
+  chapters into focused guides and link both ways. Do not add optional variants or a troubleshooting catalogue to
+  every guide; keep essential prerequisites next to the example and let other topics have their own page.
+- Keep human guides selective. Explain enough for a developer to understand the capability and make the next decision;
+  put exhaustive overloads, parameter/default inventories, lifecycle paths and exact API contracts in Javadoc.
+  Link to the owning guide or API reference instead of duplicating its explanation. A long chapter is justified by
+  useful teaching and worked examples, not by covering every implementation branch.
+- Preserve technical truth while simplifying. Include a brief caveat next to an example when omitting it would make
+  that example misleading or unsafe; place the fuller explanation later under the relevant topic. Do not turn an
+  opening into a defensive list of guarantees and exceptions, and do not bury an essential prerequisite.
+- When repairing documentation, inspect Git history (including the website history before the SDK import) to recover
+  the original teaching structure and identify later insertions. Use that evidence to understand changes, then judge
+  all text by its teaching value, including the original;
+  do not treat length alone as a defect or infer human/agent authorship from Git author names. Preserving the original
+  structure does not establish completeness or accuracy: compare inventories and claims with current APIs and publishers.
+- Reuse existing Astro/Starlight components in moderation: Java/Kotlin tabs, useful asides and diagrams that explain
+  a relationship. Use the existing `Jdoclink` component for focused API links and inline Javadoc previews rather than
+  reproducing reference text in the guide. Confirm the referenced type is available to the website's Javadoc loader.
+- Integrate additions into the existing learning sequence. Re-read the whole affected chapter, consolidate repeated
+  explanations, and remove obsolete or redundant detail. Do not prepend a recent fix, append a release narrative,
+  or copy regression-test cases and implementation notes into a guide. Preserve useful Java and Kotlin examples,
+  stable page routes and incoming section links when restructuring.
+- The agent graph under `docs/agents/` uses the same progressive structure: concise orientation and capability choices
+  in parent articles, with explicit links to focused deeper articles. The deepest leaves may match or exceed Javadoc
+  detail when cross-API behavior, constraints or examples help agents implement correctly. Keep that detail discoverable
+  through manifest links and symbols; do not repeat it in every ancestor or strip useful leaf detail merely for brevity.
+- Reviewing all documentation surfaces means giving each audience the appropriate explanation, not copying the same
+  technical text into README, human guides, agent articles and Javadoc. A human-guide edit does not automatically
+  require an agent-graph rewrite. Verify changed examples against the SDK and check MDX and links; assess the final
+  chapter as a learning path, not just the added paragraphs in the diff.
+
+
 ## Coding Guidelines
 
 - Keep the root README timeless and concise: explain the product, how to start, where to find documentation, and how to contribute. Do not add release-specific narratives, versioned feature lists, Model/Graph explanations, bug-fix details, or specialized configuration contracts. Put those in the owning guides, Javadocs, and release notes instead; review the README for relevance without appending a paragraph for every change. Current build prerequisites and stable documentation links may remain.

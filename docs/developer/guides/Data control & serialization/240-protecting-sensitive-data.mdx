@@ -5,122 +5,35 @@ sidebar:
    order: 240
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Fluxzero offers built-in support for handling sensitive information with care using the `@ProtectData` and
-`@DropProtectedData` annotations.
+Some message fields should be available during processing without remaining in the message history. Use
+`@ProtectData` to store such a field separately, and `@DropProtectedData` to remove that protected value when it
+is no longer needed. The rest of the message can remain available for tracing and replay.
 
-These tools help prevent sensitive fields (e.g., passwords, SSNs, tokens) from being unnecessarily stored, logged, or
-retained — supporting compliance with data protection standards like **GDPR** and **ISO 27001**.
+<span id="use-cases"></span>
 
----
+For a minimal command and its final-use handler, follow
+[Use PII and erase it](/docs/guides/data-control-and-serialization/using-and-erasing-pii).
 
 ## @ProtectData: mark sensitive fields
 
-Message-field protection does not extend to secrets copied into Model state or documents. For eventless current
-state, query visibility, authorization and erasure boundaries, start with
-[Model state: persistence and protection boundaries](/docs/guides/modeling-and-persistence/model-state-boundaries/).
+<Jdoclink className="ProtectData" /> marks a payload field whose value is stored separately when the message is
+published. The stored payload contains a reference; handlers receive the restored value.
 
-To prevent a field from being stored with the rest of a message payload, annotate it with `@ProtectData`:
-
-<Tabs>
-  <TabItem label="Java">
-    ```java
-    public record RegisterCitizen(String name,
-                                  @ProtectData String socialSecurityNumber) {
-    }
-    ```
-  </TabItem>
-  <TabItem label="Kotlin">
-    ```kotlin
-    data class RegisterCitizen(
-        val name: String,
-        @ProtectData val socialSecurityNumber: String
-    )
-    ```
-  </TabItem>
-</Tabs>
-
-When this message is dispatched, the `socialSecurityNumber` will be:
-
-- **Offloaded** to a separate data vault when the message is published externally
-- **Redacted** from the main payload (not visible in logs or message inspectors)
-- **Re-injected** automatically when the message is handled
-
-This happens transparently — you can access the field as usual in handler methods.
-
-If a message is handled only by a local handler with `logMessage = false`, the original value remains in memory and is
-passed directly to that handler without a KV write or read. External fallback and `logMessage = true` keep the normal
-vault-backed behavior. `@LocalOnly` prevents external command dispatch; it does not suppress durable domain writes
-performed by the handler.
-
-### Independent Model events
-
-Automatic `@Model` commands and explicit `assertAndApply` updates also protect their stored and published events,
-including records, ordinary objects, and replacement payloads returned by `@InterceptApply`. A local Model commit is
-a durable write: its protected values must be available in the vault before the commit is sent. Unchanged restored
-values keep their references, even after erasure; a genuinely changed value receives a new reference. JSON property
-names, aliases, and configured naming strategies are respected.
-
-Reconstructing a Model restores retained values before resolving targets and applying stored events. It does not run
-command assertions/interceptors, write protected values, or execute `@DropProtectedData`. An erased value is `null`,
-so replay applies must tolerate missing private data. A vault read failure fails reconstruction instead of caching an
-incomplete Model. `@ProtectData` does not redact secrets deliberately copied into Model state, documents or snapshots.
-
-The built-in Jackson serializer supports standard bean properties, configured property names, aliases and nested
-unwrapped properties. Custom codecs, modified property writers, dynamic filters/any-getters and type/root wrappers
-require an explicit, safe `Serializer.serializedPropertyPaths` implementation matching their wire representation.
-Other serializer implementations must provide this capability too; the default does not guess property names.
-Unsupported mappings and formats fail before the Model commit rather than leaving private values in stored bytes.
-
----
+A local-only invocation without message logging can pass the value in memory without writing the vault.
+`@LocalOnly` does not suppress Model or document writes performed by your handler.
 
 ## @DropProtectedData: remove when done
 
-If the protected data should only be retained **temporarily**, annotate the handler method with `@DropProtectedData`:
+<Jdoclink className="DropProtectedData" /> marks a handler as the final use of its payload’s protected values.
+The values are restored for that invocation and their retained copies are deleted. Subsequent processing cannot
+recover them. Do not rely on the annotation to retain data for retries after handler failure.
 
-<Tabs>
-  <TabItem label="Java">
-    ```java
-    @HandleCommand
-    @DropProtectedData
-    void handle(RegisterCitizen command) {
-        validate(command.getSocialSecurityNumber());
-        ...
-    }
-    ```
-  </TabItem>
-  <TabItem label="Kotlin">
-    ```kotlin
-    @HandleCommand
-    @DropProtectedData
-    fun handle(command: RegisterCitizen) {
-        validate(command.socialSecurityNumber)
-        ...
-    }
-    ```
-  </TabItem>
-</Tabs>
-
-Once this handler completes:
-
-- The injected `socialSecurityNumber` is permanently deleted from storage, or discarded from memory for a local-only
-  dispatch.
-- Future replays will deserialize the message with that field omitted.
-
-<Aside type="caution">
-This mechanism ensures sensitive fields are usable just-in-time and discarded thereafter.
-</Aside>
-
----
-
-## Use cases
-
-- Temporary use of sensitive tokens or credentials
-- Compliance with **data minimization** and **retention policies**
-- Preventing accidental exposure in logs or audits
-
----
+Protection does not redact values you copy into logs, Model state, documents or snapshots. See
+[Model state and protection boundaries](/docs/guides/modeling-and-persistence/model-state-boundaries/).
 
 ## Replays and protected data
 
@@ -132,6 +45,13 @@ Design your handlers to tolerate this by making such fields optional or guarding
 </Aside>
 
 ---
+
+### Independent Model events
+
+Model updates also protect their stored and published events. Reconstructing a Model restores retained values;
+erased fields become `null`, so replay applies must tolerate missing private data. Custom serializers must describe
+their serialized property paths correctly; unsupported mappings fail before committing private values.
+See <Jdoclink className="ProtectData" /> and <Jdoclink className="Serializer" /> for these contracts.
 
 ## Missing protected data policies
 

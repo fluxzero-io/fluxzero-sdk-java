@@ -1,0 +1,103 @@
+---
+title: Wait for a response
+description: Remember a pending payment so a later confirmation can find the reservation it belongs to.
+slug: docs/guides/modeling-and-persistence/waiting-for-a-response
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Remember a pending payment so a later confirmation can find the reservation it belongs to.
+
+A payment provider returns its own reference. A small stateful handler remembers the connection between that
+reference and your reservation. The HTTP call itself belongs in the
+[API integration](/docs/guides/messaging/building-api-integrations).
+
+## Remember, then continue
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record PaymentStarted(String reservationId, String providerReference) {}
+public record PaymentConfirmed(String providerReference) {}
+public record ReservationPaid(String reservationId) {}
+
+@Stateful
+public record AwaitingPayment(@EntityId String reservationId,
+                              @Association String providerReference) {
+    @HandleEvent
+    static AwaitingPayment start(PaymentStarted event) {
+        return new AwaitingPayment(event.reservationId(), event.providerReference());
+    }
+
+    @HandleEvent
+    AwaitingPayment complete(PaymentConfirmed event) {
+        Fluxzero.publishEvent(new ReservationPaid(reservationId));
+        return null;
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class PaymentStarted(val reservationId: String, val providerReference: String)
+data class PaymentConfirmed(val providerReference: String)
+data class ReservationPaid(val reservationId: String)
+
+@Stateful
+data class AwaitingPayment(@EntityId val reservationId: String,
+                           @Association val providerReference: String) {
+    companion object {
+        @JvmStatic
+        @HandleEvent
+        fun start(event: PaymentStarted) =
+            AwaitingPayment(event.reservationId, event.providerReference)
+    }
+
+    @HandleEvent
+    fun complete(event: PaymentConfirmed): AwaitingPayment? {
+        Fluxzero.publishEvent(ReservationPaid(reservationId))
+        return null
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Register `AwaitingPayment.class` as a handler (`AwaitingPayment::class.java` in Kotlin). Fluxzero stores the returned
+handler instance. `@Association` matches the later confirmation to it, including after an application restart.
+Returning `null` removes the completed process.
+
+## Try the two messages
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+TestFixture.create(AwaitingPayment.class)
+    .givenEvents(new PaymentStarted("r1", "pay-42"))
+    .whenEvent(new PaymentConfirmed("pay-42"))
+    .expectEvents(new ReservationPaid("r1"));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+TestFixture.create(AwaitingPayment::class.java)
+    .givenEvents(PaymentStarted("r1", "pay-42"))
+    .whenEvent(PaymentConfirmed("pay-42"))
+    .expectEvents(ReservationPaid("r1"))
+```
+
+  </TabItem>
+</Tabs>
+
+This flow assumes `PaymentStarted` is stored before confirmation arrives. Real provider callbacks can arrive early
+or repeat: accept them at your [integration boundary](/docs/guides/messaging/receiving-webhooks), and make the final
+business action safe to repeat. Publishing an event and removing process state do not form an external transaction.
+
+See [stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers) for the lifecycle and association API.

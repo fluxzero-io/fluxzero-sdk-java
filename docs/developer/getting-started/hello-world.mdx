@@ -13,9 +13,7 @@ Let’s make sure everything’s working.
 
 In this mini-tutorial we're going to create the simplest possible Fluxzero app — just a single HTTP endpoint.
 
-<Aside type="note">
-  Ask your coding agent to make each change. The explanations below help you understand the code and what the application does.
-</Aside>
+
 
 ---
 
@@ -23,15 +21,13 @@ In this mini-tutorial we're going to create the simplest possible Fluxzero app �
 
 If you haven’t created a project yet, follow the [installation guide](/docs/getting-started/installation) first.
 
-Have your coding agent open the project. <a href="https://www.jetbrains.com/idea/" target="_blank" rel="noopener noreferrer">
-                                                  IntelliJ IDEA <span aria-hidden="true">↗</span>
-                                                </a> provides a good Java and Kotlin experience whenever you want to inspect or edit the code directly.
+Open the generated Basic Starter project in your editor. Its Spring setup discovers handler classes in the application's root package.
 
 ---
 
 ## 2. Add an endpoint
 
-Ask your agent to create a file named `HelloEndpoint.java` (or `.kt`) in the root package:
+Create a file named `HelloEndpoint.java` (or `.kt`) in the root package:
 
 <Tabs>
   <TabItem label="Java">
@@ -64,25 +60,22 @@ Ask your agent to create a file named `HelloEndpoint.java` (or `.kt`) in the roo
   </TabItem>
 </Tabs>
 
-<Aside type="tip">
-  You can define HTTP handlers in any app — no routing config or proxies required.
-</Aside>
+`@HandleGet("/hello")` connects the path to the method. The returned string becomes the HTTP response body.
+`@Component` lets the starter's Spring setup register this handler. Outside Spring, register a handler instance
+[explicitly](/docs/guides/configuration/configuring-fluxzero).
 
 ---
 
 ## 3. Run your app
 
-Start the app:
+From the project directory, start the local development environment:
 
 ```bash
-./gradlew run
+fz dev
 ```
 
-Then open your browser:
-
-```
-http://localhost:8080/hello
-```
+Open the application URL shown by the CLI and append `/hello`. The
+[local development guide](/docs/building/local-development) explains the Devboard and preview.
 
 You should see:
 
@@ -96,4 +89,5 @@ Hello from Fluxzero!
 
 You’ve just added your first Fluxzero handler!
 
-Now that your app is up and running, let’s build something real.
+Continue with [Core concepts](/docs/getting-started/core-concepts) to add stored state and commands,
+or build the [to-do app](/docs/tutorials/first-app) step by step.

@@ -6,200 +6,20 @@ sidebar:
   order: 15
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero provides a unified way to send all types of messages — **commands**, **events**, **queries**, **schedules**, **web requests**, **metrics**, and more.
+Send a message to ask your application to do work or provide information. The sender names the action; Fluxzero
+finds the handler, so the sender does not need its process address.
 
-All messages are routed through the same infrastructure, with built-in support for:
-
-- **Location transparency** — handlers may run locally or remotely, but behave the same
-- **Dispatch interceptors** — for enriching, logging, suppressing, or validating messages
-- **Local-first handling** — handlers in the current process are invoked directly
-- **Automatic forwarding** to the Fluxzero Runtime if no local handler is present
-- **Serialization and correlation** — all messages carry metadata for tracing, retries, and audit
-
----
-
-## Delivery defaults and completion
-
-`Guarantee.DEFAULT` applies to publication, results/HTTP responses, WebSocket messages/ping/close, indexing,
-document deletion/movement, collection deletion, audit trails, key-value writes, schedules, retention, and truncation.
-SDK 2.x resolves it to `STORED`; SDK 1.x normally resolves it to `NONE`, while schedule-client creation and cancellation retain `SENT` without an override. This choice is independent of
-`fluxzero.defaults.version`. Configure `fluxzero.publishing.defaultGuarantee`
-(`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`) as `NONE`, `SENT`, or `STORED` to override it. Despite its historic
-property name, this setting applies beyond publication. The standard builder resolves its own property source
-before creating components, including namespace views and TestFixture components. Direct WebSocket client calls use
-that client's `ClientConfig.fromProperties(source)` policy, independent of application gateway configuration.
-Metrics retain `NONE`. Ordinary bulk execution and explicit storage `AndWait` operations use `STORED` independently
-of the configured default; result publication follows the configured delivery default. Internal model/aggregate/stateful-handler persistence keeps explicit durable guarantees.
-Explicit concrete guarantees remain unchanged. `DEFAULT` is an SDK choice, never a wire value.
-
-Remote request/reply publication uses the same `fluxzero.publishing.defaultGuarantee`
-(`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`). Without an override, SDK 2.x uses `STORED` and SDK 1.x retains
-`SENT` for requests. An explicit `NONE`, `SENT`, or `STORED` applies to requests as well as other outgoing
-operations, independently of `fluxzero.defaults.version`. The builder resolves the owning application's source
-once, including namespace and lazy custom gateways. Direct `DefaultGenericGateway` construction keeps the same
-major-version request default; `withDefaultGuarantee(...)` configures both publication paths.
-
-For a per-call override, use `send(payload, metadata, guarantee)` or
-`sendAndWait(payload, metadata, guarantee)` on a command/query gateway. The corresponding static methods are
-`Fluxzero.sendCommand`, `sendCommandAndWait`, `query`, and `queryAndWait`. Typed `Request<R>` payloads retain
-result-type inference. Pass `Metadata.empty()` when no metadata is needed.
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-Fluxzero.sendCommand(command, Metadata.empty(), Guarantee.SENT);
-Fluxzero.queryAndWait(query, Metadata.empty(), Guarantee.STORED);
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-Fluxzero.sendCommand<Any?>(command, Metadata.empty(), Guarantee.SENT)
-Fluxzero.queryAndWait<Any?>(query, Metadata.empty(), Guarantee.STORED)
-```
-
-</TabItem>
-</Tabs>
-
-`DEFAULT` follows this shared property and the major-version request fallback when unconfigured.
-Existing calls without a guarantee use the same policy. `NONE`, `SENT`, or `STORED` overrides only this invocation.
-Batch callers can use `gateway.sendForMessages(guarantee, messages...)`; `GenericGateway` also accepts
-`sendForMessage(message, timeout, guarantee)`. Neither override adds delay to form larger batches nor forces
-locally handled requests through the Runtime. Custom gateway implementations retain their existing behavior for
-`DEFAULT`; they must implement explicit guarantees to support `NONE`/`SENT`/`STORED`, otherwise these fail explicitly.
-
-Even with `NONE`, request/reply futures still complete on the business response; publication acknowledgment
-is a separate boundary. `sendAndWait()` waits for that response as well. With `STORED`,
-the outgoing-write batch barrier does await storage before advancing the input position. This stronger boundary
-can reduce throughput in short request chains; qualify the application when choosing a guarantee. A failure reported
-by the publication future fails pending response futures and removes correlation callbacks.
-With `NONE`, transport may return before an asynchronous failure, leaving the request to its normal response timeout.
-Transport retries do not add a
-business-level retry or an exactly-once guarantee across Runtime replacement.
-
-Convenience calls return after dispatch/local handling, without waiting for each remote storage acknowledgement.
-The default consumer's `awaitOutgoingWrites=true` waits for registered outgoing-command futures before committing
-its position. A finished handler, a stored outgoing message, and a committed input position are separate boundaries.
-This is at-least-once processing: a crash after publication but before position commit can repeat side effects;
-use idempotent consumers. Storage acknowledgement does not mean that a downstream handler finished.
-
-Outgoing commands within a batch can overlap their acknowledgements; independent trackers can keep processing while
-another awaits storage. A tracker drains its own batch before claiming the next one, preserving segment ownership
-and bounding pending completion state to the batch. Delayed acknowledgements apply backpressure there. Failed or
-cancelled delivery prevents that batch's position from advancing, subject to the configured consumer error policy.
-Transport retry/reconnect behaviour is unchanged. Shutdown cannot make an unacknowledged publication durable;
-an uncommitted input remains replayable.
-
-With asynchronous handling, the completion scope includes the framework-managed handler invocation. If
-`awaitAsyncResults=false`, work started only by a later continuation of an unawaited returned stage is outside that
-boundary. Incomplete streamed messages and invocations queued behind them retain deferred completion, because their bodies
-may require later input batches; they cannot hold the current chunk position until the whole stream finishes.
-Arbitrary application-created background work is also outside the tracked scope. Setting
-`awaitOutgoingWrites=false` deliberately opts out of the outgoing-command barrier.
-
-Outside tracking there is no consumer-position barrier. To observe acknowledgement or asynchronous failure,
-keep the returned future:
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-CompletableFuture<Void> delivery = Fluxzero.get().eventGateway()
-        .publish(new Message(event), Guarantee.DEFAULT);
-delivery.join(); // Wait at an explicit application boundary, not once per event in a handler.
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-val delivery = Fluxzero.get().eventGateway().publish(Message(event), Guarantee.DEFAULT)
-delivery.join()
-```
-
-</TabItem>
-</Tabs>
-
-Locally handled or suppressed messages retain their existing local behaviour; `STORED` does not force a local-only
-message into the Runtime. Request/response calls keep their response-completion contract. Metrics/transport diagnostics, internal durable persistence and position-store operations retain their explicit
-guarantees. Low-level WebSocket client methods resolve DEFAULT from their client configuration; raw protocol
-request objects require concrete guarantees.
-
----
-
-## Logical messages and transport envelopes
-
-A `Message` contains payload, metadata, message ID and timestamp. A `SerializedMessage` additionally carries
-transport fields such as source, target, request ID and log index. Converting a received wrapper to a logical
-Message and sending it again is a new dispatch, not transparent forwarding of the original envelope.
-
-| Route for a command/query | Supplied logical message ID | Transport source |
-| --- | --- | --- |
-| Serialize, edit envelope, then deserialize | Preserved | Preserved on that serialized wrapper |
-| Local in-process handling / synchronous TestFixture | Preserved unless deliberately replaced | No transport source |
-| Tracked request via LocalClient / asynchronous TestFixture | Preserved unless deliberately replaced | Sending client's ID |
-| Tracked request across WebSocket clients | Preserved unless deliberately replaced | Sending client's ID |
-
-These rows apply equally to future-returning and blocking calls. `queryAndWait` and `sendCommandAndWait` can
-wait for a remote consumer; `send` can complete locally. Async TestFixture can also contain explicitly local
-handlers, so fixture mode alone is not proof that a specific message crossed transport.
-
-Request transport assigns source for response correlation. Do not depend on a manually supplied source surviving
-redispatch, and do not treat source or a caller-selected message ID as authenticated identity. Use application
-metadata for a deliberately forwarded correlation value and preserve the appropriate trusted user context.
-
-### Replacements and interceptors
-
-`DeserializingMessage.withPayload(...)` changes the payload while preserving message identity, metadata,
-handling context, and received transport fields: segment, index, source, target, and request ID.
-Serialization stays lazy and uses the replacement payload's type and revision. This applies to Java and Kotlin.
-Use `withMessage(...)` for a complete logical replacement without inheriting the original transport fields.
-Use `withRestoredPayload(...)` only for a restored view of the same payload type that retains the original
-serialized data, such as values recovered from private storage.
-
-For a logical identity change, return a replacement rather than mutating a cached serialized representation:
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-Message replacement = incoming.toMessage().withMessageId("new-logical-id");
-DeserializingMessage view = incoming.withMessage(replacement);
-Fluxzero.sendCommand(view);
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-val replacement = incoming.toMessage().withMessageId("new-logical-id")
-val view = incoming.withMessage(replacement)
-Fluxzero.sendCommand<Any?>(view)
-```
-
-</TabItem>
-</Tabs>
-
-For an edited serialized envelope, finish edits before calling `serializer.deserializeMessage(...)`.
-Treat input as read-only afterwards: a `DeserializingMessage` lazily caches its logical Message, and later
-serialized mutations do not synchronize that existing value. Deserialize again after deliberate envelope editing.
-Do not mutate a submitted message while dispatch/serialization may still be using it.
-
-`DispatchInterceptor.interceptDispatch` returns logical replacements for local and external dispatch.
-`modifySerializedMessage` concerns the serialized publication path and is not a general local-handler hook;
-request transport can still assign its own correlation fields afterwards. A metadata/payload-only replacement
-should retain the existing identity unless a genuinely distinct message is intended.
-
-Absolute HTTP stubs in TestFixture run normal handlers, not a real native HTTP client or proxy. They are unsuitable
-for proving a remote source/target envelope. Direct native HTTP carries HTTP headers and bodies, not a Fluxzero
-command/query envelope; mapping extra metadata into HTTP must be explicit.
-
----
+| Intent | Message kind |
+| --- | --- |
+| Ask for a change, such as creating a user | Command |
+| Ask for information, such as a user's profile | Query |
+| Announce something that happened | Event |
+| Perform work later | Schedule |
 
 ## Sending a message
 
@@ -210,9 +30,6 @@ The simplest way to send messages is via static methods on the `Fluxzero` class:
 
 ```java
 Fluxzero.sendCommand(new CreateUser("Alice")); // Async command
-Fluxzero.queryAndWait(new GetUser("user-123")); // Blocking query
-Fluxzero.publishEvent(new UserSignedUp(...)); // Fire-and-forget event
-Fluxzero.schedule(new RetryPayment(...), Duration.ofMinutes(5)); // Delayed schedule
 ```
 
 </TabItem>
@@ -220,13 +37,14 @@ Fluxzero.schedule(new RetryPayment(...), Duration.ofMinutes(5)); // Delayed sche
 
 ```kotlin
 Fluxzero.sendCommand(CreateUser("Alice"))
-Fluxzero.queryAndWait(GetUser("user-123"))
-Fluxzero.publishEvent(UserSignedUp(...))
-Fluxzero.schedule(RetryPayment(...), Duration.ofMinutes(5))
 ```
 
 </TabItem>
 </Tabs>
+
+Here `CreateUser` is your application's command payload, for example `record CreateUser(String name) {}`.
+Its command handler decides what creating a user means. `sendCommand` returns a future for the result;
+the variants below let you choose whether and how to wait.
 
 Messages can include metadata:
 
@@ -391,7 +209,7 @@ By default:
 - ⚠️ If a **local handler exists**, the event will not be forwarded unless `@LocalHandler(logMessage = true)`.
 
 <Aside type="tip">
-  To publish an event for an entity, use <code>entity.apply(...)</code>. This ensures the event is conditionally logged and published according to entity configuration.
+  For persisted domain changes, use the <a href="/docs/guides/modeling-and-persistence/updating-entities">Model update APIs</a>. They manage event storage and publication according to the Model configuration.
 </Aside>
 
 ---
@@ -699,3 +517,53 @@ If no response arrives in time, a `TimeoutException` is thrown.
 <Aside type="tip">
   Asynchronous requests like <code>send(...)</code> don’t enforce timeouts automatically. Use <code>orTimeout(...)</code> on the returned `CompletableFuture` if needed.
 </Aside>
+
+---
+
+## Delivery defaults and completion
+
+A handler's response and a storage acknowledgement answer different questions. The response tells you the result
+of the command or query. A storage acknowledgement tells you that the Runtime stored the outgoing message; it does
+not mean a downstream handler has finished.
+
+For ordinary outgoing messages, SDK 2.x uses `Guarantee.STORED` by default. You can override
+`fluxzero.publishing.defaultGuarantee` (`FLUXZERO_PUBLISHING_DEFAULT_GUARANTEE`), or select a guarantee for one call:
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+Fluxzero.sendCommand(new CreateUser("Alice"), Metadata.empty(), Guarantee.STORED);
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendCommand(CreateUser("Alice"), Metadata.empty(), Guarantee.STORED)
+```
+
+</TabItem>
+</Tabs>
+
+`NONE` does not await a transport acknowledgement, `SENT` waits for sending, and `STORED` waits for storage.
+These choices do not change request/reply futures into delivery receipts or force local messages through the Runtime.
+They are independent of `fluxzero.defaults.version`.
+
+Convenience methods such as `publishEvent` do not individually wait for remote storage. When you need to observe
+acknowledgement outside a handler, use the gateway overload that returns a future and await that future at the
+application boundary. During tracked handling, the default consumer waits for registered outgoing writes before
+advancing its position. Processing remains at least once: a crash can cause a message to be handled again, so
+external side effects should be idempotent. See [Consumer settings](/docs/guides/messaging/message-tracking/#consumer-settings).
+
+### Logical messages and transport envelopes
+
+<span id="replacements-and-interceptors"></span>
+
+A `Message` holds the payload, metadata, ID and timestamp. Sending a received message again creates a new dispatch;
+the SDK assigns the transport information needed for that request. Use application metadata for correlation you
+want to carry forward, and never treat a caller-supplied message ID or transport source as authenticated identity.
+
+For exact overloads and completion contracts, see <Jdoclink className="GenericGateway" /> and
+<Jdoclink className="Guarantee" />. Message replacement APIs are documented in
+<Jdoclink className="DeserializingMessage" />.

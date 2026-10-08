@@ -1,6 +1,6 @@
 ---
 title: Correlation data
-description: Overview of default correlation metadata automatically added to Fluxzero messages.
+description: Trace message chains with built-in correlation metadata and your own trace context.
 slug: docs/guides/messaging/correlation-data
 sidebar:
   order: 165
@@ -9,37 +9,88 @@ sidebar:
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 import Jdoclink from '~/components/jdoclink.astro';
 
-Every message in Fluxzero includes correlation metadata that enables traceability across applications, clients, and handlers.
-This correlation data is automatically added by the Fluxzero SDK to the `Metadata` of published messages.
+The SDK adds correlation metadata to outgoing messages so you can see which application, handler and earlier message
+produced them. `$correlationId` links to the immediate triggering message; `$traceId` connects the wider message chain.
 
----
+## Adding your own trace context
+
+Use `Metadata.withTrace(...)` for a value that should follow subsequent messages in the same flow:
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+Fluxzero.sendCommand(new TurnOnLight("living-room"),
+        Metadata.empty().withTrace("operationId", "evening-routine"));
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+Fluxzero.sendCommand(TurnOnLight("living-room"),
+    Metadata.empty().withTrace("operationId", "evening-routine"))
+```
+
+</TabItem>
+</Tabs>
+
+This adds `$trace.operationId`. When handling the message, the default correlation provider copies its `$trace.*`
+entries to follow-up messages. Ordinary metadata entries are not generally propagated this way.
+See <Jdoclink className="Metadata" /> for the trace helpers.
+
+## Built-in correlation fields
+
+These are string-valued metadata entries. Their presence depends on configuration and the active message-handling
+context; a message sent outside a handler need not have a trigger, consumer or invocation.
+
+### Application and client
 
 | Metadata key | Description |
-|---------------|-------------|
-| **$applicationId** | Unique identifier of the Fluxzero application instance that produced the message. |
-| **$clientId** | Identifier of the client (SDK instance) within the application. |
-| **$clientName** | Human-readable name of the client, typically derived from configuration or environment. |
-| **$consumer** | Name of the consumer that handled or tracked the message. |
-| **$tracker** | Identifier of the tracker that processed the message batch. |
-| **$correlationId** | Unique correlation ID shared by all messages related to the same logical operation. |
-| **$traceId** | Identifier used for distributed tracing across services and applications. |
-| **$trigger** | Identifies the triggering message or context that caused this message to be published. |
-| **$triggerType** | The type of the triggering message or context (e.g., command, event, schedule). |
-| **$invocation** | Identifier for a specific invocation or execution path, useful for replay and debugging. |
-| **$msDelay** | The delay (in milliseconds) applied before a scheduled message was executed. |
+| --- | --- |
+| **$applicationId** | Configured application identity, when available; not the identity of an individual process. |
+| **$applicationVersion** | Deployed application version, when configured. |
+| **$taskId** | Platform task or pod identity, when configured; distinct from the SDK client identity. |
+| **$clientId** | Identity of the SDK client instance producing the message. |
+| **$clientName** | Logical, human-readable name of that client. |
+
+Configure the version with `fluxzero.application.version` (`FLUXZERO_APPLICATION_VERSION`) and the task identity
+with `FLUXZERO_TASK_ID`. The standard builder adds these values when present; absent or blank settings add no value.
+For other application settings, see [Application properties](../Configuration/280-application-properties.mdx).
+
+### Handler and tracker
+
+| Metadata key | Description |
+| --- | --- |
+| **$consumer** | Name of the active tracking consumer. |
+| **$tracker** | Identifier of the active tracker. |
+| **$handler** | Simple class name of the current handler, when available. |
+| **$invocation** | Identifier of the current handler invocation. |
+
+### Trigger and message chain
+
+| Metadata key | Description |
+| --- | --- |
+| **$correlationId** | Index of the currently handled message, or its message ID when no index is available. |
+| **$traceId** | Trace ID inherited from the handled message, falling back to its correlation ID. |
+| **$trigger** | Payload type name of the triggering message. |
+| **$triggerType** | Message category of the trigger, such as `COMMAND`, `EVENT` or `SCHEDULE`. |
+| **$triggerNamespace** | Namespace of the triggering message, when available. |
+| **$msDelay** | Time in milliseconds from the handled message's timestamp to correlation-data collection; not limited to schedules. |
+
+The correlation ID changes as the chain moves to a new trigger; the trace ID carries the chain's shared identity.
+Use `$triggerNamespace` when resolving a trigger across namespaces; older messages may omit it and use the
+application namespace. `$msDelay` is elapsed message age, not a handler execution duration.
+
+## Customizing correlation
+
+`Fluxzero.currentCorrelationData()` exposes the active correlation context. For application-wide enrichment,
+use the builder's `replaceCorrelationDataProvider(...)`; compose with the existing provider using `andThen(...)`
+when you want to retain the standard fields. See <Jdoclink className="CorrelationDataProvider" /> for provider
+composition, context overloads and key definitions.
 
 <Aside>
-Flux reserves `$` as a prefix for metadata property names.
-You are allowed to use the `$` prefix for your own metadata properties, but this is unsupported and therefore we
-recommend using a different prefix to avoid conflicts with Fluxzero's internal metadata properties.
-Supported exception: use the SDK-provided trace helpers (for example `Metadata.withTrace(...)`) which intentionally
-write `$trace.*` keys.
-</Aside>
-
-See <Jdoclink className="CorrelationDataProvider" /> for the full list of metadata properties that are propagated by default.
-
----
-
-<Aside type="tip">
-Correlation metadata makes it easy to trace messages end-to-end across multiple services, handlers, and time windows.
+Fluxzero reserves the `$` prefix for SDK metadata. Use your own unprefixed keys for ordinary metadata, or the supported
+`Metadata.withTrace(...)` helper for values that should propagate as `$trace.*`. Keep sensitive data out of trace
+labels that may also appear in metrics and logs.
 </Aside>

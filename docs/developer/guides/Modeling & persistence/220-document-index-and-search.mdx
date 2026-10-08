@@ -9,36 +9,40 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero provides a powerful and flexible document store that lets you persist and query models using full-text
-search, filters, and time-based constraints.
-
-This system is especially useful for:
-
-- Querying across entities (e.g., active users, recent payments)
-- Supporting projections for read APIs or dashboards
-- Tracking workflows, external states, or business processes
-- Replacing the need for a traditional read model database
-
----
+Use the document store to find objects by their contents: open tasks, recent payments or a dashboard's read model.
+Index ordinary values directly, or let searchable Models maintain their own indexed state.
 
 ## Manual indexing
 
-You can index any object manually using:
+Here is a complete independent read-model example: store an article, then find it by title.
 
 <Tabs>
   <TabItem label="Java">
-    ```java
-    Fluxzero.index(myObject);
-    ```
+
+```java
+@Searchable
+record Article(@EntityId String articleId, String title) {}
+
+Fluxzero.index(new Article("a1", "Getting started")).join();
+List<Article> articles = Fluxzero.search(Article.class).match("Getting started", "title").fetch(10);
+```
+
   </TabItem>
   <TabItem label="Kotlin">
-    ```kotlin
-    Fluxzero.index(myObject)
-    ```
+
+```kotlin
+@Searchable
+data class Article(@EntityId val articleId: String, val title: String)
+
+Fluxzero.index(Article("a1", "Getting started")).join()
+val articles = Fluxzero.search(Article::class.java).match("Getting started", "title").fetch(10)
+```
+
   </TabItem>
 </Tabs>
 
-This stores `myObject` in the document store so it can be queried later via `Fluxzero.search(...)`.
+The ID lets later indexing replace the same document. `join()` waits for this indexing operation before the query.
+For ordinary domain changes, use Model commands; direct indexing is useful for an independent read model.
 
 - If the object is annotated with `@Searchable`, any declared `collection`, `timestampPath`, or `endPath` will be used.
 - If a field is annotated with `@EntityId`, it becomes the document ID. Otherwise, a random ID is generated.
@@ -115,38 +119,9 @@ For Models, the default canonical collection is `$modelGraphComponents/<logical 
   </TabItem>
 </Tabs>
 
-The document uses the resolved Model collection and is exposed to unrestricted typed Model search by default. A
-document-authoritative Model that only needs identity-, alias-, relationship- and Graph-based lookup can keep it
-reference-only:
-
-<Tabs>
-  <TabItem label="Java">
-    ```java
-    @Model(
-    persistence = ModelPersistence.DOCUMENT
-)
-    public record UserPreferences(@EntityId UserId userId,
-                                  Preferences preferences) {
-    }
-    ```
-  </TabItem>
-  <TabItem label="Kotlin">
-    ```kotlin
-    @Model(
-    persistence = [ModelPersistence.DOCUMENT]
-)
-    data class UserPreferences(
-        @EntityId val userId: UserId,
-        val preferences: Preferences
-    )
-    ```
-  </TabItem>
-</Tabs>
-
-This Model keeps one canonical internal current-state document. It is not searchable unless a searchable typed
-composition ancestor activates it. `DOCUMENT` alone and `pathInParent` never activate search. Its default collection
-is `$modelGraphComponents/UserPreferences`; `SearchSettings.collection` changes that canonical source, so preserve
-existing state or migrate it explicitly. There is no second public Model copy.
+Searchability is independent of persistence: `DOCUMENT` alone does not make a Model searchable. An indexed ancestor
+can also include descendants in its searchable scope. See [Choosing Model and Graph queries](../model-query-guide)
+when deciding which state to expose to search.
 
 ---
 
@@ -233,8 +208,7 @@ in Kotlin, supply a type argument or assign the search to a typed `Search` varia
 
 Only choose a common result type when every matching document supports it. Single-class searches and Graph searches
 retain their inferred types. Explicit terminal classes such as `fetchAll(JsonNode.class)` remain available for
-alternative representations. Recompile callers after upgrading to remove any casts previously inferred from the
-first class; merely replacing the SDK jar cannot remove those casts from application bytecode.
+alternative representations.
 
 ### Selecting Models by parent or ancestor
 

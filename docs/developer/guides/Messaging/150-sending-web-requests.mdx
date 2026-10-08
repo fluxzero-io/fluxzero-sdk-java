@@ -6,16 +6,15 @@ sidebar:
   order: 150
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`. Use it for external integrations so request auditability, correlation, configurable retries and fixture tests remain part of the application. An ordinary integration does not need its own JDK, Spring or third-party HTTP client.
+Use the web gateway to call an HTTP API and read its response. Requests share Fluxzero's tracing, audit and testing
+facilities. A named command or query keeps the external operation recognizable to the rest of your application.
 
-By default, Fluxzero logs outbound requests as `WebRequest` messages. These are then handled by:
-
-- A **local handler** if the URL is **relative**, or
-- A **connected remote client or proxy** if the URL is **absolute**
-
----
+For the complete application pattern, including tests and work after a Model commit, see
+[Building API integrations](/docs/guides/messaging/building-api-integrations).
 
 <a id="sending-a-request"></a>
 
@@ -26,21 +25,8 @@ Use a named command for an external action and a typed query (`Request<T>`) for 
 operation through `Fluxzero.sendCommandAndWait(...)` or `Fluxzero.queryAndWait(...)`, just like other application
 behavior. Choose command versus query by the operation's meaning, not only its HTTP verb.
 
-These self-handlers run locally by default. They need no `@TrackSelf`, `@Consumer`, `@Component`, extra
-`@LocalHandler`, injected API-service bean, or explicit handler registration. Dispatch the payload; do not call its
-`handle()` method directly.
-
-Gzip responses received through the SDK message gateway are decompressed before typed deserialization,
-including in asynchronous tests. Use `response.getPayloadAs(MyReply.class)` normally; no compression workaround
-is needed. For these decoded responses, `Content-Encoding` is removed and any `Content-Length` reflects the
-uncompressed bytes. The response published on the wire remains unchanged.
-
-Streamed responses are assembled as raw bytes, also for JSON content; use `getPayloadAs(...)` for conversion.
-Local gzip streams are decoded when converted to a body value, but requesting the stream itself does not consume
-it or transfer ownership. Stream consumption is one-shot. Empty HEAD/304 responses retain representation headers
-without requiring decompression.
-
-The example partner API returns an order as JSON, with HTTP 200 for lookup and 201 for creation:
+The handler below runs locally without registration. The example partner API returns an order as JSON with HTTP 200.
+`PartnerOrder` is the response value; `partner.api.token` (`PARTNER_API_TOKEN`) supplies the credential.
 
 <Tabs>
   <TabItem label="Java">
@@ -60,23 +46,6 @@ public record GetPartnerOrder(@NotNull UUID orderId) implements Request<PartnerO
     }
 }
 
-public record PlacePartnerOrder(@NotNull @Valid OrderDetails details) implements Request<PartnerOrder> {
-    @HandleCommand
-    PartnerOrder handle() {
-        var request = WebRequest.post("https://partner.example/api/orders")
-                .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
-                .contentType("application/json")
-                .body(details)
-                .build();
-        var response = Fluxzero.sendWebRequestAndWait(request);
-        if (response.getStatus() != 201) {
-            throw new IllegalStateException("Order placement returned HTTP " + response.getStatus());
-        }
-        return response.getPayloadAs(PartnerOrder.class);
-    }
-}
-
-public record OrderDetails(@NotBlank String productCode, @Positive int quantity) {}
 public record PartnerOrder(UUID orderId, String status) {}
 ```
 
@@ -96,36 +65,19 @@ data class GetPartnerOrder(@field:NotNull val orderId: UUID) : Request<PartnerOr
     }
 }
 
-data class PlacePartnerOrder(@field:NotNull @field:Valid val details: OrderDetails) : Request<PartnerOrder> {
-    @HandleCommand
-    fun handle(): PartnerOrder {
-        val request = WebRequest.post("https://partner.example/api/orders")
-            .header("Authorization", "Bearer " + ApplicationProperties.requireProperty("partner.api.token"))
-            .contentType("application/json")
-            .body(details)
-            .build()
-        val response = Fluxzero.sendWebRequestAndWait(request)
-        check(response.status == 201) { "Order placement returned HTTP ${response.status}" }
-        return response.getPayloadAs(PartnerOrder::class.java)
-    }
-}
-
-data class OrderDetails(@field:NotBlank val productCode: String, @field:Positive val quantity: Int)
 data class PartnerOrder(val orderId: UUID, val status: String)
 ```
 
   </TabItem>
 </Tabs>
 
-Call them from application code in an active Fluxzero context:
+Call it from application code in an active Fluxzero context:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
 PartnerOrder existing = Fluxzero.queryAndWait(new GetPartnerOrder(orderId));
-PartnerOrder placed = Fluxzero.sendCommandAndWait(
-        new PlacePartnerOrder(new OrderDetails("book", 2)));
 ```
 
   </TabItem>
@@ -133,8 +85,6 @@ PartnerOrder placed = Fluxzero.sendCommandAndWait(
 
 ```kotlin
 val existing: PartnerOrder = Fluxzero.queryAndWait(GetPartnerOrder(orderId))
-val placed: PartnerOrder = Fluxzero.sendCommandAndWait(
-    PlacePartnerOrder(OrderDetails("book", 2)))
 ```
 
   </TabItem>
@@ -159,6 +109,12 @@ handler while its changes are still pending. Read-only external queries may run 
 handlers; their results are not replayable Model state until explicitly recorded.
 
 ---
+
+## Reading response bodies
+
+Use `response.getPayloadAs(MyReply.class)` in Java or `response.getPayloadAs(MyReply::class.java)` in Kotlin to decode
+a typed response. The SDK handles gzip decoding on the message-gateway route. If you consume the body as a stream,
+read it only once. See <Jdoclink className="WebResponse" /> for body conversion and stream ownership.
 
 ## Credentials and visible audit logs
 
@@ -331,9 +287,8 @@ The `consumer` determines which internal message processor will handle the reque
 
 ## Mocking external endpoints in tests
 
-Exercise the actual local command/query from the outbound integration example and register only the remote stub.
-Do not inject or mock an API-service bean, register the self-handling payload class, or add `@TrackSelf` to make the
-fixture discover it. The real handler must build the request and interpret the response:
+Register a handler for the external URL in the fixture. Then dispatch the actual query: its own handler builds the
+request and decodes the stubbed response. This checks your integration boundary without a network call.
 
 <Tabs>
   <TabItem label="Java">
@@ -345,13 +300,6 @@ static class PartnerApiStub {
     WebResponse getOrder(@PathParam("orderId") UUID orderId) {
         return WebResponse.builder().status(200).contentType("application/json")
                 .payload(Map.of("orderId", orderId, "status", "accepted"))
-                .build();
-    }
-
-    @HandlePost("https://partner.example/api/orders")
-    WebResponse placeOrder(OrderDetails details) {
-        return WebResponse.builder().status(201).contentType("application/json")
-                .payload(Map.of("orderId", "00000000-0000-0000-0000-000000000001", "status", "accepted"))
                 .build();
     }
 }
@@ -366,18 +314,6 @@ void readPartnerOrder() {
             .expectOnlyWebRequests(WebRequest.get("https://partner.example/api/orders/" + orderId)
                     .header("Authorization", "Bearer test-token").build());
 }
-
-@Test
-void placePartnerOrder() {
-    var details = new OrderDetails("book", 2);
-    TestFixture.create(new PartnerApiStub())
-            .withProperty("partner.api.token", "test-token")
-            .whenCommand(new PlacePartnerOrder(details))
-            .expectResult(new PartnerOrder(UUID.fromString("00000000-0000-0000-0000-000000000001"), "accepted"))
-            .expectOnlyWebRequests(WebRequest.post("https://partner.example/api/orders")
-                    .header("Authorization", "Bearer test-token")
-                    .contentType("application/json").body(details).build());
-}
 ```
 
   </TabItem>
@@ -391,12 +327,6 @@ class PartnerApiStub {
         WebResponse.builder().status(200).contentType("application/json")
             .payload(mapOf("orderId" to orderId, "status" to "accepted"))
             .build()
-
-    @HandlePost("https://partner.example/api/orders")
-    fun placeOrder(details: OrderDetails): WebResponse =
-        WebResponse.builder().status(201).contentType("application/json")
-            .payload(mapOf("orderId" to "00000000-0000-0000-0000-000000000001", "status" to "accepted"))
-            .build()
 }
 
 @Test
@@ -408,18 +338,6 @@ fun readPartnerOrder() {
         .expectResult(PartnerOrder(orderId, "accepted"))
         .expectOnlyWebRequests(WebRequest.get("https://partner.example/api/orders/$orderId")
             .header("Authorization", "Bearer test-token").build())
-}
-
-@Test
-fun placePartnerOrder() {
-    val details = OrderDetails("book", 2)
-    TestFixture.create(PartnerApiStub())
-        .withProperty("partner.api.token", "test-token")
-        .whenCommand(PlacePartnerOrder(details))
-        .expectResult(PartnerOrder(UUID.fromString("00000000-0000-0000-0000-000000000001"), "accepted"))
-        .expectOnlyWebRequests(WebRequest.post("https://partner.example/api/orders")
-            .header("Authorization", "Bearer test-token")
-            .contentType("application/json").body(details).build())
 }
 ```
 

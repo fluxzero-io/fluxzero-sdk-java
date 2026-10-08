@@ -8,46 +8,34 @@ sidebar:
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
 
-A Fluxzero `@Model` has its own identity, persistence boundary and lifecycle. Its event stream, cache, direct search
-document and snapshots are enabled independently through the model settings. Loading one model therefore never requires
-loading its parent, siblings or children.
+Load a Model when you know its identity and need its state. A task, order or booking can be loaded independently of
+its parents and children.
 
-<Tabs>
-<TabItem label="Java">
-
-```java
-@Model
-public record Order(@EntityId OrderId orderId, OrderStatus status) {
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model
-data class Order(@EntityId val orderId: OrderId, val status: OrderStatus)
-```
-
-</TabItem>
-</Tabs>
-
-Use a typed `Id<T>` whenever possible. Besides making application code safer, it lets Fluxzero infer the requested
-model type without storing the type as part of the identity.
+With an `OrderId extends Id<Order>`, the ID supplies the Model type:
 
 <Tabs>
   <TabItem label="Java">
-    ```java
-    Order order = Fluxzero.loadModel(orderId).get();
-    ```
+
+```java
+Order order = Fluxzero.loadModel(new OrderId("order-123")).get();
+```
+
   </TabItem>
   <TabItem label="Kotlin">
-    ```kotlin
-    val order: Order? = Fluxzero.loadModel(orderId).get()
-    ```
+
+```kotlin
+val order: Order? = Fluxzero.loadModel(OrderId("order-123")).get()
+```
+
   </TabItem>
 </Tabs>
+
+`get()` returns the current value, or `null` when absent. Inside historical Model-event handling, loads can follow
+the event's boundary; see [temporal Graphs](../temporal-graphs) when you need the state of that event or explicitly now.
+
+## Load related state with a Graph
 
 Load a lazy `Graph<T>` when code also needs relationship context, history or transition operations:
 
@@ -74,30 +62,16 @@ val lines: List<LineItem> = graph.childModels("lines", LineItem::class.java)
 </TabItem>
 </Tabs>
 
-`Graph<T>` carries:
+`get()` reads the node, `previous()` opens its preceding revision, and `childModels(...)` reads related values.
+Exact historical values require retained event-sourced history. Use `isPresent()` when you need to distinguish an absent node
+before reading it.
 
-- `isPresent()` distinguishes an existing model from an empty or logically deleted model;
-- `id()` and `type()` expose its collision-safe persisted identity and type;
-- `functionalId()` exposes the public ID from the current or last present model value, without repository prefixes,
-  postfixes or parent scope;
-- `previous()` returns the preceding revision; durable historical values require `EVENT_SOURCED`, not `DOCUMENT` alone;
-- `current()` opens the same Model on a new current boundary without modifying the historical Graph;
-- `stateIndex()` pins the whole graph read, while `revisionStateIndex()` says when this concrete node revision became
-  current;
-- `sequenceNumber()` is the position within this model's own stream;
-- `root()`, `parent()`, `children(...)` and `descendants(...)` navigate the temporal model graph;
-- `apply(...)`, `update(...)`, `assertAndApply(...)` and `delete()` stage model changes.
+Graph navigation is lazy: creating a typed Graph does not load the whole tree. Once its read boundary is established,
+later navigation stays at that boundary. To open a new current view, use `current()`.
+The [temporal Graph guide](../temporal-graphs) explains history and navigation;
+<Jdoclink className="Graph" /> lists identity, revision, traversal and update methods.
 
-Creating a typed graph by ID does not load the source model or complete tree. A typed `Id` makes `id()` available
-immediately; an untyped value may be an alias and therefore resolves the source before reporting its true primary ID.
-`get()`, history and relationship contents load only when requested. Typed ancestor navigation follows persisted
-relationship identities and materializes only the selected ancestor value, so
-`graph.ancestorModel(Organisation.class)` need not load the source or intervening location and connection values.
-
-Outside historical event handling, a new detached Graph establishes its snapshot against storage, not the age of
-the cached root. Reading `get()` before `children(...)` does not hide already committed relationship changes.
-Typed lazy loads pin on their first storage read; untyped loads pin when resolving the root identity. Once pinned,
-a Graph remains a snapshot, not a live view of later commits.
+## Loading without a typed ID
 
 An untyped ID can be loaded by supplying the model class explicitly:
 
@@ -466,9 +440,8 @@ This requirement applies to each Graph node whose exact historical value you req
 retains history; ordinary snapshot/cache settings do not prune Model events automatically.
 
 Historical Graph views normally use current DOCUMENT-only values when a historical revision is unavailable.
-This also applies to `previous()`, preserves historical relationships and absence, and never relaxes mutations.
-Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history; `graph.strict(false)` restores ordinary reads. See
-[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for the complete fallback contract.
+Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history; see
+[Temporal Graphs](../temporal-graphs) for fallback behavior.
 
 ## Loading a complete model graph
 

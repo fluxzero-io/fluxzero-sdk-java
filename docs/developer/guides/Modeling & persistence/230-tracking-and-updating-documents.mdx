@@ -6,6 +6,8 @@ sidebar:
    order: 230
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 Fluxzero allows you to **track changes to your document store** using the `@HandleDocument` annotation.
@@ -49,16 +51,6 @@ This makes `@HandleDocument` ideal for **live processing**, **projecting the lat
 ---
 
 ## Transforming stored documents
-
-The examples below concern independent read-model documents. A typed Model parameter instead observes the canonical
-searchable node and has a guarded, schema-only return contract: return its upcast value unchanged, with a higher
-revision. `source = DocumentSource.MODEL_STATE` permits the same maintenance for internal, non-searchable DOCUMENT
-state. Use Model commands to change business state or delete a Model.
-
-A `Graph<Project>` parameter observes Project and its included descendants. Returning that Graph migrates evolved
-canonical nodes in NONE, ASYNC and AWAIT. Select `graphMigration = GraphMigrationTarget.PROJECTION` for only the stored
-ASYNC/AWAIT composition. See
-[Testing Model migrations](../model-migration-tests).
 
 `@HandleDocument` can also be used to **update documents in place**.
 
@@ -121,7 +113,6 @@ See `DocumentMessageReader.retainSource` Javadoc for the complete extension cont
   </TabItem>
 </Tabs>
 
-
 <Aside type="tip">
 This creates a powerful and durable upgrade path — ideal for data normalization, filling missing fields, or
 applying business logic retroactively.
@@ -155,6 +146,12 @@ document model safely.
 
 ---
 
+### Model documents
+
+Model documents have a narrower return contract: a handler can persist a schema upgrade, but business changes and
+deletion go through Model commands. For internal non-searchable document state, select
+`source = DocumentSource.MODEL_STATE`. See [Testing Model migrations](../model-migration-tests).
+
 ## Use cases
 
 - Auto-upcasting legacy documents
@@ -177,26 +174,12 @@ The parameter selects what the handler observes:
 | `@HandleDocument(documentClass = Task.class)` | Explicit node type when it cannot be inferred |
 | `@HandleDocument("myCollection")` | An ordinary named document collection |
 
-Metadata and message context may precede the payload. An ordinary payload before an injected Model/Graph continues
-to select the ordinary document; use a leading `Graph<Task>` payload to select logical Graph updates. No source fallback
-is performed. A missing required document source is a registration error.
+A Graph handler observes its root and included descendants. It can observe a live Graph (`NONE`) or a stored
+projection (`ASYNC`/`AWAIT`). Updates may coalesce; use event-bound Graph handlers when you need history or every
+transition. A deleted root arrives as an empty Graph.
 
-A child change updates its own logical Graph and the included ancestor Graphs. Updating only Project's name does not
-wake a `Graph<Task>` handler. `@GraphProperty` does not create subscriptions; observe `Graph<Project>` if that is the
-scope you need. Moving a Task affects its own Graph and both old and new Project Graphs.
-
-At NONE, registering a Graph handler activates a durable notification definition. Runtime then retains a small
-update marker for each root, not its composed content. Query-only NONE does not activate this stream. The reader hydrates the
-latest indexed Graph for that exact root. Updates may coalesce, and `previous()` is unavailable on this live view.
-Deleting the root delivers a typed empty Graph. ASYNC/AWAIT read the stored aggregate; historical navigation still
-requires the underlying Model history. Neither mode implies an atomic historical snapshot across all indexed nodes.
-
-To switch an existing ASYNC/AWAIT definition to NONE, explicitly call
-`modelRepository().registerGraphProjection(Root.class, true).join()` after changing the Model declaration.
-Wait for its rebuild status to finish; this replaces aggregate bodies with markers. Cancelling a subscriber only
-stops consumption. It does not unregister the durable definition.
-A schema-only node rewrite durably requests a rebuild of the affected Graph definitions. This maintenance may notify
-other roots in the same definition; it is not a business-event stream.
+For subscription selection, registration and durable projection changes, see <Jdoclink className="HandleDocument" />
+and [Choosing Model and Graph queries](../model-query-guide).
 
 ---
 
@@ -226,41 +209,18 @@ JSON for search, return the complete Graph from a dedicated handler:
   </TabItem>
 </Tabs>
 
-Fluxzero migrates only nodes whose serialized type or revision evolved. Raise `@Revision` for a JSON-shape change.
-The returned Graph must retain its injected values, root, state boundary, nodes and placements; business mutations
-are rejected. Each evolved node is deduplicated and the SDK upcasts its **verified current canonical source**. It never
-copies stale business values from the handled Graph into newer Modelstate. The write checks the complete Model head
-and source proof; contention is re-read up to three writes, then fails handling. The consumer's error policy determines
-whether that failure is retried, logged with continuation (the default), or stops the affected tracker until explicit
-restart. Deleted nodes stay deleted. An already-migrated source is a no-op.
+Fluxzero migrates nodes whose type or revision has evolved, using their verified current canonical state. Return the
+complete, unchanged Graph; use Model commands for business changes. This works in NONE, ASYNC and AWAIT and keeps
+history and relationships unchanged. It does not copy stale business values from the handled Graph into newer state.
 
-This works in NONE too. The Runtime records each changed node durably and refreshes only affected ancestor/root
-projections or update markers, respecting search scope and depth. Schema-only revision changes do not restart full
-scans. Changes to composition settings, participating Model types or an explicit rebuild still can.
+Node writes complete before the handler completes; affected projections refresh durably afterward. Verify new search
+paths after catch-up. Migration is idempotent per node, not atomic across the whole Graph. The consumer's error policy
+determines how failures are recovered; use a Runtime that supports this migration contract.
 
-Node writes complete before the handler completes. Derived projections follow durably; `AWAIT` continues to promise
-completion for ordinary **Model commits**, not a schema-migration barrier. Verify new query paths after migration
-catch-up. Migration is per node and idempotent after partial failure, not an atomic business operation over a Graph.
-Model history, relationships and business-state indexes remain unchanged. Custom `DocumentSerializer` implementations
-must provide `modelStateSnapshot` for immutable logical-state comparison; the built-in Jackson serializer does so.
-The projection-only option below retains the earlier serializer contract.
-
-For a deliberate projection-only migration, use the same Java or Kotlin handler with:
-
-```java
-@HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)
-```
-
-This preserves the earlier contract: compare the handled manifest and rewrite only its stored ASYNC/AWAIT
-composition. Custom projection metadata is preserved while the evolved Graph manifest replaces its previous value.
-NONE returns are observational. A later projection rebuilt from unchanged canonical sources may restore
-old paths, so use this option only when maintaining a derived representation is intentional.
-
-Deploy the compatible Runtime before enabling migration consumers. Older Runtimes supporting source rewrites can
-still upcast nodes but may rebuild entire Modeltype projections; upgrade all projector instances for targeted work
-and its schema fence. Existing type-only invalidations are drained through the legacy rebuild route. No defaults
-version is needed: canonical-node migration is the default for Graph returns; the annotation provides the explicit
-compatibility option.
+For a deliberate migration of only the stored composition, select
+`@HandleDocument(graphMigration = GraphMigrationTarget.PROJECTION)`. This leaves canonical nodes unchanged and has
+no storage effect in NONE; a later rebuild from unchanged sources can restore old paths. See
+<Jdoclink className="HandleDocument" /> for concurrency, completion and custom-serializer contracts.
 
 ---
 

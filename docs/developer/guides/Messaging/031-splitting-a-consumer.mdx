@@ -1,0 +1,88 @@
+---
+title: Split a consumer
+description: Give one handler its own consumer while its existing backlog continues to be processed.
+slug: docs/guides/messaging/splitting-a-consumer
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
+
+Give one handler its own consumer while its existing backlog continues to be processed.
+
+Suppose `OrderIndex` and `CustomerIndex` currently share the `orders` event consumer. Move `CustomerIndex` to
+`customer-index` from one fixed message index, `cutover`:
+
+| Handler | Before `cutover` | From `cutover` |
+| --- | --- | --- |
+| `OrderIndex` | `orders` | `orders` |
+| `CustomerIndex` | `orders` | `customer-index` |
+
+## Configure the handover
+
+Keep the existing `orders` configuration and its saved position. Add the new configuration to the same builder;
+place the bounded new configuration first. Both configurations must see the same registered `CustomerIndex` handler.
+This example uses explicit configuration rather than a class or package `@Consumer` annotation.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("customer-index")
+        .handlerFilter(h -> h instanceof CustomerIndex)
+        .minIndex(cutover)
+        .exclusiveBeforeMinIndex(false)
+        .build(), MessageType.EVENT);
+
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("orders")
+        .handlerFilter(h -> h instanceof OrderIndex || h instanceof CustomerIndex)
+        .build(), MessageType.EVENT);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("customer-index")
+        .handlerFilter { it is CustomerIndex }
+        .minIndex(cutover)
+        .exclusiveBeforeMinIndex(false)
+        .build(), MessageType.EVENT)
+
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("orders")
+        .handlerFilter { it is OrderIndex || it is CustomerIndex }
+        .build(), MessageType.EVENT)
+```
+
+  </TabItem>
+</Tabs>
+
+`minIndex` includes the boundary message. `exclusiveBeforeMinIndex(false)` leaves earlier messages with `orders`.
+The existing consumer may still be catching up while the new consumer handles newer events.
+
+## Make the switch
+
+1. Choose a fixed future UTC time and convert it with `IndexUtils.indexFromTimestamp(...)`. Use that same
+   `cutover` value on every instance; do not calculate a new value at each startup.
+2. Stop the old application instances cleanly **before that boundary**. Start the updated instances with both
+   configurations. Keep the existing consumer name, namespace and handler filters; use a fresh name for the new consumer.
+3. Keep this handover configuration until `orders` has finished its backlog before the boundary. Only then remove
+   `CustomerIndex` from its filter.
+
+Messages can continue arriving during the restart; they must remain within the log's retention period.
+If the boundary passes before every old instance has stopped, choose a later boundary before starting the new configuration.
+This controlled restart avoids mixing instances that disagree about who owns the handler.
+
+The handover covers the message range; normal retry behavior still applies. Use it for work that can tolerate
+repeated delivery and historical/live overlap, such as independently keyed projections. If strict ordering across
+that boundary matters, finish the older work before starting the new consumer.
+
+See <Jdoclink className="ConsumerConfiguration" /> for the configuration contract, or
+[merge consumers](/docs/guides/messaging/merging-consumers) for the reverse operation.

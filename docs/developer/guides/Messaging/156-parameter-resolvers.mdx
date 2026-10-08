@@ -6,17 +6,41 @@ sidebar:
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
-import { Aside } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
 
-Fluxzero allows fine-grained control over **handler method parameters** using the `ParameterResolver` interface.
-This lets you inject **any value** into annotated handler methods — beyond just payload, metadata, etc.
+A handler can ask for message context directly in its parameters. You do not need to look up the current message or
+pass its timestamp through your own helper methods.
 
----
+## Example: default resolution
+
+For example, add an `Instant` parameter to receive the event's timestamp:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@HandleEvent
+void handle(CreateUser event, Instant timestamp) {
+    log.info("User created at {}", timestamp);
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@HandleEvent
+fun handle(event: CreateUser, timestamp: Instant) {
+    log.info("User created at {}", timestamp)
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ## How it works
 
-When a message is dispatched to a handler (e.g. via `@HandleEvent`, `@HandleCommand`, etc.), the framework scans the
-method’s parameters and tries to resolve each one using the configured `ParameterResolvers`.
+Fluxzero resolves handler arguments by their type and annotations. You normally only declare the parameters you need.
 
 By default, Fluxzero supports injection of the following parameters into handler methods:
 
@@ -34,42 +58,21 @@ Other contextual values like **message ID**, **timestamp**, etc. can be obtained
 
 ---
 
-## Example: default resolution
-
-<Tabs>
-  <TabItem label="Java">
-    ```java
-    @HandleEvent
-    void handle(CreateUser event, Metadata metadata, SerializedMessage message) {
-        log.info("User created at {}", Instant.ofEpochMilli(message.getTimestamp()));
-    }
-    ```
-  </TabItem>
-  <TabItem label="Kotlin">
-    ```kotlin
-    @HandleEvent
-    fun handle(event: CreateUser, metadata: Metadata, message: SerializedMessage) {
-        log.info("User created at {}", Instant.ofEpochMilli(message.timestamp))
-    }
-    ```
-  </TabItem>
-</Tabs>
-
----
-
 ## Writing your own parameter resolver
 
-You can register a custom parameter resolver to inject arbitrary values, such as headers, timestamps, or contextual
-objects:
+Add a resolver when your application has a context type that the SDK does not know. Here `RequestOrigin` groups
+an optional `source` metadata value; it is descriptive context, not a trusted authentication identity.
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    public class TimestampParameterResolver implements ParameterResolver<DeserializingMessage> {
+    public record RequestOrigin(String source) {}
+
+    public class RequestOriginResolver implements ParameterResolver<DeserializingMessage> {
         @Override
         public Function<DeserializingMessage, Object> resolve(Parameter parameter, Annotation methodAnnotation) {
-            if (parameter.getType().equals(Instant.class)) {
-                return DeserializingMessage::getTimestamp;
+            if (parameter.getType().equals(RequestOrigin.class)) {
+                return message -> new RequestOrigin(message.getMetadata().get("source"));
             }
             return null;
         }
@@ -78,10 +81,12 @@ objects:
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    class TimestampParameterResolver : ParameterResolver<DeserializingMessage> {
+    data class RequestOrigin(val source: String?)
+
+    class RequestOriginResolver : ParameterResolver<DeserializingMessage> {
         override fun resolve(parameter: Parameter, methodAnnotation: Annotation): Function<DeserializingMessage, Any>? {
-            return if (parameter.type == Instant::class.java) {
-                Function { msg -> msg.timestamp }
+            return if (parameter.type == RequestOrigin::class.java) {
+                Function { msg -> RequestOrigin(msg.metadata.get("source")) }
             } else null
         }
     }
@@ -89,48 +94,47 @@ objects:
   </TabItem>
 </Tabs>
 
-Then register it via your builder:
-Assuming you are configuring a `FluxzeroBuilder builder`:
+Register it on your application's `FluxzeroBuilder builder` before building the client:
 
 <Tabs>
   <TabItem label="Java">
 ```java
-    builder
-        .addParameterResolver(new TimestampParameterResolver())
-        .build();
+builder.addParameterResolver(new RequestOriginResolver());
 ```
   </TabItem>
   <TabItem label="Kotlin">
 ```kotlin
-    builder
-        .addParameterResolver(TimestampParameterResolver())
-        .build()
+builder.addParameterResolver(RequestOriginResolver())
 ```
   </TabItem>
 </Tabs>
 
-And use it in your handler:
+Then request that type in a handler:
 
 <Tabs>
   <TabItem label="Java">
-    ```java
-    @HandleCommand
-    void handle(CreateOrder command, Instant timestamp) {
-        log.info("Command received at {}", timestamp);
-    }
-    ```
+
+```java
+@HandleCommand
+void handle(CreateOrder command, RequestOrigin origin) {
+    log.info("Order requested from {}", origin.source());
+}
+```
+
   </TabItem>
   <TabItem label="Kotlin">
-    ```kotlin
-    @HandleCommand
-    fun handle(command: CreateOrder, timestamp: Instant) {
-        log.info("Command received at {}", timestamp)
-    }
-    ```
+
+```kotlin
+@HandleCommand
+fun handle(command: CreateOrder, origin: RequestOrigin) {
+    log.info("Order requested from {}", origin.source)
+}
+```
+
   </TabItem>
 </Tabs>
 
----
+Return `null` from `resolve` for parameters your resolver does not recognize, so other resolvers can handle them.
 
 ## Use cases
 
@@ -141,5 +145,4 @@ And use it in your handler:
 
 ---
 
-Custom parameter injection is a powerful tool for modular, contextual logic.
-It works seamlessly with all handler annotations (`@HandleEvent`, `@HandleCommand`, `@HandleQuery`, `@HandleError`, etc.) and opens up a clean way to avoid boilerplate argument passing.
+See <Jdoclink className="ParameterResolver" /> for the resolver contract and matching options.

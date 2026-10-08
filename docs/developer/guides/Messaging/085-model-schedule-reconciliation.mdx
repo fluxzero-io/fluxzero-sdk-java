@@ -8,16 +8,17 @@ sidebar:
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-For delayed work derived directly from Model state, use [declarative Model deadlines](./087-model-deadlines.mdx).
-They combine intent changes and stale-delivery guards with the Model commit.
-
-Use this when a tracked event consumer creates or cancels delayed work after a Model transition. An old event is a
-trigger to inspect **current intent**, not proof that its original deadline still belongs in the active set.
+A user moves a reminder from Monday to Tuesday. Your background consumer may still receive Monday's older event.
+Reconciliation makes it look at the reminder's **current intent** and schedule Tuesday's work, instead of restoring
+a stale deadline. Use it when delayed work must follow Model status or deadline changes.
 
 For deletion-only cleanup, [parent-owned schedules](./086-parent-owned-schedules.mdx) offer a simpler contract:
 `@Parent` on the scheduled payload cancels it when that committed Model is deleted, including an applicable
 `@Apply` returning `null` or a cascade. Reconciliation below remains useful for status and deadline changes,
 and delivered commands still need guards.
+
+For delayed work derived directly from Model state, see [declarative Model deadlines](../model-deadlines).
+They combine intent changes and stale-delivery guards with the Model commit.
 
 ## Persist intent, then reconcile the current Model
 
@@ -122,18 +123,11 @@ class ReminderSchedules {
 
 Register this consumer with the application. `singleTracker = true` serializes its reconciliation work, including
 parent-triggered deletion and direct reminder events that may have different routing segments. Do not independently
-write the same schedule from another consumer. Stable IDs and current-intent reads make these effects repeatable.
-
-Start ordinary consumers with the default `LoggingErrorHandler`. This reconciliation consumer deliberately opts into
-`ForeverRetryingErrorHandler`: a recoverable scheduling outage should delay reconciliation, not skip the required
-effect. Keep `awaitOutgoingWrites = true` (the default) so outgoing-write failures reach the policy. Retry can repeat
-handler or batch work; stable IDs do not make unrelated external effects safe to repeat.
-
-The first retry is immediate; delays after failed retries start at 10 seconds and cap at one minute. While retries
-continue, this single tracker cannot advance. Monitor lag and repair permanent failures. An initial
-`FunctionalException` is excluded by default, and interruption or retry filtering can end the loop: unlimited retries
-are not an unconditional delivery guarantee. `ThrowingErrorHandler` would instead stop the affected tracker until
-explicit restart; it does not provide automatic retry.
+write the same schedule from another consumer. Stable IDs make replacement and cancellation repeatable.
+This consumer deliberately uses `ForeverRetryingErrorHandler` so a recoverable scheduling outage delays its work.
+Keep `awaitOutgoingWrites = true` (the default), monitor lag and repair permanent failures. An initial functional
+failure is excluded from retries by default. See [consumer error handling](../message-tracking#consumer-error-handling)
+for retry and stop policies.
 
 The injected graph remains pinned to the triggering event. `loadCurrentGraph` deliberately escapes that historical
 boundary: redelivering an old creation event must not restore a deleted reminder or an obsolete deadline. This is a

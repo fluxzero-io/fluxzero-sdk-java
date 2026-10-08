@@ -6,9 +6,11 @@ sidebar:
   order: 30
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Fluxzero handles message dispatch asynchronously by default. Messages are first written to the Fluxzero Runtime, where they are logged durably and made available to all subscribed consumers. From there, **consumers**, **trackers**, and **handlers** work together to process them.
+Tracking lets your application consume messages from Runtime logs and resume from its saved position. **Consumers**, **trackers**, and **handlers** divide that work:
 
 - **Consumers** define a named subscription to a message type (commands, events, queries, etc.). Each consumer has its own position in the log and its own configuration (threads, fetch size, backpressure strategy).
 - **Trackers** are the worker threads belonging to a consumer. A tracker fetches batches of messages from the Runtime and delivers them to handler methods. Multiple trackers per consumer enable parallelism.
@@ -16,93 +18,49 @@ Fluxzero handles message dispatch asynchronously by default. Messages are first 
 
 This separation makes Fluxzero highly flexible: you can isolate workloads into dedicated consumers, scale them independently, or run multiple consumers side by side in the same application.
 
-## Tracking flow
+## Custom Consumers with @Consumer
 
-SDK-controlled Model retries and reevaluation use named virtual workers; bulk serialization, packed Model-event
-decoding and multi-Model replay use an SDK-owned CPU pool. Existing ordering, batching and admission limits still
-apply. These execution paths do not schedule work on the JVM common pool. This is not a promise about application
-executors or JDK internals: native HTTP/WebSocket transport completion can still depend on the JDK's internal pool.
+The `@Consumer` annotation creates or selects a named consumer that runs independently of other consumers. Each consumer maintains its own trackers and log position. This lets you:
 
-The following diagram shows the lifecycle flow of a single tracker, responsible for fetching messages from the log and invoking the right handlers.
-The process repeats in a continuous loop:
+- Isolate heavy or latency-sensitive message flows into their own consumer.
+- Tune concurrency (via `threads`) and throughput (via `maxFetchSize`) separately.
+- Deploy multiple consumers side by side in the same app, each with dedicated resources.
 
-```mermaid
-graph TD
-    START[Fetch message batch from runtime] --> INTERCEPT[Intercept message batch]
-    INTERCEPT --> DELIVER[Deliver next message to handlers]
-    DELIVER --> HANDLE{Matching handlers?}
-    HANDLE -->|No| CHECK{More messages?}
-    HANDLE -->|Yes| INVOKE[Invoke handlers]
-    INVOKE --> RESULT[Publish handler results]
-    RESULT --> CHECK
-    CHECK -->|Yes| DELIVER
-    CHECK -->|No| UPDATE[Update tracker position in log]
-    UPDATE --> INDEX_CHECK{Max index reached?}
-    INDEX_CHECK -->|No| START
-    INDEX_CHECK -->|Yes| STOP[Stop tracker]
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@Consumer(name = "activity-log")
+class ActivityLogger {
+    @HandleEvent
+    void handle(CompleteTask event) {
+        log.info("Completed task {}", event.taskId());
+    }
+}
 ```
 
-Trackers aren’t only useful for consuming commands or events — they also enable request–response communication between services, without direct endpoints.
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
 
-Nested message handling shares its enclosing batch boundary. If the caller catches a nested failure, batch callbacks
-and deferred writes remain pending until the enclosing scope completes. If the failure escapes that scope, completion
-receives the failure. This is a lifecycle boundary, not a transaction or a rollback of earlier effects.
-
-## Stopping a consumer
-
-Canceling a tracking registration lets an active batch finish before requesting release of its segment ownership
-with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
-inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
-exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.
-
-Closing the client gives outstanding terminal releases a bounded grace period before closing the transport.
-The caching wrapper and WebSocket tracking client each wait at most two seconds; an already completed release
-adds no wait. Admitted result callbacks receive at most one additional second. Other WebSocket clients allow
-one second for already-issued commands, without waiting for long polls. These are per-component budgets and
-can accumulate during full application shutdown. A disconnected Runtime or a timeout still requires the usual
-replay-safe recovery; closing from a result callback does not wait on that callback itself.
-
-## Request–Response via tracking
-
-Fluxzero enables services to communicate without making any direct contact and without exposing endpoints. Instead of direct calls, services interact by publishing messages to the Fluxzero Runtime and continuously tracking the relevant logs.
-
-For example, when a handler (the Requester) wants to ask a question, it sends a query to the runtime. Fluxzero first records it in the `QUERY` log. Other consumers will be tracking this log and will receive the query, process it, and then publish a result. That result is durably written to the `RESULT` log, where the Requester tracks for the corresponding answer.
-
-This design ensures:
-- **No direct connections between services**: all communication goes through Fluxzero.
-- **Durability and auditability**: requests and responses are logged before delivery.
-- **Decoupling and scalability**: Requesters and Responders can scale independently, and multiple responders can handle the same type of request if desired.
-
-The diagram below shows the complete cycle:
-
-```mermaid
-sequenceDiagram
-    participant Requester
-    participant Flux as Fluxzero Runtime
-    participant Responder
-
-    Requester->>Flux: Publish query ("GetInvoice")
-    Flux->>Flux: Persist query
-    Responder->>Flux: Pull query
-    Responder->>Flux: Publish result ("Invoice")
-    Flux->>Flux: Persist result
-    Requester->>Flux: Pull result
+```kotlin
+@Consumer(name = "activity-log")
+class ActivityLogger {
+    @HandleEvent
+    fun handle(event: CompleteTask) {
+        log.info("Completed task {}", event.taskId)
+    }
+}
 ```
 
-Both the Requester and the Responder maintain continuous trackers:
-- The Requester continuously tracks the `RESULT` log to receive answers.
-- The Responder continuously tracks the `QUERY` log to receive new requests.
+</TabItem>
+</Tabs>
 
-This ensures that services stay connected to Fluxzero and messages flow asynchronously without direct endpoints.
-If multiple consumers handle the same request message type, multiple results can be produced. The requester resolves the first stored result and ignores later ones.
+To apply this to an entire package (and its subpackages), add a `package-info.java` file:
 
-### Command followed by query
-
-For a Model whose persistence set contains `DOCUMENT`, the current document is part of Model-commit completion.
-A command followed by a direct Model query therefore reads committed state.
-
-Whole-graph projections and documents written by event handlers remain asynchronous. Await their own completion
-boundary when a request result must not be released first.
+```java
+@Consumer(name = "activity-log")
+package com.example.handlers;
+```
 
 ## Default Consumer Behavior
 
@@ -140,10 +98,10 @@ For example:
 <TabItem value="Java" label="Java">
 
 ```java
-class MyHandler {
-    @HandleCommand
-    void handle(SomeCommand command) {
-        // business logic here
+class ActivityLogger {
+    @HandleEvent
+    void handle(CompleteTask event) {
+        log.info("Completed task {}", event.taskId()); here
     }
 }
 ```
@@ -152,10 +110,10 @@ class MyHandler {
 <TabItem value="Kotlin" label="Kotlin">
 
 ```kotlin
-class MyHandler {
-    @HandleCommand
-    fun handle(command: SomeCommand) {
-        // business logic here
+class ActivityLogger {
+    @HandleEvent
+    fun handle(event: CompleteTask) {
+        log.info("Completed task {}", event.taskId) here
     }
 }
 ```
@@ -174,10 +132,6 @@ for the command payload package, including a root-package `@Consumer`.
 An absolute HTTP URL does not select a separate consumer. In tests, give blocking external-service stubs
 an explicit consumer while preserving application consumer configuration; see
 [HTTP stubs and consumers](/docs/guides/messaging/testing-web-endpoints/#external-http-stubs-and-consumers).
-Same-name incompatible configurations report the handler types in that registration without invoking their
-filters again. Identical configurations can accept additional handlers after startup; this neither reconfigures
-the live consumer nor rewinds its position.
-
 ## Namespaces
 
 Namespaces isolate message logs and tracking state, so a single Fluxzero Runtime can host multiple environments
@@ -221,51 +175,7 @@ namespaces created within that root client; Test Server returns its initialized 
 last only as long as their in-memory environment. Custom `Client` implementations can override `getNamespaces()`;
 the default implementation fails with `UnsupportedOperationException`.
 
-## Custom Consumers with @Consumer
-
-The `@Consumer` annotation creates or selects a named consumer that runs independently of other consumers. Each consumer maintains its own trackers and log position. This lets you:
-
-- Isolate heavy or latency-sensitive message flows into their own consumer.
-- Tune concurrency (via `threads`) and throughput (via `maxFetchSize`) separately.
-- Deploy multiple consumers side by side in the same app, each with dedicated resources.
-
-<Tabs>
-<TabItem value="Java" label="Java">
-
-```java
-@Consumer(name = "MyConsumer")
-class MyHandler {
-    @HandleCommand
-    void handle(SomeCommand command) {
-        // business logic
-    }
-}
-```
-
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-@Consumer(name = "MyConsumer")
-class MyHandler {
-    @HandleCommand
-    fun handle(command: SomeCommand) {
-        // business logic
-    }
-}
-```
-
-</TabItem>
-</Tabs>
-
-To apply this to an entire package (and its subpackages), add a `package-info.java` file:
-
-```java
-@Consumer(name = "MyConsumer")
-package com.example.handlers;
-```
-
-### Customizing consumer configuration
+## Customizing consumer configuration
 
 You can also tune the behavior using additional attributes on the `@Consumer` annotation:
 
@@ -273,11 +183,11 @@ You can also tune the behavior using additional attributes on the `@Consumer` an
 <TabItem value="Java" label="Java">
 
 ```java
-@Consumer(name = "MyConsumer", threads = 2, maxFetchSize = 100)
-class MyHandler {
-    @HandleCommand
-    void handle(SomeCommand command) {
-        // business logic
+@Consumer(name = "activity-log", threads = 2, maxFetchSize = 100)
+class ActivityLogger {
+    @HandleEvent
+    void handle(CompleteTask event) {
+        log.info("Completed task {}", event.taskId());
     }
 }
 ```
@@ -286,11 +196,11 @@ class MyHandler {
 <TabItem value="Kotlin" label="Kotlin">
 
 ```kotlin
-@Consumer(name = "MyConsumer", threads = 2, maxFetchSize = 100)
-class MyHandler {
-    @HandleCommand
-    fun handle(command: SomeCommand) {
-        // business logic
+@Consumer(name = "activity-log", threads = 2, maxFetchSize = 100)
+class ActivityLogger {
+    @HandleEvent
+    fun handle(event: CompleteTask) {
+        log.info("Completed task {}", event.taskId)
     }
 }
 ```
@@ -302,6 +212,13 @@ class MyHandler {
 - `maxFetchSize = 100`: Up to 100 messages fetched per request, helping apply backpressure.
 
 Each thread runs a **tracker**. If you deploy the app multiple times, Fluxzero automatically load-balances messages across all available trackers.
+
+## Changing consumer ownership
+
+Use [Split a consumer](/docs/guides/messaging/splitting-a-consumer) to give a handler its own progress, or
+[Merge two consumers](/docs/guides/messaging/merging-consumers) to bring handlers together.
+Both guides preserve existing backlog with a fixed index boundary.
+For a parallel correction run, see [live and historical processing](/docs/guides/messaging/live-and-historical-processing).
 
 ## Consumer settings
 
@@ -460,6 +377,71 @@ class OrderProcessor {
 
 ---
 
+## Tracking flow
+
+The following diagram shows the lifecycle flow of a single tracker, responsible for fetching messages from the log and invoking the right handlers.
+The process repeats in a continuous loop:
+
+```mermaid
+graph TD
+    START[Fetch message batch from runtime] --> INTERCEPT[Intercept message batch]
+    INTERCEPT --> DELIVER[Deliver next message to handlers]
+    DELIVER --> HANDLE{Matching handlers?}
+    HANDLE -->|No| CHECK{More messages?}
+    HANDLE -->|Yes| INVOKE[Invoke handlers]
+    INVOKE --> RESULT[Publish handler results]
+    RESULT --> CHECK
+    CHECK -->|Yes| DELIVER
+    CHECK -->|No| UPDATE[Update tracker position in log]
+    UPDATE --> INDEX_CHECK{Max index reached?}
+    INDEX_CHECK -->|No| START
+    INDEX_CHECK -->|Yes| STOP[Stop tracker]
+```
+
+Trackers aren’t only useful for consuming commands or events — they also enable request–response communication between services, without direct endpoints.
+
+## Request–Response via tracking
+
+Fluxzero enables services to communicate without making any direct contact and without exposing endpoints. Instead of direct calls, services interact by publishing messages to the Fluxzero Runtime and continuously tracking the relevant logs.
+
+For example, when a handler (the Requester) wants to ask a question, it sends a query to the runtime. Fluxzero first records it in the `QUERY` log. Other consumers will be tracking this log and will receive the query, process it, and then publish a result. That result is durably written to the `RESULT` log, where the Requester tracks for the corresponding answer.
+
+This design ensures:
+- **No direct connections between services**: all communication goes through Fluxzero.
+- **Durability and auditability**: requests and responses are logged before delivery.
+- **Decoupling and scalability**: Requesters and Responders can scale independently, and multiple responders can handle the same type of request if desired.
+
+The diagram below shows the complete cycle:
+
+```mermaid
+sequenceDiagram
+    participant Requester
+    participant Flux as Fluxzero Runtime
+    participant Responder
+
+    Requester->>Flux: Publish query ("GetInvoice")
+    Flux->>Flux: Persist query
+    Responder->>Flux: Pull query
+    Responder->>Flux: Publish result ("Invoice")
+    Flux->>Flux: Persist result
+    Requester->>Flux: Pull result
+```
+
+Both the Requester and the Responder maintain continuous trackers:
+- The Requester continuously tracks the `RESULT` log to receive answers.
+- The Responder continuously tracks the `QUERY` log to receive new requests.
+
+This ensures that services stay connected to Fluxzero and messages flow asynchronously without direct endpoints.
+If multiple consumers handle the same request message type, multiple results can be produced. The requester resolves the first stored result and ignores later ones.
+
+### Command followed by query
+
+For a Model whose persistence set contains `DOCUMENT`, the current document is part of Model-commit completion.
+A command followed by a direct Model query therefore reads committed state.
+
+Whole-graph projections and documents written by event handlers remain asynchronous. Await their own completion
+boundary when a request result must not be released first.
+
 ## Batch interceptors
 
 A `BatchInterceptor` wraps the execution of an entire message batch processed by a single consumer. This makes it well-suited for cross-cutting concerns such as:
@@ -494,3 +476,19 @@ Example: the following interceptor filters out any messages tagged with `testOnl
 </Tabs>
 
 By applying a `BatchInterceptor`, you can centralize logic that would otherwise need to be repeated in every handler. See [Configuring Fluxzero](/docs/guides/configuration/configuring-fluxzero) for details on how to register interceptors.
+
+## Completion and shutdown
+
+Tracked processing is at least once: a failure after a side effect but before position commit can repeat that effect.
+Make external effects idempotent. By default, a consumer waits for registered outgoing writes before advancing its
+position. This does not include arbitrary background work; whether it waits for returned asynchronous handler results
+is controlled separately by `awaitAsyncResults`.
+
+### Stopping a consumer
+
+Cancel its tracking registration to let the active batch finish and release its assigned segments. Closing the
+Fluxzero instance also closes its owned tracking resources. Shutdown has bounded waits for outstanding work;
+a crash or timeout can leave input to be replayed.
+
+See <Jdoclink className="ConsumerConfiguration" /> and <Jdoclink className="Tracking" /> for exact completion
+and resource lifecycle contracts.

@@ -18,22 +18,31 @@ or context.
 
 ## Basic example
 
+This response value shows internal notes only to an administrator:
+
 <Tabs>
   <TabItem label="Java">
-    ```java
+
+```java
+public record OrderView(String orderId, String internalNotes) {
     @FilterContent
-    Order filter(User user) {
-        return user.hasRole(Role.admin) ? this : new Order(maskSensitiveFieldsOnly());
+    OrderView filter(User user) {
+        return user != null && user.hasRole("admin") ? this : new OrderView(orderId, null);
     }
-    ```
+}
+```
+
   </TabItem>
   <TabItem label="Kotlin">
-    ```kotlin
+
+```kotlin
+data class OrderView(val orderId: String, val internalNotes: String?) {
     @FilterContent
-    fun filter(user: User): Order {
-        return if (user.hasRole(Role.admin)) this else Order(maskSensitiveFieldsOnly())
-    }
-    ```
+    fun filter(user: User?): OrderView =
+        if (user?.hasRole("admin") == true) this else copy(internalNotes = null)
+}
+```
+
   </TabItem>
 </Tabs>
 
@@ -42,12 +51,12 @@ To invoke filtering:
 <Tabs>
   <TabItem label="Java">
     ```java
-    Order filtered = Fluxzero.filterContent(order, currentUser);
+    OrderView filtered = Fluxzero.filterContent(order, currentUser);
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    val filtered: Order = Fluxzero.filterContent(order, currentUser)
+    val filtered: OrderView = Fluxzero.filterContent(order, currentUser)
     ```
   </TabItem>
 </Tabs>

@@ -1,0 +1,80 @@
+---
+title: Receive an external callback
+description: Turn an external status callback into a message your application understands.
+slug: docs/guides/messaging/receiving-webhooks
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Turn an external status callback into a message your application understands.
+
+Assume a provider sends `POST /provider/status` with an operation ID and a status. This smallest example uses a
+shared bearer token agreed with that provider. Use the provider’s signature verifier instead when its protocol
+requires signed request bodies.
+
+## Verify, translate and store
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record ProviderStatus(String operationId, String status) {}
+public record OperationCompleted(String operationId) {}
+
+public class ProviderCallbacks {
+    @HandlePost("/provider/status")
+    WebResponse receive(ProviderStatus body, WebRequest request) {
+        String expected = "Bearer " + ApplicationProperties.requireProperty("provider.callback.token");
+        if (!expected.equals(request.getHeader("Authorization"))) {
+            return WebResponse.builder().status(401).build();
+        }
+        if ("completed".equals(body.status())) {
+            Fluxzero.get().eventGateway()
+                .publish(Guarantee.STORED, new OperationCompleted(body.operationId())).join();
+        }
+        return WebResponse.builder().status(204).build();
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class ProviderStatus(val operationId: String, val status: String)
+data class OperationCompleted(val operationId: String)
+
+class ProviderCallbacks {
+    @HandlePost("/provider/status")
+    fun receive(body: ProviderStatus, request: WebRequest): WebResponse {
+        val expected = "Bearer " + ApplicationProperties.requireProperty("provider.callback.token")
+        if (expected != request.getHeader("Authorization")) {
+            return WebResponse.builder().status(401).build()
+        }
+        if (body.status == "completed") {
+            Fluxzero.get().eventGateway()
+                .publish(Guarantee.STORED, OperationCompleted(body.operationId)).join()
+        }
+        return WebResponse.builder().status(204).build()
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Configure `provider.callback.token` through application properties (`PROVIDER_CALLBACK_TOKEN` in the environment).
+Register `ProviderCallbacks` as a handler. The endpoint acknowledges success after the internal event is stored;
+a separate event handler can finish the business operation.
+
+## Expect repeat delivery
+
+If the acknowledgement does not reach the provider, it may send the callback again. Use `operationId` to find the
+same operation and make “complete” harmless when it is already complete. A callback may also arrive before the
+response to your original API call; correlate it using an ID your application already knows.
+
+Use this endpoint over HTTPS. For providers with signatures, verify the **original request bytes** before interpreting
+the payload; reserialized JSON is not the signed body. Follow that provider’s verification rules.
+
+See [web endpoint testing](/docs/guides/messaging/testing-web-endpoints) to test accepted and rejected requests,
+and [API integrations](/docs/guides/messaging/building-api-integrations) for outgoing calls.

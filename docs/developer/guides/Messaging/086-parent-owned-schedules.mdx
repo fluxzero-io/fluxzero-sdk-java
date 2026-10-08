@@ -6,16 +6,15 @@ sidebar:
    order: 86
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import {Tabs, TabItem, Aside} from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
 
-For delayed work derived directly from Model state, use [declarative Model deadlines](./087-model-deadlines.mdx).
-They combine intent changes and stale-delivery guards with the Model commit.
-
-A schedule can belong to the lifetime of one or more **already committed Models**. Declare ownership on its payload
-with `@Parent`, or select parents explicitly on `Schedule`. This works for schedule messages and scheduled commands.
+A reminder should stop when the thing it reminds you about is deleted. Mark a scheduled payload's owner with
+`@Parent`, and Fluxzero cancels its stored schedules when that Model is deleted. Your application does not need a
+separate cleanup consumer.
 
 <Tabs>
-<TabItem label="Java">
+  <TabItem label="Java">
 
 ```java
 record RunReminder(@Parent ReminderId reminderId, Instant expectedDeadline) {}
@@ -23,8 +22,8 @@ record RunReminder(@Parent ReminderId reminderId, Instant expectedDeadline) {}
 Fluxzero.scheduleCommand(new RunReminder(reminderId, deadline), "reminder-" + reminderId, deadline);
 ```
 
-</TabItem>
-<TabItem label="Kotlin">
+  </TabItem>
+  <TabItem label="Kotlin">
 
 ```kotlin
 data class RunReminder(@Parent val reminderId: ReminderId, val expectedDeadline: Instant)
@@ -32,118 +31,84 @@ data class RunReminder(@Parent val reminderId: ReminderId, val expectedDeadline:
 Fluxzero.scheduleCommand(RunReminder(reminderId, deadline), "reminder-$reminderId", deadline)
 ```
 
-</TabItem>
+  </TabItem>
 </Tabs>
 
-Here `ReminderId extends Id<Reminder>`. Plan this from a tracked post-commit handler: the parent must exist in the
-schedule's namespace when planning starts. Do not schedule before its creation commit, or inside replayed `@Apply`
-logic. A missing, deleted or erased parent rejects planning rather than creating an unowned schedule.
+Here `ReminderId` extends `Id<Reminder>`, and `deadline` is the intended execution time. Schedule from a tracked
+post-commit handler: the owner must already be committed in the schedule's namespace. Do not schedule inside
+replayed `@Apply` logic. A missing or deleted owner rejects planning.
+
+For delayed work derived directly from Model state, see [declarative Model deadlines](../model-deadlines).
+They combine intent changes and stale-delivery guards with the Model commit.
 
 ## What deletion means
 
-A successful, applicable `@Apply` returning `null` deletes its target. That cancels schedules owned by that Model,
-as does cascaded deletion or explicit hard erasure. Deleting **any** selected owner is sufficient. Updating a parent,
-changing its status or moving it under another parent does not cancel its schedules.
+Deleting an owner cancels its stored schedules, including when deletion cascades from another Model or the
+application is offline. Updating an owner, changing its status or moving it does not cancel work.
 
-Cancellation is asynchronous and works without an application cleanup consumer, including while the application is
-offline. It is not atomic with the Model commit. Already delivered schedules and commands cannot be recalled.
-Keep current-intent guards for stale deadlines, duplicate delivery and concurrent deletion. Ownership does not replace
-reconciliation when status changes or a deadline is moved.
+<Aside type="caution">
+Cancellation is asynchronous. A schedule that has already been delivered cannot be recalled. Its handler must still
+check that the reminder is active and its deadline matches <code>expectedDeadline</code> before acting.
+</Aside>
 
-The schedule is not a Model or Graph node. Its payload does not need `@Model`; `pathInParent` and `apiDoc` do not
-compose a graph for it. Null parent values and `@Parent(deleteOnParentDeletion = false)` are ignored. Multiple
-references are deduplicated. Typed IDs use their Model's canonical identity mapping. Untyped values use their string
-representation; with `@Parent(SomeModel.class)` the declared type's identity mapping is applied. Aliases are not resolved.
-For a parent-scoped identity supply its complete canonical repository ID, not just its local component.
+Use [schedule reconciliation](/docs/guides/messaging/model-schedule-reconciliation) when a change of status or
+deadline should replace or cancel a schedule. Ownership handles deletion; reconciliation follows changing intent.
+
+A payload can have several owners; deleting any one cancels the schedule. Null parents and
+`@Parent(deleteOnParentDeletion = false)` do not create ownership. The payload itself does not need `@Model`.
 
 ## Explicit selection, replacements and retries
 
+When ownership cannot be declared on the payload, select it on <Jdoclink className="Schedule" />:
+
 <Tabs>
-<TabItem label="Java">
+  <TabItem label="Java">
 
 ```java
-var message = new Schedule(new SendReminder(), "reminder-" + reminderId, deadline);
-Fluxzero.get().messageScheduler().schedule(message.withParents(reminderId));
-Fluxzero.get().messageScheduler().schedule(message.withParents()); // deliberately unowned
+var schedule = new Schedule(new RunReminder(reminderId, deadline), "reminder-" + reminderId, deadline);
+Fluxzero.get().messageScheduler().scheduleCommand(schedule.withParents(reminderId));
 ```
 
-</TabItem>
-<TabItem label="Kotlin">
+  </TabItem>
+  <TabItem label="Kotlin">
 
 ```kotlin
-val message = Schedule(SendReminder(), "reminder-$reminderId", deadline)
-Fluxzero.get().messageScheduler().schedule(message.withParents(reminderId))
-Fluxzero.get().messageScheduler().schedule(message.withParents()) // deliberately unowned
+val schedule = Schedule(RunReminder(reminderId, deadline), "reminder-$reminderId", deadline)
+Fluxzero.get().messageScheduler().scheduleCommand(schedule.withParents(reminderId))
 ```
 
-</TabItem>
+  </TabItem>
 </Tabs>
 
-`withParents(...)` replaces, rather than adds to, payload declarations. An empty argument list opts out.
-Its typed IDs use Model identity mapping; plain strings must already be canonical. Explicit parent IDs are stored in
-message metadata: do not use this form to duplicate sensitive values that should only exist in a protected payload.
-Inferred bindings add opaque tokens, not a second plaintext copy of annotated IDs.
+`withParents(...)` replaces the payload's declarations. `withParents()` deliberately makes the schedule unowned.
+Prefer typed IDs; plain strings must contain the full canonical Model ID. Explicit IDs are placed in metadata, so
+use the annotated-payload form for parent values that must remain protected.
 
-Protected parent fields are restored only into a temporary ownership read view; outbound data stays redacted.
-Missing protected parent data rejects planning, while unrelated protected fields are not read for ownership.
-Dispatch interceptors may replace the owning payload. Serialized replacements of an already owning payload are
-re-evaluated against their final form. To introduce ownership from an initially unowned opaque serialized payload,
-select explicit parent metadata or replace the logical payload before serialization; ordinary unowned wire transforms
-do not acquire a new local-deserialization requirement.
+### Replacing work or retrying it
 
-An accepted same-ID replacement replaces ownership too. An ordinary replacement becomes unowned.
-An ignored `ifAbsent` request does not transfer ownership. Deletion cleanup cannot remove a newer replacement bound
-to a recreated parent with the same ID.
-
-Once the initial binding has been acquired, storage retries and automatic periodic continuations keep that parent
-lifetime; delete/recreate does not revive old work. This also covers handler returns of `Duration`, `Message`
-or `Schedule`, and `null` under `@Periodic`. A retrieved schedule retains its binding when rescheduled.
-Use `withParents(...)` explicitly when deliberately starting new work for a new lifetime.
-A genuinely fresh scheduling call is a new intent; replayed old events must still check current Model state.
+An accepted replacement with the same schedule ID replaces its ownership too. An ignored `ifAbsent` request does not.
+Automatic retries and periodic continuations keep the original parent's lifetime: deleting and recreating a Model
+with the same ID does not revive its old work. Use explicit parents when deliberately starting work for a new lifetime.
+See <Jdoclink className="Schedule" /> for rescheduling and replacement details.
 
 ## Observe and test
 
-Each actual auto-cancellation emits a best-effort `ScheduleAutoCancelled(scheduleId, messageId, deadline)` metric.
-There is no payload or raw parent ID in that metric. It reports removal from stored scheduling, not prevention of an
-already in-flight execution. Metrics failure does not undo cancellation, and a crash between removal and publication
-can lose telemetry; this is not an exactly-once audit log.
-
-LocalClient performs cancellation deterministically after the Model commit. Test both direct and cascade deletion,
-and assert the **entire active set**, not only schedules created during the When phase:
-
-<Tabs>
-<TabItem label="Java">
+Test the active stored schedules after deletion, rather than only schedules dispatched during the test's action:
 
 ```java
 fixture.givenCommands(new CreateReminder(reminderId))
        .given(fc -> fc.messageScheduler().scheduleCommand(
            new Schedule(new RunReminder(reminderId, deadline), "reminder", deadline)))
-       .whenCommand(new DeleteReminder(reminderId)) // @Apply Reminder apply(Reminder current) { return null; }
-       .expectSuccessfulResult()
+       .whenCommand(new DeleteReminder(reminderId))
        .expectOnlyActiveScheduledCommands()
-       .expectMetrics(ScheduleAutoCancelled.class)
        .expectNoErrors();
 ```
 
-</TabItem>
-<TabItem label="Kotlin">
+In this example, `CreateReminder` creates the owner and `DeleteReminder` deletes it with an `@Apply` returning `null`.
+Also test that a stale, already delivered `RunReminder` does no work. Local cancellation completes deterministically
+after the Model commit; tests against a remote Runtime must await eventual cancellation.
 
-```kotlin
-fixture.givenCommands(CreateReminder(reminderId))
-    .given { fc -> fc.messageScheduler().scheduleCommand(
-        Schedule(RunReminder(reminderId, deadline), "reminder", deadline)) }
-    .whenCommand(DeleteReminder(reminderId)) // @Apply fun apply(current: Reminder): Reminder? = null
-    .expectSuccessfulResult()
-    .expectOnlyActiveScheduledCommands()
-    .expectMetrics(ScheduleAutoCancelled::class.java)
-    .expectNoErrors()
-```
+`ScheduleAutoCancelled` reports removal from stored scheduling. It is a best-effort metric, not proof that an
+already delivered command could not execute. See [metrics](/docs/guides/messaging/metrics-messages).
 
-</TabItem>
-</Tabs>
-
-Test in-flight/stale commands separately. A persistence-backed integration test must await eventual cancellation.
-The asynchronous local fixture waits for accepted schedules, not rejected old-lifetime attempts or ignored `ifAbsent`
-requests. Dispatch assertions still report attempts made during When; active-schedule assertions check stored work.
-Ordinary schedules use the existing protocol. Ownership requires a supporting scheduling service; older or custom
-clients/services that do not implement it fail explicitly, never silently drop ownership.
+Ownership requires a supporting scheduling service. Older or custom clients that lack support reject owned schedules.

@@ -8,21 +8,28 @@ sidebar:
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Fluxzero comes with a flexible, expressive testing framework based on the given-when-then pattern. This enables
-writing behavioral tests for your handlers without needing to mock the infrastructure.
+Test the behavior a caller can observe: a returned answer, a rejected action or a message sent to another part of
+the application. `TestFixture` runs handlers locally with the SDK's message processing, so no database or platform mocks
+are needed.
 
-Here’s a basic example:
+For example, test this complete query handler:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
-TestFixture testFixture = TestFixture.create(new UserEventHandler());
+record GetGreeting(String name) implements Request<String> {}
+
+class GreetingHandler {
+    @HandleQuery
+    String handle(GetGreeting query) { return "Hello, " + query.name() + "!"; }
+}
 
 @Test
-void newUserGetsWelcomeEmail() {
-    testFixture.whenEvent(new CreateUser(userId, myUserProfile))
-            .expectCommands(new SendWelcomeEmail(myUserProfile));
+void greetsTheCaller() {
+    TestFixture.create(new GreetingHandler())
+            .whenQuery(new GetGreeting("Alice"))
+            .expectResult("Hello, Alice!");
 }
 ```
 
@@ -30,23 +37,31 @@ void newUserGetsWelcomeEmail() {
   <TabItem label="Kotlin">
 
 ```kotlin
-val testFixture = TestFixture.create(UserEventHandler())
+data class GetGreeting(val name: String) : Request<String>
+
+class GreetingHandler {
+    @HandleQuery
+    fun handle(query: GetGreeting) = "Hello, ${query.name}!"
+}
 
 @Test
-fun newUserGetsWelcomeEmail() {
-    testFixture.whenEvent(CreateUser(userId, myUserProfile))
-        .expectCommands(SendWelcomeEmail(myUserProfile))
+fun greetsTheCaller() {
+    TestFixture.create(GreetingHandler())
+        .whenQuery(GetGreeting("Alice"))
+        .expectResult("Hello, Alice!")
 }
 ```
 
   </TabItem>
 </Tabs>
 
-This test ensures that when a `CreateUser` event occurs, a `SendWelcomeEmail` command is issued by the handler.
+The pattern is **given → when → then**. Use `given...` methods to establish earlier state, one `when...` call for the
+action under test, and `expect...` methods for its observable results. This example needs no prior state.
 
 ## Testing complete workflows
 
-You can test full workflows across multiple handlers:
+Register the handlers involved in a workflow to test their combined behavior. In a user-signup application,
+for example, `UserCommandHandler` creates the user and `UserEventHandler` reacts by requesting a welcome email:
 
 <Tabs>
   <TabItem label="Java">
