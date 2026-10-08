@@ -184,6 +184,10 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 
 ## Documentation Teaching Structure
 
+- Keep overview pages at the level of their parent section: explain the whole, its main parts and their relationship,
+  then point to the next level. The Developer Guides overview covers concepts, tutorials, how-to guides and reference;
+  task lists belong in the how-to overview. Mirror that hierarchy in headings and navigation. Do not promote a recent
+  addition or one subsection into the organizing principle of its parent page.
 - Human developer documentation under `docs/developer/` teaches what the SDK makes possible and how to use it.
   Explain the problem the capability solves, then show the smallest concrete example that demonstrates it.
   Let readers see a useful result before adding more concepts; avoid hidden helper behavior, placeholder-only

@@ -1,76 +1,82 @@
 ---
 title: Developer Guides
 slug: docs/guides
+description: Understand the Fluxzero SDK and find your way through its concepts, tutorials, how-to guides and reference.
 sidebar:
    order: 10
 ---
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 <span id="developer-guides"></span>
 
-Build your application's behavior in Java or Kotlin: send an action, handle it, remember the result and react to what
-happened. Fluxzero provides message delivery, persistence and testing around that code.
+The Fluxzero SDK lets you build application behavior in Java or Kotlin. Messages express actions and questions,
+handlers execute them, and Models remember the resulting state. Fluxzero provides delivery, persistence and testing
+around that code, so these parts work together in one application.
 
-Start with [Core concepts](/docs/getting-started/core-concepts) for a small complete example, or add your first
-[HTTP endpoint](/docs/getting-started/hello-world). The [to-do tutorial](/docs/tutorials/first-app) then grows an
-application one feature at a time.
+These developer guides explain that programming model and how to build with it. Start with the concepts, learn through
+a tutorial, then use a focused guide or the reference for the feature you are building.
 
-## Build one feature
+<CardGrid>
+  <LinkCard title="Core concepts" description="Understand messages, handlers, Models and tests through one small example." href="/docs/getting-started/core-concepts" />
+  <LinkCard title="Tutorials" description="Build a working application, one step at a time." href="#tutorials" />
+  <LinkCard title="How-to guides" description="Complete a specific task in your application." href="/docs/guides/how-to" />
+  <LinkCard title="Reference" description="Explore the SDK's capabilities and look up their behavior." href="#reference" />
+</CardGrid>
 
-- [Prevent double bookings](/docs/guides/modeling-and-persistence/preventing-double-bookings).
-- [Wait for a response](/docs/guides/modeling-and-persistence/waiting-for-a-response).
-- [Keep a screen up to date](/docs/guides/messaging/updating-a-live-screen).
-- [React to a state change](/docs/guides/modeling-and-persistence/reacting-to-a-change).
-- [Build an API integration](/docs/guides/messaging/building-api-integrations) and [receive its callbacks](/docs/guides/messaging/receiving-webhooks).
-- [Use PII and erase it](/docs/guides/data-control-and-serialization/using-and-erasing-pii).
+## Fluxzero 2.0
 
-## Evolve a running application
+The [2.0 overview](/docs/fluxzero-2) introduces the Model/Graph design. The
+[deep dive](/docs/fluxzero-2-deep-dive) explains it further and covers migration from 1.x.
 
-- [Build a feature from past events](/docs/guides/messaging/adding-a-feature-to-history).
-- [Correct historical results alongside live processing](/docs/guides/messaging/live-and-historical-processing).
-- [Split a consumer](/docs/guides/messaging/splitting-a-consumer) or [merge two consumers](/docs/guides/messaging/merging-consumers).
+## Tutorials
 
-## Messaging
+[Hello world](/docs/getting-started/hello-world) creates a first HTTP endpoint.
+[Building your first app](/docs/tutorials/first-app) grows a to-do application with state, queries and tests.
 
-Messages let one part of your application ask another to do work without choosing which process handles it.
+## How-to guides
 
-- [Send an action or query](/docs/guides/messaging/sending-messages), then [write its handler](/docs/guides/messaging/message-handling).
-- [Test the behavior locally](/docs/guides/messaging/testing-your-handlers).
-- [Expose an HTTP endpoint](/docs/guides/messaging/handling-web-requests) or [build an API integration](/docs/guides/messaging/building-api-integrations).
-- [Schedule work for later](/docs/guides/messaging/message-scheduling).
+The [how-to overview](/docs/guides/how-to) groups practical tasks for building features, evolving a running
+application and testing its behavior. Each guide follows one concrete path.
 
-When you need independent background processing, continue with [consumers and tracking](/docs/guides/messaging/message-tracking),
-[replays](/docs/guides/messaging/message-replays) and [metrics](/docs/guides/messaging/metrics-messages).
+## Reference
 
-## Modeling & Persistence
+The reference explains the SDK's parts, starting with their ordinary use and then refining their behavior.
 
-Models remember the things your users work with: tasks, orders or bookings. Commands express how they change.
+### Messaging
 
-- [Design the Model's state](/docs/guides/modeling-and-persistence/model-state) and [apply changes](/docs/guides/modeling-and-persistence/updating-entities).
-- [Connect related Models](/docs/guides/modeling-and-persistence/nested-entities).
-- [Load or search their state](/docs/guides/modeling-and-persistence/model-query-guide).
+Messages connect your application's behavior: commands request an action, queries request information and events
+report what happened. Start with [sending](/docs/guides/messaging/sending-messages) and
+[handling](/docs/guides/messaging/message-handling), then explore
+[consumers](/docs/guides/messaging/message-tracking), [scheduling](/docs/guides/messaging/message-scheduling),
+[HTTP](/docs/guides/messaging/handling-web-requests) and [WebSockets](/docs/guides/messaging/handling-websocket-messages).
+Validation, access control, interceptors and observability refine those flows.
 
-Then choose [storage behavior](/docs/guides/modeling-and-persistence/model-persistence), explore
-[historical Graphs](/docs/guides/modeling-and-persistence/temporal-graphs), or coordinate long-running work with
-[stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers).
+### Modeling & persistence
 
-## Data Control & Serialization
+Models give domain state an identity and lifecycle. [Apply changes](/docs/guides/modeling-and-persistence/updating-entities),
+[connect related Models](/docs/guides/modeling-and-persistence/nested-entities), and use
+[Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) to navigate their relationships and history.
+[Persistence](/docs/guides/modeling-and-persistence/model-persistence),
+[search](/docs/guides/modeling-and-persistence/document-index-and-search) and
+[stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers) support storing, finding and coordinating state.
 
-As the application grows, its stored data outlives individual versions of the code. Learn to
-[evolve old data](/docs/guides/data-control-and-serialization/upcasting-and-downcasting),
-[protect sensitive fields](/docs/guides/data-control-and-serialization/protecting-sensitive-data) and
-[filter responses for their audience](/docs/guides/data-control-and-serialization/user-based-content-filtering).
+### Data control & serialization
 
-## Configuration & Support
+Control which data is stored and what readers can see. Learn to
+[protect sensitive fields](/docs/guides/data-control-and-serialization/protecting-sensitive-data),
+[evolve stored data](/docs/guides/data-control-and-serialization/upcasting-and-downcasting) and
+[filter responses per user](/docs/guides/data-control-and-serialization/user-based-content-filtering).
 
-Use [application properties](/docs/guides/configuration/application-properties) for environment-specific settings
-and [the Fluxzero builder](/docs/guides/configuration/configuring-fluxzero) to register handlers or customize the SDK.
-The sidebar contains focused guides for extension points and operational concerns.
+<span id="configuration--support"></span>
+### Configuration
 
-Existing 1.x application? The [2.0 overview](/docs/fluxzero-2) explains the Model/Graph design;
-the [migration guide](/docs/fluxzero-2-deep-dive#upgrading-from-1x) explains the transition.
+[Application properties](/docs/guides/configuration/application-properties),
+[the Fluxzero builder](/docs/guides/configuration/configuring-fluxzero) and
+[client configuration](/docs/guides/configuration/configuring-websocket-client) connect the same application code
+to its environment and let you customize SDK behavior.
 
-<span id="tutorials"></span>
-<span id="how-to-guides"></span>
-<span id="reference"></span>
-
-For project setup, publishing and deployment, use [Tools & automation](/docs/tools/overview).
+<span id="testing-and-diagnostics"></span>
+Use [error codes](/docs/errors) to investigate a failure and the
+[SDK Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) for individual types and methods.
+Project setup, publishing and deployment are covered separately in [Tools & automation](/docs/tools/overview).
