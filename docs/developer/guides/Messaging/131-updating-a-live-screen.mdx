@@ -1,0 +1,95 @@
+---
+title: Keep a screen up to date
+description: Push the current task to a browser whenever that task changes.
+slug: docs/guides/messaging/updating-a-live-screen
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
+
+Push the current task to a browser whenever that task changes.
+
+Use the `Task`, `TaskId` and commands from [Core concepts](/docs/getting-started/core-concepts).
+The browser opens one socket for one task. It receives an initial value, then a fresh value after changes.
+
+## Connect a socket to Model notifications
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@SocketEndpoint
+@Path("/tasks/{taskId}/live")
+public record TaskSocket(SocketSession session, TaskId taskId) {
+    @HandleSocketOpen
+    static TaskSocket open(SocketSession session, @PathParam TaskId taskId) {
+        var socket = new TaskSocket(session, taskId);
+        socket.refresh();
+        return socket;
+    }
+
+    @HandleNotification
+    void changed(Graph<Task> task) {
+        if (taskId.getId().equals(task.functionalId())) refresh();
+    }
+
+    void refresh() {
+        session.sendMessage(Fluxzero.loadModel(taskId).get());
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@SocketEndpoint
+@Path("/tasks/{taskId}/live")
+data class TaskSocket(val session: SocketSession, val taskId: TaskId) {
+    companion object {
+        @JvmStatic
+        @HandleSocketOpen
+        fun open(session: SocketSession, @PathParam taskId: TaskId): TaskSocket =
+            TaskSocket(session, taskId).also { it.refresh() }
+    }
+
+    @HandleNotification
+    fun changed(task: Graph<Task>) {
+        if (taskId.id == task.functionalId()) refresh()
+    }
+
+    fun refresh() {
+        session.sendMessage(Fluxzero.loadModel(taskId).get())
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Register `TaskSocket.class` (`TaskSocket::class.java` in Kotlin), or let Spring discover the endpoint.
+Each connection gets its own instance. A Model notification asks it to read and send the latest state.
+
+## Display the result
+
+Serve this browser code from your application’s public origin:
+
+```javascript
+const url = new URL('/tasks/t1/live', location.href);
+url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const socket = new WebSocket(url);
+socket.onmessage = event => {
+    const task = JSON.parse(event.data);
+    document.querySelector('#task').textContent = task.completed ? 'Done' : task.name;
+};
+```
+
+Create task `t1` first and include an element with `id="task"` in the page. Send `CompleteTask` from another client:
+the displayed value changes to “Done”. Reconnecting opens a new socket and reads the current value again.
+
+This example is a public task view. For private data, check access on connection **and before each update**;
+see [access control](/docs/guides/messaging/role-based-access-control).
+Notifications prompt a refresh; they are not a durable event history for the browser.
+
+See [WebSocket handlers](/docs/guides/messaging/handling-websocket-messages) for connection lifecycle and
+<Jdoclink className="HandleNotification" /> for notification handling.

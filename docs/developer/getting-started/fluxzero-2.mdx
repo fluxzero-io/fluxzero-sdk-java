@@ -14,79 +14,9 @@ import DeepDiveFigure from '~/components/docs/DeepDiveFigure.astro';
 
 The [overview](/docs/fluxzero-2) explains why Fluxzero 2.0 separates relationships, atomic changes, persistence and loading. This chapter follows those choices into the implementation: which state an operation reads, what its commit protects, how related Models retain their identity, and which history a Graph can reconstruct.
 
-Start with the short comparison below, or go straight to the [Project/Task declarations](#model-the-lifecycle-then-choose-storage) and follow the worked examples. Later sections cover [Graph responses](#serialize-the-graph-as-a-composed-response), [materialized search views](#automatically-materialize-the-complete-graph), operational settings and [migration](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation).
+Start with the [Project/Task declarations](#model-the-lifecycle-then-choose-storage) and follow the worked examples. Later sections cover [Graph responses](#serialize-the-graph-as-a-composed-response), [materialized search views](#automatically-materialize-the-complete-graph), operational settings and [migration](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation).
 
 The Java and Kotlin examples form a Project/Task domain. Configuration variants replace earlier declarations; they are not extra classes to register alongside them.
-
-## Coming from Fluxzero 1.x
-
-`loadEntity(taskId)` already let a Member handle its own behavior. The important distinction is what happened after that lookup: the SDK still loaded and updated its containing Aggregate. An addressable entity was not an independent persistence boundary.
-
-This historical comparison uses an embedded Task, before the independent Model declarations used in the rest of the chapter:
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Aggregate
-record Project(@EntityId String projectId, @Member List<Task> tasks) {}
-
-@With
-record Task(@EntityId String taskId, boolean completed) {
-    @Apply
-    Task apply(CompleteTask command) {
-        return withCompleted(true);
-    }
-}
-
-record CompleteTask(String taskId) {}
-
-@HandleCommand
-void complete(CompleteTask command) {
-    Fluxzero.loadEntity(command.taskId(), Task.class).assertAndApply(command);
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Aggregate
-data class Project(@EntityId val projectId: String, @field:Member val tasks: List<Task>)
-
-data class Task(@EntityId val taskId: String, val completed: Boolean) {
-    @Apply
-    fun apply(command: CompleteTask) = copy(completed = true)
-}
-
-data class CompleteTask(val taskId: String)
-
-@HandleCommand
-fun complete(command: CompleteTask) {
-    Fluxzero.loadEntity(command.taskId, Task::class.java).assertAndApply(command)
-}
-```
-
-</TabItem>
-</Tabs>
-
-Task now owns the behavior for completing a Task. It still does not own its persistence: the lookup finds Project, reconstructs it, selects Task, and applies the replacement back through Project. Task's events still live under that root, as do its snapshot representation, cached state and searchable document when those are enabled.
-
-The API distinction behind the overview’s stream comparison is:
-
-| Handle or declaration | State boundary | Relationship context |
-| --- | --- | --- |
-| `Entity<T>` for an embedded `@Member` | Its containing Aggregate or Model | The member’s position inside that stored value |
-| `Entity<T>` for an independent `@Model` | That Model’s own persisted state | Parent references do not embed parent state |
-| `Graph<T>` | A view over independently stored Models | Navigation and the selected read boundary |
-
-The distinction in 2.0 is between an `Entity<T>` inside an Aggregate boundary and an independently persisted `@Model`, with `Graph<T>` supplying its relationship and read context. Existing `@Apply`, `@AssertLegal`, `@InterceptApply` and fixture patterns remain applicable. `@Member` remains available for state deliberately embedded in one root; it is no longer necessary merely because a Task appears inside a Project view. For independent Models, an embedded member ID alone does not discover its owning root: address that Model explicitly.
-
-Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2) shows the programming model in action; the rest of this chapter defines its contracts.
-
-<span id="why-move-beyond-one-growing-aggregate"></span>
-
-The examples below build on the overview. They start with the Model declarations, then follow relationships, reads and changes through the SDK.
 
 ## Model the lifecycle, then choose storage
 
@@ -2636,6 +2566,76 @@ default. Consumer boundaries determine ordering and failure isolation, so review
 
 The improvements already delivered on the 1.x line remain part of 2.0 as well. The defining change here is
 the Model/Graph programming model, not a claim that every surrounding SDK feature is newly introduced.
+
+## Coming from Fluxzero 1.x
+
+`loadEntity(taskId)` already let a Member handle its own behavior. The important distinction is what happened after that lookup: the SDK still loaded and updated its containing Aggregate. An addressable entity was not an independent persistence boundary.
+
+This historical comparison uses an embedded Task, before the independent Model declarations used in the rest of the chapter:
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Aggregate
+record Project(@EntityId String projectId, @Member List<Task> tasks) {}
+
+@With
+record Task(@EntityId String taskId, boolean completed) {
+    @Apply
+    Task apply(CompleteTask command) {
+        return withCompleted(true);
+    }
+}
+
+record CompleteTask(String taskId) {}
+
+@HandleCommand
+void complete(CompleteTask command) {
+    Fluxzero.loadEntity(command.taskId(), Task.class).assertAndApply(command);
+}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Aggregate
+data class Project(@EntityId val projectId: String, @field:Member val tasks: List<Task>)
+
+data class Task(@EntityId val taskId: String, val completed: Boolean) {
+    @Apply
+    fun apply(command: CompleteTask) = copy(completed = true)
+}
+
+data class CompleteTask(val taskId: String)
+
+@HandleCommand
+fun complete(command: CompleteTask) {
+    Fluxzero.loadEntity(command.taskId, Task::class.java).assertAndApply(command)
+}
+```
+
+</TabItem>
+</Tabs>
+
+Task now owns the behavior for completing a Task. It still does not own its persistence: the lookup finds Project, reconstructs it, selects Task, and applies the replacement back through Project. Task's events still live under that root, as do its snapshot representation, cached state and searchable document when those are enabled.
+
+The API distinction behind the overview’s stream comparison is:
+
+| Handle or declaration | State boundary | Relationship context |
+| --- | --- | --- |
+| `Entity<T>` for an embedded `@Member` | Its containing Aggregate or Model | The member’s position inside that stored value |
+| `Entity<T>` for an independent `@Model` | That Model’s own persisted state | Parent references do not embed parent state |
+| `Graph<T>` | A view over independently stored Models | Navigation and the selected read boundary |
+
+The distinction in 2.0 is between an `Entity<T>` inside an Aggregate boundary and an independently persisted `@Model`, with `Graph<T>` supplying its relationship and read context. Existing `@Apply`, `@AssertLegal`, `@InterceptApply` and fixture patterns remain applicable. `@Member` remains available for state deliberately embedded in one root; it is no longer necessary merely because a Task appears inside a Project view. For independent Models, an embedded member ID alone does not discover its owning root: address that Model explicitly.
+
+Adopting the new boundary is a data migration, not an annotation rename. The [migration section](#migrate-an-aggregate-deliberatelynot-by-renaming-its-annotation) defines replay/adoption, read cutover and write ownership. The [overview](/docs/fluxzero-2) shows the programming model in action; the rest of this chapter defines its contracts.
+
+<span id="why-move-beyond-one-growing-aggregate"></span>
+
+The examples below build on the overview. They start with the Model declarations, then follow relationships, reads and changes through the SDK.
 
 ## Upgrading from 1.x
 

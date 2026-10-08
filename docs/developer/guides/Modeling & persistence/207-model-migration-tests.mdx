@@ -12,20 +12,6 @@ Moving `Project.name` into `ProjectDetails.name` must preserve the existing name
 rename. Keep the Model's logical `name`, identity and parent paths stable. Start with plain `@Model`; add `DOCUMENT` or
 a materialized Graph only when the queries under test require those representations.
 
-## Three separate proofs
-
-| Test | Proves | Does not prove |
-| --- | --- | --- |
-| `whenUpcasting(oldJson)` after `registerCasters` | Old type/revision converts to the expected current value | Model replay, old persisted bytes or indexes |
-| `givenModelEvents(id, oldEvent, ...)`, then load in When | Current event decoding/upcasting and `@Apply` reconstruction | Byte-preserving old storage or another application's restart |
-| Old writer → retained test store → fresh candidate reader, no Given reseeding | Reads the actual artifacts written across that boundary | Database upgrade unless the database/service is also exercised |
-
-`givenModelEvents` accepts a typed `Id<?>`, or a raw ID plus Model class, followed by Java events, serialized messages or
-JSON resources. Register casters first. It applies the supplied events with current code and creates fresh commits,
-documents and relations. It skips original command assertions/interceptors, but its Given work can still publish
-events and notify observers. A new default fixture creates new local stores. Neither re-seeding it nor continuing
-with `.andThen()` proves a persistence restart.
-
 ## Preserve the original fields
 
 Revision-1 `com.example.CreateProject` contains `projectId` and `name`. Revision 2 contains `projectId` and `details`:
@@ -104,6 +90,21 @@ can still wrap its name in details during current replay.
 
 Spring discovers caster beans; a standalone fixture does not. `TestFixture.create(caster)` registers handlers, not
 casters. The first test must call `.registerCasters(...)`, even if production uses `@Component`.
+
+## Three separate proofs
+
+| Test | Proves | Does not prove |
+| --- | --- | --- |
+| `whenUpcasting(oldJson)` after `registerCasters` | Old type/revision converts to the expected current value | Model replay, old persisted bytes or indexes |
+| `givenModelEvents(id, oldEvent, ...)`, then load in When | Current event decoding/upcasting and `@Apply` reconstruction | Byte-preserving old storage or another application's restart |
+| Old writer → retained test store → fresh candidate reader, no Given reseeding | Reads the actual artifacts written across that boundary | Database upgrade unless the database/service is also exercised |
+
+`givenModelEvents` accepts a typed `Id<?>`, or a raw ID plus Model class, followed by Java events, serialized messages or
+JSON resources. Register casters first. It applies the supplied events with current code and creates fresh commits,
+documents and relations. It skips original command assertions/interceptors, but its Given work can still publish
+events and notify observers. A new default fixture creates new local stores. Neither re-seeding it nor continuing
+with `.andThen()` proves a persistence restart.
+
 
 ## Qualify storage from the old application
 

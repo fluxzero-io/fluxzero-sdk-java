@@ -8,13 +8,15 @@ sidebar:
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-Fluxzero provides first-class support for **WebSocket communication**, enabling stateful or stateless message
-handling using the same annotation-based model as other requests.
+Use WebSockets when a browser and your application need to keep exchanging messages, for example in a chat or live
+view. A socket handler receives incoming messages and can return a reply using the same handler style as HTTP.
 
 WebSocket requests are published to the **WebRequest** log after being reverse-forwarded from the Fluxzero Runtime, and can
 be consumed and responded to like any other request type.
 
 ---
+
+Build a [live task screen](/docs/guides/messaging/updating-a-live-screen) for a complete example of Model changes reaching a browser.
 
 ## Two styles of WebSocket handling
 

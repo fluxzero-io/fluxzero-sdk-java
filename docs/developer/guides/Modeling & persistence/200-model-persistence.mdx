@@ -6,87 +6,17 @@ sidebar:
    order: 200
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Every `@Model` has an independent persisted identity. Start with the default: event sourcing, without a direct
-document or periodic snapshots.
+Use Model persistence to remember accepted domain changes. The default, event sourcing, keeps the sequence of changes so a Model can be reconstructed and its history inspected. Document persistence is useful when only current
+state is needed.
 
-Design the fields first: business details belong in a cohesive value object, even for one `name`; keep identity,
-relations, status and execution bookkeeping distinct. [Designing Model state](../model-state) explains the selection
-criteria and shows validated Java/Kotlin creation and targeted updates. A plain details value requires neither a
-separate Model nor `@Member`; its owner determines persistence.
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-@Model
-record Account(
-        @EntityId AccountId accountId,
-        Money balance) {
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model
-data class Account(@EntityId val accountId: AccountId, val balance: Money)
-```
-
-</TabItem>
-</Tabs>
-
-The persisted key is exactly `accountId.toString()`. A model name or Java type is not concatenated into the identity.
-
-Before adding storage, use [Choosing Model and Graph queries](../model-query-guide). Its capability matrix separates
-identity loads, direct search, relationship-scoped search, live composition and materialized Graphs, including result
-types and consistency. `searchable` activates indexed current documents independently of persistence. A composition
-path only specifies placement; it does not create a document or enable search by itself.
-
-## Model discovery and contract packaging
-
-For actionable read failures and a bounded local-catalog comparison, see
-[Model contract diagnostics](../model-contract-diagnostics). Inspection does not qualify historical replay.
-
-Enable SDK annotation processing in every module that defines Models (Kotlin: kapt with the SDK processor).
-`@Model` declarations, including inherited Models, are written to
-`META-INF/io.fluxzero.sdk.modeling.Model`. The SDK combines those indexes from the contract JARs visible to its
-classloader and maps each logical Model name to its class. Discovery does not execute Model static initializers or
-register the contract's command/event handlers. Conflicting logical names and missing indexed classes fail explicitly.
-Identified abstract/interface contracts remain discoverable, including deleted Models with no concrete value.
-Identity-less abstract/interface inheritance templates are not standalone Models and are omitted from the catalog.
-Automatic processor discovery puts the Model observer before Fluxzero's claiming processors, regardless of SDK/common
-JAR order. In explicit processor lists, put `io.fluxzero.sdk.modeling.ModelTypeProcessor` first, before any processors
-that exclusively claim annotations (including `TypeRegistryProcessor` and `WebParameterProcessor`).
-
-`@RegisterType` remains optional for resolving short type names, for example in fixture JSON; it is not Model
-discovery and does not rename stored event/document types.
-Previously compiled contract JARs must be rebuilt with this SDK's processor to contribute the new index. Sharing a
-store does not supply missing classes: consuming applications still need the relevant Model contracts on their classpath.
-
-Separate JARs and Spring Boot nested JARs preserve individual indexes. A classic shaded/fat JAR must merge them, just
-like other overlapping generated resources. In Maven Shade, add this transformer (ordinary service merging alone
-is insufficient):
-
-```xml
-<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
-    <resource>META-INF/io.fluxzero.sdk.modeling.Model</resource>
-</transformer>
-```
+Choose [the Model's domain boundary](../model-state) first. Storage options refine that choice; they do not determine
+which business concepts belong together.
 
 ## Event-sourced models
-
-**Need exact previous values? Keep `EVENT_SOURCED` enabled** (the default `@Model` already does). `DOCUMENT` alone
-stores only the current document, not previous versions. Adding `DOCUMENT` to event sourcing preserves history;
-replacing event sourcing with `DOCUMENT` removes that guarantee. Cache depth and snapshots are optimizations, not
-substitutes for a durable event history. Every Graph node whose exact historical value you require needs that history.
-
-Historical Graph views normally use current DOCUMENT-only values when a historical revision is unavailable.
-This also applies to `previous()`, preserves historical relationships and absence, and never relaxes mutations.
-Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history; `graph.strict(false)` restores ordinary reads. See
-[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for the complete fallback contract.
 
 Event sourcing is the default:
 
@@ -111,27 +41,51 @@ data class Account(@EntityId val accountId: AccountId, val balance: Money)
 </Tabs>
 
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
-`@Apply` methods, optionally starting at a snapshot or checkpoint.
+`@Apply` methods, optionally starting at a snapshot or checkpoint. Keep event sourcing when the application
+needs exact `previous()` values or other historical Graph reads. `DOCUMENT` alone keeps current state; caches and snapshots do not
+replace retained event history.
+
+Historical Graph views normally use current DOCUMENT-only values when a historical revision is unavailable.
+Use `graph.strict(true)` or `fluxzero.model.graph.strict=true` for exact history; see
+[Temporal Graphs](../temporal-graphs) for fallback behavior.
 
 
+## Document-based models
 
-The set supports exactly the meaningful combinations:
+Select `DOCUMENT` to load state from its internal current document. Search remains an independent choice:
 
-- `{EVENT_SOURCED}` reconstructs from events. Effective searchability additionally maintains one indexed node document.
-- `{DOCUMENT}` loads from one internal current document. That document has no search indexes unless searchability is enabled.
-- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also keeps the internal current document.
+<Tabs>
+<TabItem label="Java">
 
-Searchability never creates a separate editable public Model projection. Node queries, relationship-content predicates
-and Graph composition use the same canonical node representation. A stored complete Graph is an additional optional projection.
+```java
+@Model(persistence = ModelPersistence.DOCUMENT)
+record UserPreferences(@EntityId UserId userId, Preferences preferences) {
+}
+```
 
-An empty set or duplicate representation is rejected during Model discovery.
+</TabItem>
+<TabItem label="Kotlin">
 
-By default an event-sourced Model fails when its stream contains an event for which no applicable `@Apply` exists.
-Set `ignoreUnknownEvents = true` only when skipping such historical events is an explicit compatibility decision; it
-changes reconstructed state and is not a substitute for upcasting or retaining old handlers.
+```kotlin
+@Model(persistence = [ModelPersistence.DOCUMENT])
+data class UserPreferences(@EntityId val userId: UserId, val preferences: Preferences)
+```
 
-Independent models prevent unrelated histories from accumulating in one enormous stream. An order line, payment
-attempt or short-lived process can keep its own small history while still participating in one multi-model commit.
+</TabItem>
+</Tabs>
+
+The document is maintained synchronously with the Model commit. It supports authoritative identity reads without
+making the value searchable. `persistence` controls state storage and loading, not event publication: applied updates
+are still stored and published by default. DOCUMENT alone does not retain previous document versions.
+
+Set `searchable = true` when the node should be searchable. By default that also activates the composed descendants
+through their typed `@Parent` contracts. Configure `searchSettings = @SearchSettings(includeDescendants = false)`
+for only the node itself. A child's `searchable = false` means it makes no independent request; it can still participate
+in a searchable ancestor's composed scope. Per-node `SearchSettings` configure the canonical collection and time fields
+even when activation is inherited. Collection defaults remain internal, type-isolated names.
+
+Searchability is not authorization. Enforce access in query and command handlers; see
+[Model state and protection boundaries](../model-state-boundaries).
 
 ## Current state without replay
 
@@ -163,6 +117,27 @@ commit readset. Use injected Models/Graphs for transactional assertions; separat
 multi-model snapshot. Supporting document-based Graph mutations would additionally require retaining the read
 strategy through the complete evaluation and retries. Ordinary `loadModel`, `loadGraph` and `loadCurrentGraph`
 retain their existing authoritative/replay contracts; sharing only Model classes does not guarantee replay compatibility.
+
+## Combining persistence and search
+
+The set supports exactly the meaningful combinations:
+
+- `{EVENT_SOURCED}` reconstructs from events. Effective searchability additionally maintains one indexed node document.
+- `{DOCUMENT}` loads from one internal current document. That document has no search indexes unless searchability is enabled.
+- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also keeps the internal current document.
+
+Searchability never creates a separate editable public Model projection. Node queries, relationship-content predicates
+and Graph composition use the same canonical node representation. A stored complete Graph is an additional optional projection.
+
+An empty set or duplicate representation is rejected during Model discovery.
+
+By default an event-sourced Model fails when its stream contains an event for which no applicable `@Apply` exists.
+Set `ignoreUnknownEvents = true` only when skipping such historical events is an explicit compatibility decision; it
+changes reconstructed state and is not a substitute for upcasting or retaining old handlers.
+
+Independent models prevent unrelated histories from accumulating in one enormous stream. An order line, payment
+attempt or short-lived process can keep its own small history while still participating in one multi-model commit.
+
 
 ## Selective Graph navigation across applications
 
@@ -242,43 +217,6 @@ Within a mutation it instead reuses the attempt boundary and joins its readset.
 An unpinned current value read retries the complete lookup a bounded number of times if its head and document
 change during resolution. Historical, already pinned and mutation-shared reads never silently advance.
 Persistent instability fails with an explicit platform error.
-
-## Document-based models
-
-Select `DOCUMENT` to load state from its internal current document. Search remains an independent choice:
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-@Model(persistence = ModelPersistence.DOCUMENT)
-record UserPreferences(@EntityId UserId userId, Preferences preferences) {
-}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model(persistence = [ModelPersistence.DOCUMENT])
-data class UserPreferences(@EntityId val userId: UserId, val preferences: Preferences)
-```
-
-</TabItem>
-</Tabs>
-
-The document is maintained synchronously with the Model commit. It supports authoritative identity reads without
-making the value searchable. `persistence` controls state storage and loading, not event publication: applied updates
-are still stored and published by default. DOCUMENT alone does not retain previous document versions.
-
-Set `searchable = true` when the node should be searchable. By default that also activates the composed descendants
-through their typed `@Parent` contracts. Configure `searchSettings = @SearchSettings(includeDescendants = false)`
-for only the node itself. A child's `searchable = false` means it makes no independent request; it can still participate
-in a searchable ancestor's composed scope. Per-node `SearchSettings` configure the canonical collection and time fields
-even when activation is inherited. Collection defaults remain internal, type-isolated names.
-
-Searchability is not authorization. Enforce access in query and command handlers; see
-[Model state and protection boundaries](../model-state-boundaries).
 
 ## Event storage and publication
 
@@ -672,6 +610,26 @@ for lifecycle and GDPR cleanup.
 
 Published audit events are not erased implicitly. Apply the application's event-log retention and data-protection
 policies separately.
+
+## Model discovery and contract packaging
+
+For actionable read failures and a bounded local catalog comparison, see
+[Model contract diagnostics](../model-contract-diagnostics). Inspection does not qualify historical replay.
+
+Enable SDK annotation processing in every module that defines Models (Kotlin: kapt with the SDK processor).
+The processor generates the Model index used for discovery. Shared contract modules must be compiled with the
+processor and be available to consuming applications. Discovery does not register their handlers.
+See <Jdoclink className="Model" /> for the discovery contract and explicit processor configuration.
+
+Separate JARs and Spring Boot nested JARs preserve individual indexes. A classic shaded/fat JAR must merge them, just
+like other overlapping generated resources. In Maven Shade, add this transformer (ordinary service merging alone
+is insufficient):
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.sdk.modeling.Model</resource>
+</transformer>
+```
 
 ## Performance shape
 

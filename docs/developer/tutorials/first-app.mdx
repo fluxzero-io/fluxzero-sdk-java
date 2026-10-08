@@ -26,7 +26,7 @@ To familiarize yourself with core concepts in Fluxzero, first [check them out](/
 
 ## Getting started
 
-Have your coding agent create a new project called 'Todo', with root package `io.fluxzero.todo`, using the Basic Starter for Java or Kotlin
+Create a new project called 'Todo', with root package `io.fluxzero.todo`, using the Basic Starter for Java or Kotlin
 (see [Installation](/docs/getting-started/installation) for how).
 
 The file comments below use `io.fluxzero.todo.project` with `command`, `query`, `model` and `notifications` packages
@@ -173,6 +173,44 @@ Fluxzero validates the command, runs its assertions, applies it and stores the a
 payload is published as an event, so other parts of the app can react. We don't need a separate command handler for
 this state change. With Spring, keep these types inside the configured application scan; without Spring, register
 your model command types with the application. In tests, command discovery happens automatically.
+
+### Check the first behavior
+
+Before adding more commands, verify that creation stores the expected task name:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void createsTask() {
+    var taskId = new TaskId("t1");
+    TestFixture.create()
+            .whenCommand(new CreateTask(taskId, new TaskDetails("Submit tutorial")))
+            .expectSuccessfulResult()
+            .expectThat(f -> assertEquals("Submit tutorial", Fluxzero.loadModel(taskId).get().details().name()));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun createsTask() {
+    val taskId = TaskId("t1")
+    TestFixture.create()
+        .whenCommand(CreateTask(taskId, TaskDetails("Submit tutorial")))
+        .expectSuccessfulResult()
+        .expectThat { assertEquals("Submit tutorial", Fluxzero.loadModel(taskId).get()!!.details.name) }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+This uses the Basic Starter's test user setup described above. We will introduce reusable JSON inputs once there
+are several actions to test. For now, one command and one observable result are enough.
 
 ## Working with Tasks
 

@@ -1,0 +1,104 @@
+---
+title: Merge two consumers
+description: Bring two handlers into one consumer without abandoning either consumer’s backlog.
+slug: docs/guides/messaging/merging-consumers
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
+
+Bring two handlers into one consumer without abandoning either consumer’s backlog.
+
+Suppose `OrderIndex` runs in `order-index` and `CustomerIndex` in `customer-index`. Both should move into `indexes`.
+Choose one fixed message index, `cutover`:
+
+| Handler | Before `cutover` | From `cutover` |
+| --- | --- | --- |
+| `OrderIndex` | `order-index` | `indexes` |
+| `CustomerIndex` | `customer-index` | `indexes` |
+
+## Keep the old consumers until they catch up
+
+Replace their explicit builder configurations with these three. Register both handler objects with this builder;
+remove any competing class or package consumer annotations. Preserve other settings from the existing configurations.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("order-index")
+        .handlerFilter(h -> h instanceof OrderIndex)
+        .maxIndexExclusive(cutover)
+        .exclusiveAfterMaxIndex(false)
+        .build(), MessageType.EVENT);
+
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("customer-index")
+        .handlerFilter(h -> h instanceof CustomerIndex)
+        .maxIndexExclusive(cutover)
+        .exclusiveAfterMaxIndex(false)
+        .build(), MessageType.EVENT);
+
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("indexes")
+        .handlerFilter(h -> h instanceof OrderIndex || h instanceof CustomerIndex)
+        .minIndex(cutover)
+        .exclusiveBeforeMinIndex(false)
+        .build(), MessageType.EVENT);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("order-index")
+        .handlerFilter { it is OrderIndex }
+        .maxIndexExclusive(cutover)
+        .exclusiveAfterMaxIndex(false)
+        .build(), MessageType.EVENT)
+
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("customer-index")
+        .handlerFilter { it is CustomerIndex }
+        .maxIndexExclusive(cutover)
+        .exclusiveAfterMaxIndex(false)
+        .build(), MessageType.EVENT)
+
+builder.addConsumerConfiguration(
+    ConsumerConfiguration.builder()
+        .name("indexes")
+        .handlerFilter { it is OrderIndex || it is CustomerIndex }
+        .minIndex(cutover)
+        .exclusiveBeforeMinIndex(false)
+        .build(), MessageType.EVENT)
+```
+
+  </TabItem>
+</Tabs>
+
+Each old consumer resumes from **its own saved position** and handles messages below the boundary. The new consumer
+starts at the boundary, including that message. No shared checkpoint needs to be invented.
+
+## Make the switch
+
+1. Convert a fixed future UTC time with `IndexUtils.indexFromTimestamp(...)`; use the identical value on every instance.
+2. Stop every old instance cleanly before that boundary, then start the application with all three configurations.
+   Preserve the old names and namespace. `indexes` must be a fresh consumer name.
+3. Remove the old configurations only after **both** old consumers have completed their work below the boundary.
+
+Keep the source messages within retention throughout the handover. If the stop misses the chosen boundary,
+choose a later one before starting the new configuration. Do not reset the new consumer to the furthest old position:
+that would skip work belonging to the slower consumer.
+
+Normal retries can repeat delivery. Old and new consumers can also run concurrently; for strict processing order,
+finish both old backlogs before starting `indexes`.
+
+See <Jdoclink className="ConsumerConfiguration" /> for boundary settings, or
+[split a consumer](/docs/guides/messaging/splitting-a-consumer) for the reverse operation.

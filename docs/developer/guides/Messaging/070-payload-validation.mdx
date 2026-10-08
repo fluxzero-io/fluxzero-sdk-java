@@ -9,20 +9,8 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero automatically validates incoming request payloads using its built-in
-<a href="https://jakarta.ee/specifications/bean-validation/3.1/" target="_blank" rel="noopener noreferrer">Jakarta Validation 3.1 <span aria-hidden="true">↗</span></a>
-implementation. Hibernate Validator is not required for normal SDK payload validation.
-
-This includes support for:
-
-- standard Jakarta constraints such as `@NotNull`, `@NotBlank`, `@Size`, `@Pattern`, numeric constraints, and temporal
-  constraints
-- `@Valid` on nested objects and container/type-use validation
-- validation groups, group sequences, group conversion, and custom constraint validators
-- executable parameter and return-value validation
-- contextual method constraints such as `@AssertTrue` methods that inject parameters via Fluxzero's configured
-  `ParameterResolver`s
-- Constraint violations in command/query/webrequest payloads
+Reject malformed input before application code runs. Add Jakarta constraints to the command or query fields that
+need them; Fluxzero checks the payload before invoking its handler.
 
 If a constraint is violated, the handler method is **never called**. Instead, a `ValidationException` is thrown before the handler is invoked.
 
@@ -30,8 +18,7 @@ If a constraint is violated, the handler method is **never called**. Instead, a 
 <TabItem value="Java" label="Java">
 
 ```java
-public record CreateUser(@NotBlank String userId,
-                         @NotNull @Valid UserProfile profile) {
+public record CreateUser(@NotBlank String name) {
 }
 ```
 
@@ -39,14 +26,43 @@ public record CreateUser(@NotBlank String userId,
 <TabItem value="Kotlin" label="Kotlin">
 
 ```kotlin
-data class CreateUser(
-    @field:NotBlank val userId: String,
-    @field:NotNull @field:Valid val profile: UserProfile
-)
+data class CreateUser(@field:NotBlank val name: String)
 ```
 
 </TabItem>
 </Tabs>
+
+A blank name is rejected. Kotlin's `@field:` makes the constraint apply to the backing field.
+
+## Nested values
+
+Use `@Valid` to validate the contents of a value object, and `@NotNull` when the value itself is required:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record UserProfile(@NotBlank String name) {}
+public record CreateUser(@NotNull @Valid UserProfile profile) {}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class UserProfile(@field:NotBlank val name: String)
+data class CreateUser(@field:Valid val profile: UserProfile)
+```
+
+  </TabItem>
+</Tabs>
+
+`@Valid` alone does not reject null. Kotlin's non-null constructor value also constrains deserialization.
+
+### Additional constraints
+
+The SDK's built-in Jakarta Validation implementation supports standard constraints, nested collections, groups,
+custom validators and method constraints. Hibernate Validator is not required for normal SDK payload validation.
 
 ## Fields before method constraints
 

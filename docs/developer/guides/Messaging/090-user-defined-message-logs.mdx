@@ -9,17 +9,12 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero supports **custom message logs** in addition to built-in ones like commands, events, and queries.
+Use a custom log when a stream needs its own topic and retention, such as readings from an external meter.
+Ordinary domain actions and changes belong in the built-in command and event logs.
 
-Most applications won’t need them — but they’re powerful for advanced use cases like:
-
-- Tracking external systems or integrations without cluttering your main event log
-- Publishing low-frequency control signals or batched updates for downstream consumers
-- Isolating workflows with different delivery or retention guarantees
-
-Fluxzero lets you define and handle custom messages by assigning them to **user-defined topics**. Each topic has its own durable log and behaves just like a native command/event/query log.
-
----
+In this example the application defines `MeteringPoint(String meterId, double value)` in Java, or
+`data class MeteringPoint(val meterId: String, val value: Double)` in Kotlin. Both sender and handler use the
+`metering-points` topic.
 
 ## Handling messages from a custom log
 
@@ -71,8 +66,8 @@ You can publish messages directly to a custom topic using the `customGateway(...
 
 ```java
 Fluxzero.get()
-    .customGateway("third-party-events")
-    .sendAndForget(new AuditEntry("User login"));
+    .customGateway("metering-points")
+    .sendAndForget(new MeteringPoint("meter-1", 12.5));
 ```
 
 </TabItem>
@@ -80,14 +75,14 @@ Fluxzero.get()
 
 ```kotlin
 Fluxzero.get()
-    .customGateway("third-party-events")
-    .sendAndForget(AuditEntry("User login"))
+    .customGateway("metering-points")
+    .sendAndForget(MeteringPoint("meter-1", 12.5))
 ```
 
 </TabItem>
 </Tabs>
 
-This gives you full control to emit messages that won’t show up in the main event log — ideal for isolating workflows, logs, or side effects.
+The reading goes to `metering-points`, where the handler above receives it.
 
 ---
 
@@ -100,7 +95,7 @@ Each log (including custom ones) can have its own retention policy. By default, 
 
 ```java
 Fluxzero.get()
-    .customGateway("third-party-events")
+    .customGateway("metering-points")
     .setRetentionTime(Duration.ofDays(90));
 ```
 
@@ -109,7 +104,7 @@ Fluxzero.get()
 
 ```kotlin
 Fluxzero.get()
-    .customGateway("third-party-events")
+    .customGateway("metering-points")
     .setRetentionTime(Duration.ofDays(90))
 ```
 

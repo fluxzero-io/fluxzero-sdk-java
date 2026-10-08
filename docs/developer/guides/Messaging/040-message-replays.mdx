@@ -17,6 +17,9 @@ Fluxzero allows you to **replay past messages** by tracking from an earlier inde
 
 Since message logs — including **commands**, **events**, **errors**, etc. — are durably stored (with **events** retained indefinitely by default), replays are usually available.
 
+For a new capability, start with [building a feature from past events](/docs/guides/messaging/adding-a-feature-to-history).
+The position controls below are useful when you need to choose or reset a replay range.
+
 ## Replaying from the Past
 
 The most common way to initiate a replay is to define a **new consumer** using the `@Consumer` annotation with a `minIndex`.
@@ -118,83 +121,10 @@ Fluxzero.client()
 
 ## Parallel replays with <code>exclusive = false</code>
 
-Sometimes you want the **same handler class** to do both live processing and a historical replay (e.g., to rebuild read models).
-
-Mark the handler’s consumer as <code>exclusive = false</code>:
-
-<Tabs>
-  <TabItem value="Java" label="Java">
-
-```java
-@Consumer(name = "live", exclusive = false)
-public class OrderProcessor {
-
-    @HandleCommand
-    void handle(SendOrder command) {
-        // submit an order
-    }
-}
-```
-
-  </TabItem>
-  <TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-@Consumer(name = "live", exclusive = false)
-class OrderProcessor {
-
-    @HandleCommand
-    fun handle(command: SendOrder) {
-        // submit an order
-    }
-}
-```
-
-  </TabItem>
-</Tabs>
-
-Then register a **second consumer** at runtime that targets the same handler but a different index window:
-
-<Tabs>
-  <TabItem value="Java" label="Java">
-
-```java
-fluxzeroBuilder.addConsumerConfiguration(
-    ConsumerConfiguration.builder()
-        .name("replay")                                  // new consumer
-        .handlerFilter(h -> h instanceof OrderProcessor) // same class
-        .minIndex(111677748019200000L)                   // start of window
-        .maxIndexExclusive(111853279641600000L)          // end of window (exclusive)
-        .build(),
-    MessageType.COMMAND
-);
-```
-
-  </TabItem>
-  <TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-fluxzeroBuilder.addConsumerConfiguration(
-    ConsumerConfiguration.builder()
-        .name("replay")                             // new consumer
-        .handlerFilter { it is OrderProcessor }     // same class
-        .minIndex(111677748019200000L)              // start of window
-        .maxIndexExclusive(111853279641600000L)     // end of window (exclusive)
-        .build(),
-    MessageType.COMMAND
-)
-```
-
-  </TabItem>
-</Tabs>
-
-This spins up a **parallel tracker** that replays messages between the two indices while the original `live` consumer continues uninterrupted.
-
-<Aside type="tip">
-  Great for **bootstrapping read models** or **repair jobs** without disrupting production flow or duplicating classes.
-</Aside>
-
----
+To keep processing live events while correcting earlier results, use
+[one handler in two consumers](/docs/guides/messaging/live-and-historical-processing).
+That guide shows the handler, the bounded correction consumer and how to finish the run.
+`exclusive = false` allows the same handler to participate in both consumers.
 
 ## Handling failures and DLQ flows
 

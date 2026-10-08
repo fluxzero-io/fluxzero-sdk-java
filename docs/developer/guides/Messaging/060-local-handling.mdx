@@ -13,40 +13,40 @@ Fluxzero supports both tracked and local message handling. **Local handlers** pr
 thread, without persisting them or waiting for a tracker by default. Calls still go through the Fluxzero dispatch and
 handler APIs; local handling does not mean calling the handler method directly.
 
-To define a local handler, annotate the handler method, class, or its enclosing package with `@LocalHandler`:
+Use a local handler when the calling application can perform the operation itself. For example, a greeting query
+needs no stored delivery:
 
 <Tabs>
-<TabItem value="Java" label="Java">
+  <TabItem label="Java">
 
 ```java
-@LocalHandler(logMetrics = true)
-public class SomeLocalHandler {
-    @HandleEvent
-    void handle(ApplicationStarted event) {
-        // do something
-    }
+record GetGreeting(String name) implements Request<String> {}
+
+@LocalHandler
+class GreetingHandler {
+    @HandleQuery
+    String handle(GetGreeting query) { return "Hello, " + query.name() + "!"; }
 }
 ```
 
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
+  </TabItem>
+  <TabItem label="Kotlin">
 
 ```kotlin
-@LocalHandler(logMetrics = true)
-class SomeLocalHandler {
-    @HandleEvent
-    fun handle(event: ApplicationStarted) {
-        // do something
-    }
+data class GetGreeting(val name: String) : Request<String>
+
+@LocalHandler
+class GreetingHandler {
+    @HandleQuery
+    fun handle(query: GetGreeting) = "Hello, ${query.name}!"
 }
 ```
 
-</TabItem>
+  </TabItem>
 </Tabs>
 
-<Aside type="tip">
-  By default, handler metrics are disabled for local handlers. To enable, use <code>logMetrics = true</code> to track performance metrics even for local handlers.
-</Aside>
+Register the handler normally, then call `Fluxzero.queryAndWait(...)`. `@LocalHandler` can also be placed on a
+method or package. Add `logMetrics = true` if you need metrics for these local calls; they are off by default.
 
 ## Require local handling
 
@@ -57,42 +57,37 @@ fallback for a more specific package or payload type.
 
 ## Self-handling messages
 
-Instead of defining message handlers externally, you can embed handler logic directly in the message payload. This
-is the default pattern for reusable command/query operations, including external API interactions. Put the
-`WebRequestGateway` call in `@HandleCommand` or `@HandleQuery` and dispatch the payload through Fluxzero. These local
-self-handlers need no bean injection, explicit registration, `@LocalHandler`, `@TrackSelf` or `@Consumer`.
-The nested HTTP request retains the gateway's audit and configured retry behavior. See
-[Sending web requests](/docs/guides/messaging/sending-web-requests) for complete Java/Kotlin examples and tests.
+For a reusable operation, put the handler on its payload. The same greeting then needs only one type, with no
+registration or `@LocalHandler` annotation:
 
 <Tabs>
-<TabItem value="Java" label="Java">
+  <TabItem label="Java">
 
 ```java
-public class GetUserProfile {
-    String userId;
-
+public record GetGreeting(String name) implements Request<String> {
     @HandleQuery
-    UserProfile handle() {
-        // fetch the user profile and return
-    }
+    String handle() { return "Hello, " + name + "!"; }
 }
 ```
 
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
+  </TabItem>
+  <TabItem label="Kotlin">
 
 ```kotlin
-class GetUserProfile(val userId: String) {
-
+data class GetGreeting(val name: String) : Request<String> {
     @HandleQuery
-    fun handle(): UserProfile {
-        // fetch the user profile and return
-    }
+    fun handle() = "Hello, $name!"
 }
 ```
 
-</TabItem>
+  </TabItem>
 </Tabs>
+
+Call it through Fluxzero so validation, interceptors and message context still apply. Local self-handling is also
+the default pattern for reusable external API operations; see
+[Sending web requests](/docs/guides/messaging/sending-web-requests).
+
+### Persisting a self-handling request
 
 By default, such handlers are local in both synchronous and asynchronous fixtures. Use `@TrackSelf` only when the
 command/query itself needs persisted delivery through the Runtime, its own consumer position or independent
@@ -105,12 +100,11 @@ replay/retry. Calling an external API, waiting for its response or wanting HTTP 
 ```java
 @TrackSelf
 @Consumer(name = "user-management")
-public class GetUserProfile {
-    String userId;
+public record GetGreeting(String name) implements Request<String> {
 
     @HandleQuery
-    UserProfile handle() {
-        // async handler
+    String handle() {
+        return "Hello, " + name + "!";
     }
 }
 ```
@@ -121,11 +115,11 @@ public class GetUserProfile {
 ```kotlin
 @TrackSelf
 @Consumer(name = "user-management")
-class GetUserProfile(val userId: String) {
+data class GetGreeting(val name: String) : Request<String> {
 
     @HandleQuery
-    fun handle(): UserProfile {
-        // async handler
+    fun handle(): String {
+        return "Hello, $name!"
     }
 }
 ```
@@ -135,35 +129,5 @@ class GetUserProfile(val userId: String) {
 
 When component-scanned (e.g., via Spring), `@TrackSelf` classes will be automatically discovered and registered. This works even if the annotation is placed on an interface rather than the concrete class—allowing for reusable handler patterns.
 
-For example, a generic command handler interface can be tracked and reused:
-
-<Tabs>
-<TabItem value="Java" label="Java">
-
-```java
-@TrackSelf
-public interface UserUpdate {
-    @HandleCommand
-    default void handle() {
-        // default behavior
-    }
-}
-```
-
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-@TrackSelf
-interface UserUpdate {
-    @HandleCommand
-    fun handle() {
-        // default behavior
-    }
-}
-```
-
-</TabItem>
-</Tabs>
-
-Implementations of this interface will then be handled asynchronously, using the configured consumer (or the default one if unspecified).
+Use a shared `@TrackSelf` interface when several payload types should have the same tracked behavior.
+Register the tracked payloads with the application that owns them; ordinary self-handling payloads remain local.

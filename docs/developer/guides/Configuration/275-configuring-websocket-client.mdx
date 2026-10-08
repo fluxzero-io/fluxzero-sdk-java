@@ -6,6 +6,7 @@ sidebar:
 ---
 
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
 
 The `WebSocketClient` is the default client used to connect to the Fluxzero Runtime over WebSocket. It provides full access
 to the event store, message gateways, tracking, search, scheduling, and key-value storage subsystems via configurable,
@@ -48,13 +49,8 @@ runtime base URL, which must point to the desired deployment.
 
 ---
 
-The SDK uses ZSTD for default WebSocket compression and document serialization and requires a ZSTD-capable Runtime.
-It also reads historical LZ4 documents using bounds-checked Java compression and decompression, without Unsafe or
-native LZ4. SDK connections advertise `Fluxzero-Supported-Document-Compression: ZSTD,LZ4,NONE`, independently of
-outer WebSocket compression. A Runtime supporting this header preserves stored document bytes whenever the client
-supports their codec and converts only unsupported formats. No bulk storage migration is needed. Explicit LZ4,
-GZIP and NONE WebSocket configurations remain available. These compression defaults are not gated by
-`fluxzero.defaults.version`.
+The client negotiates compression with the Runtime. See
+[Compatibility & dependencies](/docs/about/compatibility) when upgrading an existing deployment.
 
 ## Client configuration (ClientConfig)
 
@@ -93,109 +89,43 @@ cycle. Set the dedicated property to `false` to keep fixed retries on a newer de
 environment-variable name is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
 
 
-
 ---
-
-### Packed Model substeps
-
-The SDK automatically advertises its supported packed Model membership versions during the WebSocket handshake.
-A supporting Runtime can use lossless v8 for non-zero substeps; older peers retain the existing representation.
-This is protocol capability negotiation, independent of application properties and `fluxzero.defaults.version`.
-
-A supporting Runtime compacts full memberships only for capable receiving sessions. Old clients retain the lossless
-fallback, and new clients continue to read old replies. No stored data changes or migration are involved. Updating
-only the SDK cannot repair an old Runtime that omits substeps. Zero-only responses and Graph-embedded event pages
-retain their existing representation. Request count and payload-byte limits retain their existing meaning; metadata
-still contributes to total response size.
 
 ## Runtime ingress flow control
 
-Runtime responses are decoded outside the WebSocket protocol callback path. Up to three complete messages per session
-are decoded or wait for bounded dispatcher admission concurrently by default. A permit is released after safe
-admission, while the message remains retained until functional completion. A client-wide completion dispatcher admits
-and actively completes at most eight message groups/results per client by default. Customer callbacks never run on a
-decode worker. This keeps pong and decode progress independent from slow
-functional continuations while preserving bounded resource use.
+The SDK bounds incoming work so slow callbacks do not consume unlimited resources. It limits retained messages
+and bytes per connection, and separately limits concurrent decoding and result completion. When capacity fills,
+the connection pauses receiving until work completes.
 
-The SDK retains at most 128 runtime messages or 64 MiB of compressed wire data per physical session by default. Messages
-remain retained until functional processing completes, including synchronous code triggered by completing a request
-future. When a retained bound is reached, the JDK WebSocket adapter pauses receive demand and resumes it after capacity
-is released. Normal capacity pressure does not close or reconnect an otherwise healthy session.
-
-The byte envelope is a retained-work credit limit and is not allocated up front. Tracking's default `maxFetchBytes` is
-100 MiB of serialized message payload before WebSocket compression and envelope overhead. A single response can
-therefore exceed the transport envelope; it may still proceed when it is the only retained message, while later
-responses wait for capacity.
-
-The limits can be configured explicitly. The examples below restate the defaults:
-
-<Tabs>
-  <TabItem label="Java">
-
-  ```java
-  ClientConfig config = ClientConfig.builder()
-          .maxConcurrentRuntimeWebSocketMessages(3)
-          .maxRetainedRuntimeWebSocketMessages(128)
-          .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
-          .maxConcurrentRuntimeResultCompletions(8)
-          .runtimeIngressStallCloseTimeout(Duration.ZERO)
-          .build();
-  ```
-  </TabItem>
-  <TabItem label="Kotlin">
-
-  ```kotlin
-  val config = ClientConfig.builder()
-      .maxConcurrentRuntimeWebSocketMessages(3)
-      .maxRetainedRuntimeWebSocketMessages(128)
-      .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
-      .maxConcurrentRuntimeResultCompletions(8)
-      .runtimeIngressStallCloseTimeout(Duration.ZERO)
-      .build()
-  ```
-  </TabItem>
-</Tabs>
-
-Operational properties use the following canonical names:
+Keep the defaults unless measurements show a reason to tune them. Larger retained limits can absorb bursts but use
+more memory; more completion concurrency permits more callbacks to run at once.
 
 | Property | Purpose |
-|----------|---------|
-| `fluxzero.runtime.ingress.maxConcurrency` | Concurrent complete runtime messages per session |
-| `fluxzero.runtime.ingress.maxRetainedMessages` | Total retained runtime messages per session |
-| `fluxzero.runtime.ingress.maxRetainedBytes` | Total retained compressed wire bytes per session |
+| --- | --- |
+| `fluxzero.runtime.ingress.maxConcurrency` | Concurrent runtime-message decoding per session |
+| `fluxzero.runtime.ingress.maxRetainedMessages` | Retained runtime messages per session |
+| `fluxzero.runtime.ingress.maxRetainedBytes` | Retained compressed wire bytes per session |
 | `fluxzero.runtime.ingress.maxCompletionConcurrency` | Concurrent result completions per client |
-| `fluxzero.runtime.ingress.stallCloseTimeout` | Optional ISO-8601 stall close delay, for example `PT30S` |
+| `fluxzero.runtime.ingress.stallCloseTimeout` | Optional delay before closing a stalled connection, such as `PT30S` |
 
-Explicit builder values take precedence over properties. Legacy `fluxzero.websocket.runtime.*` and
-`FLUXZERO_WEBSOCKET_RUNTIME_MAX_*` aliases remain supported for the three WebSocket capacity settings. There is no
-unbounded or disable mode. Set message concurrency to one for serial decode, and result-completion concurrency to one
-only when functional callbacks must also be serial, while keeping protocol isolation.
+Use conventional environment-variable names, for example `FLUXZERO_RUNTIME_INGRESS_MAX_RETAINED_BYTES`.
+Explicit builder settings take precedence over properties. The byte limit is a work-admission limit, not a maximum
+response size; one oversized response can still proceed alone.
 
-With transport metrics enabled, a retained session without a functional completion for one `pingTimeout` emits
-`RUNTIME_INGRESS_STALLED`. An idle session without retained work is never stalled. The next completed message or an
-empty retained queue emits `RUNTIME_INGRESS_RECOVERED`. Independently of metric publication, a positive
-`runtimeIngressStallCloseTimeout` enables the progress watchdog and closes the session after that additional period
-without progress. The timeout is disabled by default. Normal ping-timeout detection remains active whenever receive
-demand is open. Peer close and transport I/O errors remain active during local backpressure; a silent connection
-failure during a persistent local pause is bounded only when the stall-close timeout is configured.
+### Diagnosing stalled connections
 
-Set `fluxzero.websocket.transportMetrics.enabled=true` to publish sparse transport diagnostics such as
-`RUNTIME_INGRESS_BACKPRESSURED`, `RUNTIME_INGRESS_STALLED`, `RUNTIME_INGRESS_RECOVERED`,
-`RUNTIME_INGRESS_OVERFLOW`, `RUNTIME_EXECUTOR_REJECTED`, and `PING_TIMEOUT`. This diagnostic is disabled by default.
-Diagnostics report the effective transport and completion worker modes and both configured concurrency bounds.
-At most one transport-metric publication per client runs on its dedicated worker. Additional diagnostics are dropped
-while that publication is occupied, and its one-second deadline releases metric ordering gates and requests worker
-interruption. A non-cooperative publisher can occupy only that single slot; it cannot queue more metric work, consume
-result-completion workers, or delay client shutdown.
-Increase retained messages to absorb verified bursts of small responses. A wider retained window does not add
-runtime-message workers, but can improve burst throughput by reducing receive-demand pauses and keeping existing
-workers supplied.
-Increasing retained limits raises worst-case memory use. Message concurrency controls simultaneous decode/allocation;
-result-completion concurrency separately controls admitted decoded work and customer-callback pressure.
+Set `fluxzero.websocket.transportMetrics.enabled=true`
+(`FLUXZERO_WEBSOCKET_TRANSPORT_METRICS_ENABLED`) for transport diagnostics. A stalled connection has retained work
+without functional progress; an idle connection is not stalled. The optional stall-close timeout is disabled by
+default. Consider it when a silent connection failure must be detected even while local backpressure pauses receiving.
 
-Completion tasks use one virtual thread per task, with admission limited separately to eight concurrent completions
-by default. Explicit completion concurrency still wins, so an application can opt into 32 after validating its
-workload. Using virtual threads does not remove the configured resource limits.
+For defaults, valid ranges and the exact admission and shutdown contracts, see
+<Jdoclink className="WebSocketClient.ClientConfig" />.
+
+### Packed Model substeps
+
+Supported wire representations are negotiated automatically with the Runtime. Applications do not configure packed
+Model substeps. See [Compatibility & dependencies](/docs/about/compatibility) for upgrade order and older peers.
 
 ---
 

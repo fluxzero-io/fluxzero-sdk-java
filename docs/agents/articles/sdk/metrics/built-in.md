@@ -97,9 +97,9 @@ the application-facing completion boundary.
 `VoidResult`, `BooleanResult`, and `StringResult` are ordinary runtime acknowledgements or values. `ErrorResult`
 indicates a failed runtime request. `ConnectEvent` and `DisconnectEvent` report WebSocket session lifecycle.
 
-Host collection can publish `HostMetrics` and focused CPU, container, disk, file-descriptor, JVM class, garbage
-collection, memory, thread, and uptime payloads when host metrics are enabled. `CacheEvictionEvent` can expose SDK
-cache pressure. Treat these as application-process health signals; managed database and cluster internals remain a
+When enabled, host collection publishes `HostMetrics` containing the available CPU, container, disk, file-descriptor,
+JVM class, garbage collection, memory, thread, and uptime measurements; collectors do not publish separate messages.
+`CacheEvictionEvent` can expose SDK cache pressure. Treat these as application-process health signals; managed database and cluster internals remain a
 platform concern.
 
 ## Consume selectively

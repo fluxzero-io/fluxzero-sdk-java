@@ -9,137 +9,15 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import OverviewFigure from '~/components/docs/OverviewFigure.astro';
 
-**Fluxzero 2.0 removes a fundamental constraint that has shaped every Fluxzero application until now.**
+A Task can belong to a Project without being stored inside it. In Fluxzero 2.0, each **Model** has its own state and
+history, **Graphs** connect related Models, and one operation can change several Models atomically.
 
-Before 2.0, Fluxzero used Aggregates to give domain state a clear, yet rigid structure. It was a powerful model, but it forced the domain into separate trees. Each tree had to serve four different concerns that did not necessarily share the same natural boundary. Whenever those boundaries diverged, the Aggregate model fell short.
-
-1. **Relationships: what belongs together**
-   Consider a project-management domain. A Task belongs to a Project. But what if that same Task also belongs to the Sprint in which it is planned? A tree can place the Task below only one root. The other relationship must cross the tree boundary or be duplicated.
-
-2. **Consistency: what changes together**
-   An Aggregate can change its root and Members atomically. But what if a Task moves from one Project to another? One business operation now affects two trees. Before 2.0, such a move required separate Aggregate commits, so it could not be stored atomically.
-
-   Atomicity was only part of the problem. The Task's existing events belonged to the original Project stream. Its history could not move with it. Nested notes and attachments also had to be transferred, while their earlier changes remained part of the old Aggregate's history.
-
-   <OverviewFigure name="aggregate-move" />
-
-3. **Persistence: what is stored together**
-   An event-sourced Aggregate gives its complete tree one shared history. But what if related state has different persistence needs? The business decisions made about a Task may need an event-sourced history. An externally reported progress status may change constantly while only its latest value matters. That status may be better stored as a document.
-
-4. **Loading: what is loaded together**
-   `@Member` and `loadEntity` made a Task directly addressable. But what if its Project contains thousands of other Tasks, notes and attachments? Loading that one Task still meant reconstructing the containing Project. Every Task change also passed through the same root. As the tree grew, that root became both a loading cost and a common gatekeeper for otherwise independent work.
-
-   <OverviewFigure name="aggregate-load" />
-
-**There was no Aggregate boundary that solved all four concerns.**
-
-One option was to make the tree larger. Project, Sprint and Task could all be placed below a common root such as Workspace. That would bring their changes back inside one Aggregate, but it would also produce a god model. More state, history and traffic would accumulate behind the same root.
-
-The other option was to split the tree into smaller Aggregates. That reduced loading costs, but lost atomic consistency across them. Moving a Task then required separate writes. All-or-nothing behavior needed custom coordination and compensation logic. Those writes and any rollback were still eventually consistent, so other processes could observe intermediate states.
-
-**Once chosen, that boundary became increasingly difficult to change.**
-
-Smaller Aggregates were difficult to evolve too. For example, if existing Projects later had to belong to different Organisations to support multiple tenants, their histories contained no Organisation ownership. Adding that boundary meant migrating the existing histories or making Organisation another, even larger Aggregate root.
-
-A boundary chosen to solve one concern constrained the others. Once events had been recorded against that boundary, the choice was also encoded into the domain's history.
-
-**Fluxzero 2.0 provides a way out by separating these four concerns.**
-
-It does so by shifting the consistency boundary from the Aggregate being changed to the change itself. At first glance, the programming model remains familiar. Commands, applies, assertions and tests still work much as before. Yet its consequences for the domain model are fundamental.
-
-**Before 2.0**
-
-```mermaid
-flowchart LR
-    C[Complete Task A]
-
-    subgraph aggregate["Project Aggregate"]
-        P[Project root] --> A[Task A]
-        P --> B[Task B]
-        A --> N[Note]
-    end
-
-    C --> P
-    classDef command fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a,rx:4,ry:4
-    classDef entity fill:#ede9fe,stroke:#8b5cf6,color:#3b276b,rx:4,ry:4
-    class C command
-    class P,A,B,N entity
-    style aggregate fill:#f8fafc,stroke:#94a3b8,color:#334155
-    linkStyle default stroke:#64748b,stroke-width:1.5px
-```
-
-**With 2.0**
-
-<div style="background:rgba(0,0,0,0.02);border-radius:8px;padding:16px;margin:1.5rem 0">
-<svg viewBox="0 0 600 220" role="img" aria-labelledby="independent-models-title" style="display:block;width:100%;max-width:600px;margin:0 auto;color:#64748b;font:16px var(--sl-font)">
-  <title id="independent-models-title">Complete Task A addresses Task A directly. Note points to Task A, and Task A points to Project through dotted parent relationships.</title>
-  <defs>
-    <marker id="independent-models-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
-    </marker>
-  </defs>
-  <rect x="215" y="20" width="170" height="48" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1" />
-  <g fill="#ede9fe" stroke="#8b5cf6" stroke-width="1">
-    <rect x="30" y="145" width="120" height="48" rx="4" />
-    <rect x="240" y="145" width="120" height="48" rx="4" />
-    <rect x="450" y="145" width="120" height="48" rx="4" />
-  </g>
-  <g fill="#3b276b" text-anchor="middle" dominant-baseline="middle">
-    <text x="300" y="44" fill="#1e3a8a">Complete Task A</text>
-    <text x="90" y="169">Note</text>
-    <text x="300" y="169">Task A</text>
-    <text x="510" y="169">Project</text>
-  </g>
-  <g fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#independent-models-arrow)">
-    <path d="M 300 68 V 143" />
-    <path d="M 150 169 H 238" stroke-dasharray="3 5" />
-    <path d="M 360 169 H 448" stroke-dasharray="3 5" />
-  </g>
-</svg>
-</div>
-
-The domain relationships have not changed. Before 2.0, completing Task A addressed the Project Aggregate, so its complete tree was the storage, loading and consistency boundary. In 2.0, the operation addresses Task A directly. Note, Task and Project remain connected, but no longer form one rigidly stored object tree. Children point to their parents through loose relationships.
-
-An operation can also change several of these independent entities together, without merging their state or histories.
-
-First, let's see what this looks like in code. Then we will revisit the four concerns and explore what working with the new model looks like.
+This separates four choices: what is related, what changes together, what is stored together and what you load.
+Let's start with the code, then explore why those choices matter.
 
 ## From Aggregates to Models
 
 In Fluxzero 2.0, an entity can belong to a larger whole without being stored inside it. This independent entity is called a Model. A Model keeps its own state and history; its relationships connect it to other Models.
-
-In our project-management example, this is the familiar Aggregate declaration. Project holds the Task collection, and `@Member` lets the SDK find and update each Task inside it.
-
-**Before 2.0: embedded Members**
-
-<Tabs syncKey="language">
-<TabItem label="Java">
-
-```java
-@Aggregate
-record Project(@EntityId ProjectId projectId, ProjectDetails details,
-               @Member List<Task> tasks) {}
-
-@With
-record Task(@EntityId TaskId taskId, TaskDetails details, boolean completed) {}
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Aggregate
-data class Project(
-    @EntityId val projectId: ProjectId,
-    val details: ProjectDetails,
-    @field:Member val tasks: List<Task>
-)
-
-data class Task(@EntityId val taskId: TaskId, val details: TaskDetails, val completed: Boolean)
-```
-
-</TabItem>
-</Tabs>
 
 **With 2.0: independent Models, connected by a parent reference**
 
@@ -980,6 +858,138 @@ In this ASYNC example, Task changes update the stored view automatically; moving
 ## Upgrading an existing 2.x application
 
 `searchable` now defaults to `false`; set it to `true` only on Models that should independently activate search. The former document/projector settings are not source-compatible. Existing canonical state can be retained, but changing annotations does not backfill missing indexes or replace old durable projection definitions. Coordinate all writers and Runtime instances using the [2.x search upgrade procedure](/docs/guides/modeling-and-persistence/model-query-guide#coordinating-the-upgrade); this is not a rolling upgrade with old Model writers.
+
+## Why the Aggregate boundary changed
+
+For readers coming from Aggregates, the reason for independent Models becomes clearer by comparing the boundaries.
+
+Before 2.0, Fluxzero used Aggregates to give domain state a clear, yet rigid structure. It was a powerful model, but it forced the domain into separate trees. Each tree had to serve four different concerns that did not necessarily share the same natural boundary. Whenever those boundaries diverged, the Aggregate model fell short.
+
+1. **Relationships: what belongs together**
+   Consider a project-management domain. A Task belongs to a Project. But what if that same Task also belongs to the Sprint in which it is planned? A tree can place the Task below only one root. The other relationship must cross the tree boundary or be duplicated.
+
+2. **Consistency: what changes together**
+   An Aggregate can change its root and Members atomically. But what if a Task moves from one Project to another? One business operation now affects two trees. Before 2.0, such a move required separate Aggregate commits, so it could not be stored atomically.
+
+   Atomicity was only part of the problem. The Task's existing events belonged to the original Project stream. Its history could not move with it. Nested notes and attachments also had to be transferred, while their earlier changes remained part of the old Aggregate's history.
+
+   <OverviewFigure name="aggregate-move" />
+
+3. **Persistence: what is stored together**
+   An event-sourced Aggregate gives its complete tree one shared history. But what if related state has different persistence needs? The business decisions made about a Task may need an event-sourced history. An externally reported progress status may change constantly while only its latest value matters. That status may be better stored as a document.
+
+4. **Loading: what is loaded together**
+   `@Member` and `loadEntity` made a Task directly addressable. But what if its Project contains thousands of other Tasks, notes and attachments? Loading that one Task still meant reconstructing the containing Project. Every Task change also passed through the same root. As the tree grew, that root became both a loading cost and a common gatekeeper for otherwise independent work.
+
+   <OverviewFigure name="aggregate-load" />
+
+**There was no Aggregate boundary that solved all four concerns.**
+
+One option was to make the tree larger. Project, Sprint and Task could all be placed below a common root such as Workspace. That would bring their changes back inside one Aggregate, but it would also produce a god model. More state, history and traffic would accumulate behind the same root.
+
+The other option was to split the tree into smaller Aggregates. That reduced loading costs, but lost atomic consistency across them. Moving a Task then required separate writes. All-or-nothing behavior needed custom coordination and compensation logic. Those writes and any rollback were still eventually consistent, so other processes could observe intermediate states.
+
+**Once chosen, that boundary became increasingly difficult to change.**
+
+Smaller Aggregates were difficult to evolve too. For example, if existing Projects later had to belong to different Organisations to support multiple tenants, their histories contained no Organisation ownership. Adding that boundary meant migrating the existing histories or making Organisation another, even larger Aggregate root.
+
+A boundary chosen to solve one concern constrained the others. Once events had been recorded against that boundary, the choice was also encoded into the domain's history.
+
+**Fluxzero 2.0 provides a way out by separating these four concerns.**
+
+It does so by shifting the consistency boundary from the Aggregate being changed to the change itself. At first glance, the programming model remains familiar. Commands, applies, assertions and tests still work much as before. Yet its consequences for the domain model are fundamental.
+
+In our project-management example, this is the familiar Aggregate declaration. Project holds the Task collection, and `@Member` lets the SDK find and update each Task inside it.
+
+**Before 2.0: embedded Members**
+
+<Tabs syncKey="language">
+<TabItem label="Java">
+
+```java
+@Aggregate
+record Project(@EntityId ProjectId projectId, ProjectDetails details,
+               @Member List<Task> tasks) {}
+
+@With
+record Task(@EntityId TaskId taskId, TaskDetails details, boolean completed) {}
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+@Aggregate
+data class Project(
+    @EntityId val projectId: ProjectId,
+    val details: ProjectDetails,
+    @field:Member val tasks: List<Task>
+)
+
+data class Task(@EntityId val taskId: TaskId, val details: TaskDetails, val completed: Boolean)
+```
+
+</TabItem>
+</Tabs>
+
+
+**Before 2.0**
+
+```mermaid
+flowchart LR
+    C[Complete Task A]
+
+    subgraph aggregate["Project Aggregate"]
+        P[Project root] --> A[Task A]
+        P --> B[Task B]
+        A --> N[Note]
+    end
+
+    C --> P
+    classDef command fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a,rx:4,ry:4
+    classDef entity fill:#ede9fe,stroke:#8b5cf6,color:#3b276b,rx:4,ry:4
+    class C command
+    class P,A,B,N entity
+    style aggregate fill:#f8fafc,stroke:#94a3b8,color:#334155
+    linkStyle default stroke:#64748b,stroke-width:1.5px
+```
+
+**With 2.0**
+
+<div style="background:rgba(0,0,0,0.02);border-radius:8px;padding:16px;margin:1.5rem 0">
+<svg viewBox="0 0 600 220" role="img" aria-labelledby="independent-models-title" style="display:block;width:100%;max-width:600px;margin:0 auto;color:#64748b;font:16px var(--sl-font)">
+  <title id="independent-models-title">Complete Task A addresses Task A directly. Note points to Task A, and Task A points to Project through dotted parent relationships.</title>
+  <defs>
+    <marker id="independent-models-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+    </marker>
+  </defs>
+  <rect x="215" y="20" width="170" height="48" rx="4" fill="#dbeafe" stroke="#3b82f6" stroke-width="1" />
+  <g fill="#ede9fe" stroke="#8b5cf6" stroke-width="1">
+    <rect x="30" y="145" width="120" height="48" rx="4" />
+    <rect x="240" y="145" width="120" height="48" rx="4" />
+    <rect x="450" y="145" width="120" height="48" rx="4" />
+  </g>
+  <g fill="#3b276b" text-anchor="middle" dominant-baseline="middle">
+    <text x="300" y="44" fill="#1e3a8a">Complete Task A</text>
+    <text x="90" y="169">Note</text>
+    <text x="300" y="169">Task A</text>
+    <text x="510" y="169">Project</text>
+  </g>
+  <g fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#independent-models-arrow)">
+    <path d="M 300 68 V 143" />
+    <path d="M 150 169 H 238" stroke-dasharray="3 5" />
+    <path d="M 360 169 H 448" stroke-dasharray="3 5" />
+  </g>
+</svg>
+</div>
+
+The domain relationships have not changed. Before 2.0, completing Task A addressed the Project Aggregate, so its complete tree was the storage, loading and consistency boundary. In 2.0, the operation addresses Task A directly. Note, Task and Project remain connected, but no longer form one rigidly stored object tree. Children point to their parents through loose relationships.
+
+An operation can also change several of these independent entities together, without merging their state or histories.
+
+The Model examples above separate these concerns instead of requiring one tree to serve all of them.
+
 
 ## Upgrading from 1.x
 

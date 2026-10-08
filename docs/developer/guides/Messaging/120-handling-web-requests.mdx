@@ -6,69 +6,43 @@ sidebar:
   order: 120
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-Fluxzero supports first-class **WebRequest handling** via the `@HandleWeb` annotation and its HTTP-specific
-variants such as `@HandleGet`, `@HandlePost`, `@HandleDelete`, etc.
+Expose an HTTP endpoint by annotating a handler method. The return value becomes its response body, so you can use
+the same application code and testing tools as for other messages.
 
-Instead of exposing a public HTTP server per application, Fluxzero uses a central Web Gateway that **proxies all external
-HTTP(S) and WebSocket traffic into the Runtime as `WebRequest` messages**. These messages are:
+For incoming provider callbacks, follow [Receive an external callback](/docs/guides/messaging/receiving-webhooks).
 
-- **Logged** for traceability and auditing
-- **Routed to client applications** using the same handler system as for commands, events, and queries
-- **Handled by consumer applications** which return a `WebResponse`
+## Define an endpoint
 
-The inbound HTTP proxy publishes requests and body chunks with `Guarantee.STORED`, using the SDK transport's
-acknowledgment and retry flow. Publication failures fail a still-pending HTTP response; a business response or request
-timeout does not wait for a storage acknowledgment. This adds no HTTP-level retry or exactly-once guarantee across
-Runtime replacement: keep externally visible effects replay-safe when an unconfirmed append is retried.
+<span id="example"></span>
 
-Named JSON body fields that are missing or explicitly null provide no parameter value. In Java and Kotlin,
-`WebRequestContext.getParameter(name, sources...)` continues to the next configured source in that case.
-An empty string, `false`, or zero is a value and does not trigger this fallback.
-
-## Why this design?
-
-This architecture enables several key benefits:
-
-- **Zero exposure**: client apps do not require a public-facing HTTP server and are thus *invisible* to attackers
-- **Back-pressure support**: applications control load by polling their own messages
-- **Audit-friendly**: every incoming request is automatically logged and correlated to its response
-- **Multiple consumers possible**: multiple handlers can react to a `WebRequest`, though typically only one produces the
-  response (others use `passive = true`)
-
-### Example
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
-@HandleGet("/users")
-public List<UserAccount> listUsers() {
-    return userService.getAllUsers();
-}
+@HandleGet("/hello")
+String hello() { return "Hello, world!"; }
 ```
 
   </TabItem>
   <TabItem label="Kotlin">
 
 ```kotlin
-@HandleGet("/users")
-fun listUsers(): List<UserAccount> {
-    return userService.getAllUsers()
-}
+@HandleGet("/hello")
+fun hello() = "Hello, world!"
 ```
 
   </TabItem>
 </Tabs>
 
-This will match incoming `GET /users` requests and return a list of users. The response is published as a `WebResponse`.
+Register the handler with your application, or use Spring's `@Component`. A `GET /hello` request then returns
+`Hello, world!`. See [Hello world](/docs/getting-started/hello-world) for the local setup.
 
-A handler may return a `Graph<T>` directly, or use one as a `WebResponse` payload. The transported body is its
-composed JSON document, including selected child paths and `@GraphProperty` values—not a live Graph that the
-receiver can mutate. SDK callers can read it with `response.getPayloadAs(JsonNode.class)`. Enable
-`@FilterContent` on the handler when the Graph needs viewer-specific filtering; serialization does not enable
-filtering implicitly. Ordinary typed response payloads keep their existing deserialization contract.
+### Multiple paths or methods
 
 Use the general-purpose `@HandleWeb` annotation if you want to support multiple paths, multiple methods, or define a custom method:
 
@@ -159,6 +133,12 @@ fun log(request: WebRequest) {
   </TabItem>
 </Tabs>
 
+### Graph responses
+
+A handler may return a `Graph<T>` as composed JSON, including selected child paths and derived properties.
+Use `@FilterContent` when the response needs viewer-specific filtering. See
+[User-based content filtering](/docs/guides/data-control-and-serialization/user-based-content-filtering).
+
 ### Dynamic path parameters
 
 Use `@PathParam` to extract dynamic segments from the URI:
@@ -205,6 +185,9 @@ You can also use these to extract other parts of the request:
 All of these annotations support implicit naming and type conversion.
 </Aside>
 
+Named body parameters that are missing or JSON `null` may fall back to another configured parameter source.
+See <Jdoclink className="WebRequestContext" /> for source precedence and conversion.
+
 ### URI prefixing and composition with @Path
 
 Use `@Path` on packages, classes, methods, and properties to construct URI paths. Paths are composed from outermost to innermost.
@@ -230,22 +213,6 @@ public class UserHandler {
 ```
 
   </TabItem>
-  <TabItem label="Kotlin">
-
-Kotlin has no package annotations, so declare the prefix on the class:
-
-```kotlin
-package my.example.api
-
-@Path("api/users")
-class UserHandler {
-    @Path("{id}")
-    @HandleGet
-    fun getUser(@PathParam id: String): User { ... }
-}
-```
-
-  </TabItem>
 </Tabs>
 
 This matches `/api/users/{id}`. If `@Path("/users")` had been used on the class instead, it would reset the prefix and match `/users/{id}`.
@@ -263,14 +230,6 @@ Use `@ServeStatic` to serve static content directly from your app without an ext
 @ServeStatic(value = "/web", resourcePath = "/static")
 public class WebAssets {
 }
-```
-
-  </TabItem>
-  <TabItem label="Kotlin">
-
-```kotlin
-@ServeStatic(value = ["/web"], resourcePath = "/static")
-class WebAssets
 ```
 
   </TabItem>
@@ -418,56 +377,38 @@ This will:
 Static routes apply only to unmatched paths and can coexist with dynamic APIs in the same class or package.
 </Aside>
 
-## Proxy response header buffers
+## Why this design?
 
-The standalone and embedded SDK proxy accept `fluxzero.proxy.responseHeaderBufferSize`
-(environment variable `FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE`), an initial HTTP/1 response **header**
-buffer capacity in bytes. For example, `FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE=8192` starts
-with 8 KiB. Larger headers use Jetty's existing overflow path to the effective maximum; large
-response bodies do not require a larger header buffer. Frequent large headers can therefore make
-an undersized initial buffer more expensive through extra allocation and header generation.
+The Web Gateway receives public HTTP(S) and WebSocket traffic and forwards it through the Runtime as messages.
+Your application handles those messages without exposing its own public HTTP server. Requests and responses share
+the tracing and audit facilities used by commands and queries.
 
-Jetty [#15840](https://github.com/jetty/jetty.project/issues/15840) tracks a known HTTP/1.1
-limitation during header growth: a previously determined connection-close decision can be lost.
-The proxy preserves explicit request `Connection: close`; other Jetty close decisions require the
-upstream fix. Setting the initial capacity to the effective response maximum avoids this growth
-path, at the cost of larger buffers for small responses. HTTP/2 does not use this retry path.
+Applications control consumption through their trackers. Passive handlers can observe requests without producing
+another response. You still need the appropriate authentication and authorization on exposed operations.
 
-Without this property the initial capacity is 8192 bytes. `FLUXZERO_PROXY_MAX_HEADER_SIZE`
-continues to default to 1048576 bytes, so the existing incoming request and HTTP/1 response limits remain
-unchanged. With the current Jetty configuration, a maximum configured below 16 KiB still retains
-Jetty's 16 KiB HTTP/1 response ceiling, while the request limit follows the configured value. An explicit
-initial capacity must be positive and no greater than the effective response ceiling.
+## Delivery and proxy configuration
 
-For HTTP/2, set `fluxzero.proxy.http2MaxResponseHeaderSize=16384`
-(`FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE=16384`) to cap response headers at 16 KiB.
-The default is 16 KiB regardless of `fluxzero.defaults.version`, including when that property is
-absent. An explicit positive byte limit overrides this default. Set `1048576` to retain the
-previous default maximum. The effective shared response maximum and the peer's advertised
-maximum can still lower the configured HTTP/2 limit.
+HTTP requests use the same tracked processing model as other messages. A storage acknowledgement does not mean the
+handler has finished, and retries after a failure can repeat work. Keep external side effects idempotent; see
+[Delivery defaults and completion](/docs/guides/messaging/sending-messages/#delivery-defaults-and-completion).
 
-This limit covers the complete uncompressed header list, including HTTP/2 accounting overhead
-(32 bytes per field), rather than each individual header or just the compressed wire bytes.
-Jetty allocates its HPACK output buffer against that ceiling, including for tiny responses;
-16 KiB fits its buffer pool. Unlike HTTP/1, the initial response-buffer setting does not provide
-small-buffer growth for HTTP/2 (see Jetty [#15872](https://github.com/jetty/jetty.project/issues/15872)).
-An oversized response fails instead of being truncated or falling back to HTTP/1. Jetty 12.1.13
-closes the HTTP/2 session after this HPACK encoding failure, so other streams on that connection
-may be affected and subsequent requests need a new connection. Incoming request header limits
-are unchanged. Choose a larger explicit limit if the application's response headers require it.
+### Proxy response header buffers
 
-Jetty uses direct HTTP output buffers by default. Set
-`fluxzero.proxy.useOutputDirectByteBuffers=false`
-(`FLUXZERO_PROXY_USE_OUTPUT_DIRECT_BYTE_BUFFERS=false`) to allocate its HTTP/1.1 and HTTP/2 output
-buffers on the Java heap. This setting applies to all proxy HTTP output, not only response headers
-or health endpoints. Heap buffers share the configured heap budget and can increase copying and
-garbage collection; direct buffers use a separate native-memory budget. Benchmark the complete
-proxy workload when changing it.
+Most applications can use the default proxy settings. For measured header-buffer or memory pressure, the standalone
+and embedded proxy expose these startup properties:
 
-These settings are resolved once at proxy startup through `ApplicationProperties`; restart after
-changing them.
+| Property | Environment variable | Purpose |
+| --- | --- | --- |
+| `fluxzero.proxy.responseHeaderBufferSize` | `FLUXZERO_PROXY_RESPONSE_HEADER_BUFFER_SIZE` | Initial response-header buffer size in bytes; normally 8192. |
+| `fluxzero.proxy.http2MaxResponseHeaderSize` | `FLUXZERO_PROXY_HTTP2_MAX_RESPONSE_HEADER_SIZE` | HTTP/2 response-header limit in bytes; defaults to 16384. |
+| `fluxzero.proxy.useOutputDirectByteBuffers` | `FLUXZERO_PROXY_USE_OUTPUT_DIRECT_BYTE_BUFFERS` | Use direct output buffers (`true`) or Java heap buffers (`false`). |
 
-The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixed bodies and use
-the same HTTP response generator as application responses. These options do not change their
-payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
-same environment settings apply to Java and Kotlin applications.
+These tune buffer allocation, not response-body limits or the overall process-memory budget. Restart after changing
+them and measure the effect on your workload. The initial capacity must be positive and no greater than the effective
+response-header maximum. A capacity below that maximum can trigger Jetty's known HTTP/1.1 header-growth limitation;
+matching it avoids that path at the cost of larger buffers. See [ProxyServer](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/io/fluxzero/proxy/ProxyServer.html) for the settings.
+
+The HTTP/2 limit counts the complete uncompressed header list, including per-field overhead. It defaults to 16 KiB
+regardless of defaults version; choose a larger explicit value when required. Oversized headers fail rather than
+being truncated, and Jetty may close the connection, affecting other streams. The initial buffer setting applies
+to HTTP/1; request-header limits are unchanged.

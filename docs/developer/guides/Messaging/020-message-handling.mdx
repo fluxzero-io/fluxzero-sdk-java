@@ -8,12 +8,70 @@ sidebar:
 
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
-Fluxzero is centered around sending and receiving messages — such as **commands**, **events**, **queries**, and **web requests**. These messages can originate from your own application or any other client connected to the same Fluxzero Runtime.
+A handler is the application code that responds to a message. Its annotation selects the kind of message; its
+parameter type selects the payload. A return value becomes the answer to a command or query.
 
-Handlers are simply methods annotated with `@HandleCommand`, `@HandleEvent`, `@HandleQuery`, etc. Here’s a basic example of an event handler that dispatches a command to send a welcome email when a user is created:
+Here is a query and its complete handler:
 
 <Tabs>
-<TabItem value="Java" label="Java">
+  <TabItem label="Java">
+
+```java
+public record GetGreeting(String name) implements Request<String> {}
+
+class GreetingHandler {
+    @HandleQuery
+    String handle(GetGreeting query) {
+        return "Hello, " + query.name() + "!";
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class GetGreeting(val name: String) : Request<String>
+
+class GreetingHandler {
+    @HandleQuery
+    fun handle(query: GetGreeting) = "Hello, ${query.name}!"
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Register `GreetingHandler` with your application, or make it a Spring `@Component` for discovery.
+Then ask the query through Fluxzero:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+String greeting = Fluxzero.queryAndWait(new GetGreeting("Alice")); // "Hello, Alice!"
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val greeting = Fluxzero.queryAndWait(GetGreeting("Alice")) // "Hello, Alice!"
+```
+
+  </TabItem>
+</Tabs>
+
+`Request<String>` declares the answer's type. You can
+[test this handler locally](/docs/guides/messaging/testing-your-handlers) without starting a Runtime.
+
+### Reacting to an event
+
+An event tells you something happened. A handler can start another action in response. For example, given your
+application's `CreateUser` and `SendWelcomeEmail` payloads:
+
+<Tabs>
+  <TabItem label="Java">
 
 ```java
 class UserEventHandler {
@@ -24,8 +82,8 @@ class UserEventHandler {
 }
 ```
 
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
+  </TabItem>
+  <TabItem label="Kotlin">
 
 ```kotlin
 class UserEventHandler {
@@ -36,109 +94,19 @@ class UserEventHandler {
 }
 ```
 
-</TabItem>
+  </TabItem>
 </Tabs>
 
-This handler uses the static `sendCommand` method on Fluxzero, which works because the client is automatically injected into the thread-local context before message handling begins. This eliminates the need to inject `Fluxzero` into every handler.
+The email command has its own handler. This keeps reacting to user creation separate from sending the email.
+Inside handlers, static `Fluxzero` calls use the current application instance.
+
+## Handlers on the payload
 
 Reusable operations can keep their handler on the command/query payload itself. This is also the default for an
 external API interaction: the local `@HandleCommand` or `@HandleQuery` method makes the `WebRequestGateway` call,
 and other handlers dispatch its payload instead of injecting an API-service bean. No `@TrackSelf` or `@Consumer` is
 required merely for an external call. See [Local handling](/docs/guides/messaging/local-handling) and the complete
 [outbound integration example](/docs/guides/messaging/sending-web-requests).
-
----
-
-To receive that command, define a corresponding command handler:
-
-<Tabs>
-<TabItem value="Java" label="Java">
-
-```java
-class EmailCommandHandler {
-    @HandleCommand
-    void handle(SendWelcomeEmail command) {
-        // send welcome email to user
-    }
-}
-```
-
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-class EmailCommandHandler {
-    @HandleCommand
-    fun handle(command: SendWelcomeEmail) {
-        // send welcome email to user
-    }
-}
-```
-
-</TabItem>
-</Tabs>
-
-Handlers can return a result (e.g., from queries or commands). The result is automatically published as a **Result** message and sent back to the originating client:
-
-<Tabs>
-<TabItem value="Java" label="Java">
-
-```java
-class UserQueryHandler {
-    @HandleQuery
-    UserProfile handle(GetUserProfile query) {
-        // return the user profile
-        return new UserProfile(...);
-    }
-}
-```
-
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-class UserQueryHandler {
-    @HandleQuery
-    fun handle(query: GetUserProfile): UserProfile {
-        // return the user profile
-        return UserProfile(...)
-    }
-}
-```
-
-</TabItem>
-</Tabs>
-
-To perform a query and wait synchronously for its result:
-
-<Tabs>
-<TabItem value="Java" label="Java">
-
-```java
-class PasswordEventHandler {
-    @HandleEvent
-    void handle(ResetPassword event) {
-        UserProfile user = Fluxzero.queryAndWait(new GetUserProfile(event.getUserId()));
-        // perform reset using user
-    }
-}
-```
-
-</TabItem>
-<TabItem value="Kotlin" label="Kotlin">
-
-```kotlin
-class PasswordEventHandler {
-    @HandleEvent
-    fun handle(event: ResetPassword) {
-        val user = Fluxzero.queryAndWait(GetUserProfile(event.userId))
-        // perform reset using user
-    }
-}
-```
-
-</TabItem>
-</Tabs>
 
 ## Returning futures
 
@@ -172,7 +140,10 @@ class AsyncUserQueryHandler {
 </Tabs>
 
 <Aside type="caution">
-    Returning a future means Fluxzero considers the message *handled* when the future is returned, not when it completes. For business-critical flows, prefer synchronous returns (or `join()` explicitly) to keep back-pressure and acknowledgment semantics straightforward.
+    By default, a tracked consumer does not wait for a returned future before advancing its position. Use
+    <code>@Consumer(awaitAsyncResults = true)</code> when completion must wait for that asynchronous work.
+    See <a href="/docs/guides/messaging/message-tracking#completion-and-shutdown">completion and shutdown</a>
+    for consumer completion settings.
 </Aside>
 
 ## Handler matching & passive handlers

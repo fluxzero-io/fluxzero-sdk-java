@@ -7,68 +7,28 @@ sidebar:
 
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 
-This Developer Guide is an optional look inside the code. You do not need to write or read code to build with an agent.
-For the practical building process, see [the introduction](/docs/getting-started/introduction).
+Fluxzero lets you build application behavior around messages. A **command** asks for a change, a **query** asks for
+information, and an **event** tells other parts of the application what happened. Your Java or Kotlin code handles
+those messages; Fluxzero takes care of their delivery and the storage of your Models.
 
-Fluxzero is the cloud that runs your application. Its SDK lets you describe what your product does: the actions people can take, the information it remembers,
-and the rules it follows. Your coding agent can build this in Java or Kotlin, or you can write the code yourself.
-
-The main building blocks are **commands**, **queries**, **models**, **handlers**, and **tests**.
-Fluxzero handles message delivery and persistence around them.
-
-## Commands
-
-A command asks the application to do something: create a project, complete a task, or send a notification.
-It is a plain object containing the information needed for that action.
-
-For an action that changes stored state, an `@Apply` method describes the change:
-
-<Tabs>
-  <TabItem label="Java">
-
-```java
-public record CompleteTask(TaskId taskId) {
-    @Apply
-    Task complete(Task task) {
-        return task.withCompleted(true);
-    }
-}
-```
-
-  </TabItem>
-  <TabItem label="Kotlin">
-
-```kotlin
-data class CompleteTask(val taskId: TaskId) {
-    @Apply
-    fun complete(task: Task) = task.copy(completed = true)
-}
-```
-
-  </TabItem>
-</Tabs>
-
-Fluxzero finds the task using its typed ID and applies the command. Input constraints such as `@NotBlank` validate
-what came in; `@AssertLegal` methods express business rules such as “only the assignee may complete this task”.
-If the action is rejected, its state change is not stored.
+Let's build one small behavior: remember a task and mark it complete. The examples below belong together.
+Java uses Lombok's `@With` for immutable copies; Kotlin uses `copy`. Put public Java types in separate files.
 
 ## Models
 
-A model is information your application remembers, such as a task, a booking, or a customer. It has an identity and
-can change over time. `@Model` tells Fluxzero to store it:
+A Model is something your application remembers and changes over time. A task needs an identity, a name and a
+completion status:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
 @Model
-public record Task(@EntityId TaskId taskId, String name, @With boolean completed) {
-}
+public record Task(@EntityId TaskId taskId, String name,
+                   @With boolean completed) {}
 
 public final class TaskId extends Id<Task> {
-    public TaskId(String id) {
-        super(id);
-    }
+    public TaskId(String id) { super(id); }
 }
 ```
 
@@ -77,11 +37,7 @@ public final class TaskId extends Id<Task> {
 
 ```kotlin
 @Model
-data class Task(
-    @EntityId val taskId: TaskId,
-    val name: String,
-    val completed: Boolean
-)
+data class Task(@EntityId val taskId: TaskId, val name: String, val completed: Boolean)
 
 class TaskId(id: String) : Id<Task>(id)
 ```
@@ -89,28 +45,25 @@ class TaskId(id: String) : Id<Task>(id)
   </TabItem>
 </Tabs>
 
-Models are immutable: an update returns a new value. Java's `@With` comes from Lombok; Kotlin data classes provide `copy`.
-By default, Fluxzero remembers their accepted changes as events
-and uses those events to reconstruct state. This is called **event sourcing**.
+`@EntityId` identifies the task. `Id<Task>` tells Fluxzero which Model that ID belongs to. We can now address one task
+without loading every task in the application.
 
-Models can be related. A task can point to a project using `@Parent`, while remaining a model in its own right.
-For example, adding a parent ID connects each task to a project:
+## Commands
+
+A command names an action. Its `@Apply` method returns the Model state that should result:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
-@Model
-public record Task(@EntityId TaskId taskId, @Parent ProjectId projectId,
-                   String name, @With boolean completed) {
+public record CreateTask(TaskId taskId, String name) {
+    @Apply
+    Task apply() { return new Task(taskId, name, false); }
 }
 
-@Model
-public record Project(@EntityId ProjectId projectId, String name) {
-}
-
-public final class ProjectId extends Id<Project> {
-    public ProjectId(String id) { super(id); }
+public record CompleteTask(TaskId taskId) {
+    @Apply
+    Task apply(Task task) { return task.withCompleted(true); }
 }
 ```
 
@@ -118,28 +71,59 @@ public final class ProjectId extends Id<Project> {
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model
-data class Task(
-    @EntityId val taskId: TaskId,
-    @Parent val projectId: ProjectId,
-    val name: String,
-    val completed: Boolean
-)
+data class CreateTask(val taskId: TaskId, val name: String) {
+    @Apply
+    fun apply() = Task(taskId, name, false)
+}
 
-@Model
-data class Project(@EntityId val projectId: ProjectId, val name: String)
-
-class ProjectId(id: String) : Id<Project>(id)
+data class CompleteTask(val taskId: TaskId) {
+    @Apply
+    fun apply(task: Task) = task.copy(completed = true)
+}
 ```
 
   </TabItem>
 </Tabs>
 
-A **Graph** lets you explore related models together, for example a project and its tasks.
+Send the action through Fluxzero:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var taskId = new TaskId("t1");
+Fluxzero.sendCommandAndWait(new CreateTask(taskId, "Read the guide"));
+Fluxzero.sendCommandAndWait(new CompleteTask(taskId));
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val taskId = TaskId("t1")
+Fluxzero.sendCommandAndWait<Any?>(CreateTask(taskId, "Read the guide"))
+Fluxzero.sendCommandAndWait<Any?>(CompleteTask(taskId))
+```
+
+  </TabItem>
+</Tabs>
+
+Fluxzero finds the task from the typed ID, applies the change and stores it. There is no forwarding command handler
+to write. Register these command types in your application; Spring discovers them within its configured scan.
+`TestFixture`, used below, discovers these payload-side applies automatically.
+
+### Rules and history
+
+In a real task app, you can require a nonblank name with `@NotBlank` and check who may complete a task with
+`@AssertLegal`. These checks happen before the change is stored. See
+[validation](/docs/guides/messaging/payload-validation) and [Model updates](/docs/guides/modeling-and-persistence/updating-entities).
+
+By default, a Model keeps its accepted changes as events and reconstructs its state from them. This is **event sourcing**.
+You can choose other storage behavior later without changing what a command means to your users.
 
 ## Queries
 
-A query asks for information without changing it. Like a command, it is a plain object. Its handler returns the answer:
+A query asks for information. Its handler returns the answer, and `Request<Task>` declares the expected result type:
 
 <Tabs>
   <TabItem label="Java">
@@ -147,10 +131,10 @@ A query asks for information without changing it. Like a command, it is a plain 
 ```java
 public record GetTask(TaskId taskId) implements Request<Task> {
     @HandleQuery
-    Task handle() {
-        return Fluxzero.loadModel(taskId).get();
-    }
+    Task handle() { return Fluxzero.loadModel(taskId).get(); }
 }
+
+Task task = Fluxzero.queryAndWait(new GetTask(new TaskId("t1")));
 ```
 
   </TabItem>
@@ -161,35 +145,38 @@ data class GetTask(val taskId: TaskId) : Request<Task> {
     @HandleQuery
     fun handle(): Task? = Fluxzero.loadModel(taskId).get()
 }
+
+val task = Fluxzero.queryAndWait(GetTask(TaskId("t1")))
 ```
 
   </TabItem>
 </Tabs>
 
-`Request<Task>` declares the result type. Queries can also search and filter many models, for example to find your
-open tasks. A handler can check who is asking before returning information.
+This query loads a known task. To find tasks by their contents, enable search and use the
+[Model query APIs](/docs/guides/modeling-and-persistence/model-query-guide).
 
 ## Handlers
 
-Handlers are methods that respond to messages. Their annotation says what they handle:
+Handlers are methods that respond to messages. The annotation describes which kind:
 
 | Annotation | Responds to |
 |---|---|
-| `@HandleCommand` | A request to perform an action |
+| `@HandleCommand` | An action that needs explicit handling, such as calling an external service |
 | `@HandleQuery` | A request for information |
 | `@HandleEvent` | Something that has happened |
 | `@HandleGet`, `@HandlePost` | An HTTP request |
 | `@HandleSchedule` | A scheduled message becoming due |
 
-A model command with `@Apply` already has automatic handling. Add an explicit command handler when an action needs
-other work, such as calling an external service.
+The `GetTask` handler lives on its payload and runs locally by default. Separate handler objects are useful for
+reacting to several message types. Register those objects with your application, or let Spring discover
+`@Component` classes. See [configuration](/docs/guides/configuration/configuring-fluxzero).
 
 ### Events
 
-After an accepted model change, Fluxzero normally publishes the applied command payload as an **event**.
-The command asked for the change; the event tells other parts of the application it happened.
+After an accepted Model change, Fluxzero normally publishes the applied command payload as an event. `CompleteTask`
+as a command asks to complete the task; the same payload as an event tells other handlers that the change happened.
 
-For example, a handler can react when a task is completed:
+For example, an activity logger can react to completion without being part of the command:
 
 <Tabs>
   <TabItem label="Java">
@@ -197,7 +184,7 @@ For example, a handler can react when a task is completed:
 ```java
 @HandleEvent
 void on(CompleteTask event, Task task) {
-    Fluxzero.sendCommand(new NotifyAssignee(task.taskId()));
+    log.info("Completed task: {}", task.name());
 }
 ```
 
@@ -207,15 +194,15 @@ void on(CompleteTask event, Task task) {
 ```kotlin
 @HandleEvent
 fun on(event: CompleteTask, task: Task) {
-    Fluxzero.sendCommand(NotifyAssignee(task.taskId))
+    log.info("Completed task: {}", task.name)
 }
 ```
 
   </TabItem>
 </Tabs>
 
-Several handlers can react to the same event. This lets you add behavior without putting it all in the original
-command. The injected task represents the state at that event.
+Here `log` is your application's logger. Fluxzero injects the task's state at that event. Other consumers can react
+independently, for example by sending a notification.
 
 ### HTTP and scheduled work
 
@@ -226,9 +213,7 @@ An HTTP endpoint is a handler too:
 
 ```java
 @HandleGet("/hello")
-String hello() {
-    return "Hello, world!";
-}
+String hello() { return "Hello, world!"; }
 ```
 
   </TabItem>
@@ -242,43 +227,44 @@ fun hello() = "Hello, world!"
   </TabItem>
 </Tabs>
 
-Fluxzero handles routing and response formatting. A handler can send a command or query to expose your app's behavior.
-
-Scheduled messages use the same idea: schedule a reminder for tomorrow and handle it with `@HandleSchedule` when it
-is due. You can cancel or replace a schedule when the user's plans change.
-
-Register separate handler objects with your application; Spring applications can use `@Component` for discovery.
-The [configuration guide](/docs/guides/configuration/configuring-fluxzero) explains registration.
+An endpoint can send commands or queries to expose your app's behavior.
+Scheduled messages use the same idea: schedule a reminder for tomorrow, then handle it with `@HandleSchedule` when due.
 
 ## Tests
 
-`TestFixture` runs your commands and handlers locally. Tests describe a **given → when → then** flow, without setting
-up a database or mocking the platform. Inputs and expected results can live in reusable JSON files:
+`TestFixture` runs these behaviors locally, without a database or platform mocks. Create a task, complete it, and
+check its state through the query:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
+var taskId = new TaskId("t1");
 TestFixture.create()
-        .givenCommands("/task/create-task.json")
-        .whenCommand("/task/complete-task.json")
-        .expectEvents("/task/complete-task.json");
+        .givenCommands(new CreateTask(taskId, "Read the guide"), new CompleteTask(taskId))
+        .whenQuery(new GetTask(taskId))
+        .expectResult(new Task(taskId, "Read the guide", true));
 ```
 
   </TabItem>
   <TabItem label="Kotlin">
 
 ```kotlin
+val taskId = TaskId("t1")
 TestFixture.create()
-    .givenCommands("/task/create-task.json")
-    .whenCommand("/task/complete-task.json")
-    .expectEvents("/task/complete-task.json")
+    .givenCommands(CreateTask(taskId, "Read the guide"), CompleteTask(taskId))
+    .whenQuery(GetTask(taskId))
+    .expectResult(Task(taskId, "Read the guide", true))
 ```
 
   </TabItem>
 </Tabs>
 
-Tests can also query the resulting state, check failures, call HTTP endpoints, or advance time to trigger scheduled
-work. The [to-do tutorial](/docs/tutorials/first-app) builds each of these pieces step by step, including the JSON files.
+Tests can also check rejected actions, outgoing messages, HTTP responses and scheduled work.
 
-For more detail on any building block, continue with the [technical guides](/docs/guides).
+## Related Models
+
+When tasks belong to projects, keep their independent identities and connect them with `@Parent`.
+A **Graph** lets you navigate those relationships and read a project together with its tasks.
+The [to-do tutorial](/docs/tutorials/first-app) builds that relationship step by step, along with validation,
+authorization, queries and reminders. The [developer guides](/docs/guides) cover individual capabilities.

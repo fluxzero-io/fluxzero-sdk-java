@@ -5,11 +5,16 @@ sidebar:
    order: 270
 ---
 
+import Jdoclink from '~/components/jdoclink.astro';
+
 import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
-The `FluxzeroBuilder` interface is the primary entry point for configuring a `Fluxzero` instance. It allows
-fine-grained customization of all core behaviors, including message consumers, dispatch logic, interceptors, caching,
-serialization, metrics, and much more.
+Use the builder to connect your application's handlers and any SDK customizations. Start with the defaults and
+change the part your application needs. Environment-specific values belong in
+[application properties](/docs/guides/configuration/application-properties).
+
+A Spring starter already creates the Fluxzero instance. Customize that instance with `FluxzeroCustomizer` below;
+outside Spring, build one with your [Runtime client](/docs/guides/configuration/configuring-websocket-client).
 
 Most applications use the default builder via:
 
@@ -131,9 +136,7 @@ those files in its own packaging configuration.
 
 - `replaceTaskScheduler(...)` to inject a custom scheduler for async or delayed task execution.
 
-The default scheduler is initialized when the builder's `taskScheduler()` is first requested or the application is
-built, not when the builder is created. Installing a replacement before that does not start an unused default
-scheduler. Closing the built Fluxzero instance shuts down its selected scheduler.
+The selected scheduler is owned by the built Fluxzero instance and closes with it.
 
 ---
 
@@ -307,16 +310,5 @@ request gateway and response handler waits for outstanding results during shutdo
 shutdown: consumers, callbacks, clients and other owned resources still close through their normal lifecycle.
 A response handler completes remaining requests exceptionally when it closes.
 
-The setting uses the application's configured `PropertySource`, is validated when building, and is read again when
-closing. Negative values are rejected at build time. If a mutable source becomes invalid before shutdown, the component
-logs the configuration error and skips the response grace period so mandatory resource cleanup still runs. The `withShutdownTimeout` methods on `DefaultGenericGateway` and
-`DefaultRequestHandler` provide a programmatic supplier alternative for custom component construction.
-
-Automatic JUnit `TestFixture` cleanup defaults this value to `0` only after its owning test has finished, unless it
-was explicitly configured. Cleanup is still awaited and failures belong to the test outcome. Calling
-`fixture.getFluxzero().close()` yourself retains the ordinary application grace period; this also permits tests of
-responses arriving during graceful shutdown. Request timeouts, timeout metadata and cancellation semantics are unchanged.
-
-When tracking closes, incomplete chunked payloads fail before tracker termination. This releases handlers waiting for
-missing input. Fully received bodies remain readable, and ordinary asynchronous handler results keep their shutdown
-grace period. The rule is the same for Java and Kotlin handlers.
+See [DefaultGenericGateway](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/io/fluxzero/sdk/publishing/DefaultGenericGateway.html) and <Jdoclink className="DefaultRequestHandler" /> for custom
+shutdown configuration.

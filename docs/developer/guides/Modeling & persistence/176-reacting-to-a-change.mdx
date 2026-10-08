@@ -1,0 +1,129 @@
+---
+title: React to a state change
+description: Trigger an action when a value crosses a threshold, rather than every time it is reported.
+slug: docs/guides/modeling-and-persistence/reacting-to-a-change
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Trigger an action when a value crosses a threshold, rather than every time it is reported.
+
+A room reports its temperature. Publish `RoomBecameCold` only when it goes from at least 18 degrees to below 18.
+
+## Record the observation
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Model
+public record Room(@EntityId RoomId roomId, double temperature) {}
+
+public final class RoomId extends Id<Room> {
+    public RoomId(String id) { super(id); }
+}
+
+public record ReportTemperature(RoomId roomId, double temperature) {
+    @Apply
+    Room apply(@Nullable Room room) { return new Room(roomId, temperature); }
+}
+
+public record RoomBecameCold(RoomId roomId) {}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Model
+data class Room(@EntityId val roomId: RoomId, val temperature: Double)
+
+class RoomId(id: String) : Id<Room>(id)
+
+data class ReportTemperature(val roomId: RoomId, val temperature: Double) {
+    @Apply
+    fun apply(room: Room?) = Room(roomId, temperature)
+}
+
+data class RoomBecameCold(val roomId: RoomId)
+```
+
+  </TabItem>
+</Tabs>
+
+## Compare the two states
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public class ColdRoomAlert {
+    @HandleEvent
+    void handle(ReportTemperature event, Graph<Room> room) {
+        var previous = room.previous();
+        if (previous != null && !previous.isEmpty()
+                && previous.get().temperature() >= 18 && room.get().temperature() < 18) {
+            Fluxzero.publishEvent(new RoomBecameCold(event.roomId()));
+        }
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+class ColdRoomAlert {
+    @HandleEvent
+    fun handle(event: ReportTemperature, room: Graph<Room>) {
+        val previous = room.previous()?.get() ?: return
+        val current = room.get() ?: return
+        if (previous.temperature >= 18 && current.temperature < 18) {
+            Fluxzero.publishEvent(RoomBecameCold(event.roomId))
+        }
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+The injected Graph belongs to this event. It compares the states around that observation even if newer readings
+have already arrived. The first reading establishes a baseline and does not trigger an alert.
+
+## Try a crossing and another low reading
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var roomId = new RoomId("living-room");
+TestFixture.create(new ColdRoomAlert())
+    .givenCommands(new ReportTemperature(roomId, 20))
+    .whenCommand(new ReportTemperature(roomId, 17))
+    .expectEvents(new RoomBecameCold(roomId))
+    .andThen()
+    .whenCommand(new ReportTemperature(roomId, 16))
+    .expectNoEventsLike(RoomBecameCold.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val roomId = RoomId("living-room")
+TestFixture.create(ColdRoomAlert())
+    .givenCommands(ReportTemperature(roomId, 20.0))
+    .whenCommand(ReportTemperature(roomId, 17.0))
+    .expectEvents(RoomBecameCold(roomId))
+    .andThen()
+    .whenCommand(ReportTemperature(roomId, 16.0))
+    .expectNoEventsLike(RoomBecameCold::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+This avoids alerts for consecutive low readings. Re-delivery of the crossing event can still repeat the reaction;
+any external action should follow the [API integration guide](/docs/guides/messaging/building-api-integrations).
+See [Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) for historical navigation.

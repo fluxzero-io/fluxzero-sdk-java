@@ -8,7 +8,8 @@ sidebar:
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Fluxzero offers a flexible and extensible **interceptor model** to hook into key stages of the message lifecycle:
+Use an interceptor for behavior that belongs around many messages, such as adding metadata or measuring a handler.
+This avoids repeating that work in each business handler. Choose the interception point by when the work must happen:
 
 | Interceptor type | Target phase | Typical use cases |
 |------------------|--------------|-------------------|

@@ -1,0 +1,85 @@
+---
+title: Use PII and erase it
+description: Use a personal value for one operation without keeping it in the message history.
+slug: docs/guides/data-control-and-serialization/using-and-erasing-pii
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
+
+Use a personal value for one operation without keeping it in the message history.
+
+This example checks whether an email address belongs to a particular domain. The caller receives a boolean;
+the address is not copied into a result or Model.
+
+## Protect the input and mark its final use
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record CheckEmailDomain(@ProtectData String email) {}
+
+public class EmailCheck {
+    @HandleCommand(onMissingProtectedData = MissingProtectedDataPolicy.FAIL)
+    @DropProtectedData
+    boolean handle(CheckEmailDomain command) {
+        return command.email().endsWith("@example.com");
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class CheckEmailDomain(@field:ProtectData val email: String?)
+
+class EmailCheck {
+    @HandleCommand(onMissingProtectedData = MissingProtectedDataPolicy.FAIL)
+    @DropProtectedData
+    fun handle(command: CheckEmailDomain): Boolean =
+        command.email?.endsWith("@example.com") == true
+}
+```
+
+  </TabItem>
+</Tabs>
+
+For a tracked command, `@ProtectData` stores the value separately and leaves a reference in the stored message.
+Fluxzero restores it for the handler. `@DropProtectedData` makes this invocation its final use and removes the
+retained value. Later processing of that stored message cannot retrieve the address; this handler explicitly
+fails if it is missing.
+
+Use the drop annotation only when no other handler or retry still needs that value. It is not a transaction that
+keeps PII available until every downstream action succeeds.
+
+## Try it
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+TestFixture.createAsync(new EmailCheck())
+    .whenCommand(new CheckEmailDomain("alice@example.com"))
+    .expectResult(true);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+TestFixture.createAsync(EmailCheck())
+    .whenCommand(CheckEmailDomain("alice@example.com"))
+    .expectResult(true)
+```
+
+  </TabItem>
+</Tabs>
+
+Keep the address out of your own logs and any unprotected copies. Erasing the protected value does not erase copies
+your code has already made.
+
+See <Jdoclink className="ProtectData" /> and <Jdoclink className="DropProtectedData" /> for the annotations.
+The [data protection reference](/docs/guides/data-control-and-serialization/protecting-sensitive-data)
+explains missing-value policies and Model boundaries.

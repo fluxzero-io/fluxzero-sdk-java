@@ -1,0 +1,74 @@
+---
+title: Build a feature from past events
+description: Add a searchable purchase history that includes purchases made before the feature existed.
+slug: docs/guides/messaging/adding-a-feature-to-history
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Add a searchable purchase history that includes purchases made before the feature existed.
+
+Every `PurchaseRecorded` event carries a purchase ID and its amount. Give the new feature a fresh consumer name
+and start at the beginning of the retained event log:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+public record PurchaseRecorded(String purchaseId, int amountInCents) {}
+
+@Consumer(name = "purchase-history", minIndex = 0)
+public class PurchaseHistory {
+    @HandleEvent
+    void handle(PurchaseRecorded purchase) {
+        Fluxzero.index(purchase, purchase.purchaseId(), "purchases").join();
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class PurchaseRecorded(val purchaseId: String, val amountInCents: Int)
+
+@Consumer(name = "purchase-history", minIndex = 0)
+class PurchaseHistory {
+    @HandleEvent
+    fun handle(purchase: PurchaseRecorded) {
+        Fluxzero.index(purchase, purchase.purchaseId, "purchases").join()
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Register `PurchaseHistory` as an application handler. It first processes retained history, then continues with new
+events. Restarts resume from the consumer’s saved position. Repeated delivery replaces the same purchase document.
+
+## Use the result
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var purchases = Fluxzero.search("purchases").fetch(20, PurchaseRecorded.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val purchases = Fluxzero.search<PurchaseRecorded>("purchases").fetch(20, PurchaseRecorded::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+The first results appear while the consumer catches up. A log can only replay messages it still retains.
+
+If a feature needs Model state as it was when an event happened, use an injected Model or Graph as explained in
+[Temporal Graphs](/docs/guides/modeling-and-persistence/temporal-graphs).
+For an existing feature that needs correction, see
+[live and historical processing](/docs/guides/messaging/live-and-historical-processing).

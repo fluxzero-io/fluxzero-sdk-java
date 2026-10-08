@@ -6,10 +6,133 @@ sidebar:
    order: 205
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+import Jdoclink from '~/components/jdoclink.astro';
 
-Choose persistence, searchability and Graph materialization separately. A composition path describes where a child
-appears in a Graph; it never activates storage or search.
+Start with the question your screen or handler needs to answer:
+
+- **Which task has this ID?** Load the Model directly.
+- **Which tasks are open?** Search indexed Model state.
+- **Which projects have open tasks?** Search their relationships, returning Models or complete Graphs.
+
+## Load a known Model
+
+With `TaskId extends Id<Task>`, load one task by identity:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+Task task = Fluxzero.loadModel(new TaskId("t1")).get();
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val task = Fluxzero.loadModel(TaskId("t1")).get()
+```
+
+  </TabItem>
+</Tabs>
+
+This needs no search index. See [loading Models](../entity-loading) for absent state and historical reads.
+
+## Search by content
+
+Enable search on the Model whose contents you want to find:
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Model(searchable = true)
+record Task(@EntityId TaskId taskId, String status) {}
+
+List<Task> openTasks = Fluxzero.search(Task.class).match("open", "status").fetch(20);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Model(searchable = true)
+data class Task(@EntityId val taskId: TaskId, val status: String)
+
+val openTasks = Fluxzero.search(Task::class.java).match("open", "status").fetch(20)
+```
+
+  </TabItem>
+</Tabs>
+
+Search reads indexed current state. It does not provide an event-time snapshot or the exact state read inside a Model
+update. Start with a bounded page; use `fetchAll()` only when you intend to load all matches.
+
+## A searchable Project and its Tasks
+
+```java
+@Model(searchable = true)
+record Project(@EntityId ProjectId projectId, String status) {}
+
+@Model
+record Task(@EntityId TaskId taskId,
+            @Parent(pathInParent = "tasks") ProjectId projectId,
+            String status) {}
+
+List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
+        .whereChild(Task.class, MatchConstraint.match("open", "status"))
+        .fetch(10);
+```
+
+Now each Task is related to a Project. The searchable Project activates search for its composed Tasks, so the child
+needs no separate `searchable = true`. `pathInParent = "tasks"` names their place in the returned Graph.
+`ProjectId` and `TaskId` are typed IDs for these Models.
+
+`whereChild` selects Projects that have at least one open Task. The returned Graph includes **all** participating
+Tasks, not only the open ones. To return just matching Tasks, search `Task.class` instead.
+
+A plain `@Parent` without `pathInParent` still supports navigation by identity, but does not embed the child in a
+search Graph or pass search activation through that edge. All writers must share the relevant typed parent contract;
+configuration changes do not backfill old data. See [migration](#migrating-existing-data) before changing stored Models.
+
+## IDs and related content
+
+<Tabs>
+<TabItem label="Java">
+
+```java
+List<Task> projectTasks = Fluxzero.search(Task.class)
+        .whereAncestor(projectId)
+        .fetch(100);
+
+List<Task> activeProjectTasks = Fluxzero.search(Task.class)
+        .whereAncestor(Project.class, MatchConstraint.match("active", "status"))
+        .fetchAll();
+```
+
+</TabItem>
+<TabItem label="Kotlin">
+
+```kotlin
+val projectTasks: List<Task> = Fluxzero.search(Task::class.java)
+    .whereAncestor(projectId)
+    .fetch(100)
+
+val activeProjectTasks: List<Task> = Fluxzero.search(Task::class.java)
+    .whereAncestor(Project::class.java, MatchConstraint.match("active", "status"))
+    .fetchAll()
+```
+
+</TabItem>
+</Tabs>
+
+The ID overload needs only the searchable result nodes and durable relationships. The ancestor need not have a
+search document. A predicate on ancestor **content** requires that ancestor to be searchable. A typed `Id<T>` supplies
+the related type; for other identifiers pass the Model class as well. Use a loaded Graph for a parent-scoped identity.
+
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for explicit relationship predicates. Multiple
+constraints in one `whereChild` must match the same child. Separate `whereChild` calls may match different children.
+These predicates select result roots; they never prune the returned Graph's children.
 
 ## Three independent choices
 
@@ -51,65 +174,6 @@ editable public Model projection. Use a separate ordinary read model for a custo
 Searchability is not an authorization boundary. Raw collection access remains a low-level operation; using it to
 rewrite Model state does not provide Model consistency guarantees.
 
-## A searchable Project and its Tasks
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-@Model(searchable = true)
-record Project(@EntityId ProjectId projectId, String status) {}
-
-@Model(searchable = false,
-       searchSettings = @SearchSettings(timestampPath = "createdAt"))
-record Task(@EntityId TaskId taskId,
-            @Parent(pathInParent = "tasks") ProjectId projectId,
-            String status, Instant createdAt) {}
-
-List<Task> openTasks = Fluxzero.search(Task.class).match("open", "status").fetchAll();
-List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
-        .whereChild(Task.class, MatchConstraint.match("open", "status"))
-        .fetch(10);
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-@Model(searchable = true)
-data class Project(@EntityId val projectId: ProjectId, val status: String)
-
-@Model(searchable = false, searchSettings = SearchSettings(timestampPath = "createdAt"))
-data class Task(
-    @EntityId val taskId: TaskId,
-    @Parent(pathInParent = "tasks") val projectId: ProjectId,
-    val status: String,
-    val createdAt: Instant
-)
-
-val openTasks: List<Task> = Fluxzero.search(Task::class.java).match("open", "status").fetchAll()
-val projects: List<Graph<Project>> = Fluxzero.searchGraph(Project::class.java)
-    .whereChild(Task::class.java, MatchConstraint.match("open", "status"))
-    .fetch(10)
-```
-
-</TabItem>
-</Tabs>
-
-Each Task remains an independent Model. This example spells out `searchable = false` deliberately to show that local
-false does not veto inherited activation; ordinary descendants can omit it because false is the default. The Project
-configuration activates the Task's indexed source through the typed, composed parent contract. The returned Projects include all participating Tasks, including those that did not match
-the selecting predicate. A pathless relationship is navigable by identity but is not embedded in a search Graph and
-does not inherit search activation through that relationship.
-
-To expose only a node's own level, use `searchSettings = @SearchSettings(includeDescendants = false)`. Children may
-still independently enable search. An ancestor's broader active scope may also include them; local settings are not
-a prohibition on participation in another root's Graph.
-
-Every writer must see the shared searchable parent contract, or explicitly activate the child. A searchable concrete
-parent behind a non-searchable polymorphic base is insufficient for independent child writers. Incomplete known
-scopes are rejected during catalog configuration. Missing writers or old data are not repaired by a query.
-
 ## Excluding a branch from ancestor search Graphs
 
 Use `@Parent(pathInParent = "tasks", propagateSearch = false)` to stop search composition at that edge.
@@ -129,45 +193,6 @@ The edge policy is persisted. Old relationships without this flag retain inclusi
 re-registering a projection or making a value-only update does not rewrite existing relationships: migrate their
 policy explicitly, then rebuild existing stored Graphs. Stop old writers during that migration. No automatic
 relationship-policy migration is provided.
-
-## IDs and related content
-
-<Tabs>
-<TabItem label="Java">
-
-```java
-List<Task> projectTasks = Fluxzero.search(Task.class)
-        .whereAncestor(projectId)
-        .fetch(100);
-
-List<Task> activeProjectTasks = Fluxzero.search(Task.class)
-        .whereAncestor(Project.class, MatchConstraint.match("active", "status"))
-        .fetchAll();
-```
-
-</TabItem>
-<TabItem label="Kotlin">
-
-```kotlin
-val projectTasks: List<Task> = Fluxzero.search(Task::class.java)
-    .whereAncestor(projectId)
-    .fetch(100)
-
-val activeProjectTasks: List<Task> = Fluxzero.search(Task::class.java)
-    .whereAncestor(Project::class.java, MatchConstraint.match("active", "status"))
-    .fetchAll()
-```
-
-</TabItem>
-</Tabs>
-
-The ID overload needs only the searchable result nodes and durable relationships. The ancestor need not have a
-search document. A predicate on ancestor **content** requires that ancestor to be searchable. A typed `Id<T>` supplies
-the related type; for other identifiers pass the Model class as well. Use a loaded Graph for a parent-scoped identity.
-
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for explicit relationship predicates. Multiple
-constraints in one `whereChild` must match the same child. Separate `whereChild` calls may match different children.
-These predicates select result roots; they never prune the returned Graph's children.
 
 ## Optional stored Graph
 
@@ -206,14 +231,9 @@ but each composed projection stores its own Graph body.
 keeps a field readable in returned state while excluding it from text matching. Live composition preserves each
 node's search summary instead of reconstructing it from every deserializable field.
 
-Both live and stored searches return complete composed documents for the selected Graphs. Their typed Java node
-values are converted lazily and cached locally; NONE does not defer fetching each included child until serialization.
-For standard binary search results, structural metadata and lazy values share one private source snapshot. Its decoded
-entries are reused while node upcasters and configured document serializers still run through their normal routes.
-Serializing a complete Graph visits every included node, converts any unread values and builds the JSON output.
-Those included values need no additional repository reads. Custom Graph properties or content filters can perform
-their own work, including navigation outside the returned scope. Large result pages therefore still cost CPU,
-temporary memory and response bytes; materialization mainly saves query-time composition.
+Both live and stored searches return complete composed documents for the selected Graphs. Large Graphs therefore
+cost memory, conversion work and response bytes. Materialization saves query-time composition; it does not make a
+large response small. Use a separate read model when the screen needs only a compact summary.
 
 Typed Graph results require complete documents. For partial output, request JSON explicitly:
 
@@ -245,13 +265,9 @@ and facets. Statistics cover the entire filtered selection; result paging and fi
 Live Graph and relationship statistics currently compute over fetched document representations. They can consume
 considerably more memory and bandwidth than an ordinary stored-document aggregate.
 
-Live selection pushes filtering/paging down before composition when only the root is included. With descendants,
-early root paging currently requires no ordinary field constraints and only timestamp ordering (or no ordering).
-Typed relationship predicates such as `whereChild(...)` can narrow roots before hydration. Ordinary field constraints,
-including a filter on a root field, and other sorting currently compose candidate Graphs before selecting a page.
-`fetch(10)` alone is therefore not a bound on the work. Configure explicit traversal/output bounds and prefer
-stored materialization for broad queries and large volumes. Live/relationship histograms and bulk mutation remain
-unsupported; use an explicit ordinary read model or Model commands for those operations.
+`fetch(10)` limits the returned roots, not necessarily the composition work needed to find them. For broad queries
+over large Graphs, consider stored materialization and explicit traversal/output bounds. Relationship predicates can
+narrow selection before composition. See <Jdoclink className="Search" /> for supported filters and bounds.
 
 ## Migrating existing data
 
@@ -267,7 +283,8 @@ does not backfill absent child documents or their exact summaries. Coordinate wr
 before relying on the new search contract for old data.
 
 Use normal Model commands for business changes. Source schema-upcasts must preserve logical state and durable head
-proof; updating a stored Graph schema does not rewrite its underlying Models. See the Model migration guide for
+proof. Returning an upcast Graph migrates evolved canonical nodes by default; use
+`GraphMigrationTarget.PROJECTION` to update only its stored composition. See the Model migration guide for
 mixed-writer and stored-data transition requirements.
 
 ### Coordinating the upgrade
