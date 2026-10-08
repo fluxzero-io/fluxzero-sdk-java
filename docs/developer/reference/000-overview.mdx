@@ -1,0 +1,71 @@
+---
+title: SDK reference
+slug: docs/reference
+description: Find the SDK capabilities, annotations and configuration relevant to your application.
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+Explore the SDK by subject. Each chapter starts with ordinary use, then covers more specific behavior.
+For a complete task, use the [how-to guides](/docs/guides/how-to).
+
+<div className="guide-cards">
+<CardGrid>
+  <Card title="Messaging">
+
+<span id="messaging"></span>
+
+Send and handle messages, schedule work, and connect through HTTP or WebSockets.
+
+[Sending](/docs/guides/messaging/sending-messages) ·
+[Handling](/docs/guides/messaging/message-handling) ·
+[Consumers](/docs/guides/messaging/message-tracking) ·
+[Scheduling](/docs/guides/messaging/message-scheduling) ·
+[HTTP](/docs/guides/messaging/handling-web-requests) ·
+[WebSockets](/docs/guides/messaging/handling-websocket-messages)
+
+  </Card>
+  <Card title="Modeling & persistence">
+
+<span id="modeling--persistence"></span>
+
+Define application state, connect related Models, and choose how to store and query them.
+
+[Updates](/docs/guides/modeling-and-persistence/updating-entities) ·
+[Relationships](/docs/guides/modeling-and-persistence/nested-entities) ·
+[Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) ·
+[Persistence](/docs/guides/modeling-and-persistence/model-persistence) ·
+[Search](/docs/guides/modeling-and-persistence/document-index-and-search) ·
+[Stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers)
+
+  </Card>
+  <Card title="Data control & serialization">
+
+<span id="data-control--serialization"></span>
+
+Protect sensitive values, evolve stored data, and control what each reader can see.
+
+[Data protection](/docs/guides/data-control-and-serialization/protecting-sensitive-data) ·
+[Data evolution](/docs/guides/data-control-and-serialization/upcasting-and-downcasting) ·
+[Response filtering](/docs/guides/data-control-and-serialization/user-based-content-filtering)
+
+  </Card>
+  <Card title="Configuration">
+
+<span id="configuration"></span>
+
+Connect your application to its environment and customize SDK behavior.
+
+<span id="configuration--support"></span>
+[Application properties](/docs/guides/configuration/application-properties) ·
+[Fluxzero builder](/docs/guides/configuration/configuring-fluxzero) ·
+[Client configuration](/docs/guides/configuration/configuring-websocket-client)
+
+  </Card>
+</CardGrid>
+</div>
+
+<span id="testing-and-diagnostics"></span>
+Use [error codes](/docs/errors) to investigate a failure and the
+[SDK Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) for individual types and methods.
+Project setup, publishing and deployment are covered in [Tools & automation](/docs/tools/overview).

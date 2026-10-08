@@ -182,8 +182,34 @@ For wire or persisted formats, also test old-data reads and new-data round trips
   the owning backlog dossier. Keep the previous performance baseline discoverable and update it only after
   repeated successful qualification. Do not silently reset the baseline to a slower build.
 
+## Documentation Iteration And Verification
+
+During interactive documentation work, keep the feedback loop short. Follow the website repository's iteration
+cadence: use the existing development preview and hot reload to inspect changes, and batch related edits.
+
+- Do not compile Java/Kotlin examples or run a production documentation/site build after every wording, title,
+  navigation or layout adjustment, or merely because a chat turn ends. Do not use production builds as the preview
+  refresh mechanism; use the development server and docs sync while iterating.
+- Qualify changed executable examples and run the relevant documentation/site build once at the end of the completed
+  batch. Pure prose or navigation edits do not require recompiling unchanged example code. Instruction-only changes
+  need a diff review and `git diff --check`, not a build.
+- If a check fails, fix the cause and rerun the affected check. Repeat a successful check only when a later relevant
+  change invalidates its result or an unresolved failure requires it; do not restart the entire verification loop.
+- Treat an ongoing review across multiple guides as one batch. Moving to another page or receiving another copy
+  correction does not by itself create a new build, commit or backlog item. Commit related changes at a meaningful
+  boundary, such as a completed feature or tutorial, a requested checkpoint, or preparation for publication.
+- Defer generated-output and publication checks to the final batch build. Build earlier only when the user asks or
+  the task specifically requires production output, such as diagnosing a build failure. Keep verification focused
+  on the affected behavior instead of repeating the full SDK or website suite during editorial review.
+
 ## Documentation Teaching Structure
 
+- Keep overview pages at the level of their parent section: explain the whole, its main parts and their relationship,
+  then point to the next level. The Developer Guides overview covers concepts, tutorials, how-to guides and reference;
+  task lists belong in the how-to overview. Mirror that hierarchy in headings and navigation. Do not promote a recent
+  addition or one subsection into the organizing principle of its parent page. Describe what each child section is
+  for without teaching its contents or assuming its terminology is already familiar. Tutorials, how-to guides and
+  reference each own their overview; their parent links to those overviews instead of flattening the next level.
 - Human developer documentation under `docs/developer/` teaches what the SDK makes possible and how to use it.
   Explain the problem the capability solves, then show the smallest concrete example that demonstrates it.
   Let readers see a useful result before adding more concepts; avoid hidden helper behavior, placeholder-only
@@ -193,6 +219,18 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - A how-to guide answers one developer task with one minimal working path. Move task walkthroughs out of reference
   chapters into focused guides and link both ways. Do not add optional variants or a troubleshooting catalogue to
   every guide; keep essential prerequisites next to the example and let other topics have their own page.
+  Group the how-to overview by the same SDK subjects as its navigation (Messaging, Modeling & persistence,
+  Data protection, Testing), not generic labels such as "Build one feature". Name the SDK capability or developer task
+  in the title, never the illustrative business example: use "Validate and update Models atomically", not "Prevent
+  double bookings". Keep the concrete example inside the guide. Use idiomatic SDK
+  shortcuts and defaults instead of spelling out unnecessary configuration. When a guide promises an outcome such as
+  deleting state or ignoring repeated delivery, show that outcome in the example rather than leaving it only in prose.
+- App tutorials are sustained build-alongs: progressively implement the app's distinct features with concrete code
+  and observable checkpoints, following the style of Building your first app without repeating its fundamentals.
+  Minimal examples mean a small useful step, not reducing a whole-app tutorial to a source tour and one test.
+  Cover materially different workflows; group repetitive variants. Use the example repository's current default
+  branch unless a historical revision is explicitly needed. Assume the earlier installation steps are complete;
+  link to installation when necessary instead of repeating tool/version prerequisites in every tutorial.
 - Keep human guides selective. Explain enough for a developer to understand the capability and make the next decision;
   put exhaustive overloads, parameter/default inventories, lifecycle paths and exact API contracts in Javadoc.
   Link to the owning guide or API reference instead of duplicating its explanation. A long chapter is justified by

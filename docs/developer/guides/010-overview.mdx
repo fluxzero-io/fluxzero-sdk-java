@@ -1,76 +1,36 @@
 ---
 title: Developer Guides
 slug: docs/guides
+description: Understand the Fluxzero SDK and find your way through its concepts, tutorials, how-to guides and reference.
 sidebar:
    order: 10
 ---
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 <span id="developer-guides"></span>
 
-Build your application's behavior in Java or Kotlin: send an action, handle it, remember the result and react to what
-happened. Fluxzero provides message delivery, persistence and testing around that code.
+The Fluxzero SDK lets you build and test application behavior in Java or Kotlin. These guides explain how to use
+its capabilities in your application, from the first concepts to specific implementation tasks.
 
-Start with [Core concepts](/docs/getting-started/core-concepts) for a small complete example, or add your first
-[HTTP endpoint](/docs/getting-started/hello-world). The [to-do tutorial](/docs/tutorials/first-app) then grows an
-application one feature at a time.
+Start with the core concepts, learn by doing a tutorial, or choose the section that fits your next step.
 
-## Build one feature
-
-- [Prevent double bookings](/docs/guides/modeling-and-persistence/preventing-double-bookings).
-- [Wait for a response](/docs/guides/modeling-and-persistence/waiting-for-a-response).
-- [Keep a screen up to date](/docs/guides/messaging/updating-a-live-screen).
-- [React to a state change](/docs/guides/modeling-and-persistence/reacting-to-a-change).
-- [Build an API integration](/docs/guides/messaging/building-api-integrations) and [receive its callbacks](/docs/guides/messaging/receiving-webhooks).
-- [Use PII and erase it](/docs/guides/data-control-and-serialization/using-and-erasing-pii).
-
-## Evolve a running application
-
-- [Build a feature from past events](/docs/guides/messaging/adding-a-feature-to-history).
-- [Correct historical results alongside live processing](/docs/guides/messaging/live-and-historical-processing).
-- [Split a consumer](/docs/guides/messaging/splitting-a-consumer) or [merge two consumers](/docs/guides/messaging/merging-consumers).
-
-## Messaging
-
-Messages let one part of your application ask another to do work without choosing which process handles it.
-
-- [Send an action or query](/docs/guides/messaging/sending-messages), then [write its handler](/docs/guides/messaging/message-handling).
-- [Test the behavior locally](/docs/guides/messaging/testing-your-handlers).
-- [Expose an HTTP endpoint](/docs/guides/messaging/handling-web-requests) or [build an API integration](/docs/guides/messaging/building-api-integrations).
-- [Schedule work for later](/docs/guides/messaging/message-scheduling).
-
-When you need independent background processing, continue with [consumers and tracking](/docs/guides/messaging/message-tracking),
-[replays](/docs/guides/messaging/message-replays) and [metrics](/docs/guides/messaging/metrics-messages).
-
-## Modeling & Persistence
-
-Models remember the things your users work with: tasks, orders or bookings. Commands express how they change.
-
-- [Design the Model's state](/docs/guides/modeling-and-persistence/model-state) and [apply changes](/docs/guides/modeling-and-persistence/updating-entities).
-- [Connect related Models](/docs/guides/modeling-and-persistence/nested-entities).
-- [Load or search their state](/docs/guides/modeling-and-persistence/model-query-guide).
-
-Then choose [storage behavior](/docs/guides/modeling-and-persistence/model-persistence), explore
-[historical Graphs](/docs/guides/modeling-and-persistence/temporal-graphs), or coordinate long-running work with
-[stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers).
-
-## Data Control & Serialization
-
-As the application grows, its stored data outlives individual versions of the code. Learn to
-[evolve old data](/docs/guides/data-control-and-serialization/upcasting-and-downcasting),
-[protect sensitive fields](/docs/guides/data-control-and-serialization/protecting-sensitive-data) and
-[filter responses for their audience](/docs/guides/data-control-and-serialization/user-based-content-filtering).
-
-## Configuration & Support
-
-Use [application properties](/docs/guides/configuration/application-properties) for environment-specific settings
-and [the Fluxzero builder](/docs/guides/configuration/configuring-fluxzero) to register handlers or customize the SDK.
-The sidebar contains focused guides for extension points and operational concerns.
-
-Existing 1.x application? The [2.0 overview](/docs/fluxzero-2) explains the Model/Graph design;
-the [migration guide](/docs/fluxzero-2-deep-dive#upgrading-from-1x) explains the transition.
-
+{/* Keep earlier section links pointing at the navigation for their new home. */}
 <span id="tutorials"></span>
 <span id="how-to-guides"></span>
 <span id="reference"></span>
+<span id="build-one-feature"></span>
+<span id="evolve-a-running-application"></span>
+<span id="messaging"></span>
+<span id="modeling--persistence"></span>
+<span id="data-control--serialization"></span>
+<span id="configuration--support"></span>
+<span id="testing-and-diagnostics"></span>
 
-For project setup, publishing and deployment, use [Tools & automation](/docs/tools/overview).
+<CardGrid>
+  <LinkCard title="Core concepts" description="Understand the programming model through one small example." href="/docs/getting-started/core-concepts" />
+  <LinkCard title="Fluxzero 2.0" description="Explore the new major version, its improvements and how to migrate an existing application." href="/docs/fluxzero-2" />
+  <LinkCard title="Tutorials" description="Learn by building a working application, one step at a time." href="/docs/tutorials" />
+  <LinkCard title="How-to guides" description="Complete a specific task in your application." href="/docs/guides/how-to" />
+  <LinkCard title="Reference" description="Explore the SDK's capabilities and look up their behavior by subject." href="/docs/reference" />
+</CardGrid>

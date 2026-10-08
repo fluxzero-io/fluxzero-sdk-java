@@ -1,5 +1,5 @@
 ---
-title: Keep a screen up to date
+title: Keep UIs in sync via WebSockets
 description: Push the current task to a browser whenever that task changes.
 slug: docs/guides/messaging/updating-a-live-screen
 ---
@@ -80,7 +80,8 @@ url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
 const socket = new WebSocket(url);
 socket.onmessage = event => {
     const task = JSON.parse(event.data);
-    document.querySelector('#task').textContent = task.completed ? 'Done' : task.name;
+    document.querySelector('#task').textContent =
+        task === null ? 'Task removed' : task.completed ? 'Done' : task.name;
 };
 ```
 

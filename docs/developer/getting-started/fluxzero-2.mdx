@@ -3052,7 +3052,7 @@ apply pipeline. Likewise, `current()` gives a current view without mutating the 
 During a Model mutation, Graph reads use its shared attempt boundary rather than mixing unrelated snapshots.
 Historical values require retained event-sourced history; caching does not give DOCUMENT-only Models a history.
 
-The [Model recipes](/docs/guides/modeling-and-persistence/model-recipes) and
+The [Compose and update related Models](/docs/guides/modeling-and-persistence/model-recipes) and
 [loading guide](/docs/guides/modeling-and-persistence/entity-loading) cover these operations
 and their full overloads. The policy types—`ModelPersistence`, `ModelConflictPolicy`, `ModelCommitPolicy`,
 `AutomaticModelHandling`, `GraphProjectionCompletion` and `GraphLookupPolicy`—make these separate choices
@@ -3064,7 +3064,7 @@ explicit instead of treating “a Model” as one fixed bundle of storage, consi
   details values and intentionally embedded members.
 - [Choose Model and Graph queries](/docs/guides/modeling-and-persistence/model-query-guide):
   configuration, query examples and consistency in one place.
-- [Use Model recipes](/docs/guides/modeling-and-persistence/model-recipes): companions, derived
+- [Compose and update related Models](/docs/guides/modeling-and-persistence/model-recipes): companions, derived
   preferences, atomic operations and orchestration.
 - [Test Model migrations](/docs/guides/modeling-and-persistence/model-migration-tests):
   value-preserving upcasts, reconstruction and retained storage.
