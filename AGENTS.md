@@ -225,6 +225,12 @@ cadence: use the existing development preview and hot reload to inspect changes,
   double bookings". Keep the concrete example inside the guide. Use idiomatic SDK
   shortcuts and defaults instead of spelling out unnecessary configuration. When a guide promises an outcome such as
   deleting state or ignoring repeated delivery, show that outcome in the example rather than leaving it only in prose.
+- App tutorials are sustained build-alongs: progressively implement the app's distinct features with concrete code
+  and observable checkpoints, following the style of Building your first app without repeating its fundamentals.
+  Minimal examples mean a small useful step, not reducing a whole-app tutorial to a source tour and one test.
+  Cover materially different workflows; group repetitive variants. Use the example repository's current default
+  branch unless a historical revision is explicitly needed. Assume the earlier installation steps are complete;
+  link to installation when necessary instead of repeating tool/version prerequisites in every tutorial.
 - Keep human guides selective. Explain enough for a developer to understand the capability and make the next decision;
   put exhaustive overloads, parameter/default inventories, lifecycle paths and exact API contracts in Javadoc.
   Link to the owning guide or API reference instead of duplicating its explanation. A long chapter is justified by
