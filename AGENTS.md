@@ -182,6 +182,26 @@ For wire or persisted formats, also test old-data reads and new-data round trips
   the owning backlog dossier. Keep the previous performance baseline discoverable and update it only after
   repeated successful qualification. Do not silently reset the baseline to a slower build.
 
+## Documentation Iteration And Verification
+
+During interactive documentation work, keep the feedback loop short. Follow the website repository's iteration
+cadence: use the existing development preview and hot reload to inspect changes, and batch related edits.
+
+- Do not compile Java/Kotlin examples or run a production documentation/site build after every wording, title,
+  navigation or layout adjustment, or merely because a chat turn ends. Do not use production builds as the preview
+  refresh mechanism; use the development server and docs sync while iterating.
+- Qualify changed executable examples and run the relevant documentation/site build once at the end of the completed
+  batch. Pure prose or navigation edits do not require recompiling unchanged example code. Instruction-only changes
+  need a diff review and `git diff --check`, not a build.
+- If a check fails, fix the cause and rerun the affected check. Repeat a successful check only when a later relevant
+  change invalidates its result or an unresolved failure requires it; do not restart the entire verification loop.
+- Treat an ongoing review across multiple guides as one batch. Moving to another page or receiving another copy
+  correction does not by itself create a new build, commit or backlog item. Commit related changes at a meaningful
+  boundary, such as a completed feature or tutorial, a requested checkpoint, or preparation for publication.
+- Defer generated-output and publication checks to the final batch build. Build earlier only when the user asks or
+  the task specifically requires production output, such as diagnosing a build failure. Keep verification focused
+  on the affected behavior instead of repeating the full SDK or website suite during editorial review.
+
 ## Documentation Teaching Structure
 
 - Keep overview pages at the level of their parent section: explain the whole, its main parts and their relationship,
@@ -199,7 +219,10 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - A how-to guide answers one developer task with one minimal working path. Move task walkthroughs out of reference
   chapters into focused guides and link both ways. Do not add optional variants or a troubleshooting catalogue to
   every guide; keep essential prerequisites next to the example and let other topics have their own page.
-  Name the task and its relevant mechanism in the title so developers can recognize the subject. Use idiomatic SDK
+  Group the how-to overview by the same SDK subjects as its navigation (Messaging, Modeling & persistence,
+  Data protection, Testing), not generic labels such as "Build one feature". Name the SDK capability or developer task
+  in the title, never the illustrative business example: use "Validate and update Models atomically", not "Prevent
+  double bookings". Keep the concrete example inside the guide. Use idiomatic SDK
   shortcuts and defaults instead of spelling out unnecessary configuration. When a guide promises an outcome such as
   deleting state or ignoring repeated delivery, show that outcome in the example rather than leaving it only in prose.
 - Keep human guides selective. Explain enough for a developer to understand the capability and make the next decision;

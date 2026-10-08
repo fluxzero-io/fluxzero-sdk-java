@@ -1,50 +1,47 @@
 ---
 title: How-to guides
 slug: docs/guides/how-to
-description: Find a focused guide for building a feature, evolving a running application or testing its behavior.
+description: Practical SDK guides grouped by messaging, modeling, data protection and testing.
 sidebar:
    order: 11
 ---
 
-Choose a task you want to complete. Each guide uses a small example and one practical path.
-New to the SDK? Start with [Core concepts](/docs/getting-started/core-concepts) or a
-[tutorial](/docs/tutorials); the [Developer Guides overview](/docs/guides/) shows how the parts fit together.
+Choose the SDK subject you are working with. Each guide demonstrates one task with a concrete example.
+For setup, start with [SDK installation](/docs/getting-started/installation); for a guided introduction, choose a
+[tutorial](/docs/tutorials).
 
-## Set up your project
+## Messaging
 
-Follow [SDK installation](/docs/getting-started/installation) to add the SDK to your project.
+- [Message replays](/docs/guides/messaging/message-replays)
+- [Dynamic dead-lettering](/docs/guides/messaging/dynamic-dead-lettering)
+- [Model schedule reconciliation](/docs/guides/messaging/model-schedule-reconciliation)
+- [Tie schedules to their owner](/docs/guides/messaging/parent-owned-schedules)
+- [Custom message logs](/docs/guides/messaging/custom-message-logs)
+- [Sending web requests](/docs/guides/messaging/sending-web-requests)
+- [Building API integrations](/docs/guides/messaging/building-api-integrations)
+- [Handle external callbacks](/docs/guides/messaging/receiving-webhooks)
+- [Keep UIs in sync via WebSockets](/docs/guides/messaging/updating-a-live-screen)
+- [Build a searchable projection from past events](/docs/guides/messaging/adding-a-feature-to-history)
+- [Use one handler for live and historical events](/docs/guides/messaging/live-and-historical-processing)
+- [Split a consumer](/docs/guides/messaging/splitting-a-consumer)
+- [Merge two consumers](/docs/guides/messaging/merging-consumers)
 
-## Build one feature
+## Modeling & persistence
 
-- [Prevent double bookings](/docs/guides/modeling-and-persistence/preventing-double-bookings).
-- [Wait for a response](/docs/guides/modeling-and-persistence/waiting-for-a-response).
-- [Keep UIs in sync via WebSockets](/docs/guides/messaging/updating-a-live-screen).
-- [React to a state change](/docs/guides/modeling-and-persistence/reacting-to-a-change).
-- [Build an API integration](/docs/guides/messaging/building-api-integrations) and [handle its callbacks](/docs/guides/messaging/receiving-webhooks).
-- [Use PII and erase it](/docs/guides/data-control-and-serialization/using-and-erasing-pii).
+- [Designing Model state](/docs/guides/modeling-and-persistence/model-state)
+- [Compose and update related Models](/docs/guides/modeling-and-persistence/model-recipes)
+- [Validate and update Models atomically](/docs/guides/modeling-and-persistence/preventing-double-bookings)
+- [Correlate asynchronous responses with stateful handlers](/docs/guides/modeling-and-persistence/waiting-for-a-response)
+- [React to Model transitions with Graph history](/docs/guides/modeling-and-persistence/reacting-to-a-change)
+- [Choose a Model or Graph query](/docs/guides/modeling-and-persistence/model-query-guide)
+- [Update stored documents](/docs/guides/modeling-and-persistence/tracking-and-updating-documents)
 
-## Evolve a running application
+## Data protection
 
-- [Build a feature from past events](/docs/guides/messaging/adding-a-feature-to-history).
-- [Correct historical results alongside live processing](/docs/guides/messaging/live-and-historical-processing).
-- [Split a consumer](/docs/guides/messaging/splitting-a-consumer) or [merge two consumers](/docs/guides/messaging/merging-consumers).
+- [Protect and erase PII](/docs/guides/data-control-and-serialization/using-and-erasing-pii)
 
-## Work with state and scheduled work
+## Testing
 
-- [Design Model state](/docs/guides/modeling-and-persistence/model-state) and explore [Model recipes](/docs/guides/modeling-and-persistence/model-recipes).
-- [Choose a Model or Graph query](/docs/guides/modeling-and-persistence/model-query-guide).
-- [Update stored documents](/docs/guides/modeling-and-persistence/tracking-and-updating-documents).
-- [Tie schedules to their owner](/docs/guides/messaging/parent-owned-schedules) or [reconcile them with current state](/docs/guides/messaging/model-schedule-reconciliation).
-
-## Work with message logs and external services
-
-- [Replay past messages](/docs/guides/messaging/message-replays).
-- [Retry commands from the error log](/docs/guides/messaging/dynamic-dead-lettering).
-- [Use a custom message log](/docs/guides/messaging/custom-message-logs).
-- [Send a web request](/docs/guides/messaging/sending-web-requests).
-
-## Test your application
-
-- [Test handlers](/docs/guides/messaging/testing-your-handlers).
-- [Test web endpoints](/docs/guides/messaging/testing-web-endpoints).
-- [Test Model migrations](/docs/guides/modeling-and-persistence/model-migration-tests).
+- [Testing your handlers](/docs/guides/messaging/testing-your-handlers)
+- [Testing web endpoints](/docs/guides/messaging/testing-web-endpoints)
+- [Testing Model migrations](/docs/guides/modeling-and-persistence/model-migration-tests)

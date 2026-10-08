@@ -8,7 +8,7 @@ sidebar:
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-# Design the state before choosing storage
+<span id="design-the-state-before-choosing-storage"></span>
 
 A Model represents something your users recognize and change: a project, order or booking. Choose its lifecycle
 first. Then group the values that belong to it. You do not need to choose documents, snapshots or Graph projections
@@ -166,7 +166,7 @@ belongs to the containing root.
 Distinguish domain facts from integration execution. A payment capture or refund obligation belongs in a Model;
 provider attempt IDs, idempotency keys and retry progress usually belong in a
 [stateful workflow](/docs/guides/modeling-and-persistence/stateful-handlers).
-[Model recipes](./197-model-recipes.mdx) show larger combinations.
+[Compose and update related Models](./197-model-recipes.mdx) show larger combinations.
 
 ## Register the command owner
 

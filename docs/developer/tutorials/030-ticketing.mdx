@@ -1,0 +1,93 @@
+---
+title: Ticketing with Fluxzero
+slug: docs/tutorials/ticketing
+description: Explore the Ticketing example and test how a reservation deadline releases seats for another customer.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A reservation holds places while someone decides to buy. In this tutorial, you will run the Ticketing example,
+follow that hold into the code, and test that expiry makes a seat available to another customer.
+
+## Run the example
+
+Install the [Fluxzero CLI](/docs/tools/install), Java 25, Node.js 22.12 or newer, and
+[Mailpit](https://mailpit.axllent.org/docs/install/). Then:
+
+```shell
+git clone https://github.com/fluxzero-io/fluxzero-sample-ticketing.git
+cd fluxzero-sample-ticketing
+git checkout 7f8be9bee2eb8d6692f149aba68173f49eca1de6
+fz dev
+```
+
+This walkthrough uses a fixed revision so the linked code matches your checkout.
+Open the app URL printed by `fz dev`, sign in with a local username, and open **Night Lights** in the
+Concertgebouw's **Recital Hall**. Select two seats and reserve them.
+
+You now have a temporary hold. The default local profile needs no payment account for this step;
+leave checkout aside and use the test below to advance time without waiting fifteen minutes.
+
+## Follow the reservation into the code
+
+Open these three files in order:
+
+1. [ReserveTickets](https://github.com/fluxzero-io/fluxzero-sample-ticketing/blob/7f8be9bee2eb8d6692f149aba68173f49eca1de6/src/main/java/io/fluxzero/ticketing/booking/api/ReserveTickets.java)
+   checks the selection and uses `@InterceptApply` to return the reservation and inventory changes together.
+2. [ReservationDeadlines](https://github.com/fluxzero-io/fluxzero-sample-ticketing/blob/7f8be9bee2eb8d6692f149aba68173f49eca1de6/src/main/java/io/fluxzero/ticketing/booking/ReservationDeadlines.java)
+   reacts to the saved reservation and schedules `ExpireReservation` at its deadline.
+3. [ExpireReservation](https://github.com/fluxzero-io/fluxzero-sample-ticketing/blob/7f8be9bee2eb8d6692f149aba68173f49eca1de6/src/main/java/io/fluxzero/ticketing/booking/api/ExpireReservation.java)
+   changes a due hold to `EXPIRED`.
+
+The application chooses the deadline and the state change. Fluxzero stores the Models and delivers the scheduled
+command; the test can advance that same flow with a controlled clock.
+
+## Make the deadline visible in a test
+
+Add this test to
+[InventoryTest](https://github.com/fluxzero-io/fluxzero-sample-ticketing/blob/7f8be9bee2eb8d6692f149aba68173f49eca1de6/src/test/java/io/fluxzero/ticketing/booking/InventoryTest.java)
+and import `org.junit.jupiter.api.Test`. Its inherited `fixture(false)` prepares the catalogue and deadline handler;
+`seats(...)` constructs a reservation command. `ALICE` and `BOB` are test users, and `R` is Alice's reservation ID.
+The repository is Java; the Kotlin tab shows the equivalent fixture code.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void expiredSeatCanBeReservedAgain() {
+    fixture(false)
+        .givenCommandsByUser(ALICE, seats(R, "A1"))
+        .whenTimeElapses(Duration.ofMinutes(15))
+        .expectThat(f -> assertEquals(ReservationStatus.EXPIRED, reservation().status()))
+        .andThen()
+        .whenCommandByUser(BOB, seats(new ReservationId("bob-order"), "A1"))
+        .expectSuccessfulResult();
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun expiredSeatCanBeReservedAgain() {
+    fixture(false)
+        .givenCommandsByUser(ALICE, seats(R, "A1"))
+        .whenTimeElapses(Duration.ofMinutes(15))
+        .expectThat { assertEquals(ReservationStatus.EXPIRED, reservation().status()) }
+        .andThen()
+        .whenCommandByUser(BOB, seats(ReservationId("bob-order"), "A1"))
+        .expectSuccessfulResult()
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Watch the result in Devboard's **Tests**. Change the elapsed time to 14 minutes: the expiry assertion fails because
+Alice still holds the seat. Restore 15 minutes: the reservation expires and Bob can reserve it.
+Change `fixture(false)` to `fixture(true)` to run the same scenario with asynchronous handling.
+
+Continue with [validating and updating Models atomically](/docs/guides/modeling-and-persistence/preventing-double-bookings)
+for a smaller example of keeping a rule and its state change together.

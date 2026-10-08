@@ -1,0 +1,96 @@
+---
+title: Home automation with Fluxzero
+slug: docs/tutorials/home-automation
+description: Explore the Home example, follow a scene into its Model commands, and change a device setting with a test.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A scene changes several device settings with one action. In this tutorial, you will run the Home example,
+follow a scene into the code, and change its light setting in a test.
+
+## Run the example
+
+Install the [Fluxzero CLI](/docs/tools/install), Java 25 and Node.js 22.12 or newer. Then:
+
+```shell
+git clone https://github.com/fluxzero-io/fluxzero-sample-home.git
+cd fluxzero-sample-home
+git checkout 2abcc252e0880666aaf984e2acc8c2fff99a5829
+fz dev
+```
+
+This walkthrough uses a fixed revision so the linked code matches your checkout.
+Open the app URL printed by `fz dev` and sign in as **alex**, the local demo manager.
+No Home Assistant installation is needed.
+
+Set **Reading lamp** brightness to 60%, then activate **A pleasant evening**. The scene requests
+25% brightness and a 21 °C heating setting together. In the default local profile these are saved requests;
+the devices remain **Not linked**, with **No report**.
+
+## Follow the scene into the code
+
+Open these three files in order:
+
+1. [The evening scene](https://github.com/fluxzero-io/fluxzero-sample-home/blob/2abcc252e0880666aaf984e2acc8c2fff99a5829/examples/08-create-evening-scene.json)
+   defines the actions and which devices they target.
+2. [ActivateScene](https://github.com/fluxzero-io/fluxzero-sample-home/blob/2abcc252e0880666aaf984e2acc8c2fff99a5829/src/main/java/io/fluxzero/home/scenes/api/ActivateScene.java)
+   uses `@InterceptApply` to turn those actions into ordinary device commands.
+3. [DimLight](https://github.com/fluxzero-io/fluxzero-sample-home/blob/2abcc252e0880666aaf984e2acc8c2fff99a5829/src/main/java/io/fluxzero/home/devices/api/DimLight.java)
+   returns the device state with the requested brightness.
+
+Fluxzero checks and commits the scene's Model changes together. The application describes the actions;
+you do not write a separate save operation for each device.
+
+## Change a scene with a test
+
+Add this test to
+[SceneBehaviorTest](https://github.com/fluxzero-io/fluxzero-sample-home/blob/2abcc252e0880666aaf984e2acc8c2fff99a5829/src/test/java/io/fluxzero/home/scenes/SceneBehaviorTest.java).
+Its existing `house()` helper creates a home with a lamp and heating; `LIGHT` and `EVENING` are fixture IDs.
+The repository is Java; the Kotlin tab shows the equivalent fixture code.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+@Test
+void sceneRequestsBrightness() {
+    house().givenCommands(new DefineScene(EVENING, HOME, new SceneDetails("Reading"), List.of(
+            new DimLights(new OneDevice(LIGHT), new LightLevel(25)))))
+        .whenCommand(new ActivateScene(EVENING))
+        .expectSuccessfulResult()
+        .expectThat(f -> assertEquals(new LightLevel(25),
+                Fluxzero.loadModel(LIGHT).get().pendingSettings().get(Capability.LIGHT_LEVEL)));
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+@Test
+fun sceneRequestsBrightness() {
+    house().givenCommands(DefineScene(EVENING, HOME, SceneDetails("Reading"), listOf(
+            DimLights(OneDevice(LIGHT), LightLevel(25)))))
+        .whenCommand(ActivateScene(EVENING))
+        .expectSuccessfulResult()
+        .expectThat {
+            assertEquals(LightLevel(25),
+                Fluxzero.loadModel(LIGHT).get().pendingSettings()[Capability.LIGHT_LEVEL])
+        }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Watch the result in Devboard's **Tests**. First change only the expected `LightLevel(25)` to `LightLevel(40)`:
+the test fails. Then change the scene's input to 40: it passes. You changed the scene's data, without adding a
+new handler or persistence code.
+
+To see why the changes belong together, run the existing `missingSceneTargetsFailAtActivationWithoutPartialChanges`
+test in the same file. It removes the heating device before activation and checks that the lamp is left unchanged.
+
+For the next step, follow the repository's
+[Home Assistant walkthrough](https://github.com/fluxzero-io/fluxzero-sample-home/blob/2abcc252e0880666aaf984e2acc8c2fff99a5829/docs/testing-home-assistant.md)
+to send these requests to virtual devices through the real API.

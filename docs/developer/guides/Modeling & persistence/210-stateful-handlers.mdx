@@ -19,7 +19,7 @@ background operation needs to resume after a temporary failure. A Model holds th
 remembers what still needs to happen. [Building API integrations](/docs/guides/messaging/building-api-integrations)
 shows where the actual external call belongs.
 
-Start with [Wait for a response](/docs/guides/modeling-and-persistence/waiting-for-a-response) for a complete
+Start with [Correlate asynchronous responses with stateful handlers](/docs/guides/modeling-and-persistence/waiting-for-a-response) for a complete
 small example of storing process memory, matching the response and removing the completed process.
 The sections below describe the lifecycle and configuration of <Jdoclink className="Stateful" />.
 
@@ -219,7 +219,7 @@ They complement models without competing with them — and allow modeling tempor
 
 Use Models for business facts, such as an order or a confirmed payment. Use `@Stateful` for progress across messages,
 such as a provider reference, a pending action or a retry. A workflow can invoke domain commands when an external
-observation justifies a business change. See [Model recipes](./197-model-recipes.mdx) for combining these capabilities.
+observation justifies a business change. See [Compose and update related Models](./197-model-recipes.mdx) for combining these capabilities.
 
 ### Choose the trigger and preserve pending work
 
