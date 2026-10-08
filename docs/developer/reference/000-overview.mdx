@@ -1,0 +1,46 @@
+---
+title: SDK reference
+slug: docs/reference
+description: Find the SDK capabilities, annotations and configuration relevant to your application.
+---
+
+The SDK reference explains its capabilities and how to use them. Choose a part below, then follow its chapters
+from ordinary use to more specific behavior. For a complete task, use the [how-to guides](/docs/guides/how-to).
+
+## Messaging
+
+Messages connect your application's behavior: commands request an action, queries request information and events
+report what happened. Start with [sending](/docs/guides/messaging/sending-messages) and
+[handling](/docs/guides/messaging/message-handling), then explore
+[consumers](/docs/guides/messaging/message-tracking), [scheduling](/docs/guides/messaging/message-scheduling),
+[HTTP](/docs/guides/messaging/handling-web-requests) and [WebSockets](/docs/guides/messaging/handling-websocket-messages).
+Validation, access control, interceptors and observability refine those flows.
+
+## Modeling & persistence
+
+Models give domain state an identity and lifecycle. [Apply changes](/docs/guides/modeling-and-persistence/updating-entities),
+[connect related Models](/docs/guides/modeling-and-persistence/nested-entities), and use
+[Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) to navigate their relationships and history.
+[Persistence](/docs/guides/modeling-and-persistence/model-persistence),
+[search](/docs/guides/modeling-and-persistence/document-index-and-search) and
+[stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers) support storing, finding and coordinating state.
+
+## Data control & serialization
+
+Control which data is stored and what readers can see. Learn to
+[protect sensitive fields](/docs/guides/data-control-and-serialization/protecting-sensitive-data),
+[evolve stored data](/docs/guides/data-control-and-serialization/upcasting-and-downcasting) and
+[filter responses per user](/docs/guides/data-control-and-serialization/user-based-content-filtering).
+
+<span id="configuration--support"></span>
+## Configuration
+
+[Application properties](/docs/guides/configuration/application-properties),
+[the Fluxzero builder](/docs/guides/configuration/configuring-fluxzero) and
+[client configuration](/docs/guides/configuration/configuring-websocket-client) connect the same application code
+to its environment and let you customize SDK behavior.
+
+<span id="testing-and-diagnostics"></span>
+Use [error codes](/docs/errors) to investigate a failure and the
+[SDK Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) for individual types and methods.
+Project setup, publishing and deployment are covered separately in [Tools & automation](/docs/tools/overview).

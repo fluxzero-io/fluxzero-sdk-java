@@ -1,18 +1,15 @@
 ---
-title: Receive an external callback
-description: Turn an external status callback into a message your application understands.
+title: Handle external callbacks
+description: Authenticate a provider callback and complete a pending operation with a stateful handler.
 slug: docs/guides/messaging/receiving-webhooks
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
 
-Turn an external status callback into a message your application understands.
+Handle a provider's status callback and complete the operation waiting for it.
+This example accepts `POST /provider/status` with an operation ID and status, using a shared bearer token.
 
-Assume a provider sends `POST /provider/status` with an operation ID and a status. This smallest example uses a
-shared bearer token agreed with that provider. Use the provider’s signature verifier instead when its protocol
-requires signed request bodies.
-
-## Verify, translate and store
+## Authenticate and publish the event
 
 <Tabs>
   <TabItem label="Java">
@@ -23,14 +20,13 @@ public record OperationCompleted(String operationId) {}
 
 public class ProviderCallbacks {
     @HandlePost("/provider/status")
-    WebResponse receive(ProviderStatus body, WebRequest request) {
+    WebResponse handle(ProviderStatus body, @HeaderParam("Authorization") String authorization) {
         String expected = "Bearer " + ApplicationProperties.requireProperty("provider.callback.token");
-        if (!expected.equals(request.getHeader("Authorization"))) {
+        if (!expected.equals(authorization)) {
             return WebResponse.builder().status(401).build();
         }
         if ("completed".equals(body.status())) {
-            Fluxzero.get().eventGateway()
-                .publish(Guarantee.STORED, new OperationCompleted(body.operationId())).join();
+            Fluxzero.publishEvent(new OperationCompleted(body.operationId()));
         }
         return WebResponse.builder().status(204).build();
     }
@@ -46,14 +42,13 @@ data class OperationCompleted(val operationId: String)
 
 class ProviderCallbacks {
     @HandlePost("/provider/status")
-    fun receive(body: ProviderStatus, request: WebRequest): WebResponse {
+    fun handle(body: ProviderStatus, @HeaderParam("Authorization") authorization: String?): WebResponse {
         val expected = "Bearer " + ApplicationProperties.requireProperty("provider.callback.token")
-        if (expected != request.getHeader("Authorization")) {
+        if (expected != authorization) {
             return WebResponse.builder().status(401).build()
         }
         if (body.status == "completed") {
-            Fluxzero.get().eventGateway()
-                .publish(Guarantee.STORED, OperationCompleted(body.operationId)).join()
+            Fluxzero.publishEvent(OperationCompleted(body.operationId))
         }
         return WebResponse.builder().status(204).build()
     }
@@ -64,17 +59,106 @@ class ProviderCallbacks {
 </Tabs>
 
 Configure `provider.callback.token` through application properties (`PROVIDER_CALLBACK_TOKEN` in the environment).
-Register `ProviderCallbacks` as a handler. The endpoint acknowledges success after the internal event is stored;
-a separate event handler can finish the business operation.
+Register `ProviderCallbacks` as a handler. `@HeaderParam` supplies the header; a missing or incorrect token gets HTTP 401.
 
-## Expect repeat delivery
+<span id="expect-repeat-delivery"></span>
+## Complete and remove the waiting handler
 
-If the acknowledgement does not reach the provider, it may send the callback again. Use `operationId` to find the
-same operation and make “complete” harmless when it is already complete. A callback may also arrive before the
-response to your original API call; correlate it using an ID your application already knows.
+Store `OperationStarted` **before** calling the provider, using an operation ID your application already knows.
+The stateful handler waits for that ID's completion:
 
-Use this endpoint over HTTPS. For providers with signatures, verify the **original request bytes** before interpreting
-the payload; reserialized JSON is not the signed body. Follow that provider’s verification rules.
+<Tabs>
+  <TabItem label="Java">
 
-See [web endpoint testing](/docs/guides/messaging/testing-web-endpoints) to test accepted and rejected requests,
-and [API integrations](/docs/guides/messaging/building-api-integrations) for outgoing calls.
+```java
+public record OperationStarted(String operationId) {}
+public record OperationFinished(String operationId) {}
+
+@Stateful
+public record AwaitingCallback(@EntityId @Association String operationId) {
+    @HandleEvent
+    static AwaitingCallback start(OperationStarted event) {
+        return new AwaitingCallback(event.operationId());
+    }
+
+    @HandleEvent
+    AwaitingCallback complete(OperationCompleted event) {
+        Fluxzero.publishEvent(new OperationFinished(operationId));
+        return null;
+    }
+}
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+data class OperationStarted(val operationId: String)
+data class OperationFinished(val operationId: String)
+
+@Stateful
+data class AwaitingCallback(@EntityId @Association val operationId: String) {
+    companion object {
+        @JvmStatic
+        @HandleEvent
+        fun start(event: OperationStarted) = AwaitingCallback(event.operationId)
+    }
+
+    @HandleEvent
+    fun complete(event: OperationCompleted): AwaitingCallback? {
+        Fluxzero.publishEvent(OperationFinished(operationId))
+        return null
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Register `AwaitingCallback.class` (`AwaitingCallback::class.java` in Kotlin). `@Association` finds the waiting instance;
+returning `null` deletes it. Once that deletion is stored, another callback has no waiting instance to complete.
+
+## Send the callback twice
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+var callback = WebRequest.post("/provider/status")
+    .header("Authorization", "Bearer test-token")
+    .body(new ProviderStatus("op-1", "completed")).build();
+
+TestFixture.create(new ProviderCallbacks(), AwaitingCallback.class)
+    .withProperty("provider.callback.token", "test-token")
+    .givenEvents(new OperationStarted("op-1"))
+    .whenWebRequest(callback)
+    .expectEvents(new OperationFinished("op-1"))
+    .andThen()
+    .whenWebRequest(callback)
+    .expectNoEventsLike(OperationFinished.class);
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+val callback = WebRequest.post("/provider/status")
+    .header("Authorization", "Bearer test-token")
+    .body(ProviderStatus("op-1", "completed")).build()
+
+TestFixture.create(ProviderCallbacks(), AwaitingCallback::class.java)
+    .withProperty("provider.callback.token", "test-token")
+    .givenEvents(OperationStarted("op-1"))
+    .whenWebRequest(callback)
+    .expectEvents(OperationFinished("op-1"))
+    .andThen()
+    .whenWebRequest(callback)
+    .expectNoEventsLike(OperationFinished::class.java)
+```
+
+  </TabItem>
+</Tabs>
+
+Use HTTPS. For a provider that signs callbacks, follow its signature protocol instead of this bearer-token example.
+See [stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers) for persistence and retry behavior,
+and [API integrations](/docs/guides/messaging/building-api-integrations) for the outgoing call.

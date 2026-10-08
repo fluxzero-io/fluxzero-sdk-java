@@ -187,7 +187,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Keep overview pages at the level of their parent section: explain the whole, its main parts and their relationship,
   then point to the next level. The Developer Guides overview covers concepts, tutorials, how-to guides and reference;
   task lists belong in the how-to overview. Mirror that hierarchy in headings and navigation. Do not promote a recent
-  addition or one subsection into the organizing principle of its parent page.
+  addition or one subsection into the organizing principle of its parent page. Describe what each child section is
+  for without teaching its contents or assuming its terminology is already familiar. Tutorials, how-to guides and
+  reference each own their overview; their parent links to those overviews instead of flattening the next level.
 - Human developer documentation under `docs/developer/` teaches what the SDK makes possible and how to use it.
   Explain the problem the capability solves, then show the smallest concrete example that demonstrates it.
   Let readers see a useful result before adding more concepts; avoid hidden helper behavior, placeholder-only
@@ -197,6 +199,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - A how-to guide answers one developer task with one minimal working path. Move task walkthroughs out of reference
   chapters into focused guides and link both ways. Do not add optional variants or a troubleshooting catalogue to
   every guide; keep essential prerequisites next to the example and let other topics have their own page.
+  Name the task and its relevant mechanism in the title so developers can recognize the subject. Use idiomatic SDK
+  shortcuts and defaults instead of spelling out unnecessary configuration. When a guide promises an outcome such as
+  deleting state or ignoring repeated delivery, show that outcome in the example rather than leaving it only in prose.
 - Keep human guides selective. Explain enough for a developer to understand the capability and make the next decision;
   put exhaustive overloads, parameter/default inventories, lifecycle paths and exact API contracts in Javadoc.
   Link to the owning guide or API reference instead of duplicating its explanation. A long chapter is justified by

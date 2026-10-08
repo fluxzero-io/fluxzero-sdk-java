@@ -10,73 +10,27 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <span id="developer-guides"></span>
 
-The Fluxzero SDK lets you build application behavior in Java or Kotlin. Messages express actions and questions,
-handlers execute them, and Models remember the resulting state. Fluxzero provides delivery, persistence and testing
-around that code, so these parts work together in one application.
+The Fluxzero SDK lets you build and test application behavior in Java or Kotlin. These guides explain how to use
+its capabilities in your application, from the first concepts to specific implementation tasks.
 
-These developer guides explain that programming model and how to build with it. Start with the concepts, learn through
-a tutorial, then use a focused guide or the reference for the feature you are building.
+Start with the core concepts, learn by doing a tutorial, or choose the section that fits your next step.
+
+{/* Keep earlier section links pointing at the navigation for their new home. */}
+<span id="tutorials"></span>
+<span id="how-to-guides"></span>
+<span id="reference"></span>
+<span id="build-one-feature"></span>
+<span id="evolve-a-running-application"></span>
+<span id="messaging"></span>
+<span id="modeling--persistence"></span>
+<span id="data-control--serialization"></span>
+<span id="configuration--support"></span>
+<span id="testing-and-diagnostics"></span>
 
 <CardGrid>
-  <LinkCard title="Core concepts" description="Understand messages, handlers, Models and tests through one small example." href="/docs/getting-started/core-concepts" />
-  <LinkCard title="Tutorials" description="Build a working application, one step at a time." href="#tutorials" />
+  <LinkCard title="Core concepts" description="Understand the programming model through one small example." href="/docs/getting-started/core-concepts" />
+  <LinkCard title="Fluxzero 2.0" description="Explore the new major version, its improvements and how to migrate an existing application." href="/docs/fluxzero-2" />
+  <LinkCard title="Tutorials" description="Learn by building a working application, one step at a time." href="/docs/tutorials" />
   <LinkCard title="How-to guides" description="Complete a specific task in your application." href="/docs/guides/how-to" />
-  <LinkCard title="Reference" description="Explore the SDK's capabilities and look up their behavior." href="#reference" />
+  <LinkCard title="Reference" description="Explore the SDK's capabilities and look up their behavior by subject." href="/docs/reference" />
 </CardGrid>
-
-## Fluxzero 2.0
-
-The [2.0 overview](/docs/fluxzero-2) introduces the Model/Graph design. The
-[deep dive](/docs/fluxzero-2-deep-dive) explains it further and covers migration from 1.x.
-
-## Tutorials
-
-[Hello world](/docs/getting-started/hello-world) creates a first HTTP endpoint.
-[Building your first app](/docs/tutorials/first-app) grows a to-do application with state, queries and tests.
-
-## How-to guides
-
-The [how-to overview](/docs/guides/how-to) groups practical tasks for building features, evolving a running
-application and testing its behavior. Each guide follows one concrete path.
-
-## Reference
-
-The reference explains the SDK's parts, starting with their ordinary use and then refining their behavior.
-
-### Messaging
-
-Messages connect your application's behavior: commands request an action, queries request information and events
-report what happened. Start with [sending](/docs/guides/messaging/sending-messages) and
-[handling](/docs/guides/messaging/message-handling), then explore
-[consumers](/docs/guides/messaging/message-tracking), [scheduling](/docs/guides/messaging/message-scheduling),
-[HTTP](/docs/guides/messaging/handling-web-requests) and [WebSockets](/docs/guides/messaging/handling-websocket-messages).
-Validation, access control, interceptors and observability refine those flows.
-
-### Modeling & persistence
-
-Models give domain state an identity and lifecycle. [Apply changes](/docs/guides/modeling-and-persistence/updating-entities),
-[connect related Models](/docs/guides/modeling-and-persistence/nested-entities), and use
-[Graphs](/docs/guides/modeling-and-persistence/temporal-graphs) to navigate their relationships and history.
-[Persistence](/docs/guides/modeling-and-persistence/model-persistence),
-[search](/docs/guides/modeling-and-persistence/document-index-and-search) and
-[stateful handlers](/docs/guides/modeling-and-persistence/stateful-handlers) support storing, finding and coordinating state.
-
-### Data control & serialization
-
-Control which data is stored and what readers can see. Learn to
-[protect sensitive fields](/docs/guides/data-control-and-serialization/protecting-sensitive-data),
-[evolve stored data](/docs/guides/data-control-and-serialization/upcasting-and-downcasting) and
-[filter responses per user](/docs/guides/data-control-and-serialization/user-based-content-filtering).
-
-<span id="configuration--support"></span>
-### Configuration
-
-[Application properties](/docs/guides/configuration/application-properties),
-[the Fluxzero builder](/docs/guides/configuration/configuring-fluxzero) and
-[client configuration](/docs/guides/configuration/configuring-websocket-client) connect the same application code
-to its environment and let you customize SDK behavior.
-
-<span id="testing-and-diagnostics"></span>
-Use [error codes](/docs/errors) to investigate a failure and the
-[SDK Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) for individual types and methods.
-Project setup, publishing and deployment are covered separately in [Tools & automation](/docs/tools/overview).
