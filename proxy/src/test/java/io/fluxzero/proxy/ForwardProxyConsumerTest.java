@@ -30,6 +30,7 @@ import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.web.HttpVersion;
 import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
@@ -41,7 +42,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -66,12 +69,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -193,6 +200,105 @@ class ForwardProxyConsumerTest {
                         .metadata(requestSettingsMetadata).payload("test").build())
                 .<WebResponse>expectResult(r -> r.getStatus() == 204 && r.<byte[]>getPayload().length == 0)
                 .expectWebResponse(r -> r.getStatus() == 204 && r.getMetadata().containsKey("$correlationId"));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("bufferedBodies")
+    void bufferedBodyRetainsLengthThroughProxy(String description, Object payload, byte[] expectedBody,
+                                               String contentType) throws Exception {
+        LinkedBlockingQueue<ReceivedRequest> received = new LinkedBlockingQueue<>();
+        serverContext.setHandler(exchange -> {
+            try (exchange) {
+                received.add(new ReceivedRequest(exchange.getRequestBody().readAllBytes(),
+                                                 exchange.getRequestHeaders(), exchange.getProtocol(),
+                                                 exchange.getRequestMethod()));
+                exchange.sendResponseHeaders(204, -1);
+            }
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port).body(payload)
+                        .header("Content-Type", contentType).build(),
+                proxySettings(RedirectPolicy.NEVER).toBuilder().httpVersion(HttpVersion.HTTP_1_1).build());
+
+        assertEquals(204, response.getStatus());
+        assertReceivedBody(received.poll(5, TimeUnit.SECONDS), expectedBody, contentType);
+    }
+
+    private static Stream<Arguments> bufferedBodies() {
+        return Stream.of(
+                Arguments.of("JSON", Map.of("hello", "wéreld"),
+                             "{\"hello\":\"wéreld\"}".getBytes(UTF_8), "application/json"),
+                Arguments.of("binary", binaryBody(), binaryBody(), "application/octet-stream"),
+                Arguments.of("empty bytes", new byte[0], new byte[0], "application/octet-stream"),
+                Arguments.of("empty text", "", new byte[0], "text/plain"),
+                Arguments.of("no body", null, new byte[0], "application/octet-stream"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"SAME_ORIGIN, 307", "SAME_ORIGIN, 308", "ALLOW, 307", "ALLOW, 308"})
+    void bufferedBodyIsReplayableAcrossRedirectAndRetry(RedirectPolicy policy, int redirectStatus) throws Exception {
+        LinkedBlockingQueue<ReceivedRequest> received = new LinkedBlockingQueue<>();
+        AtomicInteger targetCalls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            try (exchange) {
+                received.add(new ReceivedRequest(exchange.getRequestBody().readAllBytes(),
+                                                 exchange.getRequestHeaders(), exchange.getProtocol(),
+                                                 exchange.getRequestMethod()));
+                if ("/start".equals(exchange.getRequestURI().getPath())) {
+                    exchange.getResponseHeaders().set("Location", "/target");
+                    exchange.sendResponseHeaders(redirectStatus, -1);
+                } else {
+                    exchange.sendResponseHeaders(targetCalls.incrementAndGet() == 1 ? 503 : 200, -1);
+                }
+            }
+        });
+        byte[] body = binaryBody();
+        WebRequestSettings settings = proxySettings(policy).toBuilder().httpVersion(HttpVersion.HTTP_1_1)
+                .maxRetries(1).retryDelay(Duration.ZERO).retryableStatusCodes(Set.of(503)).build();
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start")
+                        .header("Content-Type", "application/octet-stream").body(body).build(), settings);
+
+        assertEquals(200, response.getStatus());
+        assertEquals(2, targetCalls.get());
+        assertEquals(4, received.size());
+        for (int i = 0; i < 4; i++) {
+            assertReceivedBody(received.poll(5, TimeUnit.SECONDS), body, "application/octet-stream");
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = {"null", "java.lang.Void"}, nullValues = "null")
+    void absentBodyTypeStillSuppressesStoredBytes(String type) {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean());
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[]{1, 2, 3}, type, 0), Metadata.empty(), "no-body", 0L);
+        assertEquals(0, consumer.getBodyPublisher(request).contentLength());
+    }
+
+    private static byte[] binaryBody() {
+        byte[] result = new byte[65_537];
+        for (int i = 0; i < result.length; i++) {
+            result[i] = (byte) i;
+        }
+        return result;
+    }
+
+    private static void assertReceivedBody(ReceivedRequest request, byte[] expectedBody, String contentType) {
+        assertNotNull(request);
+        assertEquals("HTTP/1.1", request.protocol());
+        assertEquals("POST", request.method());
+        assertArrayEquals(expectedBody, request.body());
+        assertEquals(List.of(Integer.toString(expectedBody.length)), request.headers().get("Content-Length"));
+        assertNull(request.headers().get("Transfer-Encoding"));
+        assertEquals(List.of(contentType), request.headers().get("Content-Type"));
+    }
+
+    private record ReceivedRequest(byte[] body, Map<String, List<String>> headers, String protocol, String method) {
     }
 
     @Test

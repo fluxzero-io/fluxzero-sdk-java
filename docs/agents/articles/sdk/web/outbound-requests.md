@@ -6,6 +6,10 @@ For request/response calls, the SDK message gateway decompresses gzip before typ
 
 ## Build an exact one-way POST
 
+Buffered request bodies retain their serialized byte length in both the proxy and native transports. For HTTP/1.1,
+the client supplies `Content-Length` automatically; do not add it manually. An endpoint that requires a known body
+length can use the ordinary proxy route, including its WebRequest/WebResponse audit trail.
+
 The proxy forwards only absolute `http://` or `https://` URLs. Validate required base URLs at configuration startup, resolve the operation path, and preserve the typed body contract.
 
 ```java
