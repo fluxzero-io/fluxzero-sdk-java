@@ -164,6 +164,10 @@ reconciliation separate from these transport retries.
 
 ## Choose native transport only deliberately
 
+Buffered request bodies retain their serialized byte length in both the proxy and native transports. For HTTP/1.1,
+the client supplies `Content-Length` automatically; do not add it manually. An endpoint that requires a known body
+length can use the ordinary proxy route, including its WebRequest/WebResponse audit trail.
+
 `WebRequestSettings.builder().useNativeHttpClient(true)` keeps the SDK API but executes an absolute HTTP(S) request
 from the application instead of publishing it to the proxy. It bypasses the WebRequest/WebResponse message audit
 route, local web handlers, dispatch interceptors and consumer isolation. It is not needed merely because the API
