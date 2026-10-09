@@ -143,14 +143,25 @@ class ChunkedMessageTest {
     @Test
     void skipsChunkWhenFirstChunkWasNotObserved() {
         CompletableFuture<String> handled = new CompletableFuture<>();
+        CompletableFuture<Void> followingMessageHandled = new CompletableFuture<>();
         TestFixture.createAsync(new Object() {
             @HandleEvent
             void handle(DeserializingMessage message) throws Exception {
+                if (message.getMetadata().containsKey("testChunkBarrier")) {
+                    followingMessageHandled.complete(null);
+                    return;
+                }
                 InputStream stream = message.getPayloadAs(InputStream.class);
                 handled.complete(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
             }
-        }).spy().whenExecuting(fc -> fc.client().getGatewayClient(MessageType.EVENT)
-                .append(Guarantee.SENT, chunk(fc, "orphan", null, false, true, 1)).get())
+        }).spy().whenExecuting(fc -> {
+                    SerializedMessage barrier = message(fc, "after orphan");
+                    barrier.setMetadata(barrier.getMetadata().with("testChunkBarrier", true));
+                    fc.client().getGatewayClient(MessageType.EVENT)
+                            .append(Guarantee.SENT, chunk(fc, "orphan", null, false, true, 1), barrier).get();
+                    // Raw transport writes are not fixture dispatches. Await actual processing, not tracker startup.
+                    followingMessageHandled.get(1, TimeUnit.SECONDS);
+                })
                 .expectThat(fc -> {
                     verify(fc.client().getTrackingClient(MessageType.EVENT), timeout(100))
                             .storePosition(any(), any(), anyLong());
