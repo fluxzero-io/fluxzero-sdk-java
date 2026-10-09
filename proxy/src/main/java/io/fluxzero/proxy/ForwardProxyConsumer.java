@@ -794,10 +794,16 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     protected HttpRequest.BodyPublisher getBodyPublisher(SerializedMessage request) {
         String type = request.getData().getType();
-        if (type == null || Void.class.getName().equals(type) || request.getData().getValue().length == 0) {
+        if (type == null || Void.class.getName().equals(type)) {
             return HttpRequest.BodyPublishers.noBody();
         }
-        return HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(request.data().getValue()));
+        byte[] body = request.getData().getValue();
+        if (body.length == 0) {
+            return HttpRequest.BodyPublishers.noBody();
+        }
+        // Preserve demand-driven buffering: ofByteArray copies the entire body on each subscription.
+        return HttpRequest.BodyPublishers.fromPublisher(
+                HttpRequest.BodyPublishers.ofInputStream(() -> new ByteArrayInputStream(body)), body.length);
     }
 
     protected void publishHandleMessageMetrics(SerializedMessage request, boolean exceptionalResult, Instant start) {
