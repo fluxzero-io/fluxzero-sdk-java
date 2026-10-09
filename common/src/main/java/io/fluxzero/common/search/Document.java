@@ -378,8 +378,16 @@ public class Document {
 
         private static final Function<String, Stream<String>> splitFunction = Path::split;
 
-        private static final Function<String, String> shortValueFunction = memoize(in -> splitFunction.apply(in)
-                .filter(p -> !SearchUtils.isInteger(p)).map(SearchUtils::unescapeFieldName).collect(joining("/")));
+        private static final Function<String, String> shortValueFunction = memoize(Path::computeShortValue);
+
+        /** Normalizes transient composed paths without retaining every child ordinal in the shared path cache. */
+        static String computeShortValue(String value) {
+            if (value.indexOf('/') < 0 && value.indexOf('\\') < 0 && value.indexOf('"') < 0) {
+                return SearchUtils.isInteger(value) ? "" : value;
+            }
+            return splitFunction.apply(value).filter(p -> !SearchUtils.isInteger(p))
+                    .map(SearchUtils::unescapeFieldName).collect(joining("/"));
+        }
 
         /**
          * Splits a given path string into a stream of its segments. The path is split based on the forward slash ('/')

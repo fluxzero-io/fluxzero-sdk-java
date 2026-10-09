@@ -639,6 +639,12 @@ If the sortable field is:
 - A **nested object** annotated with `@Sortable` → Its `toString()` is used
 - A **POJO with `@Sortable` fields** → Those nested values are indexed with prefixed paths
 
+For Graphs, a sortable path shared by multiple children also uses the **maximum** value. For example,
+`sortBy("children/price")` orders roots by their highest child price in both ascending and descending order.
+Range constraints on that sortable path use the same maximum; use `whereChild(...)` for a range that should match
+an individual child. Exact matching still sees every child value. This applies to Java and Kotlin Models,
+live Graphs, and materialized projections.
+
 #### Important notes
 
 - **No retroactive indexing**: Adding `@Sortable` to a field does not automatically reindex existing documents.

@@ -42,7 +42,8 @@ import static io.fluxzero.common.search.JacksonInverter.metadataPath;
  * Deterministically composes direct current model documents using explicit relationship paths.
  * <p>
  * This implementation is shared by local SDK fixtures and the runtime so path, collision, ordering, and DAG behavior
- * cannot drift between them.
+ * cannot drift between them. Sortable paths shared by multiple children retain the maximum encoded value,
+ * matching the collection contract of {@link Sortable}; document entries and facets retain every child.
  */
 public final class ModelGraphDocumentStitcher {
 
@@ -297,9 +298,11 @@ public final class ModelGraphDocumentStitcher {
             LinkedHashSet<FacetEntry> facets =
                     new LinkedHashSet<>(
                             direct.getFacets());
-            LinkedHashSet<SortableEntry> sortables =
-                    new LinkedHashSet<>(
-                            direct.getSortables());
+            Map<String, SortableEntry> sortables = byPath.isEmpty() ? Map.of() : new LinkedHashMap<>();
+            if (!byPath.isEmpty()) {
+                direct.getSortables().forEach(sortable -> mergeSortable(
+                        sortables, Document.Path.computeShortValue(sortable.getName()), sortable));
+            }
             List<String> summaries = new ArrayList<>();
             if (direct.getSummary() != null
                 && !direct.getSummary().isBlank()) {
@@ -308,6 +311,7 @@ public final class ModelGraphDocumentStitcher {
 
             Set<String> searchExclusions = new LinkedHashSet<>(SearchExclusions.read(direct.getEntries()));
             byPath.forEach((path, pathEdges) -> {
+                String sortablePrefix = Document.Path.computeShortValue(path);
                 pathEdges.sort(Comparator.comparing(
                         ModelGraphEdge::getChildId));
                 int childOrdinal = 0;
@@ -325,7 +329,7 @@ public final class ModelGraphDocumentStitcher {
                     String prefix =
                             path + "/" + childOrdinal++;
                     append(
-                            childDocument, prefix,
+                            childDocument, prefix, sortablePrefix,
                             entries, facets, sortables,
                             summaries, searchExclusions, bounds);
                 }
@@ -338,9 +342,8 @@ public final class ModelGraphDocumentStitcher {
                     .entries(entries)
                     .facets(Collections.unmodifiableSet(
                             facets))
-                    .sortables(
-                            Collections.unmodifiableSet(
-                                    sortables))
+                    .sortables(Collections.unmodifiableSet(new LinkedHashSet<>(
+                            byPath.isEmpty() ? direct.getSortables() : sortables.values())))
                     .summary(() -> summary)
                     .build();
         } finally {
@@ -348,13 +351,20 @@ public final class ModelGraphDocumentStitcher {
         }
     }
 
+    private static void mergeSortable(Map<String, SortableEntry> sortables, String shortPath, SortableEntry entry) {
+        // Compare values, not names: child ordinals must not determine the collection maximum.
+        // Keep the original path so escaped field names are not normalized a second time.
+        sortables.merge(shortPath, entry,
+                (a, b) -> b.getValue().compareTo(a.getValue()) > 0 ? b : a);
+    }
+
     private static void append(
             Document child,
-            String prefix,
+            String prefix, String sortablePrefix,
             Map<Document.Entry, List<Document.Path>>
                     entries,
             Set<FacetEntry> facets,
-            Set<SortableEntry> sortables,
+            Map<String, SortableEntry> sortables,
             List<String> summaries,
             Set<String> searchExclusions,
             Bounds bounds) {
@@ -399,17 +409,17 @@ public final class ModelGraphDocumentStitcher {
                             .build();
                 })
                 .forEach(facets::add);
-        child.getSortables().stream()
-                .map(sortable -> {
-                    bounds.reservePrefix(
-                            prefix,
-                            sortable.getName());
-                    return sortable.withName(
-                            append(
-                                    prefix,
-                                    sortable.getName()));
-                })
-                .forEach(sortables::add);
+        if (!child.getSortables().isEmpty()) {
+            child.getSortables().forEach(sortable -> {
+                bounds.reservePrefix(prefix, sortable.getName());
+                String name = append(prefix, sortable.getName());
+                String shortSuffix = Document.Path.computeShortValue(sortable.getName());
+                // Escaping can cross the appended separator; empty segments also depend on the full path.
+                String shortPath = sortablePrefix.isEmpty() || shortSuffix.isEmpty() || name.indexOf('\\') >= 0
+                        ? Document.Path.computeShortValue(name) : sortablePrefix + "/" + shortSuffix;
+                mergeSortable(sortables, shortPath, sortable.withName(name));
+            });
+        }
         if (child.getSummary() != null
             && !child.getSummary().isBlank()) {
             summaries.add(child.getSummary());
