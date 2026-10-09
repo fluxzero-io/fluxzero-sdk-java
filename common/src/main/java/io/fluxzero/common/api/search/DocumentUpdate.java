@@ -14,7 +14,6 @@
 
 package io.fluxzero.common.api.search;
 
-import lombok.Builder;
 import lombok.Value;
 
 /**
@@ -36,7 +35,7 @@ import lombok.Value;
  * @see io.fluxzero.common.api.search.SerializedDocument
  */
 @Value
-@Builder(builderClassName = "Builder")
+@lombok.Builder(builderClassName = "Builder")
 public class DocumentUpdate {
 
     /**
