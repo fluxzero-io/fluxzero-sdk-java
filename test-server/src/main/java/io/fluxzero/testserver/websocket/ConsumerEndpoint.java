@@ -18,8 +18,6 @@ package io.fluxzero.testserver.websocket;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Command;
-import io.fluxzero.common.api.Data;
-import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegment;
@@ -72,42 +70,31 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Override
     protected int estimateRequestResultBytes(RequestResult result) {
         if (result instanceof ReadResult readResult) {
-            return ESTIMATED_RESULT_OVERHEAD_BYTES + estimateSerializedMessagesBytes(
+            return estimateSerializedMessagesBytes(
                     readResult.getMessageBatch() == null ? null : readResult.getMessageBatch().getMessages());
         }
         if (result instanceof ReadFromIndexResult readFromIndexResult) {
-            return ESTIMATED_RESULT_OVERHEAD_BYTES + estimateSerializedMessagesBytes(readFromIndexResult.getMessages());
+            return estimateSerializedMessagesBytes(readFromIndexResult.getMessages());
         }
         return super.estimateRequestResultBytes(result);
     }
 
     private static int estimateSerializedMessagesBytes(List<SerializedMessage> messages) {
-        if (messages == null || messages.isEmpty()) {
-            return 0;
-        }
-        int result = 0;
-        for (SerializedMessage message : messages) {
-            if (message == null) {
-                continue;
-            }
-            result += 128;
-            Data<byte[]> data = message.getData();
-            if (data != null) {
-                byte[] value = data.getValue();
-                result += value == null ? 0 : value.length;
-                result += estimateStringBytes(data.getType()) + estimateStringBytes(data.getFormat());
-            }
-            Metadata metadata = message.getMetadata();
-            if (metadata != null && metadata.getEntries() != null) {
-                for (Map.Entry<String, String> entry : metadata.getEntries().entrySet()) {
-                    result += estimateStringBytes(entry.getKey()) + estimateStringBytes(entry.getValue());
+        long result = ESTIMATED_RESULT_OVERHEAD_BYTES;
+        if (messages != null) {
+            for (SerializedMessage message : messages) {
+                if (message == null) {
+                    continue;
                 }
+                // Inspect the encoded size, not the lazy payload/metadata: reads share the log's retained objects.
+                long messageBytes = message.getBytes();
+                if (messageBytes >= Integer.MAX_VALUE - result - 128) {
+                    return Integer.MAX_VALUE;
+                }
+                result += 128 + messageBytes;
             }
-            result += estimateStringBytes(message.getSource());
-            result += estimateStringBytes(message.getTarget());
-            result += estimateStringBytes(message.getMessageId());
         }
-        return result;
+        return (int) result;
     }
 
     public ConsumerEndpoint(MessageStore messageStore, MessageType messageType) {

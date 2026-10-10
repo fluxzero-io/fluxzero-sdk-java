@@ -18,6 +18,9 @@ package io.fluxzero.testserver.websocket;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.tracking.ReadResult;
+import io.fluxzero.common.api.tracking.ReadFromIndexResult;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Read;
@@ -61,6 +64,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class ConsumerEndpointTest {
@@ -77,6 +81,44 @@ class ConsumerEndpointTest {
         endpoint.onClose(departed, closeReason());
         endpoint.onClose(replacement, closeReason());
         endpoint.shutDown();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void readSizeEstimationDoesNotMaterializeMessages(boolean indexed) {
+        var message = mock(SerializedMessage.class);
+        when(message.getBytes()).thenReturn(512L);
+
+        assertEquals(256 + 128 + 512, endpoint.estimateRequestResultBytes(readResult(indexed, List.of(message))));
+
+        verify(message).getBytes();
+        verifyNoMoreInteractions(message);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {Integer.MAX_VALUE - 384L, Integer.MAX_VALUE, Long.MAX_VALUE})
+    void readSizeEstimationSaturatesRatherThanOverflows(long bytes) {
+        var message = mock(SerializedMessage.class);
+        when(message.getBytes()).thenReturn(bytes);
+        for (boolean indexed : List.of(false, true)) {
+            assertEquals(Integer.MAX_VALUE, endpoint.estimateRequestResultBytes(
+                    readResult(indexed, List.of(message, message))));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void emptyReadResultsKeepTheirEnvelopeEstimate(boolean indexed) {
+        assertEquals(256, endpoint.estimateRequestResultBytes(readResult(indexed, List.of())));
+        assertEquals(256, endpoint.estimateRequestResultBytes(readResult(indexed, null)));
+        assertEquals(256, endpoint.estimateRequestResultBytes(
+                readResult(indexed, java.util.Arrays.asList((SerializedMessage) null))));
+        assertEquals(256, endpoint.estimateRequestResultBytes(new ReadResult(1, null)));
+    }
+
+    private static RequestResult readResult(boolean indexed, List<SerializedMessage> messages) {
+        return indexed ? new ReadFromIndexResult(1, messages)
+                : new ReadResult(1, new MessageBatch(new int[]{0, MAX_SEGMENT}, messages, null, null, true));
     }
 
     @ParameterizedTest
