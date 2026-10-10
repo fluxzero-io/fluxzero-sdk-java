@@ -16,6 +16,17 @@
 
 package io.fluxzero.common.api.internal;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.BeanProperty;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.jsontype.TypeSerializer;
+import com.fasterxml.jackson.databind.ser.ContextualSerializer;
+import com.fasterxml.jackson.databind.ser.std.BeanSerializerBase;
+import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import com.fasterxml.jackson.databind.util.NameTransformer;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -1086,6 +1097,60 @@ public final class BinaryWire {
         }
     }
 
+    /** Jackson must not attach decoded payloads and metadata maps to retained log/cache envelopes. */
+    private static final class EncodedMessageSerializer extends StdSerializer<SerializedMessage>
+            implements ContextualSerializer {
+        private final JsonSerializer<Object> delegate;
+
+        private EncodedMessageSerializer() {
+            this(null);
+        }
+
+        private EncodedMessageSerializer(JsonSerializer<Object> delegate) {
+            super(SerializedMessage.class);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public JsonSerializer<?> createContextual(SerializerProvider provider, BeanProperty property)
+                throws JsonMappingException {
+            JsonSerializer<Object> serializer = provider.findValueSerializer(SerializedMessage.class, property);
+            // User serializers and identity-aware mappers own their object/lifecycle semantics.
+            return serializer.usesObjectId() || !(serializer instanceof BeanSerializerBase)
+                    ? serializer : new EncodedMessageSerializer(serializer);
+        }
+
+        @Override
+        public boolean isEmpty(SerializerProvider provider, SerializedMessage value) {
+            return delegate.isEmpty(provider, value);
+        }
+
+        @Override
+        public boolean isUnwrappingSerializer() {
+            return delegate != null && delegate.isUnwrappingSerializer();
+        }
+
+        @Override
+        public JsonSerializer<SerializedMessage> unwrappingSerializer(NameTransformer transformer) {
+            return new EncodedMessageSerializer(delegate.unwrappingSerializer(transformer));
+        }
+
+        @Override
+        public void serialize(SerializedMessage value, JsonGenerator generator, SerializerProvider provider)
+                throws IOException {
+            delegate.serialize(
+                    ((EncodedMessage) value).serializationView(), generator, provider);
+        }
+
+        @Override
+        public void serializeWithType(SerializedMessage value, JsonGenerator generator, SerializerProvider provider,
+                                      TypeSerializer typeSerializer) throws IOException {
+            delegate.serializeWithType(
+                    ((EncodedMessage) value).serializationView(), generator, provider, typeSerializer);
+        }
+    }
+
+    @JsonSerialize(using = EncodedMessageSerializer.class)
     private static final class EncodedMessage extends SerializedMessage {
         private final byte[] bytes;
         private final int offset;
@@ -1176,6 +1241,42 @@ public final class BinaryWire {
             targetDecoded = true;
             messageIdDecoded = true;
             metadataDecoded = true;
+        }
+
+        private EncodedMessage serializationView() {
+            // Share immutable envelope bytes, but keep any decoding performed by Jackson on the short-lived view.
+            EncodedMessage view = new EncodedMessage(bytes, offset, length);
+            view.setSegment(getSegment());
+            view.setIndex(getIndex());
+            view.setRequestId(getRequestId());
+            view.setTimestamp(getTimestamp());
+            Data<byte[]> currentData = dataChanged ? super.getData() : decodedData;
+            if (currentData != null) {
+                Data.ByteArrayView range = currentData.byteArrayView();
+                if (range instanceof ByteSlice slice && slice.materialized == null) {
+                    view.setData(new Data<>(new ByteSlice(slice.bytes, slice.offset, slice.length),
+                                            currentData.getType(), currentData.getRevision(), currentData.getFormat()));
+                } else {
+                    // Preserve ordinary supplier behavior and changes to an already materialized payload array.
+                    view.setData(currentData);
+                }
+            }
+            if (metadataChanged) {
+                view.setMetadata(super.getMetadata());
+            }
+            if (sourceChanged) {
+                view.setSource(super.getSource());
+            }
+            if (targetChanged) {
+                view.setTarget(super.getTarget());
+            }
+            if (messageIdChanged) {
+                view.setMessageId(super.getMessageId());
+            }
+            if (originalRevisionChanged) {
+                view.setOriginalRevision(currentOriginalRevision);
+            }
+            return view;
         }
 
         private static Integer nullableInt(byte[] bytes, int body, int flag, int valueOffset) {

@@ -567,7 +567,7 @@ public abstract class WebsocketEndpoint {
         for (RequestResult result : results) {
             int estimatedResultBytes = estimateResultBytes(result);
             if (!batch.isEmpty()
-                    && estimatedBatchBytes + estimatedResultBytes > TARGET_WEBSOCKET_RESULT_BATCH_BYTES) {
+                    && (long) estimatedBatchBytes + estimatedResultBytes > TARGET_WEBSOCKET_RESULT_BATCH_BYTES) {
                 batches.add(List.copyOf(batch));
                 batch.clear();
                 estimatedBatchBytes = 0;

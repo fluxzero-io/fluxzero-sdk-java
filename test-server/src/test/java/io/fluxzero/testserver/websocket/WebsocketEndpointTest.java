@@ -372,6 +372,24 @@ class WebsocketEndpointTest {
         }
     }
 
+    @Test
+    void saturatedResultEstimatesStillSplitWebsocketBatches() throws Exception {
+        TestEndpoint endpoint = new TestEndpoint(Runnable::run) {
+            @Override
+            protected int estimateRequestResultBytes(RequestResult result) {
+                return Integer.MAX_VALUE;
+            }
+        };
+        FakeSession session = new FakeSession("oversized-estimate");
+        try {
+            endpoint.onOpen(session);
+            endpoint.sendResultBatch(session, List.of(new VoidResult(1), new VoidResult(2)));
+            assertEquals(2, session.binarySends.get());
+        } finally {
+            closeEndpoint(endpoint, session);
+        }
+    }
+
     private static class TestEndpoint extends WebsocketEndpoint {
         private final AtomicInteger invocations = new AtomicInteger();
         private final Map<String, List<RequestResult>> results = new ConcurrentHashMap<>();
@@ -525,6 +543,7 @@ class WebsocketEndpointTest {
         private final Map<String, Object> userProperties;
         private volatile CompletableFuture<Void> binarySendResult = CompletableFuture.completedFuture(null);
         private volatile boolean open = true;
+        private final AtomicInteger binarySends = new AtomicInteger();
 
         FakeSession(String sessionId) {
             this.userProperties = new ConcurrentHashMap<>(Map.of(
@@ -566,6 +585,7 @@ class WebsocketEndpointTest {
 
         @Override
         public CompletableFuture<Void> sendBinaryAsync(ByteBuffer data, int maxFragmentBytes) {
+            binarySends.incrementAndGet();
             return binarySendResult;
         }
 
