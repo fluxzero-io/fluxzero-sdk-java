@@ -28,7 +28,6 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.With;
 
-import java.beans.ConstructorProperties;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Optional;
@@ -60,6 +59,7 @@ public class SerializedDocument {
      * Unique identifier for this document within the collection.
      */
     String id;
+
 
     /**
      * Start timestamp (in epoch millis) representing when the document becomes valid.
@@ -102,6 +102,10 @@ public class SerializedDocument {
      */
     Set<SortableEntry> indexes;
 
+    /** Response-only continuation values, transported independently of the persisted document bytes. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+    java.util.Map<String, String> collectionSortKeys;
+
     /**
      * The document metadata reconstructed from the serialized document entries.
      */
@@ -123,10 +127,24 @@ public class SerializedDocument {
      * @param facets      a set of {@link FacetEntry} objects, representing facet fields and values for searchability
      * @param indexes     a set of {@link SortableEntry} objects, representing fields for sorting and fast range querying
      */
-    @ConstructorProperties({"id", "timestamp", "end", "collection", "document", "summary", "facets", "indexes"})
     public SerializedDocument(String id, Long timestamp, Long end, String collection, Data<byte[]> document,
                               String summary, Set<FacetEntry> facets, Set<SortableEntry> indexes) {
-        this(id, timestamp, end, collection, new SuppliedData(document), null, summary, facets, indexes);
+        this(id, timestamp, end, collection, new SuppliedData(document), null, summary, facets, indexes, null);
+    }
+
+    @com.fasterxml.jackson.annotation.JsonCreator
+    private static SerializedDocument fromJson(
+            @com.fasterxml.jackson.annotation.JsonProperty("id") String id,
+            @com.fasterxml.jackson.annotation.JsonProperty("timestamp") Long timestamp,
+            @com.fasterxml.jackson.annotation.JsonProperty("end") Long end,
+            @com.fasterxml.jackson.annotation.JsonProperty("collection") String collection,
+            @com.fasterxml.jackson.annotation.JsonProperty("document") Data<byte[]> document,
+            @com.fasterxml.jackson.annotation.JsonProperty("summary") String summary,
+            @com.fasterxml.jackson.annotation.JsonProperty("facets") Set<FacetEntry> facets,
+            @com.fasterxml.jackson.annotation.JsonProperty("indexes") Set<SortableEntry> indexes,
+            @com.fasterxml.jackson.annotation.JsonProperty("collectionSortKeys") java.util.Map<String, String> keys) {
+        return new SerializedDocument(id, timestamp, end, collection, new SuppliedData(document), null,
+                                      summary, facets, indexes, keys);
     }
 
     /**
@@ -137,17 +155,18 @@ public class SerializedDocument {
         this(document.getId(), ofNullable(document.getTimestamp()).map(Instant::toEpochMilli).orElse(null),
              ofNullable(document.getEnd()).map(Instant::toEpochMilli).orElse(null),
              document.getCollection(), null, () -> document,
-             document.getSummary(), document.getFacets(), document.getSortables());
+             document.getSummary(), document.getFacets(), document.getSortables(), null);
     }
 
     @SuppressWarnings("unused")
     private SerializedDocument(String id, Long timestamp, Long end, String collection, Supplier<Data<byte[]>> data,
                                Supplier<Document> document, String summary, Set<FacetEntry> facets,
-                               Set<SortableEntry> indexes) {
+                               Set<SortableEntry> indexes, java.util.Map<String, String> collectionSortKeys) {
         if (data == null && document == null) {
             throw new IllegalStateException("Either the serialized data or deserialized document should be supplied");
         }
         this.id = id;
+        this.collectionSortKeys = collectionSortKeys == null ? java.util.Map.of() : java.util.Map.copyOf(collectionSortKeys);
         this.timestamp = timestamp;
         this.end = end;
         this.collection = collection;
@@ -237,7 +256,7 @@ public class SerializedDocument {
         return new SerializedDocument(
                 id, timestamp, end, collection, data,
                 retrievalDocument, null,
-                Collections.emptySet(), Collections.emptySet());
+                Collections.emptySet(), Collections.emptySet(), null);
     }
 
     /**

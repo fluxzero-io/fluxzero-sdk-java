@@ -46,6 +46,82 @@ public abstract class DocumentSearchContract {
     protected abstract Client client(String namespace);
 
     @ParameterizedTest @ValueSource(booleans = {false, true})
+    void collectionValueProfileHasAnnotationIndependentResults(boolean async) {
+        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .replacePropertySource(ignored -> new io.fluxzero.common.application.SimplePropertySource(
+                        java.util.Map.of("fluxzero.defaults.version", "2026.10.09")))
+                .build(client("value-contract-" + UUID.randomUUID()))) {
+            app.apply(fc -> {
+                for (boolean indexed : List.of(false, true)) {
+                    String collection = "prices-" + indexed;
+                    for (var entry : java.util.Map.of("sparse", List.of(10, 100), "middle", List.of(40, 60),
+                            "empty", List.<Integer>of()).entrySet()) {
+                        Object value = indexed ? new IndexedPrices(entry.getValue()) : new PlainPrices(entry.getValue());
+                        fc.documentStore().index(value, entry.getKey(), collection).join();
+                    }
+                    var range = fc.documentStore().search(collection).between(30, 70, "prices");
+                    assertEquals(2, async ? range.fetchAsync(10).join().size() : range.fetchAll().size());
+                    var sort = fc.documentStore().search(collection).sortBy("prices");
+                    assertEquals(List.of("sparse", "middle", "empty"), sort.streamHits(1).map(SearchHit::getId).toList());
+                    assertEquals(List.of("sparse", "middle", "empty"), fc.documentStore().search(collection)
+                            .sortBy("prices", true).streamHits(1).map(SearchHit::getId).toList());
+                    assertEquals(List.of("sparse", "middle", "empty"), fc.documentStore().search(collection)
+                            .sortBy("prices").exclude("prices").streamHits(1).map(SearchHit::getId).toList());
+                    assertEquals(1, fc.documentStore().search(collection)
+                            .constraint(io.fluxzero.common.api.search.SearchValue.max("prices").below(70)).count());
+                    assertEquals(1, fc.documentStore().search(collection)
+                            .constraint(not(io.fluxzero.common.api.search.constraints.BetweenConstraint.between(30, 70, "prices"))).count());
+                    String target = "moved-" + indexed;
+                    fc.documentStore().search(collection).between(30, 70, "prices").move(target).join();
+                    assertEquals(0, fc.documentStore().search(collection).between(30, 70, "prices").count());
+                    assertEquals(2, fc.documentStore().search(target).between(30, 70, "prices").count());
+                    fc.documentStore().search(target).between(30, 70, "prices").delete().join();
+                    assertEquals(0, fc.documentStore().search(target).count());
+                }
+                return null;
+            });
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void collectionValuePagesDisambiguateIdenticalIdsAcrossCollections() {
+        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .replacePropertySource(ignored -> new io.fluxzero.common.application.SimplePropertySource(
+                        java.util.Map.of("fluxzero.search.collectionValues", "true")))
+                .build(client("value-ties-" + UUID.randomUUID()))) {
+            var store = app.documentStore();
+            for (String collection : List.of("one", "two")) {
+                store.index(new IndexedPrices(List.of(10)), "same", collection).join();
+            }
+            assertEquals(2, store.search(SearchQuery.builder().collections(List.of("one", "two"))).sortBy("prices").exclude("prices").streamHits(1).count());
+            assertEquals(2, store.search(SearchQuery.builder().collections(List.of("one", "two"))).streamHits(1).count());
+        }
+    }
+
+    @org.junit.jupiter.api.Test
+    void explicitSortsEncodeLiteralSelectorPrefixesRegardlessOfCallOrder() {
+        try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .build(client("literal-sort-" + UUID.randomUUID()))) {
+            var store = app.documentStore();
+            store.index(new LiteralSort(1, List.of(10)), "first", "values").join();
+            store.index(new LiteralSort(2, List.of(10)), "second", "values").join();
+            assertEquals(List.of("first", "second"), store.search("values").sortBy("$values:foo")
+                    .sortBy(io.fluxzero.common.api.search.SearchValue.min("prices"))
+                    .streamHits(1).map(SearchHit::getId).toList());
+            assertEquals(List.of("first", "second"), store.search("values")
+                    .sortBy(io.fluxzero.common.api.search.SearchValue.min("prices")).sortBy("$values:foo")
+                    .streamHits(1).map(SearchHit::getId).toList());
+        }
+    }
+
+    public record LiteralSort(@com.fasterxml.jackson.annotation.JsonProperty("$values:foo")
+                              @io.fluxzero.common.search.Sortable("$values:foo") int literal,
+                              @io.fluxzero.common.search.Sortable List<Integer> prices) { }
+
+    public record IndexedPrices(@io.fluxzero.common.search.Sortable List<Integer> prices) { }
+    public record PlainPrices(List<Integer> prices) { }
+
+    @ParameterizedTest @ValueSource(booleans = {false, true})
     void keepsSearchExcludedContentOutOfFiltering(boolean async) {
         try (var app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
                 .build(client("search-contract-" + UUID.randomUUID()))) {

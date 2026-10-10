@@ -42,6 +42,26 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     protected abstract Client client(String namespace);
 
     @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void collectionValueProfileMatchesAnnotatedAndPlainGraphPaths(GraphProjectionMode mode) {
+        try (var app = application(mode, false, true)) {
+            app.apply(fc -> {
+                for (String path : List.of("children/sortableLabel", "children/label")) {
+                    assertEquals(List.of("one"), graphs(mode).constraint(
+                            io.fluxzero.common.api.search.constraints.BetweenConstraint.below("green", path))
+                            .fetchAll().stream().map(Graph::id).toList());
+                    assertEquals(List.of("one", "two"), graphs(mode).sortBy(path).fetchAll().stream().map(Graph::id).toList());
+                    assertEquals(List.of("one", "two"), graphs(mode).sortBy(path, true).fetchAsync(10).join()
+                            .stream().map(Graph::id).toList());
+                    assertEquals(0, graphs(mode).constraint(io.fluxzero.common.api.search.SearchValue.max(path).below("green")).count());
+                }
+                assertEquals(1, graphs(mode).whereChild(types(mode)[1],
+                        io.fluxzero.common.api.search.constraints.BetweenConstraint.below("green", "label")).count());
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
     void selectsRootAndChildContentWithoutPruningOtherChildren(GraphProjectionMode mode) {
         try (var app = application(mode)) {
             app.apply(fc -> {
@@ -793,7 +813,13 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     private Fluxzero application(GraphProjectionMode mode) { return application(mode, false); }
 
     private Fluxzero application(GraphProjectionMode mode, boolean selfScope) {
+        return application(mode, selfScope, false);
+    }
+
+    private Fluxzero application(GraphProjectionMode mode, boolean selfScope, boolean values) {
         Fluxzero app = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook()
+                .replacePropertySource(source -> values ? new io.fluxzero.common.application.SimplePropertySource(
+                        java.util.Map.of("fluxzero.search.collectionValues", "true")) : source)
                 .configureGraphProjectionCompletion(GraphProjectionCompletion.AWAIT)
                 .build(client("search-contract-" + UUID.randomUUID()));
         try {

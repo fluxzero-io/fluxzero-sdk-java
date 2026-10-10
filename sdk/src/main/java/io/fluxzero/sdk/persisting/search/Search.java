@@ -590,6 +590,27 @@ public interface Search<R> {
     Search<R> sortBy(String path, boolean descending);
 
     /**
+     * Sorts by an explicit field minimum or maximum, with missing values last by default.
+     * The default implementation opts all field ordering in this search into collection-value semantics:
+     * ordinary field sorts select minimum ascending and maximum descending, regardless of call order.
+     * Sortable paths remain database-backed. Each indexed document without a minimum retains maximum semantics until application reindexing;
+     * unsupported servers reject the query.
+     */
+    default Search<R> sortBy(io.fluxzero.common.api.search.SearchValue value, boolean descending) {
+        return sortBy(value, descending, NullOrder.LAST);
+    }
+
+    /** Sorts by an explicit field minimum or maximum in ascending order. */
+    default Search<R> sortBy(io.fluxzero.common.api.search.SearchValue value) {
+        return sortBy(value, false);
+    }
+
+    /** Sorts by an explicit field extremum with a caller-selected null order. */
+    default Search<R> sortBy(io.fluxzero.common.api.search.SearchValue value, boolean descending, NullOrder nullOrder) {
+        throw new UnsupportedOperationException("This Search implementation does not support explicit collection values");
+    }
+
+    /**
      * Sorts results by a specific document field, with explicit null ordering.
      */
     default Search<R> sortBy(String path, NullOrder nullOrder) {

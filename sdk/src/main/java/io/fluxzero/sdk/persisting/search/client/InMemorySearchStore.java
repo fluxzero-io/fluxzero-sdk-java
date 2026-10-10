@@ -113,6 +113,7 @@ import static java.util.stream.Collectors.toMap;
  * replacement by a newer update for the same document.
  */
 public class InMemorySearchStore implements SearchClient {
+
     protected static final Function<SerializedDocument, String> identifier =
             d -> asIdentifier(d.getCollection(), d.getId());
 
@@ -196,6 +197,7 @@ public class InMemorySearchStore implements SearchClient {
     @Override
     public CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists) {
         Map<String, SerializedDocument> updates = documents.stream()
+                .map(d -> d.getCollectionSortKeys().isEmpty() ? d : d.toBuilder().collectionSortKeys(null).build())
                 .collect(toMap(identifier, identity(), (a, b) -> b, LinkedHashMap::new));
         if (ifNotExists) {
             updates.keySet().removeAll(this.documents.keySet());
@@ -226,11 +228,14 @@ public class InMemorySearchStore implements SearchClient {
                 comparing(SerializedDocument::deserializeDocument, Document.createComparator(searchDocuments)));
         if (!searchDocuments.getPathFilters().isEmpty()) {
             Predicate<Document.Path> pathFilter = searchDocuments.computePathFilter();
-            documentStream = documentStream.map(d -> d.deserializeDocument().filterPaths(pathFilter))
-                    .map(SerializedDocument::new);
+            documentStream = documentStream.map(d -> searchDocuments.isCollectionValueSorting()
+                    ? io.fluxzero.common.api.search.SearchValue.project(d, searchDocuments.getSorting(), pathFilter)
+                    : new SerializedDocument(d.deserializeDocument().filterPaths(pathFilter)));
         }
         if (searchDocuments.getLastHit() != null) {
-            documentStream = documentStream.dropWhile(d -> !d.getId().equals(searchDocuments.getLastHit().getId()))
+            documentStream = documentStream.dropWhile(d -> !d.getId().equals(searchDocuments.getLastHit().getId())
+                    || searchDocuments.isCollectionValueSorting() && (!d.getCollection().equals(searchDocuments.getLastHit().getCollection())
+                    || !java.util.Objects.equals(d.getTimestamp(), searchDocuments.getLastHit().getTimestamp())))
                     .skip(1);
         }
         if (searchDocuments.getSkip() > 0) {
