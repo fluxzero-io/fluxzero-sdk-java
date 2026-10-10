@@ -4,7 +4,12 @@
   "packageName" : "io.fluxzero.common.api.internal",
   "kind" : "class",
   "modifiers" : [ "final", "private", "static" ],
-  "annotations" : [ ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonSerialize",
+    "values" : {
+      "using" : "io.fluxzero.common.api.internal.BinaryWire.EncodedMessageSerializer"
+    }
+  } ],
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.common.api.SerializedMessage",
@@ -732,6 +737,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serializationView",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage#serializationView",
+    "returnType" : "io.fluxzero.common.api.internal.BinaryWire.EncodedMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

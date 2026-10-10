@@ -25,6 +25,11 @@
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage",
     "kind" : "class"
   }, {
+    "file" : "BinaryWire.EncodedMessageSerializer.json",
+    "name" : "BinaryWire.EncodedMessageSerializer",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessageSerializer",
+    "kind" : "class"
+  }, {
     "file" : "BinaryWire.EnvelopeHeaderCache.json",
     "name" : "BinaryWire.EnvelopeHeaderCache",
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EnvelopeHeaderCache",

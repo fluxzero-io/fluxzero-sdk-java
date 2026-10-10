@@ -871,6 +871,17 @@
     "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessage",
     "kind" : "class",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonSerialize",
+      "values" : {
+        "using" : "io.fluxzero.common.api.internal.BinaryWire.EncodedMessageSerializer"
+      }
+    } ]
+  }, {
+    "name" : "EncodedMessageSerializer",
+    "qualifiedName" : "io.fluxzero.common.api.internal.BinaryWire$EncodedMessageSerializer",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "EnvelopeHeaderCache",
