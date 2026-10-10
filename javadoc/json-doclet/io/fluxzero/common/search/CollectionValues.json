@@ -1,0 +1,218 @@
+{
+  "name" : "CollectionValues",
+  "qualifiedName" : "io.fluxzero.common.search.CollectionValues",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Collection intervals using the existing sortable encoding and per-document legacy fallback. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "CollectionValues",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#CollectionValues",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "compare",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#compare",
+    "returnType" : "int",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compares normalized keys in Unicode codepoint order, matching PostgreSQL's binary C collation. "
+  }, {
+    "name" : "extremum",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#extremum",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selection",
+      "type" : "io.fluxzero.common.api.search.ValueSelection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the requested extremum, or null for missing, empty or null-only values. "
+  }, {
+    "name" : "indexedValues",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#indexedValues",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Materializes at most two extrema per annotated path, in one pass over the document entries. "
+  }, {
+    "name" : "indexedValues",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#indexedValues",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathsToIndex",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Collects requested canonical extrema; empty means missing, singleton means minimum equals maximum. "
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#key",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entry",
+      "type" : "io.fluxzero.common.search.Document.Entry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Encodes a raw document scalar with the same rules as annotated values. "
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#key",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Uses existing sortable numeric precision and normalization. Uppercase UTC ISO timestamp text, as emitted by\n Instant JSON serialization, uses the existing fixed-millisecond timestamp encoding. The document text is\n unchanged. Literal strings with this exact syntax are indistinguishable from serialized Instants here.\n"
+  }, {
+    "name" : "looksLikeTimestamp",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#looksLikeTimestamp",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "overlaps",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#overlaps",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lower",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "upper",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Tests interval overlap; old annotated documents without a minimum retain their maximum-only interval. "
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues#values",
+    "returnType" : "java.util.stream.Stream<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Streams comparison keys at one path. Nulls and internal metadata are excluded. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Bounds",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues$Bounds",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

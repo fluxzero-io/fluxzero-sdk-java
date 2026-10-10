@@ -56,6 +56,19 @@
     "documentation" : " Represents the inclusive lower bound for a constraint. This value defines the minimum value that must be matched\n by a given entity or document entry during the evaluation of the constraint.\n",
     "constantValue" : null
   }, {
+    "name" : "originalBounds",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.originalBounds",
+    "type" : "java.lang.Object[]",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "paths",
     "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.paths",
     "type" : "java.util.List<java.lang.String>",
@@ -65,6 +78,19 @@
       "values" : {}
     } ],
     "documentation" : " The paths in the document to which the constraint applies. Each path represents a specific location or key in the\n document structure, allowing the constraint to be evaluated at those locations.\n",
+    "constantValue" : null
+  }, {
+    "name" : "valueSelection",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint.valueSelection",
+    "type" : "io.fluxzero.common.api.search.ValueSelection",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    } ],
+    "documentation" : "Null retains legacy index-dependent behavior; explicit values use annotation-independent comparison. ",
     "constantValue" : null
   } ],
   "constructors" : [ {
@@ -262,6 +288,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "originalValue",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#originalValue",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "sortableMatcher",
     "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#sortableMatcher",
     "returnType" : "java.util.function.Predicate<java.lang.String>",
@@ -288,6 +330,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "withValueSelection",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint#withValueSelection",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selection",
+      "type" : "io.fluxzero.common.api.search.ValueSelection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects annotation-independent values, retaining original text rather than legacy locale normalization. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

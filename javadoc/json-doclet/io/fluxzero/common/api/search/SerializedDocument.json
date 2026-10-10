@@ -26,6 +26,19 @@
     "documentation" : " Name of the document collection to which this document belongs.\n",
     "constantValue" : null
   }, {
+    "name" : "collectionSortKeys",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.collectionSortKeys",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_EMPTY"
+      }
+    } ],
+    "documentation" : "Response-only continuation values, transported independently of the persisted document bytes. ",
+    "constantValue" : null
+  }, {
     "name" : "data",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument.data",
     "type" : "java.util.function.Supplier<io.fluxzero.common.api.Data<byte[]>>",
@@ -156,12 +169,7 @@
     "name" : "SerializedDocument",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#SerializedDocument",
     "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.beans.ConstructorProperties",
-      "values" : {
-        "value" : "\"id\",\"timestamp\",\"end\",\"collection\",\"document\",\"summary\",\"facets\",\"indexes\""
-      }
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "id",
@@ -263,6 +271,11 @@
       "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "collectionSortKeys",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
@@ -290,6 +303,110 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the deserialized document view.\n"
+  }, {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#fromJson",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonCreator",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "id"
+        }
+      } ]
+    }, {
+      "name" : "timestamp",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "timestamp"
+        }
+      } ]
+    }, {
+      "name" : "end",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "end"
+        }
+      } ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "collection"
+        }
+      } ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.Data<byte[]>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "document"
+        }
+      } ]
+    }, {
+      "name" : "summary",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "summary"
+        }
+      } ]
+    }, {
+      "name" : "facets",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.FacetEntry>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "facets"
+        }
+      } ]
+    }, {
+      "name" : "indexes",
+      "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "indexes"
+        }
+      } ]
+    }, {
+      "name" : "keys",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+        "values" : {
+          "value" : "collectionSortKeys"
+        }
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "getDocument",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument#getDocument",

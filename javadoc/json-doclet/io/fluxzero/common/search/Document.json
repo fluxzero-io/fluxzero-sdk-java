@@ -178,6 +178,27 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "collectionValueComparator",
+    "qualifiedName" : "io.fluxzero.common.search.Document#collectionValueComparator",
+    "returnType" : "java.util.Comparator<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nullHandling",
+      "type" : "io.fluxzero.common.search.Document.NullHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "comparator",
     "qualifiedName" : "io.fluxzero.common.search.Document#comparator",
     "returnType" : "java.util.Comparator<T>",

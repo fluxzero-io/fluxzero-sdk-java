@@ -32,6 +32,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "collectionValues",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.collectionValues",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "defaultGuarantee",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore.defaultGuarantee",
     "type" : "io.fluxzero.common.Guarantee",
@@ -113,6 +121,11 @@
     }, {
       "name" : "serializer",
       "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collectionValues",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -815,6 +828,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Converts a bulk update into its protocol action, resolving the collection and identifier and serializing\n index payloads unless already serialized.\n"
+  }, {
+    "name" : "withCollectionValues",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#withCollectionValues",
+    "returnType" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "enabled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures annotation-independent collection queries before first use; namespace copies inherit it. "
   }, {
     "name" : "withDefaultGuarantee",
     "qualifiedName" : "io.fluxzero.sdk.persisting.search.DefaultDocumentStore#withDefaultGuarantee",

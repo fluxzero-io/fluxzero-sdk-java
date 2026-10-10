@@ -1,0 +1,294 @@
+{
+  "name" : "SearchValue",
+  "qualifiedName" : "io.fluxzero.common.api.search.SearchValue",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Explicit minimum or maximum selection for range filters and ordering.\n An annotated document without a minimum retains maximum semantics until the application reindexes it.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue.path",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "selection",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue.selection",
+    "type" : "io.fluxzero.common.api.search.ValueSelection",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchValue",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#SearchValue",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selection",
+      "type" : "io.fluxzero.common.api.search.ValueSelection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "atLeast",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#atLeast",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lower",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compares the selected value against an inclusive lower bound. "
+  }, {
+    "name" : "below",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#below",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "upper",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compares the selected value against an exclusive upper bound. "
+  }, {
+    "name" : "between",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#between",
+    "returnType" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lower",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "upper",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compares the selected value against an inclusive lower and exclusive upper bound. "
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromSortPath",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#fromSortPath",
+    "returnType" : "io.fluxzero.common.api.search.SearchValue",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Decodes an explicit collection-value ordering key, or returns null for an ordinary key. "
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#key",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a response-only continuation key, falling back to the complete document's field values. "
+  }, {
+    "name" : "key",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#key",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Computes the selected value from sortable entries, with maximum fallback for legacy entries, or raw unannotated values. "
+  }, {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#max",
+    "returnType" : "io.fluxzero.common.api.search.SearchValue",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects the highest non-null field value. "
+  }, {
+    "name" : "min",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#min",
+    "returnType" : "io.fluxzero.common.api.search.SearchValue",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Selects the lowest non-null field value. "
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "project",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#project",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sorting",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathFilter",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.search.Document.Path>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Projects a response while transporting its ordering values independently of stored document bytes. "
+  }, {
+    "name" : "selection",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#selection",
+    "returnType" : "io.fluxzero.common.api.search.ValueSelection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sortPath",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#sortPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Internal wire spelling; the path is encoded to preserve arbitrary delimiters. "
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "path",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "selection",
+    "type" : "io.fluxzero.common.api.search.ValueSelection",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -20,6 +20,11 @@
     "qualifiedName" : "io.fluxzero.common.api.search.constraints.BetweenConstraint",
     "kind" : "class"
   }, {
+    "file" : "CollectionValuesConstraint.json",
+    "name" : "CollectionValuesConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint",
+    "kind" : "class"
+  }, {
     "file" : "ContainsConstraint.json",
     "name" : "ContainsConstraint",
     "qualifiedName" : "io.fluxzero.common.api.search.constraints.ContainsConstraint",

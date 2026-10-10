@@ -23,6 +23,19 @@
   "superClass" : "io.fluxzero.common.api.Request",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "collectionValueSorting",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchDocuments.collectionValueSorting",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : "Whether sorting contains explicit collection-value selectors. Absent/false preserves all legacy field names. ",
+    "constantValue" : null
+  }, {
     "name" : "documentIds",
     "qualifiedName" : "io.fluxzero.common.api.search.SearchDocuments.documentIds",
     "type" : "java.util.List<java.lang.String>",
@@ -92,6 +105,61 @@
     "name" : "SearchDocuments",
     "qualifiedName" : "io.fluxzero.common.api.search.SearchDocuments#SearchDocuments",
     "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"query\",\"sorting\",\"collectionValueSorting\",\"maxSize\",\"pathFilters\",\"skip\",\"lastHit\",\"documentIds\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sorting",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collectionValueSorting",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pathFilters",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "skip",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastHit",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "SearchDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchDocuments#SearchDocuments",
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -128,56 +196,6 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Retains the original constructor descriptor for clients compiled before exact document-ID filtering was added.\n"
-  }, {
-    "name" : "SearchDocuments",
-    "qualifiedName" : "io.fluxzero.common.api.search.SearchDocuments#SearchDocuments",
-    "modifiers" : [ ],
-    "annotations" : [ {
-      "annotationType" : "java.beans.ConstructorProperties",
-      "values" : {
-        "value" : "\"query\",\"sorting\",\"maxSize\",\"pathFilters\",\"skip\",\"lastHit\",\"documentIds\""
-      }
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "query",
-      "type" : "io.fluxzero.common.api.search.SearchQuery",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "sorting",
-      "type" : "java.util.List<java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "maxSize",
-      "type" : "java.lang.Integer",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "pathFilters",
-      "type" : "java.util.List<java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "skip",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "lastHit",
-      "type" : "io.fluxzero.common.api.search.SerializedDocument",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "documentIds",
-      "type" : "java.util.List<java.lang.String>",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "computePathFilter",

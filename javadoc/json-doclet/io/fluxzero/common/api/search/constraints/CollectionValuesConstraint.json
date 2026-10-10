@@ -1,0 +1,125 @@
+{
+  "name" : "CollectionValuesConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "Explicit query profile whose range constraints compare field values independently of index annotations. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.search.Constraint" ],
+  "fields" : [ {
+    "name" : "collectionValues",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint.collectionValues",
+    "type" : "java.util.List<io.fluxzero.common.api.search.Constraint>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CollectionValuesConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint#CollectionValuesConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"collectionValues\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collectionValues",
+      "type" : "java.util.List<io.fluxzero.common.api.search.Constraint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint#apply",
+    "returnType" : "io.fluxzero.common.api.search.SearchQuery",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves this profile before transport, without changing the caller's query. "
+  }, {
+    "name" : "convert",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint#convert",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "constraint",
+      "type" : "io.fluxzero.common.api.search.Constraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "filters",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint#filters",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "The resolved filters, retaining the marker even for an unconstrained query. "
+  }, {
+    "name" : "hasPathConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint#hasPathConstraint",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.CollectionValuesConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

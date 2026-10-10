@@ -5,6 +5,16 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "CollectionValues.json",
+    "name" : "CollectionValues",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues",
+    "kind" : "class"
+  }, {
+    "file" : "CollectionValues.Bounds.json",
+    "name" : "CollectionValues.Bounds",
+    "qualifiedName" : "io.fluxzero.common.search.CollectionValues$Bounds",
+    "kind" : "class"
+  }, {
     "file" : "DefaultDocumentSerializer.json",
     "name" : "DefaultDocumentSerializer",
     "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer",

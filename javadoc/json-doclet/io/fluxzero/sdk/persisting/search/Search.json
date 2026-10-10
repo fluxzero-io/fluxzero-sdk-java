@@ -929,6 +929,69 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.search.SearchValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sorts by an explicit field minimum or maximum in ascending order. "
+  }, {
+    "name" : "sortBy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortBy",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.search.SearchValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sorts by an explicit field minimum or maximum, with missing values last by default.\n The default implementation opts all field ordering in this search into collection-value semantics:\n ordinary field sorts select minimum ascending and maximum descending, regardless of call order.\n Sortable paths remain database-backed. Each indexed document without a minimum retains maximum semantics until application reindexing;\n unsupported servers reject the query.\n"
+  }, {
+    "name" : "sortBy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortBy",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.search.SearchValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "descending",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nullOrder",
+      "type" : "io.fluxzero.sdk.persisting.search.Search.NullOrder",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Sorts by an explicit field extremum with a caller-selected null order. "
+  }, {
+    "name" : "sortBy",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search#sortBy",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "path",
       "type" : "java.lang.String",
       "varArgs" : false,

@@ -35,6 +35,21 @@
     "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments$Metric",
     "kind" : "class"
   }, {
+    "file" : "CollectionSearchCommand.json",
+    "name" : "CollectionSearchCommand",
+    "qualifiedName" : "io.fluxzero.common.api.search.CollectionSearchCommand",
+    "kind" : "class"
+  }, {
+    "file" : "CollectionSearchProtocol.json",
+    "name" : "CollectionSearchProtocol",
+    "qualifiedName" : "io.fluxzero.common.api.search.CollectionSearchProtocol",
+    "kind" : "class"
+  }, {
+    "file" : "CollectionSearchRequest.json",
+    "name" : "CollectionSearchRequest",
+    "qualifiedName" : "io.fluxzero.common.api.search.CollectionSearchRequest",
+    "kind" : "class"
+  }, {
     "file" : "Constraint.json",
     "name" : "Constraint",
     "qualifiedName" : "io.fluxzero.common.api.search.Constraint",
@@ -320,6 +335,11 @@
     "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery$Builder",
     "kind" : "class"
   }, {
+    "file" : "SearchValue.json",
+    "name" : "SearchValue",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchValue",
+    "kind" : "record"
+  }, {
     "file" : "SerializedDocument.json",
     "name" : "SerializedDocument",
     "qualifiedName" : "io.fluxzero.common.api.search.SerializedDocument",
@@ -334,6 +354,11 @@
     "name" : "SortableEntry",
     "qualifiedName" : "io.fluxzero.common.api.search.SortableEntry",
     "kind" : "class"
+  }, {
+    "file" : "ValueSelection.json",
+    "name" : "ValueSelection",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection",
+    "kind" : "enum"
   } ],
   "subdirectories" : [ {
     "name" : "bulkupdate",

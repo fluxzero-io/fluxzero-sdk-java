@@ -1,0 +1,70 @@
+{
+  "name" : "ValueSelection",
+  "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Selects the enclosing interval or an explicit extremum of a document field. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.api.search.ValueSelection>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ValueSelection",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection#ValueSelection",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection#valueOf",
+    "returnType" : "io.fluxzero.common.api.search.ValueSelection",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection#values",
+    "returnType" : "io.fluxzero.common.api.search.ValueSelection[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INTERVAL",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection.INTERVAL",
+    "annotations" : [ ],
+    "documentation" : "Match overlap with the closed interval between the minimum and maximum non-null values. "
+  }, {
+    "name" : "MAX",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection.MAX",
+    "annotations" : [ ],
+    "documentation" : "Compare the maximum non-null value. "
+  }, {
+    "name" : "MIN",
+    "qualifiedName" : "io.fluxzero.common.api.search.ValueSelection.MIN",
+    "annotations" : [ ],
+    "documentation" : "Compare the minimum non-null value. "
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
