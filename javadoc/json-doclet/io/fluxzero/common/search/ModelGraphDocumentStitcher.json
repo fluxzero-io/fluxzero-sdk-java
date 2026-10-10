@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Deterministically composes direct current model documents using explicit relationship paths.\n <p>\n This implementation is shared by local SDK fixtures and the runtime so path, collision, ordering, and DAG behavior\n cannot drift between them.\n",
+  "documentation" : " Deterministically composes direct current model documents using explicit relationship paths.\n <p>\n This implementation is shared by local SDK fixtures and the runtime so path, collision, ordering, and DAG behavior\n cannot drift between them. Sortable paths shared by multiple children retain the maximum encoded value,\n matching the collection contract of {@link Sortable}; document entries and facets retain every child.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -39,6 +39,11 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "sortablePrefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "entries",
       "type" : "java.util.Map<io.fluxzero.common.search.Document.Entry,java.util.List<io.fluxzero.common.search.Document.Path>>",
       "varArgs" : false,
@@ -50,7 +55,7 @@
       "annotations" : [ ]
     }, {
       "name" : "sortables",
-      "type" : "java.util.Set<io.fluxzero.common.api.search.SortableEntry>",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SortableEntry>",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -226,6 +231,32 @@
     }, {
       "name" : "path",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mergeSortable",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher#mergeSortable",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sortables",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SortableEntry>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "shortPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entry",
+      "type" : "io.fluxzero.common.api.search.SortableEntry",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

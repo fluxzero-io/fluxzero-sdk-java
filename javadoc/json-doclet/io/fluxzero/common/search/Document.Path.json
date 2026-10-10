@@ -109,6 +109,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "computeShortValue",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Path#computeShortValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Normalizes transient composed paths without retaining every child ordinal in the shared path cache. "
+  }, {
     "name" : "isLongPath",
     "qualifiedName" : "io.fluxzero.common.search.Document$Path#isLongPath",
     "returnType" : "boolean",
