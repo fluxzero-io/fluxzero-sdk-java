@@ -402,7 +402,7 @@ public class JacksonInverter implements Inverter<JsonNode> {
             return emptySet();
         }
         return new TreeSet<>(getSortableEntries(value).filter(e -> e.getValue() != null).collect(
-                toMap(e -> e.getPath().getShortValue(), identity(), (a, b) -> b.compareTo(a) > 0 ? b : a)).values());
+                toMap(e -> e.getPath().getShortValue(), identity(), SortableEntry::merge)).values());
     }
 
     protected Stream<SortableEntry> getSortableEntries(Object value) {

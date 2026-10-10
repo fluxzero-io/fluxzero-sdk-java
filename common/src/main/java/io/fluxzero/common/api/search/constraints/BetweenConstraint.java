@@ -79,7 +79,7 @@ public class BetweenConstraint extends PathConstraint {
      * @param path         the path in the document to compare
      */
     public static BetweenConstraint between(Object min, Object maxExclusive, @NonNull String path) {
-        return new BetweenConstraint(formatConstraintValue(min), formatConstraintValue(maxExclusive), List.of(path));
+        return new BetweenConstraint(formatConstraintValue(min), formatConstraintValue(maxExclusive), List.of(path), null, new Object[]{originalValue(min), originalValue(maxExclusive)});
     }
 
     /**
@@ -89,7 +89,7 @@ public class BetweenConstraint extends PathConstraint {
      * @param path the path in the document to compare
      */
     public static BetweenConstraint atLeast(@NonNull Object min, @NonNull String path) {
-        return new BetweenConstraint(formatConstraintValue(min), null, List.of(path));
+        return new BetweenConstraint(formatConstraintValue(min), null, List.of(path), null, new Object[]{originalValue(min), null});
     }
 
     /**
@@ -99,7 +99,16 @@ public class BetweenConstraint extends PathConstraint {
      * @param path         the path in the document to compare
      */
     public static BetweenConstraint below(@NonNull Object maxExclusive, @NonNull String path) {
-        return new BetweenConstraint(null, formatConstraintValue(maxExclusive), List.of(path));
+        return new BetweenConstraint(null, formatConstraintValue(maxExclusive), List.of(path), null, new Object[]{null, originalValue(maxExclusive)});
+    }
+
+    private static Object originalValue(Object value) {
+        return switch (value) {
+            case null -> null;
+            case Instant instant -> ISO_FULL.format(instant);
+            case Number number -> number;
+            default -> value.toString();
+        };
     }
 
     static Object formatConstraintValue(Object value) {
@@ -130,6 +139,27 @@ public class BetweenConstraint extends PathConstraint {
     @With
     List<String> paths;
 
+    /** Null retains legacy index-dependent behavior; explicit values use annotation-independent comparison. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    io.fluxzero.common.api.search.ValueSelection valueSelection;
+
+    // Keep original bounds until the application chooses its query profile. Legacy wire values stay unchanged.
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    Object[] originalBounds;
+
+    /** Selects annotation-independent values, retaining original text rather than legacy locale normalization. */
+    public BetweenConstraint withValueSelection(io.fluxzero.common.api.search.ValueSelection selection) {
+        Object lower = selection != null && originalBounds != null ? originalBounds[0] : min;
+        Object upper = selection != null && originalBounds != null ? originalBounds[1] : max;
+        if (selection == null) {
+            lower = formatConstraintValue(originalBounds == null ? min : originalBounds[0]);
+            upper = formatConstraintValue(originalBounds == null ? max : originalBounds[1]);
+        }
+        if (lower instanceof Instant instant) lower = ISO_FULL.format(instant);
+        if (upper instanceof Instant instant) upper = ISO_FULL.format(instant);
+        return new BetweenConstraint(lower, upper, paths, selection, originalBounds);
+    }
+
     @Override
     protected boolean matches(Document.Entry entry, Document document) {
         return matcher().test(entry);
@@ -137,6 +167,16 @@ public class BetweenConstraint extends PathConstraint {
 
     @Override
     public boolean matches(Document document) {
+        if (valueSelection != null) {
+            String lower = io.fluxzero.common.search.CollectionValues.key(min);
+            String upper = io.fluxzero.common.search.CollectionValues.key(max);
+            Predicate<String> inRange = value -> value != null && (lower == null || io.fluxzero.common.search.CollectionValues.compare(value, lower) >= 0)
+                    && (upper == null || io.fluxzero.common.search.CollectionValues.compare(value, upper) < 0);
+            return (paths.isEmpty() ? List.of("**") : paths).stream().anyMatch(path ->
+                    valueSelection == io.fluxzero.common.api.search.ValueSelection.INTERVAL
+                            ? io.fluxzero.common.search.CollectionValues.overlaps(document, path, lower, upper)
+                            : inRange.test(io.fluxzero.common.search.CollectionValues.extremum(document, path, valueSelection)));
+        }
         Predicate<Path> pathPredicate = getPaths().stream()
                 .map(Path::pathPredicate)
                 .reduce(Predicate::or)

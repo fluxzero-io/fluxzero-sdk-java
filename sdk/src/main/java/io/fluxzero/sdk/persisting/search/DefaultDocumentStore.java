@@ -84,12 +84,14 @@ import static java.util.stream.Collectors.toMap;
 @Slf4j
 public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> implements DocumentStore, HasLocalHandlers {
 
+
     private static final String NON_SEARCHABLE_MODEL_QUERY_PREFIX = "$nonSearchableModels/";
 
     @With
     private final Client client;
     @Getter
     private final DocumentSerializer serializer;
+    private boolean collectionValues;
     private Guarantee defaultGuarantee = Guarantee.STORED;
     @Delegate
     private final HasLocalHandlers handlerRegistry;
@@ -120,6 +122,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     private DefaultDocumentStore(
             Client client,
             DocumentSerializer serializer,
+            boolean collectionValues,
             Guarantee defaultGuarantee,
             HasLocalHandlers handlerRegistry,
             String modelNamePrefix,
@@ -129,6 +132,13 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         this.modelRepositorySupplier = modelRepositorySupplier;
         this.modelTypesSupplier = modelTypesSupplier;
         this.defaultGuarantee = defaultGuarantee;
+        this.collectionValues = collectionValues;
+    }
+
+    /** Configures annotation-independent collection queries before first use; namespace copies inherit it. */
+    public DefaultDocumentStore withCollectionValues(boolean enabled) {
+        collectionValues = enabled;
+        return this;
     }
 
     /** Configures the concrete application delivery default before first use; namespace copies inherit it. */
@@ -445,12 +455,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 ? local.forNamespace(namespace) : handlerRegistry;
         return namespacedClient == client && namespacedHandlerRegistry == handlerRegistry ? this
                 : new DefaultDocumentStore(
-                        namespacedClient, serializer, defaultGuarantee,
+                        namespacedClient, serializer, collectionValues, defaultGuarantee,
                         namespacedHandlerRegistry,
                         modelNamePrefix,
                         () -> modelRepositorySupplier.get()
                                 .forNamespace(namespace),
-                        modelTypesSupplier);
+                        modelTypesSupplier).withCollectionValues(collectionValues);
     }
 
     protected class DefaultSearch<R> implements Search<R> {
@@ -479,6 +489,13 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 Class<?> targetModelType) {
             this.queryBuilder = queryBuilder;
             this.targetModelType = targetModelType;
+        }
+
+        private boolean explicitValueSorting;
+
+        private SearchQuery buildQuery() {
+            SearchQuery query = queryBuilder.build();
+            return collectionValues ? io.fluxzero.common.api.search.constraints.CollectionValuesConstraint.apply(query) : query;
         }
 
         @Override
@@ -522,7 +539,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 useModelCurrentDocumentCollection();
                 relationConstraints.add(
                         Objects.requireNonNull(
-                                constraint,
+                                collectionValues && constraint.getQuery() != null
+                                        ? constraint.toBuilder().query(io.fluxzero.common.api.search.constraints.CollectionValuesConstraint
+                                                .apply(constraint.getQuery())).build() : constraint,
                                 "Model relation constraint"));
             }
             return this;
@@ -556,9 +575,39 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
+        public Search<R> sortBy(io.fluxzero.common.api.search.SearchValue value, boolean descending) {
+            return sortBy(value, descending, NullOrder.LAST);
+        }
+
+        @Override
+        public Search<R> sortBy(io.fluxzero.common.api.search.SearchValue value, boolean descending, NullOrder nullOrder) {
+            if (!collectionValues && !explicitValueSorting) {
+                for (int i = 0; i < sorting.size(); i++) {
+                    String old = sorting.get(i);
+                    boolean reverse = old.startsWith("-");
+                    sorting.set(i, (reverse ? "-" : "") + collectionSortPath(reverse ? old.substring(1) : old, reverse));
+                }
+            }
+            explicitValueSorting = true;
+            sorting.add((descending ? "-" : "") + value.sortPath()
+                    + (nullOrder == NullOrder.FIRST ? ":nullsFirst" : ":nullsLast"));
+            return this;
+        }
+
+        @Override
         public Search<R> sortBy(String path, boolean descending) {
+            if (collectionValues || explicitValueSorting) path = collectionSortPath(path, descending);
             sorting.add((descending ? "-" : "") + path);
             return this;
+        }
+
+        private String collectionSortPath(String path, boolean descending) {
+            if (List.of("timestamp", "end", "score").contains(path.split(":nulls", 2)[0])) return path;
+            String suffix = path.endsWith(":nullsFirst") ? ":nullsFirst" : ":nullsLast";
+            String field = path.replaceFirst(":nulls(?:First|Last)$", "");
+            return new io.fluxzero.common.api.search.SearchValue(field, descending
+                    ? io.fluxzero.common.api.search.ValueSelection.MAX : io.fluxzero.common.api.search.ValueSelection.MIN)
+                    .sortPath() + suffix;
         }
 
         @Override
@@ -715,7 +764,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         @Override
         public SearchHistogram fetchHistogram(int resolution, int maxSize) {
             requireOrdinarySearch("histograms");
-            return getSearchClient().fetchHistogram(new GetSearchHistogram(queryBuilder.build(), resolution, maxSize));
+            return getSearchClient().fetchHistogram(new GetSearchHistogram(buildQuery(), resolution, maxSize));
         }
 
         @Override
@@ -730,7 +779,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                     return computeFacetStats(documents);
                 }
             }
-            return getSearchClient().fetchFacetStats(queryBuilder.build())
+            return getSearchClient().fetchFacetStats(buildQuery())
                     .stream().filter(this::isPublicFacet).toList();
         }
 
@@ -739,7 +788,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             if (requiresModelSelection()) {
                 return statisticsDocumentsAsync().thenApply(documents -> computeFacetStats(documents.stream()));
             }
-            return getSearchClient().fetchFacetStatsAsync(queryBuilder.build())
+            return getSearchClient().fetchFacetStatsAsync(buildQuery())
                     .thenApply(stats -> stats.stream().filter(this::isPublicFacet).toList());
         }
 
@@ -749,7 +798,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
         // Statistics operate on the complete selection; presentation paging and field filters do not apply.
         private SearchDocuments statisticsRequest() {
-            return SearchDocuments.builder().query(queryBuilder.build()).build();
+            return SearchDocuments.builder().collectionValueSorting(collectionValues || explicitValueSorting).query(buildQuery()).build();
         }
 
         private Stream<SerializedDocument> statisticsDocuments() {
@@ -793,20 +842,20 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         public CompletableFuture<Void> delete(int batchSize, Guarantee guarantee) {
             requireOrdinarySearch("bulk delete");
             return AsyncCompletionScope.register(getSearchClient().delete(
-                    queryBuilder.build(), resolveGuarantee(guarantee), batchSize));
+                    buildQuery(), resolveGuarantee(guarantee), batchSize));
         }
 
         @Override
         public CompletableFuture<Void> move(Object targetCollection) {
             requireOrdinarySearch("bulk move");
-            return AsyncCompletionScope.register(getSearchClient().move(queryBuilder.build(), determineCollection(targetCollection),
+            return AsyncCompletionScope.register(getSearchClient().move(buildQuery(), determineCollection(targetCollection),
                                           defaultGuarantee));
         }
 
         private SearchDocuments searchRequest(
                 Integer maxSize) {
-            return SearchDocuments.builder()
-                    .query(queryBuilder.build())
+            return SearchDocuments.builder().collectionValueSorting(collectionValues || explicitValueSorting)
+                    .query(buildQuery())
                     .maxSize(maxSize)
                     .sorting(sorting)
                     .pathFilters(pathFilters)
@@ -837,7 +886,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                 .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats));
                     }
                 }
-                return getSearchClient().fetchStatistics(queryBuilder.build(), Arrays.asList(fields), groupBy).stream()
+                return getSearchClient().fetchStatistics(buildQuery(), Arrays.asList(fields), groupBy).stream()
                         .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats));
             }
 
@@ -849,7 +898,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                     documents.stream().map(SerializedDocument::deserializeDocument), Arrays.asList(fields), groupBy)
                             .stream().collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
                 }
-                return getSearchClient().fetchStatisticsAsync(queryBuilder.build(), Arrays.asList(fields), groupBy)
+                return getSearchClient().fetchStatisticsAsync(buildQuery(), Arrays.asList(fields), groupBy)
                         .thenApply(stats -> stats.stream()
                                 .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
             }

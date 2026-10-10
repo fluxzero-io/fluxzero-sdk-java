@@ -1222,6 +1222,7 @@ public class DefaultFluxzero implements Fluxzero {
             commandModelRepository.configureGraphProjectionCompletion(configuredGraphProjectionCompletion());
             routingModels.set(modelCommitHandlerRegistry);
             if (runtimeDocumentStore instanceof DefaultDocumentStore defaultDocumentStore) {
+                defaultDocumentStore.withCollectionValues(ApplicationProperties.collectionValues(propertySource));
                 defaultDocumentStore.configureModelGraphSupport(
                         commandModelRepository,
                         modelCommitHandlerRegistry::knownModelTypes);

@@ -32,12 +32,17 @@ import java.lang.annotation.Target;
  * documents in a collection on something else than the default document time range. Filtering using
  * {@link ExistsConstraint} is also much faster, as it can be done using a single index lookup.
  * <p>
- * The index value is determined as follows:
+ * The following rules describe the legacy maximum index. Applications opting into
+ * {@code fluxzero.search.collectionValues} use min/max interval overlap for ranges, MIN for ascending field ordering and MAX
+ * for descending ordering, independently of this annotation. A compatible Runtime retains database execution for annotated paths.
+ * Each indexed document without a minimum retains maximum semantics, including explicit MIN, until the application reindexes it.
+ * <p>
+ * The legacy index value is determined as follows:
  * <p>
  * 1) in case the object is null or a blank string the index is ignored;
  * <p>
  * 2) in case the object is a collection, an index is created for the <strong>maximum</strong> value of the collection
- * elements (use getter if you need one for the minimum value too);
+ * elements, plus an optional minimum when the extrema differ;
  * <p>
  * 3) in case the object is a map, facets are created for each of the map values. Keys of the map are appended to the
  * property name (including a delimiting slash);

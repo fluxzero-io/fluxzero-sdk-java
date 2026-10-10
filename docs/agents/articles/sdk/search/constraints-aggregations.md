@@ -33,6 +33,18 @@ For an indexed title `"Café"`, an ordinary `match("cafe", "title")` matches, bu
 Use strict matching for exact identifiers/enums where that is the contract; do not describe every search operation
 as case/accent-insensitive. Test normalized case/accent variants and strict mismatches through `whenSearching(...)`.
 
+## Interval overlap and explicit extrema
+
+`fluxzero.search.collectionValues=true` (environment `FLUXZERO_SEARCH_COLLECTION_VALUES`) or defaults `2026.10.09`
+selects interval overlap: `max >= lower && min < upper`, lower inclusive and upper exclusive.
+Both `[10,100]` and `[40,60]` match `between(30,70,"prices")`; gaps are ignored. Empty/reversed query ranges and
+missing/empty/null-only fields do not match.
+Use `constraint(SearchValue.max("prices").below(70))` for an explicit maximum in Java or Kotlin.
+Use `whereChild(...)` for several predicates on the same child. Exact matching and returned Graph content are unchanged.
+Comparisons reuse existing sortable numeric precision/range and lowercase, accent-removal and trimming rules.
+The dedicated false override preserves compatibility behavior even on new defaults. Reindex existing indexed documents through the application; see [search maintenance](../operations/search-maintenance.md). Live Graph evaluation keeps its existing
+composition boundary. Annotated materialized paths remain SQL evaluated; a row without a minimum falls back to its existing maximum, including explicit MIN. Partial reindexing affects each row independently.
+
 ## Time windows
 
 `since`, `before`, `inLast`, `beforeLast`, and `inPeriod` filter the indexed document timestamps:
@@ -124,3 +136,14 @@ fun find(query: FindVisibleEntries): CompletableFuture<List<KnowledgeEntry>> =
 
 These methods belong to an ordinary production-discovered handler, such as a Spring `@Component`, or an explicitly
 registered handler outside Spring. `Request<R>` declares the unwrapped value even when the handler returns a future.
+
+### Instant comparison in the collection-value profile
+
+`Instant` fields use the existing fixed-millisecond timestamp comparison both with and without `@Sortable`.
+A whole second compares as `.000Z`; serialized nanoseconds remain in the document but comparison retains the
+existing millisecond precision. This changes comparison keys only, not the document format or stored timestamp text.
+
+Unannotated document entries retain no Java type information: valid uppercase UTC ISO text is interpreted as a
+timestamp in this profile, including a literal `String` with that exact content. This guarantee concerns `Instant`
+fields; annotated `String` fields keep their existing normalized text indexes. Lowercase, offset-form and invalid
+ISO strings are ordinary text. Use consistently typed `Instant` fields for timestamp comparison.

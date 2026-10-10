@@ -63,3 +63,29 @@ retention as a data-governance decision and do not copy a platform default into 
 
 Deleting a search collection is not complete domain-data deletion. To remove a persisted Model including its
 events, snapshot, relationships, and searchable representation, use Model deletion instead.
+
+## Activate collection-value semantics
+
+Upgrade all Runtime nodes before setting `fluxzero.search.collectionValues=true` (`FLUXZERO_SEARCH_COLLECTION_VALUES`)
+or defaults version `2026.10.09`. With older/absent defaults, the dedicated property can opt in; false always opts out.
+The SDK adds a minimum beside the existing maximum only for distinct repeated values. The Runtime stores it in the
+existing sortable JSON, with one extra minimum index per affected path; no values table or extra JSON column.
+Reindex from typed application state through the normal document flow, for example `@HandleDocument`; the customer owns
+scheduling, progress and retries. Resending old persisted maximum-only entries is insufficient. There is no Runtime
+preparation, activation or backfill API. Include the actual Model source/Graph projection collections.
+
+For an annotated collection/path without a minimum index, Runtime retains the original maximum SQL and behavior,
+including explicit MIN. This also covers failed/incomplete minimum index creation. Once the index exists, it indexes
+`coalesce(minimum, maximum)`, including old rows without minimum JSON. Queries across collections preserve each
+collection's fallback in PostgreSQL.
+
+Fallback is per document: missing minimum means use its existing maximum, including explicit `SearchValue.min`.
+Partial reindexing immediately changes only rewritten rows. Old SDK writes replace the whole sortable JSON and remove
+previous minima. Upgrade all Runtime readers before new SDK writes; the reserved `$metadata` minimum entries are not
+business sortable fields. Annotated filtering, sorting and pagination stay in PostgreSQL. Unannotated paths retain their
+existing Runtime evaluation route. Cursors retain last-hit keys but are not snapshots: reindexing or minimum-index repair may move rows across
+page boundaries. Complete reindexing before paging when a stable result set is required.
+
+Aliases and opaque sortable objects retain SDK-produced extrema without Runtime document decoding. Comparisons reuse
+existing sortable numeric precision/range and text normalization. New requests use explicit protocol envelopes:
+an old Runtime rejects them rather than ignoring unknown filters. Roll back query semantics using the false override.

@@ -51,6 +51,33 @@ public class SearchEndpoint extends WebsocketEndpoint {
         this.store = store;
     }
 
+
+    @Handle
+    Object handle(CollectionSearchRequest request) {
+        if (request.getRequestId() != request.getSearch().getRequestId())
+            throw new IllegalArgumentException("Collection search request identity mismatch");
+        return switch (request.getSearch()) {
+            case SearchDocuments r -> handle(r);
+            case SearchModelDocuments r -> handle(r);
+            case SearchModelGraphDocuments r -> handle(r);
+            case GetDocumentStats r -> handle(r);
+            case GetFacetStats r -> handle(r);
+            case GetSearchHistogram r -> handle(r);
+            default -> throw new IllegalArgumentException("Unsupported collection search request");
+        };
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(CollectionSearchCommand request) {
+        if (request.getRequestId() != request.getSearch().getRequestId())
+            throw new IllegalArgumentException("Collection search command identity mismatch");
+        return switch (request.getSearch()) {
+            case DeleteDocuments r -> handle(r);
+            case MoveDocuments r -> handle(r);
+            default -> throw new IllegalArgumentException("Unsupported collection search command");
+        };
+    }
+
     @Handle
     GetSearchCollectionsResult handle(GetSearchCollections request) {
         return new GetSearchCollectionsResult(request.getRequestId(), store.getSearchCollections());

@@ -565,6 +565,98 @@ If you want a field to be completely omitted from storage (not just indexing), m
 
 `skip(n)` skips the first `n` results of the complete ordered search. It applies once, including when a synchronous or asynchronous fetch spans several transport batches. The transport fetch size does not change the selection.
 
+## Annotation-independent collection values
+
+Enable `fluxzero.search.collectionValues=true` (`FLUXZERO_SEARCH_COLLECTION_VALUES`), or opt into
+`fluxzero.defaults.version=2026.10.09` or later. The dedicated property overrides the defaults version in either
+direction. Configuration is resolved per application; an absent/older version retains compatibility behavior.
+
+In this profile, adding or removing `@Sortable` does not change field range or sorting results:
+
+| Operation | Collection behavior |
+| --- | --- |
+| `between(lower, upper, "prices")` | The interval `[min(prices), max(prices)]` overlaps `[lower, upper)` |
+| `sortBy("prices")` | Minimum non-null price, ascending |
+| `sortBy("prices", true)` | Maximum non-null price, descending |
+| Explicit `SearchValue.min(...)` / `max(...)` | Compare/order the selected extremum |
+
+Both `[10, 100]` and `[40, 60]` match `[30, 70)`: gaps between values are deliberately ignored.
+The comparison is `max >= lower && min < upper`. Empty or reversed query intervals never match.
+Missing, empty and null-only fields do not match ranges and sort last in either direction. Negating such a range
+includes those documents. Explicit `Search.NullOrder.FIRST`/`LAST` overrides null ordering. Sorting several fields
+retains left-to-right precedence, including continuation pages and projected results that exclude a sort field.
+
+Comparisons reuse the existing sortable encoding: numbers retain its six-decimal rounding and supported range;
+text uses its lowercase, accent removal and trimming rules. These rules also apply without `@Sortable` in the new
+profile. Empty strings remain values. Exact matching, facets, content exclusions and returned Graph content are unchanged.
+
+```java
+import io.fluxzero.common.api.search.SearchValue;
+
+// Same result with and without @Sortable on prices.
+var matching = Fluxzero.search("catalog").between(30, 70, "prices").fetchAll();
+var cheapest = Fluxzero.search("catalog").sortBy("prices").fetch(20);
+var highestBelow70 = Fluxzero.search("catalog")
+        .constraint(SearchValue.max("prices").below(70)).fetchAll();
+var largestMinimum = Fluxzero.search("catalog").sortBy(SearchValue.min("prices"), true).fetch(20);
+```
+
+```kotlin
+val matching = Fluxzero.search<Any>("catalog").between(30, 70, "prices").fetchAll()
+val highestBelow70 = Fluxzero.search<Any>("catalog")
+    .constraint(SearchValue.max("prices").below(70)).fetchAll()
+val largestMinimum = Fluxzero.search<Any>("catalog")
+    .sortBy(SearchValue.min("prices"), true).fetch(20)
+```
+
+Explicit `SearchValue` selection also works without changing the application's defaults. Adding an explicit sort
+selector opts the entire ordering into collection-value semantics: other ordinary field sorts in that search use
+minimum-ascending/maximum-descending too, regardless of the order of the `sortBy` calls. Default document timestamp
+ordering is unchanged. A root range on `children/price` compares the interval spanning all child prices; use `whereChild(...)` to require
+multiple conditions to hold for the **same child**. Live composition and stored Graph projections share the field
+comparison contract; live composition retains its existing Runtime composition/evaluation boundary.
+
+### Upgrade and reindex through your application
+
+Upgrade every Runtime node before enabling this profile. New-profile requests use dedicated protocol envelopes;
+older receivers reject them instead of dropping unknown filters. The legacy maximum index remains readable.
+
+The SDK retains the existing maximum and adds an optional minimum only when repeated values have different extrema.
+The Runtime stores this minimum as another string field in the existing sortable JSON and creates one additional
+minimum expression index for that path. Scalars and equal-valued arrays need no second value; scalar-only paths need
+no additional index. There is no separate values table, auxiliary JSON column or Runtime preparation/backfill API.
+
+For an annotated collection/path without a minimum index, Runtime retains the original maximum SQL and behavior,
+including explicit MIN. This also covers failed/incomplete minimum index creation. Once the index exists, it indexes
+`coalesce(minimum, maximum)`, including old rows without minimum JSON. Queries across collections preserve each
+collection's fallback in PostgreSQL.
+
+Fallback is **per document**: an indexed row without a minimum uses its existing maximum for both endpoints, including
+explicit `SearchValue.min(...)`. For example, an old `[10,100]` row does not match `[30,70)`; after reindexing it does.
+Other already reindexed rows immediately use their own intervals. There is no whole-query readiness switch.
+
+The customer reindexes from typed application state, for example through `@HandleDocument`, and owns scheduling,
+progress and retries. Merely resending old persisted maximum-only entries does not reconstruct a minimum. Include the
+Model source and Graph projection collections used by the query. Aliased `@Sortable` properties and custom sortable
+objects use the same SDK-produced extrema; the Runtime does not decode raw document bodies to reconstruct them.
+An old SDK write replaces the full sortable JSON, removing an earlier minimum and restoring that row's maximum fallback.
+Upgrade all Runtime readers before new SDK writes/reindexing: older Runtime readers expose the internal minimum strings
+as ordinary sortable entries and do not implement the new query profile. Internal minimum keys use the reserved
+`$metadata` namespace; applications must not define sortable aliases in that namespace.
+
+Annotated filtering, sorting and pagination remain in PostgreSQL throughout partial reindexing. Unannotated paths
+retain their existing Runtime evaluation route. Cursors retain the last returned ordering values, including projected
+results; they are ordinary live keyset cursors, not snapshots. Concurrent updates/reindexing or minimum-index repair can move rows before or after
+the cursor, as with any changing sort field. Finish reindexing before paging when a stable result set is required.
+Low-level value queries must name their collections explicitly. Set the dedicated property to `false` to roll back query
+semantics; this does not remove already stored minima or their indexes.
+
+### Compatibility behavior
+
+Without opt-in, `@Sortable` collection ranges and both sort directions use the legacy maximum key. Unannotated paths
+use the pre-existing document comparison route. Legacy rounding/normalization and null ordering remain unchanged.
+The following encoding/index description documents that compatibility representation.
+
 ## Rapid sorting and filtering
 
 To enable efficient **range filters** and **sorted results** in document searches, annotate properties with `@Sortable`:
@@ -793,3 +885,22 @@ Indexing, `indexIfNotExists`, `indexAndForget`, deletion/movement, collection de
 `DEFAULT`. A future completes according to its selected guarantee; with `NONE`, joining it does not prove storage.
 Commands started in an active tracking batch participate in its completion barrier even if their futures are ignored.
 Outside tracking, retain the future to observe delivery failures. An explicit guarantee overrides application policy.
+
+### Instant comparison in the collection-value profile
+
+`Instant` fields use the existing fixed-millisecond timestamp comparison both with and without `@Sortable`.
+A whole second compares as `.000Z`; serialized nanoseconds remain in the document but comparison retains the
+existing millisecond precision. This changes comparison keys only, not the document format or stored timestamp text.
+
+Unannotated document entries retain no Java type information: valid uppercase UTC ISO text is interpreted as a
+timestamp in this profile, including a literal `String` with that exact content. This guarantee concerns `Instant`
+fields; annotated `String` fields keep their existing normalized text indexes. Lowercase, offset-form and invalid
+ISO strings are ordinary text. Use consistently typed `Instant` fields for timestamp comparison.
+
+Collection-value comparisons use normalized keys in Unicode code point order, matching PostgreSQL `C`, with and
+without `@Sortable`. Runtime uses explicit `C` comparisons on databases with other collations; existing locale indexes
+may not accelerate those comparisons. Legacy queries keep their existing database collation.
+New writes choose string extrema in this order even when the collection-value query profile is disabled. Previously
+stored maxima mixing supplementary characters with high BMP characters may therefore need application-owned reindexing
+from typed state; a reader cannot recover an extremum discarded by an older writer. Upgrade all Runtime readers before
+new SDK writes or reindexing, not merely before enabling the query profile.

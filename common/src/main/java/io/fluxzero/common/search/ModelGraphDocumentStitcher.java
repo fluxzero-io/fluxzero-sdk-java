@@ -355,7 +355,7 @@ public final class ModelGraphDocumentStitcher {
         // Compare values, not names: child ordinals must not determine the collection maximum.
         // Keep the original path so escaped field names are not normalized a second time.
         sortables.merge(shortPath, entry,
-                (a, b) -> b.getValue().compareTo(a.getValue()) > 0 ? b : a);
+                SortableEntry::merge);
     }
 
     private static void append(

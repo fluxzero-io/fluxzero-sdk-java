@@ -73,7 +73,7 @@ import java.util.List;
 @JsonSubTypes({@Type(AllConstraint.class), @Type(AnyConstraint.class), @Type(ContainsConstraint.class),
         @Type(BetweenConstraint.class), @Type(ExistsConstraint.class), @Type(QueryConstraint.class),
         @Type(MatchConstraint.class), @Type(NotConstraint.class), @Type(LookAheadConstraint.class),
-        @Type(FacetConstraint.class)})
+        @Type(FacetConstraint.class), @Type(io.fluxzero.common.api.search.constraints.CollectionValuesConstraint.class)})
 public interface Constraint {
 
     /**

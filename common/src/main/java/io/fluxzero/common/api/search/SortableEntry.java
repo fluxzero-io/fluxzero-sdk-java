@@ -14,10 +14,11 @@
 
 package io.fluxzero.common.api.search;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.SearchUtils;
 import io.fluxzero.common.search.Document.Path;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Value;
 import lombok.With;
@@ -58,7 +59,6 @@ import static io.fluxzero.common.SearchUtils.ISO_FULL;
  * @see io.fluxzero.common.api.search.constraints.BetweenConstraint
  */
 @Value
-@AllArgsConstructor
 public class SortableEntry implements Comparable<SortableEntry> {
 
     /**
@@ -93,7 +93,37 @@ public class SortableEntry implements Comparable<SortableEntry> {
     /**
      * The encoded and normalized value used for sorting or comparison.
      */
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.fasterxml.jackson.databind.deser.std.StringDeserializer.class)
     String value;
+
+    /** Optional encoded minimum of repeated values; absent for scalars and legacy maximum-only entries. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+    @com.fasterxml.jackson.databind.annotation.JsonDeserialize(using = com.fasterxml.jackson.databind.deser.std.StringDeserializer.class)
+    String minimum;
+
+    /** Constructs an entry from encoded extrema; a missing minimum retains the maximum-only representation. */
+    @JsonCreator
+    public SortableEntry(@JsonProperty("name") String name, @JsonProperty("value") String value,
+                         @JsonProperty("minimum") String minimum) {
+        this.name = name;
+        this.value = value;
+        this.minimum = minimum;
+    }
+
+    /** Constructs an entry from an already encoded maximum. */
+    public SortableEntry(String name, String value) { this(name, value, null); }
+
+    /** Returns the minimum, retaining maximum semantics for legacy entries. */
+    public String minimumOrValue() { return minimum == null ? value : minimum; }
+
+    /** Combines entries at one normalized path without changing the maximum's original escaped path. */
+    public SortableEntry merge(SortableEntry other) {
+        SortableEntry maximum = io.fluxzero.common.search.CollectionValues.compare(value, other.value) >= 0 ? this : other;
+        String min = io.fluxzero.common.search.CollectionValues.compare(minimumOrValue(), other.minimumOrValue()) <= 0
+                ? minimumOrValue() : other.minimumOrValue();
+        return new SortableEntry(maximum.name, maximum.value, min.equals(maximum.value) ? null : min);
+    }
+
 
     /**
      * Constructs a new {@code SortableEntry} by formatting the given object into a normalized, sortable string.

@@ -33,6 +33,14 @@ class InMemorySearchStoreTest {
     private final InMemorySearchStore store = new InMemorySearchStore(null);
 
     @Test
+    void indexingDropsResponseOnlyProjectionKeys() {
+        var hit = document("one", "value").toBuilder().collectionSortKeys(java.util.Map.of("key", "value")).build();
+        store.index(List.of(hit), STORED, false).join();
+        var stored = store.fetch(new io.fluxzero.common.api.search.GetDocument("one", "documents")).orElseThrow();
+        assertTrue(stored.getCollectionSortKeys().isEmpty());
+    }
+
+    @Test
     void lateReaderReceivesUpdatesStoredWithoutMonitors() {
         index("one", "first");
         index("two", "second");

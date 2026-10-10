@@ -46,6 +46,7 @@ import java.util.stream.Stream;
  */
 public class WebSocketSearchClient extends AbstractWebsocketClient implements SearchClient {
 
+
     public WebSocketSearchClient(String endPointUrl, WebSocketClient client) {
         this(URI.create(endPointUrl), client);
     }
@@ -56,6 +57,16 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
 
     public WebSocketSearchClient(URI endpointUri, WebSocketClient client, boolean sendMetrics) {
         super(endpointUri, client, sendMetrics, client.getClientConfig().getSearchSessions());
+    }
+
+    @Override
+    protected <R extends io.fluxzero.common.api.RequestResult> CompletableFuture<R> send(Request request, Object context) {
+        return super.send(CollectionSearchProtocol.required(request) ? new CollectionSearchRequest(request) : request, context);
+    }
+
+    @Override
+    protected CompletableFuture<Void> sendCommand(io.fluxzero.common.api.Command command) {
+        return super.sendCommand(CollectionSearchProtocol.required(command) ? new CollectionSearchCommand(command) : command);
     }
 
     @Override

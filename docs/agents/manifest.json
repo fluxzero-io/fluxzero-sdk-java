@@ -5145,7 +5145,13 @@
         },
         {
           "description": "Apply compound sort keys in primary-to-tie-breaker order and keep technical ranks out of response DTOs",
-          "path": "/docs/sdk/search/sorting"
+          "path": "/docs/sdk/search/sorting",
+          "symbols": [
+            "SearchValue",
+            "io.fluxzero.common.api.search.SearchValue",
+            "ValueSelection",
+            "fluxzero.search.collectionValues"
+          ]
         },
         {
           "description": "Delete move bulk-update or retain application search documents",
@@ -5153,7 +5159,13 @@
         },
         {
           "description": "Compose advanced constraints projections and search aggregations",
-          "path": "/docs/sdk/search/constraints-aggregations"
+          "path": "/docs/sdk/search/constraints-aggregations",
+          "symbols": [
+            "SearchValue",
+            "io.fluxzero.common.api.search.SearchValue",
+            "ValueSelection",
+            "fluxzero.search.collectionValues"
+          ]
         },
         {
           "description": "Control search document identity time retention and asynchronous completion",
@@ -5177,7 +5189,11 @@
         "@JsonIgnore",
         "exclude(...)",
         "includeOnly(...)",
-        "whenSearching"
+        "whenSearching",
+        "SearchValue",
+        "io.fluxzero.common.api.search.SearchValue",
+        "ValueSelection",
+        "fluxzero.search.collectionValues"
       ],
       "links": [
         {
@@ -5392,7 +5408,13 @@
         },
         {
           "description": "apply compound keys from primary sort through unique tie-breaker",
-          "path": "/docs/sdk/search/sorting"
+          "path": "/docs/sdk/search/sorting",
+          "symbols": [
+            "SearchValue",
+            "io.fluxzero.common.api.search.SearchValue",
+            "ValueSelection",
+            "fluxzero.search.collectionValues"
+          ]
         },
         {
           "description": "add a web endpoint",
@@ -6000,7 +6022,11 @@
         "FieldStats",
         "FacetStats",
         "normalization",
-        "case accent strict"
+        "case accent strict",
+        "SearchValue",
+        "io.fluxzero.common.api.search.SearchValue",
+        "ValueSelection",
+        "fluxzero.search.collectionValues"
       ],
       "links": [
         {
@@ -6251,7 +6277,13 @@
         },
         {
           "path": "/docs/sdk/search/constraints-aggregations",
-          "description": "Look up typed async search terminals and comparison rules"
+          "description": "Look up typed async search terminals and comparison rules",
+          "symbols": [
+            "SearchValue",
+            "io.fluxzero.common.api.search.SearchValue",
+            "ValueSelection",
+            "fluxzero.search.collectionValues"
+          ]
         },
         {
           "path": "/docs/sdk/configuration/advanced-builder",
@@ -6768,7 +6800,13 @@
         },
         {
           "description": "compound sort precedence indexed technical keys and tie-breaker tests",
-          "path": "/docs/sdk/search/sorting"
+          "path": "/docs/sdk/search/sorting",
+          "symbols": [
+            "SearchValue",
+            "io.fluxzero.common.api.search.SearchValue",
+            "ValueSelection",
+            "fluxzero.search.collectionValues"
+          ]
         },
         {
           "description": "complete lists, pages, and top-N contracts",

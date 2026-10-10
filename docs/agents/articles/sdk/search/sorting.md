@@ -22,7 +22,16 @@ documents with the same business value do not move between pages.
 
 ## Collections and Graph children
 
-A sortable collection path represents its maximum encoded value, regardless of sort direction. The same rule applies
+With `fluxzero.search.collectionValues=true` (`FLUXZERO_SEARCH_COLLECTION_VALUES`), or defaults version
+`2026.10.09` or later, ascending field sorting uses MIN and descending uses MAX, with missing/empty/null-only values
+last. Explicit `SearchValue.min(path)` / `max(path)` selects an extremum independently of direction. Java:
+`search.sortBy(SearchValue.min("prices"), true)`; Kotlin uses the same call. Annotation presence affects execution cost,
+not results once indexed documents have been reindexed through the application's normal document flow (for example
+`@HandleDocument`). Each indexed row without a minimum uses its existing maximum, including explicit MIN. Partial reindexing
+affects rows independently, with annotated filtering/sorting still in PostgreSQL. There is no Runtime preparation API. See
+[search maintenance](../operations/search-maintenance.md) for the migration and cursor boundary.
+
+In compatibility mode (absent/older defaults without override), a sortable collection path represents its maximum encoded value, regardless of sort direction. The same rule applies
 to Graph children: `sortBy("children/price")` orders roots by the highest child price in live and materialized Graphs.
 Range constraints on that sortable path also use the maximum. Use `whereChild(...)` when a range should select any
 individual child instead. Exact matching and returned Graph content retain all children. This contract is identical
@@ -81,3 +90,22 @@ same order after in-memory post-processing.
 If a minimal direct-search test contradicts the left-to-right precedence above, isolate the indexed property shape and
 the SDK/test-runtime behavior. Do not infer a different precedence rule from one failure and do not silently replace
 the indexed sort with `fetchAll().stream().sorted(...)`.
+
+An explicit `SearchValue` sort opts the entire search ordering into the collection-value profile. Ordinary field sorts
+in the same search use MIN ascending / MAX descending, including those added before the explicit selector.
+
+### Instant comparison in the collection-value profile
+
+`Instant` fields use the existing fixed-millisecond timestamp comparison both with and without `@Sortable`.
+A whole second compares as `.000Z`; serialized nanoseconds remain in the document but comparison retains the
+existing millisecond precision. This changes comparison keys only, not the document format or stored timestamp text.
+
+Unannotated document entries retain no Java type information: valid uppercase UTC ISO text is interpreted as a
+timestamp in this profile, including a literal `String` with that exact content. This guarantee concerns `Instant`
+fields; annotated `String` fields keep their existing normalized text indexes. Lowercase, offset-form and invalid
+ISO strings are ordinary text. Use consistently typed `Instant` fields for timestamp comparison.
+
+Collection-value keys use Unicode code point order, matching PostgreSQL `C`. This includes plain and sortable paths.
+New writes also choose text extrema in that order with the query profile disabled; old maxima mixing supplementary
+and high BMP characters require typed application-owned reindexing if the older writer discarded the true extremum.
+On locale databases the new profile uses explicit `C` SQL comparisons, which may not use existing locale indexes.

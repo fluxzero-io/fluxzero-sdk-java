@@ -192,3 +192,7 @@ still contributes to total response size.
 `fluxzero.interceptApply.assertCurrent` (`FLUXZERO_INTERCEPT_APPLY_ASSERT_CURRENT`) explicitly enables/disables
 current-input legality checks. Without it, DEFAULT interceptors enable them from defaults version `2026.10.04`.
 Absent/older defaults preserve replacement-only behavior. Explicit `AssertCurrent.ENABLED`/`DISABLED` wins.
+
+Collection-value search uses threshold `2026.10.09` and override `fluxzero.search.collectionValues`
+(`FLUXZERO_SEARCH_COLLECTION_VALUES`). The override wins in either direction. Prepare indexed collections on a compatible
+Runtime before enabling it; see [search maintenance](../operations/search-maintenance.md).

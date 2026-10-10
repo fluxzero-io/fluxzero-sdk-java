@@ -64,6 +64,9 @@ public class SearchDocuments extends Request {
     SearchQuery query = SearchQuery.builder().build();
     @Default
     List<String> sorting = Collections.emptyList();
+    /** Whether sorting contains explicit collection-value selectors. Absent/false preserves all legacy field names. */
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
+    boolean collectionValueSorting;
     Integer maxSize;
     @Default
     List<String> pathFilters = Collections.emptyList();
@@ -76,17 +79,18 @@ public class SearchDocuments extends Request {
      */
     SearchDocuments(SearchQuery query, List<String> sorting, Integer maxSize,
                     List<String> pathFilters, int skip, SerializedDocument lastHit) {
-        this(query, sorting, maxSize, pathFilters, skip, lastHit, null);
+        this(query, sorting, false, maxSize, pathFilters, skip, lastHit, null);
     }
 
     @ConstructorProperties({
-            "query", "sorting", "maxSize", "pathFilters", "skip",
+            "query", "sorting", "collectionValueSorting", "maxSize", "pathFilters", "skip",
             "lastHit", "documentIds"})
-    SearchDocuments(SearchQuery query, List<String> sorting, Integer maxSize,
+    SearchDocuments(SearchQuery query, List<String> sorting, boolean collectionValueSorting, Integer maxSize,
                     List<String> pathFilters, int skip, SerializedDocument lastHit,
                     List<String> documentIds) {
         this.query = query;
         this.sorting = sorting;
+        this.collectionValueSorting = collectionValueSorting;
         this.maxSize = maxSize;
         this.pathFilters = pathFilters;
         this.skip = skip;

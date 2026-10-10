@@ -222,7 +222,7 @@ public class Document {
      * Constructs a {@link Comparator} to sort documents based on the sorting options in {@link SearchDocuments}.
      */
     public static Comparator<Document> createComparator(SearchDocuments searchDocuments) {
-        return searchDocuments.getSorting().stream().map(Document::parseSortInstruction).map(sort -> switch (sort.path()) {
+        Comparator<Document> result = searchDocuments.getSorting().stream().map(Document::parseSortInstruction).map(sort -> switch (sort.path()) {
             case "timestamp" -> Comparator.comparing(Document::getTimestamp,
                                                      comparator(sort.descending(), sort.nullHandling(),
                                                                 NullHandling.FIRST, NullHandling.LAST));
@@ -230,12 +230,35 @@ public class Document {
                                                comparator(sort.descending(), sort.nullHandling(),
                                                           NullHandling.LAST, NullHandling.FIRST));
             default -> {
+                var selected = searchDocuments.isCollectionValueSorting() ? io.fluxzero.common.api.search.SearchValue.fromSortPath(sort.path()) : null;
+                if (selected != null) {
+                    yield Comparator.comparing((Document d) -> searchDocuments.getLastHit() != null
+                            && d == searchDocuments.getLastHit().deserializeDocument()
+                            ? selected.key(searchDocuments.getLastHit()) : selected.key(d), collectionValueComparator(sort.descending(), sort.nullHandling()));
+                }
                 Predicate<Path> pathPredicate = Path.pathPredicate(sort.path());
                 yield Comparator.comparing((Document d) -> extractSortValue(d, pathPredicate, sort.descending()), comparator
                         (sort.descending(), sort.nullHandling(), NullHandling.LAST, NullHandling.FIRST));
             }
         }).reduce(Comparator::thenComparing).orElseGet(
                 () -> Comparator.comparing(Document::getTimestamp, Comparator.nullsLast(naturalOrder())).reversed());
+        if (searchDocuments.isCollectionValueSorting()) {
+            boolean descending = searchDocuments.getSorting().isEmpty() || searchDocuments.getSorting().getFirst().startsWith("-");
+            Comparator<String> textOrder = CollectionValues::compare;
+            if (descending) textOrder = textOrder.reversed();
+            result = result.thenComparing(Document::getId, textOrder)
+                    .thenComparing(Document::getCollection, textOrder)
+                    .thenComparing(Document::getTimestamp, descending
+                            ? Comparator.nullsLast(Comparator.<Instant>reverseOrder())
+                            : Comparator.nullsFirst(Comparator.<Instant>naturalOrder()));
+        }
+        return result;
+    }
+
+    private static Comparator<String> collectionValueComparator(boolean descending, NullHandling nullHandling) {
+        Comparator<String> order = CollectionValues::compare;
+        if (descending) order = order.reversed();
+        return nullHandling == NullHandling.FIRST ? Comparator.nullsFirst(order) : Comparator.nullsLast(order);
     }
 
     private static Entry extractSortValue(Document document, Predicate<Path> pathPredicate, boolean descending) {

@@ -220,6 +220,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = SearchDocumentsResult.class, name = "searchDocumentsResult"),
         @JsonSubTypes.Type(value = GetDocumentStatsResult.class, name = "getDocumentStatsResult"),
         @JsonSubTypes.Type(value = CreateAuditTrail.class, name = "createAuditTrail"),
+        @JsonSubTypes.Type(value = CollectionSearchRequest.class, name = "collectionSearch"),
+        @JsonSubTypes.Type(value = CollectionSearchCommand.class, name = "collectionSearchCommand"),
         @JsonSubTypes.Type(value = GetSearchCollections.class, name = "getSearchCollections"),
         @JsonSubTypes.Type(value = GetSearchCollectionsResult.class, name = "getSearchCollectionsResult"),
         @JsonSubTypes.Type(value = GetFacetStats.class, name = "getFacetStats"),

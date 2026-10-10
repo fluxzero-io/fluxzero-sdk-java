@@ -45,6 +45,7 @@ See [all versioned defaults](docs/developer/guides/Configuration/280-application
 | Defaults version | Equivalent property |
 | --- | --- |
 | `2026.10.04` | `fluxzero.interceptApply.assertCurrent=true` |
+| `2026.10.09` | `fluxzero.search.collectionValues=true` (interval overlap; reindex existing documents for indexed min/max) |
 
 ## Work on the SDK
 

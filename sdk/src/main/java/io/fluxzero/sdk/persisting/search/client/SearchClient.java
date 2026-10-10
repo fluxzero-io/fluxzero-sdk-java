@@ -60,6 +60,7 @@ import java.util.stream.Stream;
  */
 public interface SearchClient extends AutoCloseable {
 
+
     /**
      * Retrieves existing regular search collections and audit trails.
      * <p>

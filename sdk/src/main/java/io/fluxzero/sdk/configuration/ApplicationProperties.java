@@ -179,6 +179,17 @@ public class ApplicationProperties {
                 : Boolean.parseBoolean(configured.trim());
     }
 
+    /** Annotation-independent search profile; environment variable FLUXZERO_SEARCH_COLLECTION_VALUES. */
+    public static final String COLLECTION_VALUES_PROPERTY = "fluxzero.search.collectionValues";
+    private static final LocalDate COLLECTION_VALUES_DEFAULTS_VERSION = LocalDate.of(2026, 10, 9);
+
+    /** Resolves the search profile once from the owning application's property source. */
+    public static boolean collectionValues(PropertySource source) {
+        String configured = source.get(COLLECTION_VALUES_PROPERTY);
+        return configured == null ? defaultsVersionAtLeast(source, COLLECTION_VALUES_DEFAULTS_VERSION)
+                : Boolean.parseBoolean(configured.trim());
+    }
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**
@@ -281,6 +292,13 @@ public class ApplicationProperties {
      *         <td>{@code fluxzero.interceptApply.assertCurrent = true}</td>
      *         <td>Validating apply operations also check the input of each selected interceptor before transformation.
      *         Set the property to false to preserve replacement-only validation; explicit interceptor overrides win.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.10.09}</td>
+     *         <td>{@code fluxzero.search.collectionValues = true}</td>
+     *         <td>Ranges use min/max interval overlap; ascending field sorting uses MIN, descending MAX, missing values last.
+     *         Requires a compatible Runtime; incomplete indexed extrema retain legacy behavior until application reindexing.
+     *         This fallback includes explicit MIN/MAX. Set false for legacy behavior.</td>
      *     </tr>
      * </table>
      * <p>

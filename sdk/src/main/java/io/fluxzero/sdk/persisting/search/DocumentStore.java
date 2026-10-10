@@ -64,6 +64,7 @@ import static java.util.Collections.singletonList;
  */
 public interface DocumentStore extends Namespaced<DocumentStore> {
 
+
     /**
      * Retrieves existing regular search collections and audit trails.
      *
