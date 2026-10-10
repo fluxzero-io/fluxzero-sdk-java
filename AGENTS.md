@@ -259,6 +259,17 @@ cadence: use the existing development preview and hot reload to inspect changes,
   require an agent-graph rewrite. Verify changed examples against the SDK and check MDX and links; assess the final
   chapter as a learning path, not just the added paragraphs in the diff.
 
+## Flaky Test Failures
+
+- Investigate and repair every flaky test encountered during a task, including failures outside the original scope.
+  A passing rerun is diagnostic evidence, never a resolution. Identify and record the cause before closing the work.
+- Make the regression deterministic by controlling the relevant state and interleaving with explicit synchronization,
+  lifecycle completion, or database boundaries. Repair the production defect when the test exposes one.
+- Preserve all assertions, workloads, concurrency guarantees, and failure boundaries. Never hide a failure with retries,
+  longer timeouts, sleeps, skipped tests, reduced coverage, or weaker assertions. A bounded timeout may stop a hung test;
+  elapsed time must not be the evidence that the required event occurred.
+- Keep unrelated repairs in separate commits and qualify the affected paths. Existing release authorization remains
+  scoped to its requested changes; discovering a flaky test does not authorize publishing an unrelated repair.
 
 ## Coding Guidelines
 
