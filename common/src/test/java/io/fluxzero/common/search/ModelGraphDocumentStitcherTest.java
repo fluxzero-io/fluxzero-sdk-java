@@ -69,6 +69,92 @@ class ModelGraphDocumentStitcherTest {
     public record SearchValue(String name, @SearchExclude String secret) {}
 
     @Test
+    void reducesChildSortablesByMaximumValueWithoutLosingChildContent() {
+        for (boolean reverse : List.of(false, true)) {
+            var root = document("root", "roots", "name", "root");
+            var high = document("child-a", "children", "name", "high");
+            var low = document("child-b", "children", "name", "low");
+            high = new SerializedDocument(high.deserializeDocument().toBuilder().sortables(Set.of(
+                    new SortableEntry("rank", reverse ? -10 : 20),
+                    new SortableEntry("label", reverse ? "alpha" : "zulu"),
+                    new SortableEntry("updated", Instant.ofEpochMilli(reverse ? 10 : 20)),
+                    new SortableEntry("same", "equal"),
+                    new SortableEntry("\"123\"", reverse ? -10 : 20),
+                    new SortableEntry("literal\\/1/rank", reverse ? -10 : 20))).build());
+            low = new SerializedDocument(low.deserializeDocument().toBuilder().sortables(Set.of(
+                    new SortableEntry("rank", reverse ? 20 : -10),
+                    new SortableEntry("label", reverse ? "zulu" : "alpha"),
+                    new SortableEntry("updated", Instant.ofEpochMilli(reverse ? 20 : 10)),
+                    new SortableEntry("same", "equal"),
+                    new SortableEntry("\"123\"", reverse ? 20 : -10),
+                    new SortableEntry("literal\\/1/rank", reverse ? 20 : -10))).build());
+            var graph = ModelGraphDocumentStitcher.stitch(List.of(root),
+                    List.of(edge("child-b", "root", "children"), edge("child-a", "root", "children")),
+                    Map.of("root", root, "child-a", high, "child-b", low),
+                    modelTypes("root", "child-a", "child-b"), ModelGraphComposition.builder().build()).getFirst();
+            var result = graph.deserializeDocument();
+            var indexes = result.getSortables().stream().collect(java.util.stream.Collectors.toMap(
+                    e -> e.getPath().getShortValue(), SortableEntry::getValue));
+            assertEquals(Map.of("rank", "sortable", "children/rank", SortableEntry.formatSortable(20),
+                    "children/label", "zulu", "children/updated", SortableEntry.formatSortable(Instant.ofEpochMilli(20)),
+                    "children/same", "equal", "children/123", SortableEntry.formatSortable(20), "children/literal/1/rank", SortableEntry.formatSortable(20)), indexes);
+            assertTrue(match("high", "children/name").matches(result));
+            assertTrue(match("low", "children/name").matches(result));
+            assertEquals("high", result.getEntryAtPath("children/0/name").orElseThrow().getValue());
+            assertEquals("low", result.getEntryAtPath("children/1/name").orElseThrow().getValue());
+            assertEquals(6, high.getIndexes().size(), "Composition must not mutate source documents");
+            assertTrue(io.fluxzero.common.api.search.constraints.BetweenConstraint.atLeast(15, "children/rank")
+                    .matches(result));
+            assertFalse(io.fluxzero.common.api.search.constraints.BetweenConstraint.below(0, "children/rank")
+                    .matches(result), "Sortable ranges use the collection maximum, not any child's value");
+            var outer = document("outer", "roots", "name", "outer");
+            var nested = ModelGraphDocumentStitcher.stitch(List.of(outer),
+                    List.of(edge("root", "outer", "groups\\/1"), edge("child-a", "root", "children"),
+                            edge("child-b", "root", "children")),
+                    Map.of("outer", outer, "root", root, "child-a", high, "child-b", low),
+                    modelTypes("outer", "root", "child-a", "child-b"), ModelGraphComposition.builder().build())
+                    .getFirst().getIndexes().stream().collect(java.util.stream.Collectors.toMap(
+                            e -> e.getPath().getShortValue(), SortableEntry::getValue));
+            assertEquals(SortableEntry.formatSortable(20), nested.get("groups/1/children/literal/1/rank"));
+            assertEquals(SortableEntry.formatSortable(20), nested.get("groups/1/children/rank"));
+            assertEquals(SortableEntry.formatSortable(20), nested.get("groups/1/children/123"));
+            var middle = new SerializedDocument(root.deserializeDocument().toBuilder().id("middle")
+                    .sortables(Set.of(new SortableEntry("children/rank", 10))).build());
+            for (String sort : List.of("children/rank", "-children/rank")) {
+                var search = SearchDocuments.builder().query(SearchQuery.builder().collection("roots").build())
+                        .sorting(List.of(sort)).build();
+                assertEquals(sort.startsWith("-") ? List.of("root", "middle") : List.of("middle", "root"),
+                        ModelGraphDocumentSearch.apply(List.of(graph, middle), search).stream()
+                                .map(SerializedDocument::getId).toList());
+            }
+        }
+    }
+
+    @Test
+    void preservesEscapingAndEmptySegmentsAtSortableCompositionBoundaries() {
+        for (String[] paths : List.of(new String[]{"groups\\", "rank"},
+                new String[]{"groups\\/1", "rank/"}, new String[]{"groups", "\"\""},
+                new String[]{"groups", "0/"})) {
+            var root = document("root", "roots", "name", "root");
+            var high = new SerializedDocument(document("a", "children", "name", "high").deserializeDocument()
+                    .toBuilder().sortables(Set.of(new SortableEntry(paths[1], 20))).build());
+            var low = new SerializedDocument(document("b", "children", "name", "low").deserializeDocument()
+                    .toBuilder().sortables(Set.of(new SortableEntry(paths[1], -10))).build());
+            var graph = ModelGraphDocumentStitcher.stitch(List.of(root),
+                    List.of(edge("a", "root", paths[0]), edge("b", "root", paths[0])),
+                    Map.of("root", root, "a", high, "b", low), modelTypes("root", "a", "b"),
+                    ModelGraphComposition.builder().build()).getFirst();
+            var actual = graph.getIndexes().stream().filter(e -> !e.getName().equals("rank"))
+                    .collect(java.util.stream.Collectors.toMap(e -> e.getPath().getShortValue(), SortableEntry::getValue));
+            Map<String, String> expected = paths[0].equals("groups\\")
+                    ? Map.of("groups/0/rank", SortableEntry.formatSortable(20),
+                             "groups/1/rank", SortableEntry.formatSortable(-10))
+                    : Map.of(paths[0].equals("groups") ? "groups/" : "groups/1/rank", SortableEntry.formatSortable(20));
+            assertEquals(expected, actual, java.util.Arrays.toString(paths));
+        }
+    }
+
+    @Test
     void composesCompleteGraphWithoutImplicitLimits() {
         ModelGraphComposition composition =
                 ModelGraphComposition.builder().build();

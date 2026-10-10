@@ -20,6 +20,14 @@ not make the final call primary. Set direction on the key that needs it, for exa
 Every paged or top-N query needs a deterministic final key. Prefer a unique sortable identifier as the last key so two
 documents with the same business value do not move between pages.
 
+## Collections and Graph children
+
+A sortable collection path represents its maximum encoded value, regardless of sort direction. The same rule applies
+to Graph children: `sortBy("children/price")` orders roots by the highest child price in live and materialized Graphs.
+Range constraints on that sortable path also use the maximum. Use `whereChild(...)` when a range should select any
+individual child instead. Exact matching and returned Graph content retain all children. This contract is identical
+for Java and Kotlin Models; changing projection mode does not change the aggregation rule.
+
 ## Keep the indexed shape explicit
 
 Put `@Sortable` on the exact property path used by each sort instruction. For a derived technical key, the most

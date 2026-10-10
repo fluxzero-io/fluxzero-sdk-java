@@ -111,6 +111,32 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     }
 
     @ParameterizedTest @EnumSource(GraphProjectionMode.class)
+    void sortsByMaximumChildValueInBothDirections(GraphProjectionMode mode) {
+        try (var app = application(mode)) {
+            app.apply(fc -> {
+                // Root one has red and blue; root two has green. The maximum is independent of direction.
+                assertEquals(0, graphs(mode).constraint(
+                        io.fluxzero.common.api.search.constraints.BetweenConstraint.below("green", "children/sortableLabel"))
+                        .count());
+                assertEquals(1, graphs(mode).whereChild(types(mode)[1],
+                        io.fluxzero.common.api.search.constraints.BetweenConstraint.below("green", "sortableLabel")).count());
+                assertEquals(List.of("two", "one"), graphs(mode).sortBy("children/sortableLabel").fetchAll()
+                        .stream().map(Graph::id).toList());
+                assertEquals(List.of("one", "two"), graphs(mode).sortBy("children/sortableLabel", true).fetchAsync(10).join()
+                        .stream().map(Graph::id).toList());
+                assertEquals(2, graphs(mode).match("blue", "children/label").fetch(1).getFirst()
+                        .children(types(mode)[1]).size());
+                var childType = types(mode)[1];
+                set(childType.getDeclaredConstructor(String.class, String.class, String.class, String.class, String.class)
+                        .newInstance("a", "one", "open", "amber", "hiddenvalue"));
+                assertEquals(List.of("one", "two"), graphs(mode).sortBy("children/sortableLabel").fetchAll()
+                        .stream().map(Graph::id).toList(), "Replacing the maximum must expose the remaining child's value");
+                return null;
+            });
+        }
+    }
+
+    @ParameterizedTest @EnumSource(GraphProjectionMode.class)
     void sortsAndPagesRootsBeforeReturningCompleteGraphs(GraphProjectionMode mode) {
         try (var app = application(mode)) {
             app.apply(fc -> {
@@ -846,7 +872,9 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT,
             graphProjection = @GraphProjection(mode = GraphProjectionMode.NONE))
     public record LiveChild(@EntityId String id, @Parent(value = LiveRoot.class, pathInParent = "children") String rootId,
-                         @Facet String status, String label, @SearchExclude String secret) {}
+                         @Facet String status, String label, @SearchExclude String secret) {
+        @Sortable public String getSortableLabel() { return label; }
+    }
 
     @Model(searchable = true, persistence = ModelPersistence.DOCUMENT,
             graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC,
@@ -856,7 +884,9 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT,
             graphProjection = @GraphProjection(mode = GraphProjectionMode.ASYNC))
     public record AsyncChild(@EntityId String id, @Parent(value = AsyncRoot.class, pathInParent = "children") String rootId,
-                         @Facet String status, String label, @SearchExclude String secret) {}
+                         @Facet String status, String label, @SearchExclude String secret) {
+        @Sortable public String getSortableLabel() { return label; }
+    }
 
     @Model(searchable = true, persistence = ModelPersistence.DOCUMENT,
             graphProjection = @GraphProjection(mode = GraphProjectionMode.AWAIT,
@@ -866,7 +896,9 @@ public abstract class SearchableModelGraphContract extends GraphSchemaMigrationC
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT,
             graphProjection = @GraphProjection(mode = GraphProjectionMode.AWAIT))
     public record AwaitChild(@EntityId String id, @Parent(value = AwaitRoot.class, pathInParent = "children") String rootId,
-                         @Facet String status, String label, @SearchExclude String secret) {}
+                         @Facet String status, String label, @SearchExclude String secret) {
+        @Sortable public String getSortableLabel() { return label; }
+    }
 
     @Model(searchable = false, persistence = ModelPersistence.DOCUMENT)
     public record LiveNote(@EntityId String id,
