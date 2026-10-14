@@ -53,6 +53,7 @@ Automatically mapped objects support JSON, strings support `text/plain` and JSON
 `byte[]`/`InputStream` support `application/octet-stream`. Fluxzero chooses a supported representation from `Accept`
 best-effort and leaves the normal default when none matches; do not promise `406` without an explicit application
 policy. An explicit `WebResponse` or `Content-Type` wins.
+Set or replace the media type with `WebResponse.Builder.contentType(...)`; generic `header(...)` calls append values.
 
 Streamed responses are assembled as raw bytes by the SDK request gateway, including JSON content.
 Use `getPayloadAs(...)` to convert the body. Async fixtures exercise this same path. For locally returned gzip

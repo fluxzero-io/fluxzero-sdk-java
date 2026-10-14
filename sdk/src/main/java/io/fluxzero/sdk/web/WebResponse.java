@@ -496,10 +496,11 @@ public class WebResponse extends Message {
         }
 
         /**
-         * Appends a {@code Content-Type} header and returns this builder.
+         * Sets the single {@code Content-Type}, replacing any inferred or previously configured value.
+         * A null value leaves the current header unchanged.
          */
         public Builder contentType(String contentType) {
-            return header("Content-Type", contentType);
+            return contentType == null ? this : clearHeader("Content-Type").header("Content-Type", contentType);
         }
 
         /**

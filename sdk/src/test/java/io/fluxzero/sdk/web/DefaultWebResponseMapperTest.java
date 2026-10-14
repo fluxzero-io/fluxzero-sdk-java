@@ -100,6 +100,14 @@ class DefaultWebResponseMapperTest {
     }
 
     @Test
+    void keepsExplicitJavaScriptTypeAfterStringPayloadAndNegotiation() {
+        WebResponse response = map(WebResponse.builder().payload("export const ready = true;")
+                                           .contentType("text/javascript").build(), "*/*");
+        assertEquals(List.of("text/javascript"), response.getHeaders("Content-Type"));
+        assertEquals("text/javascript", response.getContentType());
+    }
+
+    @Test
     void gatewayNegotiatesMarkedResponsesBeforeSerialization() {
         AtomicReference<SerializedMessage> appended = new AtomicReference<>();
         GatewayClient gatewayClient = mock(GatewayClient.class);
