@@ -21,6 +21,8 @@ cannot hide a missing endpoint. Use `classpath:` or `file:` to restrict the sour
 
 Fingerprint immutable assets and configure caching deliberately; do not give HTML an immutable one-year cache when it
 must point clients to newly deployed assets.
+For conditional requests, `If-None-Match` takes precedence over `If-Modified-Since`. Entity-tag matching supports weak
+tags, tag lists and `*`.
 
 ## Form and multipart parameters
 
