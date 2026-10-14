@@ -133,7 +133,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Appends a {@code Content-Type} header and returns this builder.\n"
+    "documentation" : " Sets the single {@code Content-Type}, replacing any inferred or previously configured value.\n A null value leaves the current header unchanged.\n"
   }, {
     "name" : "cookie",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#cookie",

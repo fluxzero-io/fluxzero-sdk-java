@@ -680,6 +680,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "matchesEntityTag",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#matchesEntityTag",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eTag",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "parseRange",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#parseRange",
     "returnType" : "io.fluxzero.sdk.web.StaticFileHandler.ByteRange",
