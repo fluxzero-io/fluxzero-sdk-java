@@ -215,8 +215,10 @@ public class StaticFileHandler implements Closeable {
         headers.put("Cache-Control", getCacheControlHeader(resolvedPath));
         headers.put("Vary", "Accept-Encoding");
 
-        if (eTag.equals(request.getHeader("If-None-Match")) ||
-            lastModified.equalsIgnoreCase(request.getHeader("If-Modified-Since"))) {
+        List<String> ifNoneMatch = request.getHeaders("If-None-Match");
+        // If-None-Match takes precedence, even when its value does not match this representation.
+        if (ifNoneMatch.isEmpty() ? lastModified.equalsIgnoreCase(request.getHeader("If-Modified-Since"))
+                : matchesEntityTag(ifNoneMatch, eTag)) {
             return WebResponse.notModified(headers);
         }
 
@@ -233,6 +235,24 @@ public class StaticFileHandler implements Closeable {
             return WebResponse.partial(() -> new PartialFileInputStream(actualPath, range.start(), range.length()),
                                        headers);
         }
+    }
+
+    private static boolean matchesEntityTag(List<String> values, String eTag) {
+        for (String value : values) {
+            if (value == null) continue;
+            if (value.trim().equals("*")) return true;
+            boolean quoted = false;
+            int start = 0;
+            for (int i = 0; i <= value.length(); i++) {
+                if (i < value.length() && value.charAt(i) == '"') quoted = !quoted;
+                if (i == value.length() || value.charAt(i) == ',' && !quoted) {
+                    String candidate = value.substring(start, i).trim();
+                    if (candidate.equals(eTag) || candidate.equals("W/" + eTag)) return true;
+                    start = i + 1;
+                }
+            }
+        }
+        return false;
     }
 
     @SneakyThrows
