@@ -32,6 +32,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebMessageTest {
 
     @Test
+    void explicitResponseContentTypeReplacesInferredAndPreviousValues() {
+        WebResponse response = WebResponse.builder().payload("export const ready = true;")
+                .contentType("text/html").contentType("text/javascript").build();
+        assertEquals(List.of("text/javascript"), response.getHeaders("Content-Type"));
+        assertEquals("text/javascript", response.getContentType());
+        assertEquals(List.of("text/javascript"), response.toBuilder().build().getHeaders("Content-Type"));
+        assertEquals(List.of("application/json"), response.toBuilder().contentType("application/json")
+                .build().getHeaders("Content-Type"));
+    }
+
+    @Test
+    void responseContentTypePreservesExplicitValuesAndOtherMultiValuedHeaders() {
+        WebResponse response = WebResponse.builder().header("content-type", "text/html")
+                .contentType("text/javascript").payload("export const ready = true;").contentType(null)
+                .header("Set-Cookie", "first=one").header("Set-Cookie", "second=two").build();
+        assertEquals(List.of("text/javascript"), response.getHeaders("Content-Type"));
+        assertEquals(List.of("first=one", "second=two"), response.getHeaders("Set-Cookie"));
+        assertEquals(List.of("text/plain"), WebResponse.builder().payload("text").build().getHeaders("Content-Type"));
+    }
+
+    @Test
     void pathForLoggingOmitsOriginQueryAndFragment() {
         Metadata metadata = Metadata.of(WebRequest.urlKey,
                                         "https://auth.example.test/auth/flow?flow=query-secret#fragment-secret");

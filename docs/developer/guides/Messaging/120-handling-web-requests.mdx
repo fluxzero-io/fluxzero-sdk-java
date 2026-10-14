@@ -133,6 +133,13 @@ fun log(request: WebRequest) {
   </TabItem>
 </Tabs>
 
+### Explicit response headers
+
+For explicit response headers, return a `WebResponse`. Its `contentType(...)` builder method replaces any inferred or
+previously configured content type, so `.payload(script).contentType("text/javascript")` produces one JavaScript
+content type in both Java and Kotlin. The generic `header(...)` method still appends values for multi-valued headers
+such as `Set-Cookie`.
+
 ### Graph responses
 
 A handler may return a `Graph<T>` as composed JSON, including selected child paths and derived properties.
