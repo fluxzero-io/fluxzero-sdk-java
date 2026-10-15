@@ -133,7 +133,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : " Replaces the {@code Content-Type} header, including an inferred payload type, and returns this builder.\n A null value leaves the current type unchanged.\n"
   }, {
     "name" : "cookie",
     "qualifiedName" : "io.fluxzero.sdk.web.WebResponse$Builder#cookie",

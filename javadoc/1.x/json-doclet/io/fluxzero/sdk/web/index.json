@@ -500,6 +500,16 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$Compression",
     "kind" : "enum"
   }, {
+    "file" : "StaticFileHandler.JarResources.json",
+    "name" : "StaticFileHandler.JarResources",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$JarResources",
+    "kind" : "record"
+  }, {
+    "file" : "StaticFileHandler.StaticResource.json",
+    "name" : "StaticFileHandler.StaticResource",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$StaticResource",
+    "kind" : "record"
+  }, {
     "file" : "WebFormPart.json",
     "name" : "WebFormPart",
     "qualifiedName" : "io.fluxzero.sdk.web.WebFormPart",

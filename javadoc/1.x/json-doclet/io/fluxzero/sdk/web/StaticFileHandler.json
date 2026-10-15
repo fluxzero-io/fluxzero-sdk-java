@@ -17,7 +17,7 @@
     "annotationType" : "lombok.Getter",
     "values" : {}
   } ],
-  "documentation" : null,
+  "documentation" : " Serves static resources with streamed bodies and content-based validators for the selected representation.\n ETags are SHA-256 digests. Digests of immutable resources in JAR files opened by this handler are reused for\n that open archive's lifetime, separately for each encoded representation. Other sources, including filesystem\n overrides, exploded classpaths and externally resolved nested JARs, are read with bounded memory on every\n request. This detects changed files even when size and modification time are preserved. Keep archives immutable\n while open and other files stable until pending responses finish; prefer immutable, versioned asset paths.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "java.io.Closeable" ],
@@ -86,7 +86,7 @@
   }, {
     "name" : "jarFileSystemCache",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler.jarFileSystemCache",
-    "type" : "java.util.Map<java.net.URI,java.nio.file.FileSystem>",
+    "type" : "java.util.Map<java.net.URI,io.fluxzero.sdk.web.StaticFileHandler.JarResources>",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -461,6 +461,25 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "computeEntityTag",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#computeEntityTag",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.nio.file.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "extractEmbeddedResourcePath",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#extractEmbeddedResourcePath",
     "returnType" : "java.lang.String",
@@ -680,6 +699,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "matchesEntityTag",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#matchesEntityTag",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eTag",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "parseRange",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#parseRange",
     "returnType" : "io.fluxzero.sdk.web.StaticFileHandler.ByteRange",
@@ -703,7 +743,7 @@
   }, {
     "name" : "resolveExistingPath",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#resolveExistingPath",
-    "returnType" : "java.nio.file.Path",
+    "returnType" : "io.fluxzero.sdk.web.StaticFileHandler.StaticResource",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -719,7 +759,7 @@
   }, {
     "name" : "resolveFallbackPath",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#resolveFallbackPath",
-    "returnType" : "java.nio.file.Path",
+    "returnType" : "io.fluxzero.sdk.web.StaticFileHandler.StaticResource",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -735,7 +775,7 @@
   }, {
     "name" : "resolveSecurePath",
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler#resolveSecurePath",
-    "returnType" : "java.nio.file.Path",
+    "returnType" : "io.fluxzero.sdk.web.StaticFileHandler.StaticResource",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -836,6 +876,18 @@
     "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$Compression",
     "kind" : "enum",
     "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "JarResources",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$JarResources",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "StaticResource",
+    "qualifiedName" : "io.fluxzero.sdk.web.StaticFileHandler$StaticResource",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   } ]
 }
