@@ -167,7 +167,7 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
                 }
                 URI uri = URI.create(url.startsWith("/") || url.contains("://") ? url : "/" + url);
                 String path = uri.getRawPath();
-                path = path == null || path.isBlank() ? "" : path.startsWith("/") ? path : "/" + path;
+                path = path == null || path.isBlank() ? "/" : path.startsWith("/") ? path : "/" + path;
                 String origin = uri.getScheme() == null || uri.getHost() == null ? null
                         : uri.getScheme() + "://" + uri.getHost() + (uri.getPort() < 0 ? "" : ":" + uri.getPort());
                 for (CompiledRoute route : routes) {

@@ -37,6 +37,9 @@ The reset rule above applies to nested `@Path` annotations. A leading slash in `
 
 An instance/property-derived `@Path` is evaluated at runtime. Generated OpenAPI can compose static package, type, and method path values, but it cannot enumerate arbitrary runtime property values. Prefer static paths for discoverable application APIs; otherwise document and test the dynamic route separately instead of claiming the generated artifact contains every runtime value.
 
+Without `@Path` or a mapping value, `@HandleGet` serves `/`. An empty request URL also denotes that root;
+non-root routes still require their declared path. Automatic HEAD/OPTIONS use the same root route.
+
 ## Put transport annotations on handler parameters
 
 `@PathParam`, `@QueryParam`, `@HeaderParam`, `@CookieParam`, `@FormParam`, and `@BodyParam` target handler method parameters. They do not belong on request-record components. `@WebParam` is the meta-annotation used to define parameter annotations; do not place it directly on an endpoint parameter or DTO field:

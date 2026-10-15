@@ -93,6 +93,9 @@ ordinary COMMAND selection after relay; do not narrow the relay by locally regis
 Local automatic handling issues no server Read. These rules apply equally to Java and Kotlin.
 Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
 custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
+Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
+HEAD/OPTIONS, including static mount/fallback routes. Socket consumers stay broad to preserve handshake,
+pong and close cleanup even on unmatched paths.
 Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses
 that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Stateful/member,
 socket-session and graph-change expansion currently retain broad delivery. Runtime uses the Common implementation; Test Server/local tracking match.

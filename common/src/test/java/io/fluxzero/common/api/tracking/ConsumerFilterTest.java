@@ -75,6 +75,18 @@ class ConsumerFilterTest {
     }
 
     @Test
+    void absoluteOriginsWithoutAPathUseTheRootRoute() {
+        var predicate = ConsumerFilter.select(null, 1, 1, null, null,
+                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/$")), List.of(), false)
+                .compile();
+        assertTrue(predicate.test(web("GET", "https://example.test:8443")));
+        assertTrue(predicate.test(web("HEAD", "https://example.test:8443?x=y")));
+        assertTrue(predicate.test(web("OPTIONS", "https://example.test:8443/#fragment")));
+        assertFalse(predicate.test(web("GET", "https://other.test:8443")));
+        assertFalse(predicate.test(web("GET", "https://example.test:8443/other")));
+    }
+
+    @Test
     void distinguishesOriginsAndKeepsUnknownUnionMembersUnrestricted() {
         var filter = ConsumerFilter.select(null, 1, 1, null, null,
                 List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/endpoint$")), List.of(), false);

@@ -107,7 +107,7 @@ class WebRouteMatcher<T> {
 
     static String normalizePath(String path) {
         if (path == null || path.isBlank()) {
-            return "";
+            return "/";
         }
         return path.startsWith("/") ? path : "/" + path;
     }

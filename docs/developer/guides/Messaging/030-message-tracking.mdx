@@ -432,6 +432,9 @@ Automatic Model commands contribute the payload boundary of their actual command
 `@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the
 schedule log, then the dispatched command matches its normal command consumer; the relay accepts every wrapped
 command, including commands handled by another application. Local automatic handling does not issue a server Read.
+Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
+HEAD/OPTIONS, including static mount/fallback routes. Socket consumers stay broad to preserve handshake,
+pong and close cleanup even on unmatched paths.
 Unknown/custom metadata widens delivery rather than risk excluding a relevant message. Handlers still
 perform dispatch and authorization. Registering a new handler or migration updates future delivery; use replay when
 previously skipped messages need processing.

@@ -25,6 +25,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebRouteMatcherTest {
 
     @Test
+    void implicitRootMatchesSlashAndKeepsOtherPathsExcluded() {
+        WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
+        matcher.add(new WebPattern("", GET), "root");
+        assertEquals("root", matcher.match(GET, null, "/").orElseThrow().value());
+        assertEquals("root", matcher.match(GET, null, "").orElseThrow().value());
+        assertTrue(matcher.match(GET, null, "/other").isEmpty());
+        assertTrue(matcher.match(POST, null, "/").isEmpty());
+        assertTrue(WebRouteMatcher.matchesPath("", "/"));
+        assertTrue(WebRouteMatcher.matchesPath("/", ""));
+    }
+
+    @Test
     void wildcardSegmentInMiddleMatchesOneSegmentOnly() {
         WebRouteMatcher<String> matcher = new WebRouteMatcher<>();
         matcher.add(new WebPattern("/a/*/b", GET), "middleWildcard");
