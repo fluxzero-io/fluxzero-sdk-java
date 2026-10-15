@@ -24,16 +24,23 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
+import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @Isolated("StaticFileHandler.close closes shared JAR filesystems")
 class StaticFileCacheTest {
@@ -159,6 +166,143 @@ class StaticFileCacheTest {
             assertEquals(200, updated.getStatus());
             assertNotEquals(response.getHeader("ETag"), updated.getHeader("ETag"));
             assertArrayEquals(compressed, read(updated));
+        }
+    }
+
+    @Test
+    void reusesJarDigestAcrossRequestsHandlersAndAliases() throws Exception {
+        try (var first = resource("jar", "cached", "immutable")) {
+            try (var hashing = mockStatic(MessageDigest.class, CALLS_REAL_METHODS)) {
+                String tag = first.serveStaticFile("index.html", WebRequest.get("/").build()).getHeader("ETag");
+                var second = new StaticFileHandler("/other", null, first.getResourceBaseUri(), null,
+                                                   Set.of(), Set.of(), 0);
+                for (var handler : List.of(first, second)) {
+                    assertEquals(304, handler.serveStaticFile("./index.html", WebRequest.get("/")
+                            .header("If-None-Match", tag).build()).getStatus());
+                    assertEquals(tag, handler.serveStaticFile("index.html", WebRequest.builder().url("/")
+                            .method("HEAD").build()).getHeader("ETag"));
+                    assertEquals(tag, handler.serveStaticFile("index.html", WebRequest.get("/")
+                            .header("Range", "bytes=0-2").build()).getHeader("ETag"));
+                }
+                hashing.verify(() -> MessageDigest.getInstance("SHA-256"), times(1));
+            }
+        }
+    }
+
+    @Test
+    void reopeningReplacedJarAtSameUriDoesNotReuseOldDigest() throws Exception {
+        var first = resource("jar", "replaced", "old bytes");
+        String tag = first.serveStaticFile("index.html", WebRequest.get("/").build()).getHeader("ETag");
+        first.close();
+        try (var replacement = resource("jar", "replaced", "new bytes")) {
+            var response = replacement.serveStaticFile("index.html", WebRequest.get("/")
+                    .header("If-None-Match", tag).build());
+            assertEquals(200, response.getStatus());
+            assertNotEquals(tag, response.getHeader("ETag"));
+            assertArrayEquals("new bytes".getBytes(UTF_8), read(response));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"filesystem", "exploded", "zip-filesystem"})
+    void mutableSourcesAreReadAgainEvenWhenJarFallbackExists(String storage) throws Exception {
+        try (var fallback = resource("jar", "fallback", "fallback")) {
+            if (storage.equals("zip-filesystem")) {
+                Path archive = directory.resolve("mutable.zip");
+                try (var fs = FileSystems.newFileSystem(archive, Map.of("create", "true"))) {
+                    verifyMutableSource(fs.getPath("/"), fallback.getResourceBaseUri(), false);
+                }
+            } else {
+                verifyMutableSource(directory, fallback.getResourceBaseUri(), storage.equals("exploded"));
+            }
+        }
+    }
+
+    private void verifyMutableSource(Path root, URI jarFallback, boolean exploded) throws Exception {
+        Path file = root.resolve("index.html");
+        Files.writeString(file, "old bytes");
+        Files.setLastModifiedTime(file, FIXED_TIME);
+        var handler = new StaticFileHandler("/files", exploded ? null : root,
+                exploded ? root.toUri() : jarFallback, null, Set.of(), Set.of(), 0);
+        try (var hashing = mockStatic(MessageDigest.class, CALLS_REAL_METHODS)) {
+            String tag = handler.serveStaticFile("index.html", WebRequest.get("/").build()).getHeader("ETag");
+            Files.writeString(file, "new bytes");
+            Files.setLastModifiedTime(file, FIXED_TIME);
+            var response = handler.serveStaticFile("index.html", WebRequest.get("/")
+                    .header("If-None-Match", tag).build());
+            assertEquals(200, response.getStatus());
+            assertNotEquals(tag, response.getHeader("ETag"));
+            assertArrayEquals("new bytes".getBytes(UTF_8), read(response));
+            hashing.verify(() -> MessageDigest.getInstance("SHA-256"), times(2));
+        }
+    }
+
+    @Test
+    void failedJarDigestCanBeRetried() throws Exception {
+        try (var handler = resource("jar", "retry", "immutable")) {
+            try (var hashing = mockStatic(MessageDigest.class, CALLS_REAL_METHODS)) {
+                hashing.when(() -> MessageDigest.getInstance("SHA-256"))
+                        .thenThrow(new IllegalStateException("digest failure")).thenCallRealMethod();
+                assertThrows(IllegalStateException.class,
+                             () -> handler.serveStaticFile("index.html", WebRequest.get("/").build()));
+                var response = handler.serveStaticFile("index.html", WebRequest.get("/").build());
+                assertEquals(200, response.getStatus());
+                assertArrayEquals("immutable".getBytes(UTF_8), read(response));
+                assertEquals(304, handler.serveStaticFile("index.html", WebRequest.get("/")
+                        .header("If-None-Match", response.getHeader("ETag")).build()).getStatus());
+                hashing.verify(() -> MessageDigest.getInstance("SHA-256"), times(2));
+            }
+        }
+    }
+
+    @Test
+    void concurrentJarRequestsAndCompressedRepresentationsRemainConsistent() throws Exception {
+        Path jar = directory.resolve("representations.jar");
+        Map<String, byte[]> content = Map.of("index.html", "identity".getBytes(UTF_8),
+                "index.html.gz", CompressionAlgorithm.GZIP.compress("identity".getBytes(UTF_8)),
+                "index.html.br", new byte[]{1, 2, 3});
+        try (var output = new JarOutputStream(Files.newOutputStream(jar))) {
+            for (var entry : content.entrySet()) {
+                output.putNextEntry(new JarEntry(entry.getKey()));
+                output.write(entry.getValue());
+                output.closeEntry();
+            }
+        }
+        try (var handler = new StaticFileHandler("/files", null, URI.create("jar:" + jar.toUri() + "!/"), null,
+                                                 Set.of(), Set.of(), 0);
+             var executor = Executors.newFixedThreadPool(4)) {
+            var calls = new ArrayList<Callable<Map<String, String>>>();
+            for (int i = 0; i < 12; i++) {
+                calls.add(() -> {
+                    Map<String, String> tags = new java.util.HashMap<>();
+                    for (String encoding : List.of("identity", "gzip", "br")) {
+                        var response = handler.serveStaticFile("index.html", WebRequest.get("/")
+                                .header("Accept-Encoding", encoding).build());
+                        assertArrayEquals(content.get("index.html" + (encoding.equals("identity") ? ""
+                                : encoding.equals("gzip") ? ".gz" : ".br")), read(response));
+                        tags.put(encoding, response.getHeader("ETag"));
+                    }
+                    return tags;
+                });
+            }
+            Map<String, String> expected = null;
+            for (var result : executor.invokeAll(calls)) {
+                var tags = result.get();
+                assertEquals(3, Set.copyOf(tags.values()).size());
+                if (expected == null) {
+                    expected = tags;
+                } else {
+                    assertEquals(expected, tags);
+                }
+            }
+            try (var hashing = mockStatic(MessageDigest.class, CALLS_REAL_METHODS)) {
+                for (String encoding : List.of("identity", "gzip", "br")) {
+                    assertEquals(304, handler.serveStaticFile("index.html", WebRequest.get("/")
+                            .header("Accept-Encoding", encoding).header("If-None-Match", expected.get(encoding))
+                            .build()).getStatus());
+                }
+                hashing.verifyNoInteractions();
+            }
         }
     }
 

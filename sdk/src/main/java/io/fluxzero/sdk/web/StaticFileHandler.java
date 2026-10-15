@@ -56,9 +56,11 @@ import static java.util.stream.Collectors.toSet;
 
 /**
  * Serves static resources with streamed bodies and content-based validators for the selected representation.
- * ETags are SHA-256 digests computed with bounded memory on every request, including conditional GET/HEAD and
- * ranges. This detects changes even when file size and modification time are preserved. Files should remain
- * stable until pending responses finish; prefer immutable, versioned asset paths.
+ * ETags are SHA-256 digests. Digests of immutable resources in JAR files opened by this handler are reused for
+ * that open archive's lifetime, separately for each encoded representation. Other sources, including filesystem
+ * overrides, exploded classpaths and externally resolved nested JARs, are read with bounded memory on every
+ * request. This detects changed files even when size and modification time are preserved. Keep archives immutable
+ * while open and other files stable until pending responses finish; prefer immutable, versioned asset paths.
  */
 @Slf4j
 @EqualsAndHashCode
@@ -66,7 +68,7 @@ import static java.util.stream.Collectors.toSet;
 @Getter
 public class StaticFileHandler implements Closeable {
 
-    private static final Map<URI, FileSystem> jarFileSystemCache = new ConcurrentHashMap<>();
+    private static final Map<URI, JarResources> jarFileSystemCache = new ConcurrentHashMap<>();
 
     public static final String classpathPrefix = "classpath:";
     public static final String filePrefix = "file:";
@@ -183,12 +185,13 @@ public class StaticFileHandler implements Closeable {
     @HandleGet({"/{filePath:.+}*", "", "/"})
     @SneakyThrows
     protected WebResponse serveStaticFile(@PathParam("filePath") String filePath, WebRequest request) {
-        Path resolvedPath = resolveSecurePath(filePath);
+        StaticResource resource = resolveSecurePath(filePath);
 
-        if (resolvedPath == null) {
+        if (resource == null) {
             return WebResponse.notFound("File not found");
         }
 
+        Path resolvedPath = resource.path();
         String acceptEncoding = request.getHeader("Accept-Encoding");
         String rangeHeader = request.getHeader("Range");
 
@@ -206,7 +209,9 @@ public class StaticFileHandler implements Closeable {
         long fileSize = Files.size(actualPath);
         FileTime lastModifiedTime = Files.getLastModifiedTime(actualPath);
         String lastModified = formatHttpDate(lastModifiedTime.toMillis());
-        String eTag = computeEntityTag(actualPath);
+        String eTag = resource.jarResources() == null ? computeEntityTag(actualPath)
+                : resource.jarResources().entityTags().computeIfAbsent(actualPath.normalize(),
+                                                                      StaticFileHandler::computeEntityTag);
 
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Accept-Ranges", "bytes");
@@ -334,13 +339,13 @@ public class StaticFileHandler implements Closeable {
         throw new IllegalArgumentException("Invalid jar URI: " + jarResourceUri);
     }
 
-    private Path resolveSecurePath(String requestedPath) {
+    private StaticResource resolveSecurePath(String requestedPath) {
         if (isUnsafeRequestedPath(requestedPath)) {
             return resolveFallbackPath(requestedPath);
         }
 
         for (String candidatePath : getCandidatePaths(requestedPath, cleanUrls)) {
-            Path resolvedPath = resolveExistingPath(candidatePath);
+            StaticResource resolvedPath = resolveExistingPath(candidatePath);
             if (resolvedPath != null) {
                 return resolvedPath;
             }
@@ -358,12 +363,12 @@ public class StaticFileHandler implements Closeable {
         return Arrays.stream(requestedPath.split("/")).anyMatch(".."::equals);
     }
 
-    private Path resolveExistingPath(String requestedPath) {
+    private StaticResource resolveExistingPath(String requestedPath) {
         // 1. Try file system first
         if (fsBaseDirectory != null) {
             Path fsPath = fsBaseDirectory.resolve(requestedPath).normalize();
             if (isExistingFile(fsPath) && fsPath.startsWith(fsBaseDirectory)) {
-                return fsPath;
+                return new StaticResource(fsPath, null);
             }
         }
 
@@ -383,7 +388,7 @@ public class StaticFileHandler implements Closeable {
                         try {
                             resourcePath = Paths.get(resourceUrl.toURI());
                             if (isExistingFile(resourcePath)) {
-                                return resourcePath;
+                                return new StaticResource(resourcePath, null);
                             }
                         } catch (Exception e) {
                             log.warn("Failed to load resource from classloader path {}", fallbackPath, e);
@@ -393,22 +398,22 @@ public class StaticFileHandler implements Closeable {
                     // Regular JAR
                     URI jarRoot = getJarRootUri(resourceUri);
                     @SuppressWarnings("resource")
-                    FileSystem fs = jarFileSystemCache.computeIfAbsent(jarRoot, uri -> {
+                    JarResources jarResources = jarFileSystemCache.computeIfAbsent(jarRoot, uri -> {
                         try {
-                            return FileSystems.newFileSystem(uri, Collections.emptyMap());
+                            return new JarResources(FileSystems.newFileSystem(uri, Collections.emptyMap()));
                         } catch (IOException e) {
                             throw new RuntimeException("Failed to create FileSystem for " + uri, e);
                         }
                     });
-                    resourcePath = fs.provider().getPath(resourceUri);
+                    resourcePath = jarResources.fileSystem().provider().getPath(resourceUri);
                     if (isExistingFile(resourcePath)) {
-                        return resourcePath;
+                        return new StaticResource(resourcePath, jarResources);
                     }
                 } else {
                     // Normal file URL or fallback
                     resourcePath = Paths.get(resourceUri);
                     if (isExistingFile(resourcePath)) {
-                        return resourcePath;
+                        return new StaticResource(resourcePath, null);
                     }
                 }
 
@@ -447,7 +452,7 @@ public class StaticFileHandler implements Closeable {
         return Files.exists(path) && Files.isRegularFile(path);
     }
 
-    private Path resolveFallbackPath(String requestedPath) {
+    private StaticResource resolveFallbackPath(String requestedPath) {
         if (fallbackFile != null && !Objects.equals(requestedPath, fallbackFile)) {
             return resolveExistingPath(fallbackFile);
         }
@@ -516,11 +521,30 @@ public class StaticFileHandler implements Closeable {
 
     @Override
     public void close() {
-        Collection<FileSystem> values = jarFileSystemCache.values();
-        for (FileSystem value : values) {
+        Collection<JarResources> values = jarFileSystemCache.values();
+        for (JarResources value : values) {
             try (value) {
                 values.remove(value);
             } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private record StaticResource(Path path, @Nullable JarResources jarResources) {}
+
+    private record JarResources(FileSystem fileSystem, Map<Path, String> entityTags) implements Closeable {
+        private JarResources(FileSystem fileSystem) {
+            this(fileSystem, new ConcurrentHashMap<>());
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                fileSystem.close();
+            } finally {
+                // Keys are normalized existing entry paths, never URLs or request headers. Retain only digests,
+                // at most one per requested archive entry, and release them with this mounted archive version.
+                entityTags.clear();
             }
         }
     }
