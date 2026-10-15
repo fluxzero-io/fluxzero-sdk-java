@@ -440,8 +440,12 @@ public class WebResponse extends Message {
             return this;
         }
 
+        /**
+         * Replaces the {@code Content-Type} header, including an inferred payload type, and returns this builder.
+         * A null value leaves the current type unchanged.
+         */
         public Builder contentType(String contentType) {
-            return header("Content-Type", contentType);
+            return contentType == null ? this : clearHeader("Content-Type").header("Content-Type", contentType);
         }
 
         public Map<String, List<String>> headers() {
