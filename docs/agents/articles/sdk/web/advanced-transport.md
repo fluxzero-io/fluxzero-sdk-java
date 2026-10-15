@@ -23,8 +23,12 @@ Fingerprint immutable assets and configure caching deliberately; do not give HTM
 must point clients to newly deployed assets. ETags identify the bytes of the selected file (identity, gzip, or Brotli).
 Conditional GET/HEAD gives `If-None-Match` precedence over `If-Modified-Since`, including weak tags, lists, and `*`.
 An old ETag therefore causes a fresh response even if the replacement has the same timestamp and length.
-Validation reads the complete selected file with bounded memory on each request; response bodies remain streamed.
-Keep assets stable while requests are served. For large or frequently requested assets, use fingerprinted URLs and
+For immutable resources in regular JARs opened by the handler, validation hashes each selected archive entry once
+and reuses its digest until that archive is closed. Identity, gzip and Brotli entries have separate digests;
+reopening an archive computes fresh digests. Only digests and entry paths are retained, never response bodies.
+Keep these archives immutable while open. Filesystem overrides, exploded classpaths and externally managed nested
+JAR resources are still read with bounded memory on every request, even if their size and timestamp are unchanged.
+Response bodies remain streamed. Keep mutable assets stable until pending responses finish. For large or frequently requested assets, use fingerprinted URLs and
 appropriate cache lifetimes to reduce revalidation traffic.
 
 ## Form and multipart parameters

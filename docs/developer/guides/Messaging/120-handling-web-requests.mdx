@@ -277,9 +277,13 @@ This serves files from `/static` (in classpath or filesystem) under the URI path
 Static responses use content-based ETags, so changed bytes invalidate a cached response even if file size and
 modification time are unchanged. On conditional GET/HEAD requests, `If-None-Match` takes precedence over
 `If-Modified-Since`. The validator identifies the selected uncompressed, gzip, or Brotli file.
-Computing it reads the complete file with bounded memory on each request; the response body remains streamed.
-Keep deployed assets stable while serving requests and use fingerprinted URLs with suitable cache lifetimes for
-large or frequently requested assets.
+For immutable resources in regular JARs opened by the handler, each entry's digest is computed once and reused
+until that archive is closed. Reopening the archive computes fresh digests; compressed entries are cached separately.
+The cache retains entry paths and digests, not file contents. Filesystem overrides, exploded classpaths and externally
+managed nested JAR resources are still read with bounded memory on every request. Equal size and modification time
+do not prove equal contents. Response bodies remain streamed.
+Keep JARs immutable while open and mutable files stable until pending responses finish. Use fingerprinted URLs with
+suitable cache lifetimes for large or frequently requested assets.
 
 ### Features
 

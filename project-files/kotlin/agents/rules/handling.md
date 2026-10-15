@@ -680,9 +680,12 @@ fun createBooking(
 ### @ServeStatic
 
 Static responses use a content-based ETag for the selected identity, gzip, or Brotli file. `If-None-Match` takes
-precedence over `If-Modified-Since` on conditional GET/HEAD. Validation reads the complete file with bounded memory
-on every request, while response bodies remain streamed. Keep assets stable until pending responses finish and
-prefer fingerprinted URLs with suitable cache lifetimes for large or frequently requested files.
+precedence over `If-Modified-Since` on conditional GET/HEAD. Digests for immutable entries in regular JARs opened
+by the handler are reused until that archive is closed; reopening computes fresh digests. The cache retains entry
+paths and digests, not bodies. Filesystem overrides, exploded classpaths and externally managed nested JAR resources
+are read with bounded memory on every request. Bodies remain streamed. Keep archives immutable while open and
+other files stable until pending responses finish. Prefer fingerprinted URLs with suitable cache lifetimes for
+large or frequently requested files.
 
 `WebResponse.builder().contentType(...)` replaces an inferred or previously configured type, before or after
 `payload(...)`. Generic `header(...)` calls remain additive, including multiple `Set-Cookie` values.
