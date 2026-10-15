@@ -120,9 +120,9 @@ class ConsumerWebRouteContractTest {
     }
 
     @Consumer(name = "web-filter-contract", minIndex = 0)
-    @ServeStatic(resourcePath = "classpath:/web/static")
+    @ServeStatic(resourcePath = "classpath:/web/filter-static")
     static class Site { @HandleGet("api/ping") void ping() {} }
-    @Path("/site") @ServeStatic(resourcePath = "classpath:/web/static")
+    @Path("/site") @ServeStatic(resourcePath = "classpath:/web/filter-static")
     static class MountedSite extends Site {}
     @Consumer(name = "web-filter-contract", minIndex = 0)
     static class SocketHandler {
