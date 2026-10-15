@@ -670,7 +670,12 @@ BookingId createBooking(
 
 <a name="serve-static"></a>
 
+A handler with `@HandleGet` but no mapping value or `@Path` serves the root `/`.
+
 ### @ServeStatic
+
+`@ServeStatic` also works on a class-registered `@SocketEndpoint`: assets are served independently of session
+creation and closure. A class/package `@Path` contributes to the static mount; test HTTP and socket routes together.
 
 Static responses use a content-based ETag for the selected identity, gzip, or Brotli file. `If-None-Match` takes
 precedence over `If-Modified-Since` on conditional GET/HEAD. Digests for immutable entries in regular JARs opened

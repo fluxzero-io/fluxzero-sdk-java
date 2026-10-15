@@ -57,7 +57,7 @@ public @interface HandleWeb {
 
     /**
      * One or more path patterns this handler applies to (e.g. {@code /users}, {@code /accounts/{id}},
-     * {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation.
+     * {@code /accounts/*&#47;users}). If empty, the path is based on the {@link Path} annotation, or {@code /} when no base is declared.
      * <p>
      * Patterns support literal path parts, {@code {name}} parameters, {@code {name:regex}} constrained parameters,
      * and {@code *} wildcards. A non-final {@code *} matches within a single path segment, while a final {@code *}
