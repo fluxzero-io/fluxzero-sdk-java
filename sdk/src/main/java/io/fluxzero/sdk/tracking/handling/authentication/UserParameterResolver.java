@@ -47,6 +47,12 @@ public class UserParameterResolver extends TypedParameterResolver<Object>
     }
 
     @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() == UserParameterResolver.class ? User.class.isAssignableFrom(parameter.getType())
+                : mayApply(parameter.getDeclaringExecutable(), targetClass);
+    }
+
+    @Override
     public Function<Object, Object> resolve(Parameter p, Annotation methodAnnotation) {
         return m -> {
             DeserializingMessage currentMessage =

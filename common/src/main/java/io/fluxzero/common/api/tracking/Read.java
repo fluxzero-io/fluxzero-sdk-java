@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Request;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+import lombok.Setter;
 import lombok.experimental.NonFinal;
 
 import java.beans.ConstructorProperties;
@@ -32,6 +33,19 @@ import java.beans.ConstructorProperties;
 @EqualsAndHashCode(callSuper = true)
 @NonFinal
 public class Read extends Request {
+
+    /**
+     * Optional conservative consumer blueprint projection. A filtered read with {@code maxSize == 0} only refreshes
+     * the session's active filter; it does not claim segments or advance positions. Older peers ignore this field.
+     */
+    @NonFinal
+    @Setter
+    volatile ConsumerFilter consumerFilter;
+
+    /** Optional scan-yield look-back in milliseconds; absent retains the historic maxTimeout-based boundary. */
+    @NonFinal
+    @Setter
+    Long maxScanLookBack;
 
     /**
      * The type of messages to read (e.g. EVENT, COMMAND, QUERY, etc.).
@@ -181,5 +195,34 @@ public class Read extends Request {
     @SuppressWarnings("unused")
     public boolean isIgnoreMessageTarget() {
         return !filterMessageTarget;
+    }
+
+    /**
+     * Adapts this request to a peer without consumer-filter support, retaining its identity and explicit cursor.
+     * An independently bounded long idle wait falls back to the historic scan window on that peer.
+     */
+    public Read forLegacyPeer() {
+        if (consumerFilter == null && maxScanLookBack == null) {
+            return this;
+        }
+        return new Read(getRequestId(), messageType, consumer, trackerId, maxSize, maxBytes,
+                maxScanLookBack == null ? maxTimeout : Math.min(maxTimeout, maxScanLookBack),
+                typeFilter, filterMessageTarget, ignoreSegment, singleTracker, clientControlledIndex,
+                includeDocumentTombstones, lastIndex, purgeTimeout);
+    }
+
+    /** Keeps the historical Read metric shape without copying complete filter snapshots into telemetry. */
+    @Override
+    public Object toMetric() {
+        ConsumerFilter filter = consumerFilter;
+        if (filter == null) {
+            return this;
+        }
+        Read metric = new Read(getRequestId(), messageType, consumer, trackerId, maxSize, maxBytes, maxTimeout,
+                typeFilter, filterMessageTarget, ignoreSegment, singleTracker, clientControlledIndex,
+                includeDocumentTombstones, lastIndex, purgeTimeout);
+        metric.setConsumerFilter(filter.asReference());
+        metric.setMaxScanLookBack(maxScanLookBack);
+        return metric;
     }
 }

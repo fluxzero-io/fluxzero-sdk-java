@@ -23,6 +23,9 @@ import io.fluxzero.common.api.tracking.ClaimSegmentResult;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.registry.ConsumerBlueprint;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -35,12 +38,60 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class CachingTrackingCancellationTest {
+    @Test
+    void legacyBlueprintConsumersKeepTheSharedCacheAndSwitchWhenSupportChanges() throws Exception {
+        var delegate = delegate();
+        var supported = new AtomicBoolean();
+        when(delegate.supportsConsumerFiltering()).thenAnswer(ignored -> supported.get());
+        var filler = mock(Registration.class);
+        try (var blueprint = new ConsumerBlueprint(new JacksonSerializer(), ConsumerFilter::unrestricted,
+                                                    new AtomicLong()::incrementAndGet);
+             var client = new CachingTrackingClient(delegate, 128);
+             var trackers = mockStatic(DefaultTracker.class)) {
+            trackers.when(() -> DefaultTracker.start(any(), any(ConsumerConfiguration.class), same(delegate)))
+                    .thenReturn(filler);
+            var first = ConsumerConfiguration.builder().name("first").consumerBlueprint(blueprint)
+                    .maxFetchSize(1).maxWaitDuration(Duration.ZERO).build();
+            var second = first.toBuilder().name("second").build();
+            for (var config : List.of(first, second)) {
+                when(delegate.claimSegment("tracker", 10L, config))
+                        .thenReturn(CompletableFuture.completedFuture(claim(10)));
+                when(delegate.read("tracker", 10L, config)).thenReturn(CompletableFuture.completedFuture(
+                        new MessageBatch(new int[]{0, 128}, List.of(), null, Position.newPosition(), true)));
+            }
+            client.cacheNewMessages(List.of(message(10), message(11)));
+            assertEquals(11L, client.read("tracker", 10L, first).join().getMessages().getFirst().getIndex());
+            assertEquals(11L, client.read("tracker", 10L, second).join().getMessages().getFirst().getIndex());
+            verify(delegate, never()).read(anyString(), any(), any());
+            supported.set(true);
+            client.read("tracker", 10L, first).join();
+            verify(filler, never()).cancel();
+            client.read("tracker", 10L, second).join();
+            verify(filler, never()).cancel();
+            // Prefetch remains continuous across the upgrade, retaining the interval needed after a downgrade.
+            client.cacheNewMessages(List.of(message(12)));
+            verify(delegate).read("tracker", 10L, first);
+            verify(delegate).read("tracker", 10L, second);
+            supported.set(false);
+            client.cacheNewMessages(List.of(message(13)));
+            var resumed = first.toBuilder().maxFetchSize(3).build();
+            when(delegate.claimSegment("tracker", 10L, resumed))
+                    .thenReturn(CompletableFuture.completedFuture(claim(10)));
+            assertEquals(List.of(11L, 12L, 13L), client.read("tracker", 10L, resumed).join().getMessages().stream()
+                    .map(SerializedMessage::getIndex).toList());
+            trackers.verify(() -> DefaultTracker.start(any(), any(ConsumerConfiguration.class), same(delegate)), times(1));
+        }
+        verify(filler).cancel();
+    }
+
     @Test
     void terminalReleaseStopsAnIdleLocalCacheWait() throws Exception {
         var delegate = delegate();

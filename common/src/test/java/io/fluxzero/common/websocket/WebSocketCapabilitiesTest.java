@@ -24,9 +24,19 @@ import java.util.Map;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 class WebSocketCapabilitiesTest {
+
+    @Test
+    void consumerFilteringRequiresAnExplicitSupportedLanguage() {
+        assertFalse(WebSocketCapabilities.supportsConsumerFiltering(null));
+        assertFalse(WebSocketCapabilities.supportsConsumerFiltering(Map.of()));
+        assertFalse(WebSocketCapabilities.supportsConsumerFiltering(Map.of(
+                WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("2,unknown"))));
+        assertTrue(WebSocketCapabilities.supportsConsumerFiltering(Map.of(
+                WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER.toLowerCase(), List.of("2, 1"))));
+    }
 
     @Test
     void transportFormatsAreSerializedInPreferenceOrder() {

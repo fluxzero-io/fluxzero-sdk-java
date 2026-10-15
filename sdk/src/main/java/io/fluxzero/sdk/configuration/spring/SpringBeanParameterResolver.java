@@ -63,6 +63,12 @@ public class SpringBeanParameterResolver implements ParameterResolver<Object> {
         return resolverFunction.apply(p);
     }
 
+    /** Declares the annotation boundary for consumer-filter metadata; custom subclasses remain conservative. */
+    @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() != SpringBeanParameterResolver.class || ReflectionUtils.has(Autowired.class, parameter);
+    }
+
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object value) {
         return ReflectionUtils.has(Autowired.class, parameter);

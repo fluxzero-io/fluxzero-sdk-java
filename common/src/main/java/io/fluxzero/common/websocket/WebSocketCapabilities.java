@@ -52,6 +52,22 @@ public final class WebSocketCapabilities {
     public static final String RUNTIME_SESSION_ID_HEADER = "Fluxzero-Runtime-Session-Id";
     public static final String RUNTIME_VERSION_HEADER = "Fluxzero-Runtime-Version";
 
+    /** Filter languages accepted by the server, including live refresh and independent scan/idle boundaries. */
+    public static final String CONSUMER_FILTER_VERSIONS_HEADER = "Fluxzero-Consumer-Filter-Versions";
+
+    /** Whether this peer advertises the consumer filter language understood by this SDK. Missing means unsupported. */
+    public static boolean supportsConsumerFiltering(Map<String, List<String>> headers) {
+        if (headers == null) {
+            return false;
+        }
+        return headers.entrySet().stream()
+                .filter(entry -> CONSUMER_FILTER_VERSIONS_HEADER.equalsIgnoreCase(entry.getKey()))
+                .flatMap(entry -> entry.getValue().stream())
+                .flatMap(value -> Arrays.stream(value.split(",")))
+                .map(String::strip)
+                .anyMatch(Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION)::equals);
+    }
+
     private WebSocketCapabilities() {
     }
 

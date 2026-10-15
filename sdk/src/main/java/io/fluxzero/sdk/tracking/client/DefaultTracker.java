@@ -140,7 +140,8 @@ public class DefaultTracker implements Runnable, Registration {
      */
     public static Registration start(Consumer<List<SerializedMessage>> consumer, MessageType messageType, String topic,
                                      ConsumerConfiguration config, Fluxzero fluxzero) {
-        ConsumerConfiguration trackerConfig = withFluxzeroBatchInterceptors(config, messageType, fluxzero);
+        ConsumerConfiguration trackerConfig = withFluxzeroBatchInterceptors(
+                config.resolveTrackingDefaults(fluxzero.propertySource()), messageType, fluxzero);
         fluxzero.execute(fc -> trackerConfig.effectiveMaxFetchBytes());
         return start(consumer, messageType, topic, trackerConfig, fluxzero.client(),
                      ApplicationProperties.getDefaultDeliveryGuarantee(fluxzero.propertySource()));

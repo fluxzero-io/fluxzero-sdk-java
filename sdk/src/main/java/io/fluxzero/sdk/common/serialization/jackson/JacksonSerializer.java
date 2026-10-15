@@ -156,6 +156,11 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
      * Returns a canonical string name for the given type.
      */
     @Override
+    protected boolean supportsConsumerFiltering() {
+        return getClass() == JacksonSerializer.class;
+    }
+
+    @Override
     protected String asString(Type type) {
         return typeStringCache.apply(type);
     }

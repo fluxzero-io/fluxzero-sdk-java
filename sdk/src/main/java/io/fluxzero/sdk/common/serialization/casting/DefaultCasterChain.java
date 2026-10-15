@@ -28,7 +28,6 @@ import lombok.With;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -146,9 +145,15 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
                     throw new DeserializationException(format(
                             "Failed to create CasterChain. Methods '%s' and '%s' both apply to the same data revision.",
                             a, b));
-                }, HashMap::new));
+                }, java.util.concurrent.ConcurrentHashMap::new));
         this.down = down;
         this.dataType = dataType;
+    }
+
+    @Override
+    public java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType> inputRevisions() {
+        return casters.keySet().stream().map(input ->
+                new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType(input.type, input.revision)).toList();
     }
 
     @Override
@@ -230,6 +235,11 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
             this.delegate = delegate;
             this.converter = converter;
             this.inputTypeResolver = Objects.requireNonNull(inputTypeResolver);
+        }
+
+        @Override
+        public java.util.List<io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType> inputRevisions() {
+            return delegate.inputRevisions();
         }
 
         @Override

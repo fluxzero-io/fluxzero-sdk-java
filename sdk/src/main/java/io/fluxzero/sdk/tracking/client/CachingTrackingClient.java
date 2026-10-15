@@ -149,6 +149,10 @@ public class CachingTrackingClient implements TrackingClient {
 
     @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+        if (config.getConsumerBlueprint() != null && delegate.supportsConsumerFiltering()) {
+            return delegate.read(trackerId, lastIndex, config);
+        }
+
         var pending = new PendingRead(config.getName(), trackerId);
         var result = readBatch(trackerId, lastIndex, config, pending);
         if (!result.isDone()) {
@@ -346,6 +350,11 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     @Override
+    public boolean supportsConsumerFiltering() {
+        return delegate.supportsConsumerFiltering();
+    }
+
+    @Override
     public List<SerializedMessage> readFromIndex(long minIndex, int maxSize) {
         return delegate.readFromIndex(minIndex, maxSize);
     }
@@ -386,6 +395,7 @@ public class CachingTrackingClient implements TrackingClient {
     public Position getPosition(String consumer) {
         return delegate.getPosition(consumer);
     }
+
 
     @Override
     public CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch, Guarantee guarantee) {

@@ -14,6 +14,8 @@
 
 package io.fluxzero.common.handling;
 
+import io.fluxzero.common.api.tracking.ConsumerFilter;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
@@ -25,6 +27,7 @@ import java.util.function.Function;
 @Slf4j
 public class DefaultHandler<M> implements Handler<M> {
     private final Class<?> targetClass;
+    private java.util.function.Supplier<ConsumerFilter> consumerFilter;
     private final Function<M, ?> targetSupplier;
     private final HandlerMatcher<Object, M> handlerMatcher;
     private final HandlerMethod<M> handlerMethod;
@@ -73,6 +76,19 @@ public class DefaultHandler<M> implements Handler<M> {
         this.handlerMatcher = handlerMatcher;
         this.handlerMethod = handlerMethod;
         this.handlerMethodPlanner = handlerMethodPlanner;
+    }
+
+    /** Attaches conservative metadata while preserving the existing invocation plans. */
+    public DefaultHandler<M> withConsumerFilter(java.util.function.Supplier<ConsumerFilter> filter) {
+        DefaultHandler<M> result = new DefaultHandler<>(targetClass, targetSupplier, handlerMatcher,
+                                                       handlerMethod, handlerMethodPlanner);
+        result.consumerFilter = io.fluxzero.common.ObjectUtils.memoize(filter);
+        return result;
+    }
+
+    @Override
+    public ConsumerFilter getConsumerFilter() {
+        return consumerFilter == null ? null : consumerFilter.get();
     }
 
     @Override

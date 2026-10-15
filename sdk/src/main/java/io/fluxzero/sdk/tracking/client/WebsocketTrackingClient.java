@@ -18,9 +18,12 @@ package io.fluxzero.sdk.tracking.client;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.Request;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
 import io.fluxzero.common.api.tracking.GetPosition;
 import io.fluxzero.common.api.tracking.GetPositionResult;
@@ -34,21 +37,25 @@ import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
 import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
 import io.fluxzero.common.websocket.WebSocketPayloadCodec;
+import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
+import io.fluxzero.sdk.common.websocket.WebsocketSession;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import lombok.Getter;
 
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 import static io.fluxzero.common.MessageType.METRICS;
+import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
 
 /**
  * WebSocket-based implementation of the {@link TrackingClient} that connects to the Fluxzero Runtime.
@@ -66,11 +73,16 @@ import static io.fluxzero.common.MessageType.METRICS;
 @Getter
 public class WebsocketTrackingClient extends AbstractWebsocketClient implements TrackingClient {
 
+    private static final String FILTERING_SUPPORTED = WebsocketTrackingClient.class.getName() + ".filteringSupported";
+
     private final MessageType messageType;
     private final String topic;
+    private final ConsumerFilterUpdates consumerFilters = new ConsumerFilterUpdates(true, this::refreshPendingReadFilters);
     private final Metadata metricsMetadata;
     @Getter(lombok.AccessLevel.NONE)
     private final Set<CompletableFuture<Void>> pendingDisconnects = ConcurrentHashMap.newKeySet();
+    @Getter(lombok.AccessLevel.NONE)
+    private final Set<PendingRead> pendingReads = ConcurrentHashMap.newKeySet();
 
     @Override
     protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
@@ -89,18 +101,127 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     }
 
     @Override
+    public boolean supportsConsumerFiltering() {
+        return sessionsForCapabilities().stream().anyMatch(WebsocketTrackingClient::supportsFiltering);
+    }
+
+    @Override
+    protected Request adaptRequestForSession(Request request, WebsocketSession session) {
+        if (request instanceof Read read) {
+            // Selection can wait for connection establishment while registration advances the subscription.
+            ConsumerFilter current = consumerFilters.current(read);
+            if (current != null && read.getConsumerFilter().revision() < current.revision()) {
+                read.setConsumerFilter(current);
+            }
+            return supportsFiltering(session) ? read : read.forLegacyPeer();
+        }
+        return request;
+    }
+
+    @Override
+    protected RequestResult localResponseForSession(Request request, WebsocketSession session) {
+        // Older servers interpret maxSize=0 as a normal read, so a metadata refresh must stay local.
+        return request instanceof Read read && read.getMaxSize() == 0 && read.getConsumerFilter() != null
+               && !supportsFiltering(session)
+                ? new ReadResult(read.getRequestId(), new MessageBatch(new int[]{0, 0}, List.of(), null,
+                                                                      Position.newPosition(), false)) : null;
+    }
+
+    private static boolean supportsFiltering(WebsocketSession session) {
+        return (boolean) session.getUserProperties().computeIfAbsent(FILTERING_SUPPORTED,
+                ignored -> WebSocketCapabilities.supportsConsumerFiltering(session.getHandshakeResponseHeaders()));
+    }
+
+    @Override
     public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex,
                                                 ConsumerConfiguration configuration) {
-        return this.<ReadResult>send(new Read(messageType,
+        Read read = new Read(messageType,
                         configuration.getName(), trackerId, configuration.getMaxFetchSize(),
                         configuration.effectiveMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
                 configuration.getTypeFilter(),
                 configuration.filterMessageTarget(), configuration.ignoreSegment(),
                 configuration.singleTracker(), configuration.clientControlledIndex(),
                 configuration.isIncludeDocumentTombstones(), lastIndex,
-                Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
-                .thenApply(ReadResult::getMessageBatch);
+                Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null));
+        read.setMaxScanLookBack(configuration.getMaxScanLookBack());
+        return consumerFilters.read(read, configuration.getConsumerBlueprint(), this::sendRead);
     }
+
+    private void refreshPendingReadFilters(String consumer, ConsumerFilter filter) {
+        pendingResponses(request -> {
+            if (request instanceof Read read && consumer.equals(read.getConsumer())
+                && read.getConsumerFilter() != null
+                && Objects.equals(filter.subscriptionId(), read.getConsumerFilter().subscriptionId())
+                && filter.revision() > read.getConsumerFilter().revision()) {
+                read.setConsumerFilter(filter);
+            }
+            return false;
+        });
+    }
+
+    private CompletableFuture<MessageBatch> sendRead(Read read) {
+        if (read.getMaxSize() == 0 && read.getConsumerFilter() != null) {
+            // Each Runtime node owns its own cache. Refresh every peer that may still have an open read.
+            return this.<ReadResult>sendToAllSessions(() -> {
+                Read update = new Read(read.getMessageType(), read.getConsumer(), read.getTrackerId(), 0,
+                        0L, 0L, read.getTypeFilter(), read.isFilterMessageTarget(), read.isIgnoreSegment(),
+                        read.isSingleTracker(), read.isClientControlledIndex(), read.isIncludeDocumentTombstones(),
+                        read.getLastIndex(), read.getPurgeTimeout());
+                update.setConsumerFilter(read.getConsumerFilter());
+                return update;
+            }).thenApply(ignored -> new MessageBatch(new int[]{0, 0}, List.of(), null, Position.newPosition(), false));
+        }
+        if (read.getConsumerFilter() == null) {
+            return this.<ReadResult>send(read).thenApply(ReadResult::getMessageBatch);
+        }
+        CompletableFuture<MessageBatch> result = new CompletableFuture<>();
+        PendingRead pending = new PendingRead(read.getConsumer(), read.getTrackerId(), result);
+        pendingReads.add(pending);
+        try {
+            sendReadWithRecovery(read).whenComplete((batch, failure) -> {
+                try {
+                    if (failure == null) {
+                        result.complete(batch);
+                    } else {
+                        result.completeExceptionally(failure);
+                    }
+                } finally {
+                    pendingReads.remove(pending);
+                }
+            });
+        } catch (Throwable failure) {
+            result.completeExceptionally(failure);
+            pendingReads.remove(pending);
+        }
+        return result;
+    }
+
+    private CompletableFuture<MessageBatch> sendReadWithRecovery(Read read) {
+        return this.<ReadResult>send(read).thenCompose(result -> {
+            MessageBatch batch = result.getMessageBatch();
+            if (!batch.isConsumerFilterRequired()) {
+                return CompletableFuture.completedFuture(batch);
+            }
+            var filter = consumerFilters.current(read);
+            if (filter == null) {
+                return CompletableFuture.failedFuture(new IllegalStateException("Missing full consumer filter snapshot"));
+            }
+            // Recovery must acknowledge admission promptly, including when cancellation preceded this retry.
+            Read retry = new Read(read.getMessageType(), read.getConsumer(), read.getTrackerId(), read.getMaxSize(),
+                    read.getMaxBytes(), 0L, read.getTypeFilter(), read.isFilterMessageTarget(),
+                    read.isIgnoreSegment(), read.isSingleTracker(), read.isClientControlledIndex(),
+                    read.isIncludeDocumentTombstones(), read.getLastIndex(), read.getPurgeTimeout());
+            retry.setConsumerFilter(filter);
+            retry.setMaxScanLookBack(read.getMaxScanLookBack());
+            return this.<ReadResult>send(retry).thenApply(response -> {
+                if (response.getMessageBatch().isConsumerFilterRequired()) {
+                    throw new IllegalStateException("Server did not accept a full consumer filter snapshot");
+                }
+                return response.getMessageBatch();
+            });
+        });
+    }
+
 
     /**
      * Requests a tracker segment using this client's message type and the consumer's filtering, waiting, and
@@ -108,10 +229,12 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
      */
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,
                                                               ConsumerConfiguration config) {
-        return send(new ClaimSegment(messageType,
+        ClaimSegment claim = new ClaimSegment(messageType,
                 config.getName(), trackerId, config.getMaxWaitDuration().toMillis(), config.clientControlledIndex(),
                 config.getTypeFilter(), config.filterMessageTarget(), lastIndex,
-                Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis).orElse(null)));
+                Optional.ofNullable(config.getPurgeDelay()).map(Duration::toMillis).orElse(null));
+        claim.setMaxScanLookBack(config.getMaxScanLookBack());
+        return send(claim);
     }
 
     @Override
@@ -142,13 +265,16 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public CompletableFuture<Void> disconnectTracker(String consumer, String trackerId, boolean sendFinalEmptyBatch, Guarantee guarantee) {
+        consumerFilters.disconnect(consumer, trackerId);
         return sendCommand(new DisconnectTracker(messageType, consumer, trackerId, sendFinalEmptyBatch, resolveGuarantee(guarantee)));
     }
 
     @Override
     public CompletableFuture<Void> disconnectTerminatedTracker(String consumer, String trackerId, Guarantee guarantee) {
-        var pending = pendingResponses(request -> request instanceof Read read
-                && consumer.equals(read.getConsumer()) && trackerId.equals(read.getTrackerId()));
+        List<CompletableFuture<?>> pending = new ArrayList<>(pendingResponses(request -> request instanceof Read read
+                && consumer.equals(read.getConsumer()) && trackerId.equals(read.getTrackerId())));
+        pendingReads.stream().filter(read -> consumer.equals(read.consumer()) && trackerId.equals(read.tracker()))
+                .map(PendingRead::result).forEach(pending::add);
         // An interrupted readAndWait still has a remote request. A delayed read can arrive after the first
         // disconnect; release once more after its response proves that it has finished registering.
         var first = disconnectTracker(consumer, trackerId, !pending.isEmpty(), guarantee);
@@ -169,6 +295,7 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
 
     @Override
     public void close() {
+        consumerFilters.close();
         try {
             if (canAwaitTrackerShutdown()) {
                 waitForResults(Duration.ofSeconds(2), List.copyOf(pendingDisconnects));
@@ -185,6 +312,8 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     boolean canAwaitTrackerShutdown() {
         return canAwaitShutdownResults();
     }
+
+    private record PendingRead(String consumer, String tracker, CompletableFuture<MessageBatch> result) {}
 
     @Override
     public String toString() {

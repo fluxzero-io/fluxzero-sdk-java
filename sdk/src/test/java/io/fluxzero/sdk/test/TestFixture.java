@@ -2288,6 +2288,9 @@ public class TestFixture implements Given<TestFixture>, When {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
+        private final Map<ScheduleInputKey, SerializedMessage> scheduleInputs = new ConcurrentHashMap<>();
+
+        private record ScheduleInputKey(String namespace, String scheduleId) {}
         private final Map<LocalSchedulingClient, Registration> schedulingMonitors = new ConcurrentHashMap<>();
         private final Map<InterceptedMessage, DispatchOrigin> dispatchOrigins = new ConcurrentHashMap<>();
         private final ConcurrentLinkedQueue<Message> storedEvents = new ConcurrentLinkedQueue<>();
@@ -2300,6 +2303,12 @@ public class TestFixture implements Given<TestFixture>, When {
                 InterceptedMessage key = new InterceptedMessage(
                         messageType, topic, serializedMessage.getMessageId());
                 try {
+                    if (messageType == SCHEDULE) {
+                        String scheduleId = serializedMessage.getMetadata().get(Schedule.scheduleIdMetadataKey);
+                        if (scheduleId != null) {
+                            scheduleInputs.put(new ScheduleInputKey(namespace, scheduleId), serializedMessage);
+                        }
+                    }
                     if (messageType == DOCUMENT) {
                         testFixture.fluxzero.serializer().deserializeMessages(Stream.of(serializedMessage), DOCUMENT)
                                 .forEach(message -> monitorDispatch(
@@ -2315,10 +2324,11 @@ public class TestFixture implements Given<TestFixture>, When {
                         // A rejected lifetime or ignored ifAbsent must not replace accepted pending work.
                         registerPendingMessage(message.toMessage(), messageType, topic, namespace,
                                                serializedMessage.getSegment(), serializedMessage.getIndex());
+                        recordStoredPosition(messageType, topic, namespace, serializedMessage);
                     }
                     if (dispatchOrigins.remove(key, DispatchOrigin.SDK)) {
                         if (message == null) {
-                            recordStoredPosition(messageType, topic, serializedMessage);
+                            recordStoredPosition(messageType, topic, namespace, serializedMessage);
                         }
                         continue;
                     }
@@ -2333,9 +2343,10 @@ public class TestFixture implements Given<TestFixture>, When {
                     DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.STORED);
                     if (previous == DispatchOrigin.SDK) {
                         dispatchOrigins.remove(key, DispatchOrigin.SDK);
-                        recordStoredPosition(messageType, topic, serializedMessage);
+                        recordStoredPosition(messageType, topic, namespace, serializedMessage);
                     } else if (previous == null) {
                         monitorStoredDispatch(message, messageType, topic, namespace);
+                        recordStoredPosition(messageType, topic, namespace, serializedMessage);
                     }
                 } catch (Exception ignored) {
                     dispatchOrigins.remove(key, DispatchOrigin.STORED);
@@ -2503,7 +2514,15 @@ public class TestFixture implements Given<TestFixture>, When {
                                 ? publishedSchedules : Collections.<Message>emptyList()).stream().filter(
                                         m -> ofNullable(c.getConfiguration().getTypeFilter())
                                                 .map(f -> m.getPayload().getClass()
-                                                        .getName().matches(f)).orElse(true)).toList()));
+                                                        .getName().matches(f)).orElse(true))
+                                        .filter(m -> {
+                                            var blueprint = c.getConfiguration().getConsumerBlueprint();
+                                            var original = scheduleInputs.get(new ScheduleInputKey(
+                                                    effectiveNamespace(c.getConfiguration()), ((Schedule) m).getScheduleId()));
+                                            return blueprint == null || original == null
+                                                   || !Objects.equals(original.getMessageId(), m.getMessageId())
+                                                   || blueprint.mayHandle(original);
+                                        }).toList()));
             }
             return b -> {
                 Map<PendingConsumer, Set<Message>> completedDocuments = tracker.getMessageType() == DOCUMENT
@@ -2546,13 +2565,30 @@ public class TestFixture implements Given<TestFixture>, When {
             };
         }
 
-        private void recordStoredPosition(MessageType messageType, String topic, SerializedMessage message) {
+        private void recordStoredPosition(MessageType messageType, String topic, String namespace,
+                                          SerializedMessage message) {
             synchronized (testFixture.consumers) {
-                testFixture.consumers.entrySet().stream()
-                        .filter(e -> e.getKey().getMessageType() == messageType
-                                     && Objects.equals(e.getKey().getTopic(), topic))
-                        .forEach(e -> e.getValue().recordStoredPosition(
-                                message.getMessageId(), message.getSegment(), message.getIndex()));
+                boolean excluded = false;
+                for (var entry : testFixture.consumers.entrySet()) {
+                    if ((entry.getKey().getMessageType() != messageType
+                         && !(entry.getKey().getMessageType() == NOTIFICATION && messageType == EVENT))
+                        || !Objects.equals(entry.getKey().getTopic(), topic)
+                        || !Objects.equals(effectiveNamespace(entry.getKey().getConfiguration()), namespace)) {
+                        continue;
+                    }
+                    var blueprint = entry.getKey().getConfiguration().getConsumerBlueprint();
+                    if (blueprint != null && !blueprint.mayHandle(message)) {
+                        // A filtered read may stay open: no batch acknowledgement will arrive for this input.
+                        entry.getValue().removeMessage(message.getMessageId());
+                        excluded = true;
+                    } else {
+                        entry.getValue().recordStoredPosition(
+                                message.getMessageId(), message.getSegment(), message.getIndex());
+                    }
+                }
+                if (excluded) {
+                    testFixture.checkConsumers();
+                }
             }
         }
 

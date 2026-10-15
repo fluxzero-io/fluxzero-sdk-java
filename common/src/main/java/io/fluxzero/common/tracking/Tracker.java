@@ -94,6 +94,12 @@ public interface Tracker extends Comparable<Tracker> {
      */
     long maxTimeout();
 
+    /** Historic scan-yield look-back, independent of how long an idle request may wait. */
+    default long maxScanLookBack() {
+        return maxTimeout();
+    }
+
+
     /**
      * @return the optional duration (in milliseconds) after which this tracker may be purged if it is actively
      * processing messages (i.e., not idle or waiting).

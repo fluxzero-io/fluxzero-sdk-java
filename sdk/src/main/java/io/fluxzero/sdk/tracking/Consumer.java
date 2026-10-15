@@ -112,9 +112,10 @@ public @interface Consumer {
 
     /**
      * Maximum time to wait before fetching a new batch, when none are available. See {@link #durationUnit()} for the
-     * time unit. Default is {@code 60} (seconds).
+     * time unit. The default {@code -1} inherits the application tracking default: fifteen minutes on supporting
+     * peers, with a sixty-second fallback on older Runtime connections. Explicit values override that default.
      */
-    long maxWaitDuration() default 60;
+    long maxWaitDuration() default -1;
 
     /**
      * Overrides graph-projection result completion for model commits handled by this consumer.

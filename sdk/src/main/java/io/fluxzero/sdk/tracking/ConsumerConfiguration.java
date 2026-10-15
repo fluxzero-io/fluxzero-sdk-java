@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
@@ -24,6 +25,7 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
+import io.fluxzero.sdk.registry.ConsumerBlueprint;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import lombok.Builder.Default;
 import lombok.EqualsAndHashCode;
@@ -65,6 +67,22 @@ import static io.fluxzero.common.reflection.ReflectionUtils.asInstance;
 @Value
 @lombok.Builder(builderClassName = "Builder", toBuilder = true)
 public class ConsumerConfiguration implements Substitutable<ConsumerConfiguration> {
+    /** Enables conservative server filtering. Environment: {@code FLUXZERO_TRACKING_CONSUMER_FILTERING}. */
+    public static final String CONSUMER_FILTERING_PROPERTY = "fluxzero.tracking.consumerFiltering";
+    /** Default ISO-8601 read wait, e.g. {@code PT15M}. Environment: {@code FLUXZERO_TRACKING_MAX_WAIT_DURATION}. */
+    public static final String MAX_WAIT_DURATION_PROPERTY = "fluxzero.tracking.maxWaitDuration";
+
+    /** Programmatic override for server filtering; null inherits the application property (enabled by default on supporting peers). */
+    @Default
+    Boolean consumerFiltering = null;
+    /** Effective lifecycle metadata, supplied automatically when tracking registered handlers. */
+    @Default
+    @EqualsAndHashCode.Exclude
+    ConsumerBlueprint consumerBlueprint = null;
+    /** Internal compatibility scan boundary, separate from the idle read wait. */
+    @Default
+    Long maxScanLookBack = null;
+
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
      * <p>
@@ -215,8 +233,40 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      * segment claim are available.
      */
     @Default
-    @NonNull
-    Duration maxWaitDuration = Duration.ofSeconds(60);
+    Duration maxWaitDuration = null;
+
+    /** Returns the explicit/resolved wait, or the fifteen-minute default before application resolution. */
+    public Duration getMaxWaitDuration() {
+        return maxWaitDuration == null ? Duration.ofMinutes(15) : maxWaitDuration;
+    }
+
+    /** Keeps the inherited idle wait independent of scanning, including direct low-level client reads. */
+    public Long getMaxScanLookBack() {
+        return maxScanLookBack == null && maxWaitDuration == null ? Long.valueOf(60_000L) : maxScanLookBack;
+    }
+
+    /** Resolves tracking defaults from the owning application's property source. Explicit builder values win. */
+    public ConsumerConfiguration resolveTrackingDefaults(PropertySource source) {
+        Builder result = toBuilder();
+        if (consumerFiltering == null) {
+            String configured = source.get(CONSUMER_FILTERING_PROPERTY);
+            result.consumerFiltering(configured != null ? Boolean.parseBoolean(configured.trim())
+                    : true);
+        }
+        if (maxWaitDuration == null) {
+            String configured = source.get(MAX_WAIT_DURATION_PROPERTY);
+            Duration duration = configured != null ? Duration.parse(configured.trim())
+                    : Duration.ofMinutes(15);
+            if (duration.isNegative()) {
+                throw new IllegalArgumentException(MAX_WAIT_DURATION_PROPERTY + " must not be negative");
+            }
+            result.maxWaitDuration(duration);
+            if (duration.compareTo(Duration.ofSeconds(60)) > 0) {
+                result.maxScanLookBack(60_000L);
+            }
+        }
+        return result.build();
+    }
 
     /**
      * Overrides graph-projection result completion for model commits handled by this consumer.
@@ -536,7 +586,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .threads(consumer.threads())
                 .maxFetchSize(consumer.maxFetchSize())
                 .maxFetchBytes(consumer.maxFetchBytes())
-                .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
+                .maxWaitDuration(consumer.maxWaitDuration() == -1L ? null
+                        : Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
                 .graphProjectionCompletion(
                         consumer.graphProjectionCompletion())
                 .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(

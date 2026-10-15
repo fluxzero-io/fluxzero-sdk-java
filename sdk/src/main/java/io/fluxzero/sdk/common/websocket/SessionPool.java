@@ -134,6 +134,11 @@ public class SessionPool implements AutoCloseable {
         }
     }
 
+    /** Snapshots established open peers without opening unused pool slots. */
+    List<WebsocketSession> activeSessions() {
+        return sessionMap.values().stream().filter(session -> !isClosed(session)).toList();
+    }
+
     @Override
     public void close() {
         List<WebsocketSession> sessions;

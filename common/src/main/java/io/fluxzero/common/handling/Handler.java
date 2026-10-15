@@ -14,6 +14,8 @@
 
 package io.fluxzero.common.handling;
 
+import io.fluxzero.common.api.tracking.ConsumerFilter;
+
 import lombok.AllArgsConstructor;
 
 import java.util.Optional;
@@ -63,6 +65,14 @@ import java.util.Optional;
  * @see HandlerInspector
  */
 public interface Handler<M> {
+
+    /**
+     * Conservative delivery metadata for this handler. Null means that matching cannot safely be narrowed.
+     * Custom handlers and decorators may opt in only when this describes every input they can accept.
+     */
+    default ConsumerFilter getConsumerFilter() {
+        return null;
+    }
 
     /**
      * Returns the class of the handler's target object. This may be used for reflective operations, logging, or
@@ -146,6 +156,11 @@ public interface Handler<M> {
     default Handler<M> or(Handler<M> next) {
         var first = this;
         return new Handler<>() {
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                return ConsumerFilter.union(java.util.Arrays.asList(first.getConsumerFilter(), next.getConsumerFilter()));
+            }
+
             @Override
             public Class<?> getTargetClass() {
                 return first.getTargetClass();

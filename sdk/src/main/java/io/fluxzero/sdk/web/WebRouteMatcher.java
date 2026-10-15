@@ -61,6 +61,25 @@ class WebRouteMatcher<T> {
         }
     }
 
+    List<io.fluxzero.common.api.tracking.ConsumerFilter.WebRoute> consumerRoutes() {
+        List<io.fluxzero.common.api.tracking.ConsumerFilter.WebRoute> result = new ArrayList<>();
+        for (Route<T> route : routes) {
+            WebPattern pattern = route.pattern();
+            String method = "ANY".equals(pattern.getMethod()) ? null : pattern.getMethod();
+            result.add(new io.fluxzero.common.api.tracking.ConsumerFilter.WebRoute(
+                    method, pattern.getOrigin(), route.path().regex().pattern()));
+            if ("GET".equals(method) && pattern.isAutoHead()) {
+                result.add(new io.fluxzero.common.api.tracking.ConsumerFilter.WebRoute(
+                        "HEAD", pattern.getOrigin(), route.path().regex().pattern()));
+            }
+            if (pattern.isAutoOptions()) {
+                result.add(new io.fluxzero.common.api.tracking.ConsumerFilter.WebRoute(
+                        "OPTIONS", pattern.getOrigin(), route.path().regex().pattern()));
+            }
+        }
+        return result.stream().distinct().toList();
+    }
+
     Optional<Match<T>> match(String method, String origin, String path) {
         return match(method, origin, path, pattern -> true);
     }

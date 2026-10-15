@@ -17,6 +17,7 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.DefaultHandler;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerConfiguration;
@@ -30,6 +31,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
@@ -48,6 +50,8 @@ import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -343,11 +347,17 @@ public class DefaultHandlerFactory implements HandlerFactory {
             Object target, Function<DeserializingMessage, ?> targetSupplier,
             HandlerConfiguration<DeserializingMessage> config) {
         Class<?> targetClass = asClass(target);
-        Handler<DeserializingMessage> handler
-                = target instanceof Class<?>
-                  ? DefaultHandler.forPayloadTarget(
-                          targetClass, targetSupplier, createHandlerMatcher(target, config))
-                  : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
+        HandlerMatcher<Object, DeserializingMessage> matcher = createHandlerMatcher(target, config);
+        java.util.function.Supplier<ConsumerFilter> consumerFilter = () -> {
+            if (getClass() != DefaultHandlerFactory.class) {
+                return null;
+            }
+            return matcher.getClass() == WebHandlerMatcher.class ? ((WebHandlerMatcher) matcher).getConsumerFilter()
+                    : describePayloads(targetClass, config);
+        };
+        Handler<DeserializingMessage> handler = (target instanceof Class<?>
+                ? DefaultHandler.forPayloadTarget(targetClass, targetSupplier, matcher)
+                : DefaultHandler.forTarget(targetClass, target, matcher)).withConsumerFilter(consumerFilter);
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(
                     targetClass, target, modelGraphTypes)) {
@@ -376,6 +386,54 @@ public class DefaultHandlerFactory implements HandlerFactory {
             }
         }
         return handler;
+    }
+
+    private ConsumerFilter describePayloads(Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config) {
+        List<ConsumerFilter.PayloadType> inputs = new ArrayList<>();
+        boolean includeAggregateContext = false;
+        for (var executable : Stream.concat(ReflectionUtils.getAllMethods(targetClass).stream(),
+                                            Stream.of(targetClass.getDeclaredConstructors()))
+                .filter(method -> config.methodMatches(targetClass, method)).toList()) {
+            var annotation = config.getAnnotation(executable).orElse(null);
+            var allowed = ReflectionUtils.getAnnotationAs(executable, handlerAnnotation, PayloadFilter.HandleAnnotation.class)
+                    .map(PayloadFilter.HandleAnnotation::getAllowedClasses).orElse(List.of());
+            List<Class<?>> required = null;
+            if (!allowed.isEmpty() && allowed.stream().allMatch(DefaultHandlerFactory::isClosedPayloadType)) {
+                required = allowed;
+            } else {
+                for (var parameter : executable.getParameters()) {
+                    if (!isClosedPayloadType(parameter.getType())) {
+                        continue;
+                    }
+                    var resolvers = parameterResolvers.stream()
+                            .filter(io.fluxzero.common.ObjectUtils.silentTest(resolver -> resolver.mayApply(executable, targetClass)))
+                            .filter(resolver -> resolver.mayApply(parameter, annotation, targetClass)).toList();
+                    if (resolvers.stream().anyMatch(resolver -> resolver.getClass() == PayloadParameterResolver.class)
+                        && resolvers.stream().allMatch(resolver -> resolver.getClass() == PayloadParameterResolver.class
+                                || resolver.getClass() == EntityParameterResolver.class
+                                   && !((EntityParameterResolver) resolver).isModelParameter(parameter))) {
+                        required = List.of(parameter.getType());
+                        // Legacy entity injection is independent of the payload whenever aggregate context is present.
+                        includeAggregateContext |= resolvers.stream().anyMatch(resolver ->
+                                resolver.getClass() == EntityParameterResolver.class);
+                        break;
+                    }
+                }
+            }
+            if (required == null) {
+                return null;
+            }
+            for (Class<?> type : required) {
+                inputs.add(new ConsumerFilter.PayloadType(type.getName(), null));
+                inputs.add(new ConsumerFilter.PayloadType(type.getName() + "<", null, true));
+            }
+        }
+        return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null, inputs.stream().distinct().toList(), null, List.of(), includeAggregateContext);
+    }
+
+    private static boolean isClosedPayloadType(Class<?> type) {
+        // Arrays report final modifiers but reference arrays remain covariant. Keep their existing matching path.
+        return !type.isArray() && Modifier.isFinal(type.getModifiers());
     }
 
     protected Class<? extends Annotation> getHandlerAnnotation(MessageType messageType) {

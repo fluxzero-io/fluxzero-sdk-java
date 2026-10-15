@@ -16,6 +16,8 @@ package io.fluxzero.common.tracking;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.tracking.Read;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
+import io.fluxzero.common.api.SerializedMessage;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -47,6 +49,8 @@ public class WebSocketTracker implements Tracker {
     private final long maxBytes;
     private final Predicate<String> typeFilter;
     private final boolean hasTypeFilter;
+    private final ConsumerFilter consumerFilter;
+    @With private final Predicate<SerializedMessage> consumerFilterPredicate;
     private final boolean filterMessageTarget;
     @Accessors(fluent = true)
     private final boolean ignoreSegment;
@@ -58,6 +62,8 @@ public class WebSocketTracker implements Tracker {
     private final boolean includeDocumentTombstones;
     @Accessors(fluent = true)
     private final long maxTimeout;
+    @Accessors(fluent = true)
+    private final long maxScanLookBack;
 
     public WebSocketTracker(Read read, MessageType messageType, String clientId, String sessionId) {
         this.consumerName = read.getConsumer();
@@ -67,17 +73,28 @@ public class WebSocketTracker implements Tracker {
         this.trackerId = read.getTrackerId();
         this.lastTrackerIndex = read.getLastIndex();
         this.maxTimeout = read.getMaxTimeout();
+        this.maxScanLookBack = read.getMaxScanLookBack() == null ? maxTimeout : read.getMaxScanLookBack();
         this.deadline = System.currentTimeMillis() + read.getMaxTimeout();
         this.purgeDelay = read.getPurgeTimeout();
         this.maxSize = read.getMaxSize();
         this.maxBytes = read.getMaxBytes();
         this.typeFilter = typeFilterCache.apply(read.getTypeFilter());
         this.hasTypeFilter = read.getTypeFilter() != null;
+        this.consumerFilter = read.getConsumerFilter();
+        var compiled = consumerFilter == null ? null
+                : io.fluxzero.common.ObjectUtils.memoize(consumerFilter::compile);
+        this.consumerFilterPredicate = compiled == null ? null : message -> compiled.get().test(message);
         this.filterMessageTarget = read.isFilterMessageTarget();
         this.ignoreSegment = read.isIgnoreSegment() || messageType == MessageType.NOTIFICATION;
         this.clientControlledIndex = read.isClientControlledIndex() || messageType == MessageType.NOTIFICATION;
         this.singleTracker = read.isSingleTracker();
         this.includeDocumentTombstones = read.isIncludeDocumentTombstones();
+    }
+
+    @Override
+    public boolean canHandle(SerializedMessage message, int[] segmentRange) {
+        return Tracker.super.canHandle(message, segmentRange)
+               && (consumerFilterPredicate == null || consumerFilterPredicate.test(message));
     }
 
     /** Whether this reservation is awaiting its first read after Runtime handover. */

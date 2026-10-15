@@ -81,6 +81,9 @@ public class WebsocketDeploymentUtils {
         Map<String, Object> userProperties = new java.util.concurrent.ConcurrentHashMap<>();
         userProperties.put(HANDSHAKE_HEADERS_USER_PROPERTY, requestHeaders);
 
+        response.getHeaders().put(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER,
+                                  Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION));
+
         String runtimeSessionId = WebSocketCapabilities.newShortSessionId();
         userProperties.put(RUNTIME_SESSION_ID_USER_PROPERTY, runtimeSessionId);
         response.getHeaders().put(WebSocketCapabilities.RUNTIME_SESSION_ID_HEADER, runtimeSessionId);

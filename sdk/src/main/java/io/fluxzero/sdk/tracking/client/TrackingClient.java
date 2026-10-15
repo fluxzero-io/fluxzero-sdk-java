@@ -47,6 +47,15 @@ import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
 public interface TrackingClient extends AutoCloseable {
 
     /**
+     * Whether an established peer can filter consumer deliveries. Custom clients conservatively default to false;
+     * websocket implementations may establish their first connection to discover this capability.
+     */
+    default boolean supportsConsumerFiltering() {
+        return false;
+    }
+
+
+    /**
      * Reads the next available {@link MessageBatch} for the given tracker and blocks until messages are available.
      * <p>
      * This is a convenience method that synchronously waits for {@link #read} to complete.

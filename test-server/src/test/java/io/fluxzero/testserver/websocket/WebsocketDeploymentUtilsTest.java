@@ -76,6 +76,7 @@ class WebsocketDeploymentUtilsTest {
         WebsocketSession session = connectTestSession();
 
         try {
+            assertTrue(WebSocketCapabilities.supportsConsumerFiltering(session.getHandshakeResponseHeaders()));
             assertEquals(TestServerVersion.version().orElseThrow(),
                          WebSocketCapabilities.getRuntimeVersion(
                                  session.getHandshakeResponseHeaders()).orElseThrow());

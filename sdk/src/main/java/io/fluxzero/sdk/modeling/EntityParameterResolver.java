@@ -87,6 +87,11 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     public interface DeferredMessageEntityResolution {
     }
 
+    /** Whether this argument uses explicit Model references rather than legacy aggregate metadata. */
+    public boolean isModelParameter(Parameter parameter) {
+        return EntityMetadata.modelParameters(parameter.getDeclaringExecutable()).parameters().containsKey(parameter);
+    }
+
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(method);

@@ -302,6 +302,10 @@ public class ApplicationProperties {
      *     </tr>
      * </table>
      * <p>
+     * Consumer delivery filtering and fifteen-minute idle reads are enabled automatically on supporting Runtime
+     * connections, independently of this date. Override with {@code fluxzero.tracking.consumerFiltering} or
+     * {@code fluxzero.tracking.maxWaitDuration}; unsupported peers retain broad delivery and the historic scan wait.
+     * <p>
      * Independent Model conflict handling defaults to {@code RETRY} for updates and creations regardless of this
      * version. Override it with {@code fluxzero.model.conflictPolicy} ({@code FLUXZERO_MODEL_CONFLICT_POLICY})
      * or explicit builder/Model/Apply configuration. Create-only compatibility remains a separate check.

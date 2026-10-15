@@ -35,7 +35,7 @@ Prefer to work directly in the code? [Install the Fluxzero CLI](https://fluxzero
 
 SDK packages are published through [Fluxzero Packages](https://packages.fluxzero.io). Maven Central contains releases published before 1 October 2026; releases from that date onward are published only through Fluxzero Packages.
 
-See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
+See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. See [Versioned defaults](https://fluxzero.io/docs/guides/configuration/application-properties#versioned-defaults) for opting into newer behavior. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
 ## Versioned Defaults
 

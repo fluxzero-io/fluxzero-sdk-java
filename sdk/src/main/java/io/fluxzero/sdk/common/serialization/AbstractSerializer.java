@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.Converter;
 import io.fluxzero.sdk.common.serialization.casting.CasterChain;
@@ -49,12 +50,13 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.common.reflection.GenericTypeResolver.parameterize;
+import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumber;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -98,6 +100,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
     private final Map<String, String> typeAliases = new LinkedHashMap<>();
     private final Map<String, String> packageAliases = new LinkedHashMap<>();
     private volatile TypeAliasResolver typeAliasResolver = TypeAliasResolver.empty();
+    private final List<Runnable> consumerFilterListeners = new CopyOnWriteArrayList<>();
 
     /**
      * Constructs a new serializer with the provided caster candidates and converter.
@@ -398,12 +401,83 @@ public abstract class AbstractSerializer<I> implements Serializer {
         return (V) doClone(value);
     }
 
+    /** Whether this concrete serializer preserves the standard declared-type contract for delivery filtering. */
+    protected boolean supportsConsumerFiltering() {
+        return false;
+    }
+
+    @Override
+    public ConsumerFilter describeConsumerFilter(
+            ConsumerFilter handlers) {
+        var migrations = upcasterChain.inputRevisions();
+        if (!supportsConsumerFiltering() || handlers == null || migrations == null
+            || handlers.version() != ConsumerFilter.VERSION || handlers.referenceOnly()) {
+            return ConsumerFilter.unrestricted();
+        }
+        List<ConsumerFilter.PayloadType> bypass = new ArrayList<>();
+        bypass.addAll(handlers.upcastInputs());
+        migrations.forEach(input -> addConsumerTypeNames(bypass, input.name(), input.revision()));
+        synchronized (typeAliasMonitor) {
+            typeAliases.keySet().forEach(type -> {
+                addConsumerTypeNames(bypass, type, null);
+                addConsumerTypeNames(bypass, type + "<", null, true);
+            });
+            packageAliases.keySet().forEach(prefix -> bypass.add(
+                    new ConsumerFilter.PayloadType(prefix + ".", null, true)));
+        }
+        List<ConsumerFilter.PayloadType> payloads = null;
+        if (handlers.payloadRestricted() && (handlers.format() == null || Objects.equals(format, handlers.format()))) {
+            payloads = new ArrayList<>();
+            for (var input : handlers.payloadTypes()) {
+                addConsumerTypeNames(payloads, input.name(), input.revision(), input.prefix());
+            }
+        }
+        return ConsumerFilter.select(null, 0L, 1, format,
+                payloads == null ? null : payloads.stream().distinct().toList(), handlers.webRestricted() ? handlers.webRoutes() : null,
+                bypass.stream().distinct().toList(), handlers.includeAggregateContext());
+    }
+
+    private static void addConsumerTypeNames(
+            List<ConsumerFilter.PayloadType> target,
+            String name, Integer revision) {
+        // Admitting ambiguous/unregistered suffixes is conservative; resolution still belongs to the serializer.
+        addConsumerTypeNames(target, name, revision, false);
+    }
+
+    private static void addConsumerTypeNames(
+            List<ConsumerFilter.PayloadType> target,
+            String name, Integer revision, boolean prefix) {
+        for (String variant : Stream.of(name)
+                .flatMap(type -> Stream.of(type, type.replace('$', '.'))).distinct().toList()) {
+            target.add(new ConsumerFilter.PayloadType(variant, revision, prefix));
+            for (int i = 0; i < variant.length(); i++) {
+                if (variant.charAt(i) == '.' || variant.charAt(i) == '$') {
+                    target.add(new ConsumerFilter.PayloadType(variant.substring(i + 1), revision, prefix));
+                }
+            }
+        }
+    }
+
+    @Override
+    public Registration observeConsumerFilters(Runnable listener) {
+        consumerFilterListeners.add(listener);
+        return () -> consumerFilterListeners.remove(listener);
+    }
+
+    private Registration refreshConsumerFilters(Registration registration) {
+        consumerFilterListeners.forEach(Runnable::run);
+        return () -> {
+            registration.cancel();
+            consumerFilterListeners.forEach(Runnable::run);
+        };
+    }
+
     /**
      * Registers custom upcasters for handling older serialized formats.
      */
     @Override
     public Registration registerUpcasters(Object... casterCandidates) {
-        return upcasterChain.registerCasterCandidates(casterCandidates);
+        return refreshConsumerFilters(upcasterChain.registerCasterCandidates(casterCandidates));
     }
 
     /**
@@ -419,8 +493,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
      */
     @Override
     public Registration registerTypeCaster(String oldType, String newType) {
-        return registerAlias(typeAliases, Objects.requireNonNull(oldType, "oldType"),
-                             Objects.requireNonNull(newType, "newType"));
+        return refreshConsumerFilters(registerAlias(typeAliases, Objects.requireNonNull(oldType, "oldType"),
+                             Objects.requireNonNull(newType, "newType")));
     }
 
     @Override
@@ -430,8 +504,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
 
     @Override
     public Registration registerPackageAlias(String oldPackage, String newPackage) {
-        return registerAlias(packageAliases, validatePackageName(oldPackage, "oldPackage"),
-                             validatePackageName(newPackage, "newPackage"));
+        return refreshConsumerFilters(registerAlias(packageAliases, validatePackageName(oldPackage, "oldPackage"),
+                             validatePackageName(newPackage, "newPackage")));
     }
 
     /**

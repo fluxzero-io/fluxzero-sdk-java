@@ -85,21 +85,24 @@ public final class TrackingWireCodec {
         }
         if (value != null && value.getClass() == ReadResult.class) {
             ReadResult result = (ReadResult) value;
-            return encodeReadResults(List.of(result), DIRECT_READ_RESULT);
+            return result.getMessageBatch().isConsumerFilterRequired() ? null
+                    : encodeReadResults(List.of(result), DIRECT_READ_RESULT);
         }
         if (value instanceof ResultBatch batch && allExactInstancesOf(batch.getResults(), ReadResult.class)) {
             @SuppressWarnings("unchecked")
             List<ReadResult> results = (List<ReadResult>) (List<?>) batch.getResults();
-            return encodeReadResults(results, READ_RESULT_BATCH);
+            return results.stream().anyMatch(result -> result.getMessageBatch().isConsumerFilterRequired()) ? null
+                    : encodeReadResults(results, READ_RESULT_BATCH);
         }
         if (value != null && value.getClass() == Read.class) {
             Read read = (Read) value;
-            return encodeReads(List.of(read), DIRECT_READ);
+            return read.getConsumerFilter() == null && read.getMaxScanLookBack() == null ? encodeReads(List.of(read), DIRECT_READ) : null;
         }
         if (value instanceof RequestBatch<?> batch && allExactInstancesOf(batch.getRequests(), Read.class)) {
             @SuppressWarnings("unchecked")
             List<Read> reads = (List<Read>) (List<?>) batch.getRequests();
-            return encodeReads(reads, READ_BATCH);
+            return reads.stream().anyMatch(read -> read.getConsumerFilter() != null || read.getMaxScanLookBack() != null)
+                    ? null : encodeReads(reads, READ_BATCH);
         }
         return null;
     }

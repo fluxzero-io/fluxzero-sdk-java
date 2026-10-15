@@ -94,6 +94,12 @@ public class BeanParameterResolver implements ParameterResolver<Object> {
         }
     }
 
+    /** Declares the annotation boundary for consumer-filter metadata; custom subclasses remain conservative. */
+    @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() != BeanParameterResolver.class || ReflectionUtils.has(autowiredClass, parameter);
+    }
+
     /**
      * Determines whether this resolver supports resolving the given parameter.
      *

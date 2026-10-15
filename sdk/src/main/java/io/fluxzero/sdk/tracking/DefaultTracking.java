@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
@@ -41,6 +42,7 @@ import io.fluxzero.sdk.publishing.DefaultResultGateway;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
+import io.fluxzero.sdk.registry.ConsumerBlueprint;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
@@ -77,6 +79,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -149,6 +152,8 @@ public class DefaultTracking implements Tracking {
 
     private final Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> startedHandlers =
             new LinkedHashMap<>();
+    private final Map<ConsumerConfiguration, ConsumerBlueprint> consumerBlueprints = new LinkedHashMap<>();
+    private final AtomicLong blueprintRevisions = new AtomicLong();
     private final Map<ConsumerConfiguration, Map<String, TopicTracker>> startedTopics = new LinkedHashMap<>();
     private final Map<ConsumerConfiguration, DocumentMessageReader> documentReaders = new ConcurrentHashMap<>();
     private final AtomicBoolean closing = new AtomicBoolean();
@@ -237,6 +242,11 @@ public class DefaultTracking implements Tracking {
     private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
         Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
         assignedHandlers = enableDocumentTombstones(assignedHandlers);
+        Map<ConsumerConfiguration, List<Object>> effectiveHandlers = new LinkedHashMap<>();
+        assignedHandlers.forEach((configuration, targets) -> effectiveHandlers.merge(
+                configuration.resolveTrackingDefaults(fluxzero.propertySource()), targets,
+                (left, right) -> Stream.concat(left.stream(), right.stream()).toList()));
+        assignedHandlers = effectiveHandlers;
         Registration documentReads = Registration.noOp();
         try {
             if (messageType == MessageType.DOCUMENT && handlerFactory instanceof DefaultHandlerFactory) {
@@ -340,7 +350,21 @@ public class DefaultTracking implements Tracking {
         List<Handler<DeserializingMessage>> activeHandlers =
                 startedHandlers.computeIfAbsent(configuration, ignored -> new CopyOnWriteArrayList<>());
         activeHandlers.addAll(addedHandlers);
-        List<String> retainedTopics = retainTrackingTopics(configuration, activeHandlers, addedHandlers, fluxzero);
+        ConsumerConfiguration trackingConfiguration = configuration;
+        if (Boolean.TRUE.equals(configuration.getConsumerFiltering())) {
+            var blueprint = consumerBlueprints.get(configuration);
+            if (blueprint == null) {
+                blueprint = new ConsumerBlueprint(serializer,
+                        () -> ConsumerFilter.union(
+                                activeHandlers.stream().map(Handler::getConsumerFilter).toList()),
+                        blueprintRevisions::incrementAndGet);
+                consumerBlueprints.put(configuration, blueprint);
+            } else {
+                blueprint.refresh();
+            }
+            trackingConfiguration = configuration.toBuilder().consumerBlueprint(blueprint).build();
+        }
+        List<String> retainedTopics = retainTrackingTopics(trackingConfiguration, activeHandlers, addedHandlers, fluxzero);
         AtomicBoolean cancelled = new AtomicBoolean();
         return () -> {
             if (cancelled.compareAndSet(false, true)) {
@@ -358,6 +382,15 @@ public class DefaultTracking implements Tracking {
             activeHandlers.removeAll(handlers);
             if (activeHandlers.isEmpty()) {
                 startedHandlers.remove(configuration);
+                var blueprint = consumerBlueprints.remove(configuration);
+                if (blueprint != null) {
+                    blueprint.close();
+                }
+            } else {
+                var blueprint = consumerBlueprints.get(configuration);
+                if (blueprint != null) {
+                    blueprint.refresh();
+                }
             }
         });
     }
@@ -620,6 +653,11 @@ public class DefaultTracking implements Tracking {
                     }
                 }
                 return Objects.equals(selected, currentConfig) ? handler.getInvokerOrNull(message) : null;
+            }
+
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                return handler.getConsumerFilter();
             }
 
             @Override

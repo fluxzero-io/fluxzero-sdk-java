@@ -57,6 +57,11 @@ class ExpiredRequestDecorator implements HandlerDecorator {
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
         return new Handler.DelegatingHandler<>(handler) {
             @Override
+            public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
+                return handler.getConsumerFilter();
+            }
+
+            @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 Optional<HandlerInvoker> invoker = delegate.getInvoker(message);
                 if (invoker.isEmpty() || !isExpiredForHandler(message, invoker.get())) {

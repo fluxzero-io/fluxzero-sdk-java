@@ -69,3 +69,40 @@ adds no wait. Admitted result callbacks receive at most one additional second. O
 one second for already-issued commands, without waiting for long polls. These are per-component budgets and
 can accumulate during full application shutdown. A disconnected Runtime or a timeout still requires the usual
 replay-safe recovery; closing from a result callback does not wait on that callback itself.
+
+## Consumer delivery filters and long reads
+
+`fluxzero.tracking.consumerFiltering` (`FLUXZERO_TRACKING_CONSUMER_FILTERING`) enables conservative server filtering
+from the actual registered handlers. `fluxzero.tracking.maxWaitDuration` (`FLUXZERO_TRACKING_MAX_WAIT_DURATION`)
+accepts ISO-8601 durations such as `PT15M`. Filtering and a fifteen-minute idle wait are automatic on supporting
+peers, independently of `fluxzero.defaults.version`. Set filtering to `false` to disable or the wait to `PT1M` for
+sixty seconds. Explicit properties override either default;
+per-consumer `ConsumerConfiguration` builder values and explicit `@Consumer(maxWaitDuration = ...)` seconds win over
+the wait property. Omitted annotation values inherit. Resolve from the owning application's property source.
+
+Payload selection is derived per handler method from the active resolver chain and `allowedClasses`, then unioned
+per effective consumer. Known bean resolvers only constrain their annotated parameters. Final classes can supply
+exact names; interfaces, abstract types and non-final classes remain broad until a complete subtype catalog exists.
+Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
+custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
+Unknown metadata/formats remain eligible. Runtime uses the Common implementation; Test Server/local tracking match.
+Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 1` in the existing websocket handshake.
+The SDK adapts every send/replay to the actual selected session. Missing/unknown capabilities strip the filter,
+keep metadata-only refreshes local and fall back to the historic scan wait for SDK-selected long waits; explicit
+builder waits retain their historical semantics. New runtimes accept old clients. Upcasting remains
+application-side. Filters are delivery optimization, never authorization.
+
+Full snapshots travel on first/changed reads, small references thereafter. Read telemetry retains request correlation
+and carries only the reference. Cache misses recover before claims or
+scans without cursor movement. Registration refreshes open reads before it returns; it does not replay previously
+skipped messages. Subscriptions are application-instance scoped. Filtered consumers bypass broad SDK prefetch caches on supporting peers; legacy peers retain their configured shared cache.
+A prefetch already started against legacy peers retains its normal lifecycle until client close, preserving cache
+continuity for unfiltered consumers and downgrades. Fresh supporting connections do not start that broad prefetch.
+Long reads preserve immediate relevant wakeup, independent transport liveness and cancellation. SDK-selected long
+waits keep the previous sixty-second scan-yield boundary under irrelevant traffic. No stored-data migration is needed.
+
+Asynchronous TestFixture completion follows the conservative handler selection for all peers: inputs excluded by a
+consumer's blueprint do not keep that consumer pending, including when an older peer still delivers them broadly.
+Set `fluxzero.tracking.consumerFiltering=false` when a test also needs to await batch interceptors for handler-irrelevant
+inputs. Disabling filtering retains the previous batch-acknowledgement wait. Pending selection uses the original
+serialized envelope and owning namespace, including schedules registered before their consumer.

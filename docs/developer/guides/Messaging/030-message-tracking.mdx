@@ -243,7 +243,7 @@ Fluxzero provides conservative defaults to ensure safe and sequential processing
 | `maxFetchBytes`        | Serialized payload byte limit per fetch; `-1` inherits the global default. | `-1`                      |
 | `maxFetchSize`         | Maximum messages per batch; balances throughput and memory. | `1024`                    |
 | `maxIndexExclusive`    | Negative means no upper bound. | `-1`                      |
-| `maxWaitDuration`      | How long to wait before polling again if no messages are available. | `60`                      |
+| `maxWaitDuration`      | Maximum idle wait; omitted values inherit application configuration. | `15 minutes on supporting peers`                      |
 | `minIndex`             | Negative means start at the end of the log (only new messages). | `-1`                      |
 | `namespace`            | Namespace for this consumer; empty uses the client default. | `""` (empty)              |
 | `passive`              | If true, handler results are ignored and not published to the result log. | `false`                   |
@@ -399,6 +399,60 @@ graph TD
 ```
 
 Trackers aren’t only useful for consuming commands or events — they also enable request–response communication between services, without direct endpoints.
+
+## Consumer filtering and idle reads
+
+An application with many consumers can spend time fetching messages that none of their handlers use. Consumer
+filtering lets Runtime exclude those messages before delivery. The SDK enables it automatically on supporting
+Runtime connections, Test Server and local tracking, with a fifteen-minute idle wait. No configuration is required.
+
+To retain broad delivery or a shorter wait, override the application defaults:
+
+```properties
+fluxzero.tracking.consumerFiltering=false
+fluxzero.tracking.maxWaitDuration=PT1M
+```
+
+The equivalent environment variables are `FLUXZERO_TRACKING_CONSUMER_FILTERING` and
+`FLUXZERO_TRACKING_MAX_WAIT_DURATION`. These defaults are independent of `fluxzero.defaults.version`.
+Explicit properties override either default. A per-consumer builder
+setting or explicit `@Consumer(maxWaitDuration = ...)` (seconds) takes precedence over the wait property. These
+settings apply equally to Java and Kotlin applications.
+
+The SDK describes the actual registered handlers, including payload revisions, legacy upcaster inputs, aliases and
+web routes. It derives the selection per handler method from payload parameters and `allowedClasses`, then combines
+it per consumer. Interfaces and open superclasses remain broad until their complete subtype set is known.
+Unknown/custom metadata widens delivery rather than risk excluding a relevant message. Handlers still
+perform dispatch and authorization. Registering a new handler or migration updates future delivery; use replay when
+previously skipped messages need processing.
+
+Runtime uses the updated Common dependency for filtering and advertises its filter capability in the existing
+websocket handshake. The SDK checks each connection, including reconnects: older runtimes retain broad delivery
+and the historic wait; new runtimes still accept old SDKs. Test Server and local tracking use the same selection.
+Filtered consumers bypass the SDK's broad prefetch cache on supporting peers. An explicitly configured prefetch
+cache remains available when connected to an older Runtime.
+
+Asynchronous `TestFixture` tests wait for inputs admitted by each consumer's handler selection. This also applies
+when an older Runtime delivers extra messages. Set `fluxzero.tracking.consumerFiltering=false` if a test needs to
+await batch interceptors for messages that none of its handlers use.
+
+Longer reads reduce idle request and metric counts. Relevant messages still wake the read immediately, and stopping
+or disconnecting a tracker does not wait for the idle deadline. See <Jdoclink className="ConsumerConfiguration" />
+for per-consumer configuration and <Jdoclink className="Read" /> for the wire and metric representation.
+
+## Stopping a consumer
+
+Canceling a tracking registration lets an active batch finish before requesting release of its segment ownership
+with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
+inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
+exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.
+
+Closing the client gives outstanding terminal releases a bounded grace period before closing the transport.
+The caching wrapper and WebSocket tracking client each wait at most two seconds; an already completed release
+adds no wait. Admitted result callbacks receive at most one additional second. Other WebSocket clients allow
+one second for already-issued commands, without waiting for long polls. These are per-component budgets and
+can accumulate during full application shutdown. A disconnected Runtime or a timeout still requires the usual
+replay-safe recovery; closing from a result callback does not wait on that callback itself.
 
 ## Request–Response via tracking
 

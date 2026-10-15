@@ -69,6 +69,20 @@ public interface Serializer extends ContentFilter {
      * @return canonical serialized path and aliases, or an empty list for an omitted property
      * @throws UnsupportedOperationException if safe property mapping is not supported
      */
+    /**
+     * Completes handler delivery metadata with this serializer's type names, aliases and migration inputs.
+     * Unknown/custom serializers remain unrestricted unless they explicitly provide this guarantee.
+     */
+    default io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+            io.fluxzero.common.api.tracking.ConsumerFilter handlers) {
+        return io.fluxzero.common.api.tracking.ConsumerFilter.unrestricted();
+    }
+
+    /** Observes changes that can widen a consumer's accepted serialized inputs. */
+    default Registration observeConsumerFilters(Runnable listener) {
+        return Registration.noOp();
+    }
+
     default List<String> serializedPropertyPaths(Object payload, String propertyPath) {
         throw new UnsupportedOperationException("This serializer does not provide safe serialized property paths");
     }

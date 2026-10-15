@@ -17,16 +17,33 @@
 package io.fluxzero.sdk.test;
 
 import org.junit.jupiter.api.Test;
+import io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver;
+import org.springframework.context.ApplicationContext;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.lang.reflect.Method;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.mock;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BeanParameterResolverTest {
 
     private final BeanParameterResolver subject = new BeanParameterResolver();
+
+    @Test
+    void consumerMetadataOnlyTreatsAutowiredParametersAsBeanInputs() throws Exception {
+        for (var resolver : java.util.List.of(subject, new SpringBeanParameterResolver(mock(ApplicationContext.class)))) {
+            assertFalse(resolver.mayApply(parameter("ordinary"), null, getClass()));
+            assertTrue(resolver.mayApply(parameter("required"), null, getClass()));
+            assertTrue(resolver.mayApply(parameter("optional"), null, getClass()));
+        }
+        assertTrue(new BeanParameterResolver() {}.mayApply(parameter("ordinary"), null, getClass()));
+        assertTrue(new SpringBeanParameterResolver(mock(ApplicationContext.class)) {}
+                           .mayApply(parameter("ordinary"), null, getClass()));
+    }
 
     @Test
     void returnsNullForMissingOptionalBean() throws Exception {
@@ -43,6 +60,9 @@ class BeanParameterResolverTest {
         Method method = BeanParameterResolverTest.class.getDeclaredMethod(methodName, CharSequence.class);
         return method.getParameters()[0];
     }
+
+    @SuppressWarnings("unused")
+    private void ordinary(CharSequence value) {}
 
     @SuppressWarnings("unused")
     private void optional(@Autowired(required = false) CharSequence value) {
