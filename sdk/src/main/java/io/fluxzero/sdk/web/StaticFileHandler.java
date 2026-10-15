@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,13 +54,21 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.stream.Collectors.toSet;
 
+/**
+ * Serves static resources with streamed bodies and content-based validators for the selected representation.
+ * ETags are SHA-256 digests. Digests of immutable resources in JAR files opened by this handler are reused for
+ * that open archive's lifetime, separately for each encoded representation. Other sources, including filesystem
+ * overrides, exploded classpaths and externally resolved nested JARs, are read with bounded memory on every
+ * request. This detects changed files even when size and modification time are preserved. Keep archives immutable
+ * while open and other files stable until pending responses finish; prefer immutable, versioned asset paths.
+ */
 @Slf4j
 @EqualsAndHashCode
 @ToString
 @Getter
 public class StaticFileHandler implements Closeable {
 
-    private static final Map<URI, FileSystem> jarFileSystemCache = new ConcurrentHashMap<>();
+    private static final Map<URI, JarResources> jarFileSystemCache = new ConcurrentHashMap<>();
 
     public static final String classpathPrefix = "classpath:";
     public static final String filePrefix = "file:";
@@ -182,12 +192,13 @@ public class StaticFileHandler implements Closeable {
     @HandleGet({"/{filePath:.+}*", "", "/"})
     @SneakyThrows
     protected WebResponse serveStaticFile(@PathParam("filePath") String filePath, WebRequest request) {
-        Path resolvedPath = resolveSecurePath(filePath);
+        StaticResource resource = resolveSecurePath(filePath);
 
-        if (resolvedPath == null) {
+        if (resource == null) {
             return WebResponse.notFound("File not found");
         }
 
+        Path resolvedPath = resource.path();
         String acceptEncoding = request.getHeader("Accept-Encoding");
         String rangeHeader = request.getHeader("Range");
 
@@ -205,7 +216,9 @@ public class StaticFileHandler implements Closeable {
         long fileSize = Files.size(actualPath);
         FileTime lastModifiedTime = Files.getLastModifiedTime(actualPath);
         String lastModified = formatHttpDate(lastModifiedTime.toMillis());
-        String eTag = "\"" + lastModifiedTime.toMillis() + "-" + fileSize + "\"";
+        String eTag = resource.jarResources() == null ? computeEntityTag(actualPath)
+                : resource.jarResources().entityTags().computeIfAbsent(actualPath.normalize(),
+                                                                      StaticFileHandler::computeEntityTag);
 
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Accept-Ranges", "bytes");
@@ -215,10 +228,11 @@ public class StaticFileHandler implements Closeable {
         headers.put("Cache-Control", getCacheControlHeader(resolvedPath));
         headers.put("Vary", "Accept-Encoding");
 
+        // If-None-Match supersedes If-Modified-Since, even when no supplied tag matches (RFC 9110, 13.1.3).
         List<String> ifNoneMatch = request.getHeaders("If-None-Match");
-        // If-None-Match takes precedence, even when its value does not match this representation.
-        if (ifNoneMatch.isEmpty() ? lastModified.equalsIgnoreCase(request.getHeader("If-Modified-Since"))
-                : matchesEntityTag(ifNoneMatch, eTag)) {
+        if (request.getHeaders().containsKey("If-None-Match")
+                ? matchesEntityTag(ifNoneMatch, eTag)
+                : lastModified.equalsIgnoreCase(request.getHeader("If-Modified-Since"))) {
             return WebResponse.notModified(headers);
         }
 
@@ -237,18 +251,40 @@ public class StaticFileHandler implements Closeable {
         }
     }
 
+    @SneakyThrows
+    private static String computeEntityTag(Path path) {
+        // Do not cache by size/mtime: reproducible builds and in-place replacements can preserve both.
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (var input = Files.newInputStream(path)) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                digest.update(buffer, 0, count);
+            }
+        }
+        return "\"" + HexFormat.of().formatHex(digest.digest()) + "\"";
+    }
+
     private static boolean matchesEntityTag(List<String> values, String eTag) {
+        if (values.size() == 1 && "*".equals(Objects.toString(values.getFirst(), "").trim())) {
+            return true;
+        }
         for (String value : values) {
-            if (value == null) continue;
-            if (value.trim().equals("*")) return true;
+            if (value == null) {
+                continue;
+            }
+            // Commas are allowed inside opaque entity tags. Only split outside their quotes.
             boolean quoted = false;
             int start = 0;
             for (int i = 0; i <= value.length(); i++) {
-                if (i < value.length() && value.charAt(i) == '"') quoted = !quoted;
                 if (i == value.length() || value.charAt(i) == ',' && !quoted) {
                     String candidate = value.substring(start, i).trim();
-                    if (candidate.equals(eTag) || candidate.equals("W/" + eTag)) return true;
+                    if (eTag.equals(candidate.startsWith("W/") ? candidate.substring(2) : candidate)) {
+                        return true;
+                    }
                     start = i + 1;
+                } else if (value.charAt(i) == '"') {
+                    quoted = !quoted;
                 }
             }
         }
@@ -310,13 +346,13 @@ public class StaticFileHandler implements Closeable {
         throw new IllegalArgumentException("Invalid jar URI: " + jarResourceUri);
     }
 
-    private Path resolveSecurePath(String requestedPath) {
+    private StaticResource resolveSecurePath(String requestedPath) {
         if (isUnsafeRequestedPath(requestedPath)) {
             return resolveFallbackPath(requestedPath);
         }
 
         for (String candidatePath : getCandidatePaths(requestedPath, cleanUrls)) {
-            Path resolvedPath = resolveExistingPath(candidatePath);
+            StaticResource resolvedPath = resolveExistingPath(candidatePath);
             if (resolvedPath != null) {
                 return resolvedPath;
             }
@@ -334,12 +370,12 @@ public class StaticFileHandler implements Closeable {
         return Arrays.stream(requestedPath.split("/")).anyMatch(".."::equals);
     }
 
-    private Path resolveExistingPath(String requestedPath) {
+    private StaticResource resolveExistingPath(String requestedPath) {
         // 1. Try file system first
         if (fsBaseDirectory != null) {
             Path fsPath = fsBaseDirectory.resolve(requestedPath).normalize();
             if (isExistingFile(fsPath) && fsPath.startsWith(fsBaseDirectory)) {
-                return fsPath;
+                return new StaticResource(fsPath, null);
             }
         }
 
@@ -359,7 +395,7 @@ public class StaticFileHandler implements Closeable {
                         try {
                             resourcePath = Paths.get(resourceUrl.toURI());
                             if (isExistingFile(resourcePath)) {
-                                return resourcePath;
+                                return new StaticResource(resourcePath, null);
                             }
                         } catch (Exception e) {
                             log.warn("Failed to load resource from classloader path {}", fallbackPath, e);
@@ -369,22 +405,22 @@ public class StaticFileHandler implements Closeable {
                     // Regular JAR
                     URI jarRoot = getJarRootUri(resourceUri);
                     @SuppressWarnings("resource")
-                    FileSystem fs = jarFileSystemCache.computeIfAbsent(jarRoot, uri -> {
+                    JarResources jarResources = jarFileSystemCache.computeIfAbsent(jarRoot, uri -> {
                         try {
-                            return FileSystems.newFileSystem(uri, Collections.emptyMap());
+                            return new JarResources(FileSystems.newFileSystem(uri, Collections.emptyMap()));
                         } catch (IOException e) {
                             throw new RuntimeException("Failed to create FileSystem for " + uri, e);
                         }
                     });
-                    resourcePath = fs.provider().getPath(resourceUri);
+                    resourcePath = jarResources.fileSystem().provider().getPath(resourceUri);
                     if (isExistingFile(resourcePath)) {
-                        return resourcePath;
+                        return new StaticResource(resourcePath, jarResources);
                     }
                 } else {
                     // Normal file URL or fallback
                     resourcePath = Paths.get(resourceUri);
                     if (isExistingFile(resourcePath)) {
-                        return resourcePath;
+                        return new StaticResource(resourcePath, null);
                     }
                 }
 
@@ -423,7 +459,7 @@ public class StaticFileHandler implements Closeable {
         return Files.exists(path) && Files.isRegularFile(path);
     }
 
-    private Path resolveFallbackPath(String requestedPath) {
+    private StaticResource resolveFallbackPath(String requestedPath) {
         if (fallbackFile != null && !Objects.equals(requestedPath, fallbackFile)) {
             return resolveExistingPath(fallbackFile);
         }
@@ -492,11 +528,30 @@ public class StaticFileHandler implements Closeable {
 
     @Override
     public void close() {
-        Collection<FileSystem> values = jarFileSystemCache.values();
-        for (FileSystem value : values) {
+        Collection<JarResources> values = jarFileSystemCache.values();
+        for (JarResources value : values) {
             try (value) {
                 values.remove(value);
             } catch (IOException ignored) {
+            }
+        }
+    }
+
+    private record StaticResource(Path path, @Nullable JarResources jarResources) {}
+
+    private record JarResources(FileSystem fileSystem, Map<Path, String> entityTags) implements Closeable {
+        private JarResources(FileSystem fileSystem) {
+            this(fileSystem, new ConcurrentHashMap<>());
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                fileSystem.close();
+            } finally {
+                // Keys are normalized existing entry paths, never URLs or request headers. Retain only digests,
+                // at most one per requested archive entry, and release them with this mounted archive version.
+                entityTags.clear();
             }
         }
     }

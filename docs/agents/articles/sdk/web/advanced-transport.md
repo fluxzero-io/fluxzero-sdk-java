@@ -20,9 +20,16 @@ the exact resource, `<path>.html`, `<path>/index.html`, then the fallback. Keep 
 cannot hide a missing endpoint. Use `classpath:` or `file:` to restrict the source intentionally.
 
 Fingerprint immutable assets and configure caching deliberately; do not give HTML an immutable one-year cache when it
-must point clients to newly deployed assets.
-For conditional requests, `If-None-Match` takes precedence over `If-Modified-Since`. Entity-tag matching supports weak
-tags, tag lists and `*`.
+must point clients to newly deployed assets. ETags identify the bytes of the selected file (identity, gzip, or Brotli).
+Conditional GET/HEAD gives `If-None-Match` precedence over `If-Modified-Since`, including weak tags, lists, and `*`.
+An old ETag therefore causes a fresh response even if the replacement has the same timestamp and length.
+For immutable resources in regular JARs opened by the handler, validation hashes each selected archive entry once
+and reuses its digest until that archive is closed. Identity, gzip and Brotli entries have separate digests;
+reopening an archive computes fresh digests. Only digests and entry paths are retained, never response bodies.
+Keep these archives immutable while open. Filesystem overrides, exploded classpaths and externally managed nested
+JAR resources are still read with bounded memory on every request, even if their size and timestamp are unchanged.
+Response bodies remain streamed. Keep mutable assets stable until pending responses finish. For large or frequently
+requested assets, use fingerprinted URLs and appropriate cache lifetimes to reduce revalidation traffic.
 
 ## Form and multipart parameters
 
