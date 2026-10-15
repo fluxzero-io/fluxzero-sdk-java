@@ -942,6 +942,19 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void openAutomaticModelCommandsKeepSubtypesEligible() {
+        ModelCommitHandlerRegistry subject = subject(AutomaticModelHandling.ENABLED);
+        try {
+            Handler<DeserializingMessage> handler = subject.createHandler(
+                    OpenAutomaticCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+            assertNull(handler.getConsumerFilter());
+            assertTrue(handler.getInvoker(message(new SpecializedAutomaticCommand("subtype"))).isPresent());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void receiverApplyTracksTheCommandPayloadRatherThanTheModel() {
         ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
@@ -2546,6 +2559,25 @@ class ModelCommitHandlerRegistryTest {
         @Apply
         TimingModel apply() {
             return new TimingModel(id);
+        }
+    }
+
+    private static class OpenAutomaticCommand {
+        private final String id;
+
+        private OpenAutomaticCommand(String id) {
+            this.id = id;
+        }
+
+        @Apply
+        TimingModel apply() {
+            return new TimingModel(id);
+        }
+    }
+
+    private static class SpecializedAutomaticCommand extends OpenAutomaticCommand {
+        private SpecializedAutomaticCommand(String id) {
+            super(id);
         }
     }
 

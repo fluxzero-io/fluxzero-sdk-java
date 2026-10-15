@@ -422,6 +422,10 @@ settings apply equally to Java and Kotlin applications.
 The SDK describes the actual registered handlers, including payload revisions, legacy upcaster inputs, aliases and
 web routes. It derives the selection per handler method from payload parameters and `allowedClasses`, then combines
 it per consumer. Interfaces and open superclasses remain broad until their complete subtype set is known.
+Automatic Model commands contribute the payload boundary of their actual command matcher, including commands whose
+`@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the
+schedule log, then the dispatched command matches its normal command consumer; the relay accepts every wrapped
+command, including commands handled by another application. Local automatic handling does not issue a server Read.
 Unknown/custom metadata widens delivery rather than risk excluding a relevant message. Handlers still
 perform dispatch and authorization. Registering a new handler or migration updates future delivery; use replay when
 previously skipped messages need processing.

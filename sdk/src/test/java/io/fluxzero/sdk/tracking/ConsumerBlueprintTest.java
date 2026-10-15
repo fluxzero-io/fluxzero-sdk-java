@@ -26,11 +26,21 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.scheduling.Schedule;
+import io.fluxzero.sdk.scheduling.ScheduledCommand;
+import io.fluxzero.sdk.test.TestFixture;
+import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.web.HandleGet;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -38,11 +48,61 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerBlueprintTest {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void filtersAutomaticModelCommandsBeforeBatchDelivery(boolean receiverDefined) throws Exception {
+        List<SerializedMessage> delivered = new CopyOnWriteArrayList<>();
+        AtomicReference<ConsumerConfiguration> configuration = new AtomicReference<>();
+        Object command = receiverDefined ? new ReceiverCommand("receiver") : new CreateModel("payload");
+        Object expected = receiverDefined ? new ReceiverModel("receiver") : new PayloadModel("payload");
+        try (Fluxzero app = application(delivered, configuration, COMMAND)) {
+            app.registerHandlers(receiverDefined ? ReceiverModel.class : CreateModel.class);
+            app.commandGateway().setSelfHandlerFilter((type, method) -> false);
+            var filter = configuration.get().getConsumerBlueprint().getFilter();
+            assertTrue(filter.payloadRestricted());
+            assertTrue(filter.compile().test(raw(command.getClass().getName(), 0, Metadata.empty())));
+            assertFalse(filter.compile().test(raw(Ignored.class.getName(), 0, Metadata.empty())));
+            app.client().getGatewayClient(COMMAND).append(Guarantee.STORED,
+                    raw(Ignored.class.getName(), 0, Metadata.empty())).join();
+            assertNull(app.commandGateway().send(command).get(2, TimeUnit.SECONDS));
+            assertEquals(expected, app.apply(ignored -> Fluxzero.loadModel(
+                    receiverDefined ? "receiver" : "payload", expected.getClass()).get()));
+            assertEquals(List.of(command.getClass().getName()),
+                         delivered.stream().map(SerializedMessage::getType).toList());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void scheduledCommandsUseWrapperAndCommandSelections(boolean async) {
+        Instant start = Instant.parse("2026-01-01T00:00:00Z");
+        Instant deadline = start.plusSeconds(60);
+        AtomicReference<ConsumerConfiguration> configuration = new AtomicReference<>();
+        var handler = new ScheduledHandler();
+        var builder = DefaultFluxzero.builder().addBatchInterceptor((consumer, tracker) -> {
+            configuration.set(tracker.getConfiguration());
+            return consumer;
+        }, SCHEDULE);
+        var fixture = async ? TestFixture.createAsync(builder, handler) : TestFixture.create(builder, handler);
+        var command = new ScheduledPayload("due");
+        fixture.atFixedTime(start).givenScheduledCommands(new Schedule(command, "due", deadline))
+                .whenTimeAdvancesTo(deadline).expectCommands(command).expectNoErrors()
+                .expectTrue(ignored -> handler.result.isDone());
+        if (async) {
+            var filter = configuration.get().getConsumerBlueprint().getFilter();
+            assertTrue(filter.payloadRestricted());
+            assertTrue(filter.compile().test(raw(ScheduledCommand.class.getName(), 0, Metadata.empty())));
+            assertFalse(filter.compile().test(raw(ScheduledPayload.class.getName(), 0, Metadata.empty())));
+        }
+    }
+
     @Test
     void filtersOrdinaryRegisteredHandlersBeforeBatchDelivery() throws Exception {
         List<SerializedMessage> delivered = new CopyOnWriteArrayList<>();
@@ -250,6 +310,21 @@ class ConsumerBlueprintTest {
 
     record Created(String value) {}
     record Ignored() {}
+    @Model(searchable = false)
+    record PayloadModel(@EntityId String id) {}
+    record CreateModel(String id) {
+        @Apply PayloadModel apply() { return new PayloadModel(id); }
+    }
+    @Model(searchable = false)
+    record ReceiverModel(@EntityId String id) {
+        @Apply static ReceiverModel apply(ReceiverCommand command) { return new ReceiverModel(command.id()); }
+    }
+    record ReceiverCommand(String id) {}
+    record ScheduledPayload(String value) {}
+    static class ScheduledHandler {
+        final CompletableFuture<ScheduledPayload> result = new CompletableFuture<>();
+        @HandleCommand void handle(ScheduledPayload command) { result.complete(command); }
+    }
     static class CreatedHandler {
         final CompletableFuture<Created> result = new CompletableFuture<>();
         final java.util.concurrent.BlockingQueue<Created> received = new java.util.concurrent.LinkedBlockingQueue<>();

@@ -83,6 +83,10 @@ the wait property. Omitted annotation values inherit. Resolve from the owning ap
 Payload selection is derived per handler method from the active resolver chain and `allowedClasses`, then unioned
 per effective consumer. Known bean resolvers only constrain their annotated parameters. Final classes can supply
 exact names; interfaces, abstract types and non-final classes remain broad until a complete subtype catalog exists.
+Automatic Model command handlers expose their actual payload matcher boundary, for both command-owned and
+Model-owned `@Apply` methods. Scheduled commands select the `ScheduledCommand` envelope on SCHEDULE, then apply
+ordinary COMMAND selection after relay; do not narrow the relay by locally registered inner command types.
+Local automatic handling issues no server Read. These rules apply equally to Java and Kotlin.
 Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
 custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
 Unknown metadata/formats remain eligible. Runtime uses the Common implementation; Test Server/local tracking match.
