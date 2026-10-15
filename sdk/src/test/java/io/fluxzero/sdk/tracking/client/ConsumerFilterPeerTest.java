@@ -223,19 +223,20 @@ class ConsumerFilterPeerTest {
         }
 
         void accept(Read read) throws Exception {
-            if (read.getMaxSize() > 0) reads.add(read);
             var description = read.getConsumerFilter();
             if (description != null && description.referenceOnly() && filter.get() == null) {
                 if (closeOnMiss) open.set(false);
                 acknowledge(read, MessageBatch.requireConsumerFilter());
-                return;
-            }
-            if (description != null && !description.referenceOnly()) filter.set(description);
-            if (description != null && read.getMaxSize() == 0) {
-                updates.add(read); // Test controls the activation acknowledgement.
             } else {
-                if (read.getMaxTimeout() == 0) acknowledge(read, empty()); else pending.add(read);
+                if (description != null && !description.referenceOnly()) filter.set(description);
+                if (description != null && read.getMaxSize() == 0) {
+                    updates.add(read); // Test controls the activation acknowledgement.
+                } else {
+                    if (read.getMaxTimeout() == 0) acknowledge(read, empty()); else pending.add(read);
+                }
             }
+            // Observing a read must also observe its cache/pending updates before the test clears that cache.
+            if (read.getMaxSize() > 0) reads.add(read);
         }
 
         void acknowledge(Read read, MessageBatch batch) throws Exception {
