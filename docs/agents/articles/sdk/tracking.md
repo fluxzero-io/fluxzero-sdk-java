@@ -81,15 +81,21 @@ per-consumer `ConsumerConfiguration` builder values and explicit `@Consumer(maxW
 the wait property. Omitted annotation values inherit. Resolve from the owning application's property source.
 
 Payload selection is derived per handler method from the active resolver chain and `allowedClasses`, then unioned
-per effective consumer. Known bean resolvers only constrain their annotated parameters. Final classes can supply
-exact names; interfaces, abstract types and non-final classes remain broad until a complete subtype catalog exists.
+per effective consumer. Known bean and trigger resolvers only constrain their annotated parameters; an extra
+`JsonNode` view does not widen a separate typed payload parameter. Final classes can supply
+exact names. Open and sealed supertypes remain broad until a complete subtype catalog exists: reflection may omit
+unloadable permitted subclasses, so enumerating the currently visible sealed leaves is insufficient. This includes
+`non-sealed` branches and constant-specific enum subclasses. Final `@TrackSelf` payloads provide their mandatory type
+boundary even for methods without a payload parameter; web self-handlers retain route matching and automatic OPTIONS.
 Automatic Model command handlers expose their actual payload matcher boundary, for both command-owned and
 Model-owned `@Apply` methods. Scheduled commands select the `ScheduledCommand` envelope on SCHEDULE, then apply
 ordinary COMMAND selection after relay; do not narrow the relay by locally registered inner command types.
 Local automatic handling issues no server Read. These rules apply equally to Java and Kotlin.
 Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
 custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
-Unknown metadata/formats remain eligible. Runtime uses the Common implementation; Test Server/local tracking match.
+Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses
+that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Stateful/member,
+socket-session and graph-change expansion currently retain broad delivery. Runtime uses the Common implementation; Test Server/local tracking match.
 Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 1` in the existing websocket handshake.
 The SDK adapts every send/replay to the actual selected session. Missing/unknown capabilities strip the filter,
 keep metadata-only refreshes local and fall back to the historic scan wait for SDK-selected long waits; explicit

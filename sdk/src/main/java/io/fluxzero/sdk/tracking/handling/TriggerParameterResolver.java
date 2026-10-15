@@ -340,6 +340,11 @@ public class TriggerParameterResolver
     }
 
     @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() != TriggerParameterResolver.class || ReflectionUtils.has(Trigger.class, parameter);
+    }
+
+    @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
             if (ReflectionUtils.has(Trigger.class, parameter)) {

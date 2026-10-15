@@ -942,6 +942,20 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void sealedAutomaticModelCommandsIncludeTheirConcreteSubtypes() {
+        ModelCommitHandlerRegistry subject = subject(AutomaticModelHandling.ENABLED);
+        try {
+            Handler<DeserializingMessage> handler = subject.createHandler(
+                    SealedAutomaticCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+            var input = message(new SealedAutomaticLeaf("sealed"));
+            assertNull(handler.getConsumerFilter());
+            assertTrue(handler.getInvoker(input).isPresent());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void openAutomaticModelCommandsKeepSubtypesEligible() {
         ModelCommitHandlerRegistry subject = subject(AutomaticModelHandling.ENABLED);
         try {
@@ -2561,6 +2575,12 @@ class ModelCommitHandlerRegistryTest {
             return new TimingModel(id);
         }
     }
+
+    private sealed interface SealedAutomaticCommand permits SealedAutomaticLeaf {
+        String id();
+        @Apply default TimingModel apply() { return new TimingModel(id()); }
+    }
+    private record SealedAutomaticLeaf(String id) implements SealedAutomaticCommand {}
 
     private static class OpenAutomaticCommand {
         private final String id;

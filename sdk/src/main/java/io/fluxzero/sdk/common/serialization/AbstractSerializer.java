@@ -453,6 +453,9 @@ public abstract class AbstractSerializer<I> implements Serializer {
             for (int i = 0; i < variant.length(); i++) {
                 if (variant.charAt(i) == '.' || variant.charAt(i) == '$') {
                     target.add(new ConsumerFilter.PayloadType(variant.substring(i + 1), revision, prefix));
+                    if (variant.charAt(i) == '.') {
+                        target.add(new ConsumerFilter.PayloadType(variant.substring(i), revision, prefix));
+                    }
                 }
             }
         }

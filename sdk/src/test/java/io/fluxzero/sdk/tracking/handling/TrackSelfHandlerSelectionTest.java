@@ -23,7 +23,10 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.web.HandleGet;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -32,8 +35,43 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class TrackSelfHandlerSelectionTest {
+
+    @Test
+    void automaticWebOptionsKeepTheirRouteSelectionIndependentOfSelfPayloadType() {
+        var handler = new DefaultHandlerFactory(
+                MessageType.WEBREQUEST, HandlerDecorator.noOp, List.of(), MethodInvocationValidator.noOp(),
+                ignored -> null, null, false, null)
+                .createHandler(SelfWeb.class, (type, executable) -> true, List.of()).orElseThrow();
+        var message = new DeserializingMessage(new Message("", Metadata.of("method", "OPTIONS", "url", "/self")),
+                                               MessageType.WEBREQUEST, new JacksonSerializer());
+        assertNotNull(handler.getInvokerOrNull(message));
+        assertTrue(handler.getConsumerFilter().compile().test(message.getSerializedObject()));
+    }
+
+    @Test
+    void noArgumentSelfHandlersDescribeTheirMandatoryPayloadBoundary() {
+        var filter = handler(FinalSelfCommand.class).getConsumerFilter();
+        assertTrue(filter.payloadRestricted());
+        assertTrue(filter.compile().test(serialized(FinalSelfCommand.class)));
+        assertFalse(filter.compile().test(serialized(OtherCommand.class)));
+    }
+
+    @Test
+    void sealedSelfHandlersIncludeEverySpecialization() {
+        assertNull(handler(SealedSelfCommand.class).getConsumerFilter());
+        assertNotNull(handler(SealedSelfCommand.class).getInvokerOrNull(new DeserializingMessage(
+                new Message(new SealedSelfLeaf()), MessageType.COMMAND, new JacksonSerializer())));
+    }
+
+    @Test
+    void openSelfHandlersRemainBroad() {
+        assertNull(handler(TrackedCommand.class).getConsumerFilter());
+    }
 
     @Test
     void doesNotDeserializeNonMatchingPayload() {
@@ -65,12 +103,32 @@ class TrackSelfHandlerSelectionTest {
 
     private static DeserializingMessage malformedMessage(Class<?> payloadClass,
                                                           AtomicInteger deserializationAttempts) {
-        SerializedMessage serializedMessage = new SerializedMessage(
-                new Data<>(new byte[0], payloadClass.getName(), 0), Metadata.empty(), "message-id", 0L);
+        SerializedMessage serializedMessage = serialized(payloadClass);
         return new DeserializingMessage(serializedMessage, ignored -> {
             deserializationAttempts.incrementAndGet();
             throw new IllegalStateException("malformed payload");
         }, MessageType.COMMAND, null, null);
+    }
+
+    private static SerializedMessage serialized(Class<?> payloadClass) {
+        return new SerializedMessage(new Data<>(new byte[0], payloadClass.getName(), 0),
+                                     Metadata.empty(), "message-id", 0L);
+    }
+
+    @TrackSelf
+    record FinalSelfCommand() {
+        @HandleCommand void handle() {}
+    }
+
+    @TrackSelf
+    sealed interface SealedSelfCommand permits SealedSelfLeaf {
+        @HandleCommand default void handle() {}
+    }
+    record SealedSelfLeaf() implements SealedSelfCommand {}
+
+    @TrackSelf
+    record SelfWeb() {
+        @HandleGet("/self") void get() {}
     }
 
     @TrackSelf

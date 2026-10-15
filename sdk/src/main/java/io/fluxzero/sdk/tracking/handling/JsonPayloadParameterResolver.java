@@ -91,6 +91,11 @@ public class JsonPayloadParameterResolver implements ParameterResolver<Deseriali
      * </p>
      */
     @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() != JsonPayloadParameterResolver.class || JsonNode.class.isAssignableFrom(parameter.getType());
+    }
+
+    @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
         for (Parameter parameter : method.getParameters()) {
             if (JsonNode.class.isAssignableFrom(parameter.getType())) {

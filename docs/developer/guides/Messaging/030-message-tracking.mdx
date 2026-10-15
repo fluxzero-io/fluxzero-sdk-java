@@ -421,7 +421,13 @@ settings apply equally to Java and Kotlin applications.
 
 The SDK describes the actual registered handlers, including payload revisions, legacy upcaster inputs, aliases and
 web routes. It derives the selection per handler method from payload parameters and `allowedClasses`, then combines
-it per consumer. Interfaces and open superclasses remain broad until their complete subtype set is known.
+it per consumer. Open and sealed supertypes remain broad until a complete subtype catalog is available.
+Reflection may omit unloadable permitted subclasses, so its visible sealed leaves cannot prove completeness.
+This also preserves nested sealed interfaces, concrete sealed bases, `non-sealed` branches and enum specializations.
+A final `@TrackSelf` payload contributes its required type even without a payload parameter; web self-handlers
+keep route-based selection, including automatic OPTIONS. Bean/trigger injection and an additional JSON view do not
+widen a separate typed payload parameter. Standard interceptor/document wrappers preserve selection; unknown
+subclasses, stateful/member routing, socket sessions and graph-change expansion retain conservative broad delivery.
 Automatic Model commands contribute the payload boundary of their actual command matcher, including commands whose
 `@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the
 schedule log, then the dispatched command matches its normal command consumer; the relay accepts every wrapped

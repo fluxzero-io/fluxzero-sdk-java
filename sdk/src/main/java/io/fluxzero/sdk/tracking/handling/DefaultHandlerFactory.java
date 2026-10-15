@@ -298,10 +298,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
                                     message.getPayloadClass()) && !hasMoreSpecificTrackSelfHandlerType(
                                     targetClass, message.getPayloadClass());
                     config = config.toBuilder().messageFilter(selfFilter.and(config.messageFilter())).build();
-                    return createDefaultHandler(targetClass,
-                                                message -> targetClass.isAssignableFrom(message.getPayloadClass())
-                                                        ? message.getPayload() : null,
-                                                config);
+                    Function<DeserializingMessage, ?> supplier =
+                            message -> targetClass.isAssignableFrom(message.getPayloadClass()) ? message.getPayload() : null;
+                    return getClass() == DefaultHandlerFactory.class
+                            ? createDefaultHandler(targetClass, supplier, config, targetClass)
+                            : createDefaultHandler(targetClass, supplier, config);
                 }
             }
 
@@ -346,6 +347,12 @@ public class DefaultHandlerFactory implements HandlerFactory {
     protected Handler<DeserializingMessage> createDefaultHandler(
             Object target, Function<DeserializingMessage, ?> targetSupplier,
             HandlerConfiguration<DeserializingMessage> config) {
+        return createDefaultHandler(target, targetSupplier, config, null);
+    }
+
+    private Handler<DeserializingMessage> createDefaultHandler(
+            Object target, Function<DeserializingMessage, ?> targetSupplier,
+            HandlerConfiguration<DeserializingMessage> config, Class<?> selfPayloadType) {
         Class<?> targetClass = asClass(target);
         HandlerMatcher<Object, DeserializingMessage> matcher = createHandlerMatcher(target, config);
         java.util.function.Supplier<ConsumerFilter> consumerFilter = () -> {
@@ -353,7 +360,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 return null;
             }
             return matcher.getClass() == WebHandlerMatcher.class ? ((WebHandlerMatcher) matcher).getConsumerFilter()
-                    : describePayloads(targetClass, config);
+                    : selfPayloadType == null ? describePayloads(targetClass, config)
+                    : describeSelfPayload(selfPayloadType);
         };
         Handler<DeserializingMessage> handler = (target instanceof Class<?>
                 ? DefaultHandler.forPayloadTarget(targetClass, targetSupplier, matcher)
@@ -432,8 +440,18 @@ public class DefaultHandlerFactory implements HandlerFactory {
     }
 
     private static boolean isClosedPayloadType(Class<?> type) {
-        // Arrays report final modifiers but reference arrays remain covariant. Keep their existing matching path.
+        // Arrays are covariant; sealed reflection may omit unloadable permitted subclasses. Neither proves closure.
         return !type.isArray() && Modifier.isFinal(type.getModifiers());
+    }
+
+    private static ConsumerFilter describeSelfPayload(Class<?> type) {
+        if (!isClosedPayloadType(type)) {
+            return null;
+        }
+        return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
+                                     List.of(new ConsumerFilter.PayloadType(type.getName(), null),
+                                             new ConsumerFilter.PayloadType(type.getName() + "<", null, true)),
+                                     null, List.of(), false);
     }
 
     protected Class<? extends Annotation> getHandlerAnnotation(MessageType messageType) {

@@ -23,6 +23,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
@@ -40,12 +41,39 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TypeAliasTest {
     private static final String CURRENT_PACKAGE = "io.fluxzero.sdk.common.serialization";
     private static final String CURRENT_TYPE = CURRENT_PACKAGE + ".TypeAliasTest$CurrentType";
     private static final String LEGACY_PACKAGE = "host.example";
     private static final String LEGACY_TYPE = LEGACY_PACKAGE + ".TypeAliasTest$CurrentType";
+
+    @Test
+    void consumerFilterPreservesLeadingDotPartialNamesAndMigrationInputs() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        serializer.registerUpcasters(new LeadingDotUpcaster());
+        var handlers = ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
+                List.of(new ConsumerFilter.PayloadType(CurrentType.class.getName(), null)), null, List.of(), false);
+        var predicate = serializer.describeConsumerFilter(handlers).compile();
+        for (int revision : List.of(0, 1)) {
+            var input = new SerializedMessage(data(".serialization.TypeAliasTest$CurrentType", revision,
+                                                   "{\"value\":\"test\"}"), Metadata.empty(), "message", 0L);
+            assertEquals(new CurrentType("test"), serializer.deserializeMessage(input, MessageType.EVENT).getPayload());
+            assertTrue(predicate.test(input), "revision " + revision);
+        }
+        // A migration input remains eligible even if its target is unrelated to this consumer.
+        var unrelated = ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
+                List.of(new ConsumerFilter.PayloadType(String.class.getName(), null)), null, List.of(), false);
+        assertTrue(serializer.describeConsumerFilter(unrelated).compile().test(new SerializedMessage(
+                data(".serialization.TypeAliasTest$CurrentType", 0, "{\"value\":\"test\"}"),
+                Metadata.empty(), "migration", 0L)));
+    }
+
+    private static class LeadingDotUpcaster {
+        @Upcast(type = CURRENT_TYPE, revision = 0)
+        ObjectNode upcast(ObjectNode input) { return input; }
+    }
 
     @Test
     void deserializesUsingPackageAlias() {

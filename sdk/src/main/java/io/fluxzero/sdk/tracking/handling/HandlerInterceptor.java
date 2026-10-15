@@ -393,7 +393,7 @@ public interface HandlerInterceptor extends HandlerDecorator {
 
         @Override
         public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
-            return delegate.getConsumerFilter();
+            return getClass() == InterceptedHandler.class ? delegate.getConsumerFilter() : null;
         }
 
         @Override
@@ -697,7 +697,7 @@ public interface HandlerInterceptor extends HandlerDecorator {
 
         @Override
         public io.fluxzero.common.api.tracking.ConsumerFilter getConsumerFilter() {
-            return delegate.getConsumerFilter();
+            return getClass() == PreparedInterceptedHandler.class ? delegate.getConsumerFilter() : null;
         }
 
         @Override

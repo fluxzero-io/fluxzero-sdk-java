@@ -34,6 +34,7 @@ import io.fluxzero.sdk.scheduling.ScheduledCommand;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
+import io.fluxzero.sdk.tracking.handling.Trigger;
 import io.fluxzero.sdk.web.HandleGet;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -55,6 +56,32 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerBlueprintTest {
+    @Test
+    void additionalJsonViewDoesNotWidenTheTypedPayloadSelection() throws Exception {
+        var handler = new JsonViewHandler();
+        var configuration = new AtomicReference<ConsumerConfiguration>();
+        var delivered = new CopyOnWriteArrayList<SerializedMessage>();
+        try (Fluxzero app = application(delivered, configuration, EVENT)) {
+            app.registerHandlers(handler);
+            assertTrue(configuration.get().getConsumerBlueprint().getFilter().payloadRestricted());
+            app.eventGateway().publish(new Message(new Ignored()), Guarantee.STORED).join();
+            app.eventGateway().publish(new Message(new Created("json")), Guarantee.STORED).join();
+            assertEquals("json:json", handler.result.get(2, TimeUnit.SECONDS));
+            assertEquals(1, delivered.size());
+        }
+    }
+
+    @Test
+    void triggerInjectionOnlyDescribesItsAnnotatedParameter() {
+        var configuration = new AtomicReference<ConsumerConfiguration>();
+        try (Fluxzero app = application(new CopyOnWriteArrayList<>(), configuration, EVENT)) {
+            app.registerHandlers(new TriggeredHandler());
+            var filter = configuration.get().getConsumerBlueprint().getFilter();
+            assertTrue(filter.payloadRestricted());
+            assertTrue(filter.compile().test(raw(Created.class.getName(), 0, Metadata.empty())));
+            assertFalse(filter.compile().test(raw(Ignored.class.getName(), 0, Metadata.empty())));
+        }
+    }
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void filtersAutomaticModelCommandsBeforeBatchDelivery(boolean receiverDefined) throws Exception {
@@ -309,6 +336,15 @@ class ConsumerBlueprintTest {
     }
 
     record Created(String value) {}
+    static class JsonViewHandler {
+        final CompletableFuture<String> result = new CompletableFuture<>();
+        @HandleEvent void handle(Created event, com.fasterxml.jackson.databind.JsonNode json) {
+            result.complete(event.value() + ":" + json.get("value").asText());
+        }
+    }
+    static class TriggeredHandler {
+        @HandleEvent void handle(Created event, @Trigger Ignored trigger) {}
+    }
     record Ignored() {}
     @Model(searchable = false)
     record PayloadModel(@EntityId String id) {}
