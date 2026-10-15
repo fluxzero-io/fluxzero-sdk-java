@@ -59,26 +59,23 @@ class ConsumerMetricsBenchmarkTest {
             for (boolean filtered : List.of(false, true)) {
                 int consumers = 12;
                 String prefix = "selective-" + filtered + "-";
-                var following = new CountDownLatch(consumers);
-                Set<String> caughtUp = ConcurrentHashMap.newKeySet();
-                var lastIndex = new AtomicLong(Long.MAX_VALUE);
-                observed.set(tracker -> {
-                    if (tracker.getConsumerName().startsWith(prefix)
-                        && java.util.Objects.equals(tracker.getLastTrackerIndex(), lastIndex.get())
-                        && caughtUp.add(tracker.getConsumerName())) following.countDown();
-                });
-                try (Fluxzero app = application(port, prefix, consumers, filtered, Duration.ofMinutes(15))) {
+                var progress = new ReadProgress(prefix, consumers);
+                var readMetrics = new CountDownLatch(consumers * (filtered ? 2 : 18));
+                observed.set(tracker -> progress.observe(tracker.getConsumerName(), tracker.getLastTrackerIndex()));
+                try (Fluxzero app = application(port, prefix, consumers, filtered, Duration.ofMinutes(15), readMetrics)) {
                     var messages = new ArrayList<SerializedMessage>();
                     for (int i = 0; i < 1024; i++) messages.add(message(Ignored.class.getName()));
                     messages.add(message(Accepted.class.getName()));
                     app.client().getGatewayClient(EVENT).append(Guarantee.STORED, messages.toArray(SerializedMessage[]::new)).join();
-                    lastIndex.set(app.client().getTrackingClient(EVENT).readFromIndex(0, 2048).getLast().getIndex());
-                    assertTrue(following.await(20, TimeUnit.SECONDS), "consumers did not open their next reads");
+                    progress.expect(app.client().getTrackingClient(EVENT).readFromIndex(0, 2048).getLast().getIndex());
+                    assertTrue(progress.await(20, TimeUnit.SECONDS), "consumers did not open their next reads");
+                    assertTrue(readMetrics.await(20, TimeUnit.SECONDS), "read metrics were not enqueued");
                     Map<String, Long> metrics = snapshot(app);
                     System.out.println("CONSUMER_METRICS_SELECTIVE filtered=" + filtered + " counts=" + metrics);
                     assertEquals(12L, metrics.getOrDefault("HandleMessageEvent", 0L));
                     assertEquals(filtered ? 12L : 204L, metrics.getOrDefault("ProcessBatchEvent", 0L));
                     assertEquals(filtered ? 12L : 204L, metrics.getOrDefault("StorePosition", 0L));
+                    assertEquals(consumers * (filtered ? 2L : 18L), metrics.getOrDefault("Read", 0L));
                 }
             }
         } finally { server.stop(); }
@@ -95,9 +92,13 @@ class ConsumerMetricsBenchmarkTest {
                 && readCounts.merge(tracker.getConsumerName(), 1, Integer::sum) == 2) secondShortReads.countDown();
         });
         int port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
-        try (Fluxzero shorter = application(port, "idle-short-", consumers, false, Duration.ofSeconds(60));
-             Fluxzero longer = application(port, "idle-long-", consumers, true, Duration.ofMinutes(15))) {
+        var shortReadMetrics = new CountDownLatch(2 * consumers);
+        var longReadMetrics = new CountDownLatch(consumers);
+        try (Fluxzero shorter = application(port, "idle-short-", consumers, false, Duration.ofSeconds(60), shortReadMetrics);
+             Fluxzero longer = application(port, "idle-long-", consumers, true, Duration.ofMinutes(15), longReadMetrics)) {
             assertTrue(secondShortReads.await(75, TimeUnit.SECONDS), "short reads did not reach their real idle deadlines");
+            assertTrue(shortReadMetrics.await(20, TimeUnit.SECONDS), "short read metrics were not enqueued");
+            assertTrue(longReadMetrics.await(20, TimeUnit.SECONDS), "long read metrics were not enqueued");
             Map<String, Long> shortMetrics = snapshot(shorter), longMetrics = snapshot(longer);
             System.out.println("CONSUMER_METRICS_IDLE waitSeconds=60 consumers=8 counts=" + shortMetrics);
             System.out.println("CONSUMER_METRICS_IDLE waitSeconds=900 consumers=8 counts=" + longMetrics);
@@ -106,7 +107,45 @@ class ConsumerMetricsBenchmarkTest {
         } finally { server.stop(); }
     }
 
-    private static Fluxzero application(int port, String prefix, int consumers, boolean filtered, Duration wait) {
+    /** Observes monotonically advancing reads even when they precede publication of the expected index. */
+    static final class ReadProgress {
+        private final String prefix;
+        private final CountDownLatch following;
+        private final Set<String> caughtUp = ConcurrentHashMap.newKeySet();
+        private final Map<String, Long> positions = new ConcurrentHashMap<>();
+        private final AtomicLong expected = new AtomicLong(Long.MAX_VALUE);
+
+        ReadProgress(String prefix, int consumers) {
+            this.prefix = prefix;
+            this.following = new CountDownLatch(consumers);
+        }
+
+        void observe(String name, Long index) {
+            if (!name.startsWith(prefix) || index == null) {
+                return;
+            }
+            long position = positions.merge(name, index, Math::max);
+            check(name, position);
+        }
+
+        void expect(long index) {
+            expected.set(index);
+            positions.forEach(this::check);
+        }
+
+        private void check(String name, long index) {
+            if (index == expected.get() && caughtUp.add(name)) {
+                following.countDown();
+            }
+        }
+
+        boolean await(long timeout, TimeUnit unit) throws InterruptedException {
+            return following.await(timeout, unit);
+        }
+    }
+
+    private static Fluxzero application(int port, String prefix, int consumers, boolean filtered, Duration wait,
+                                       CountDownLatch readMetrics) {
         var client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost:" + port).namespace(UUID.randomUUID().toString())
                 .name("metric-counts").disableMetrics(false).build());
@@ -120,13 +159,18 @@ class ConsumerMetricsBenchmarkTest {
                     .maxFetchSize(64).maxWaitDuration(wait).maxScanLookBack(60_000L).minIndex(0L).build(), EVENT);
         }
         Fluxzero app = builder.build(client);
+        app.client().getGatewayClient(METRICS).registerMonitor(messages -> messages.forEach(metric -> {
+            if (metric.getType().endsWith(".Read") && "EVENT".equals(metric.getMetadata().get("messageType"))) {
+                readMetrics.countDown();
+            }
+        }));
         app.registerHandlers(handlers);
         return app;
     }
 
     private static Map<String, Long> snapshot(Fluxzero app) {
-        // Publication and following reads have already returned from all consumer stacks. A STORED append on the
-        // same metrics gateway fences their queued metric writes before the snapshot is read from the server log.
+        // Await metric enqueue separately from the server-side read observation. A STORED append on the same
+        // metrics gateway then fences those queued writes before the snapshot is read from the server log.
         app.client().getGatewayClient(METRICS).append(Guarantee.STORED, message("MetricFence")).join();
         Map<String, Long> counts = new TreeMap<>();
         for (var metric : app.client().getTrackingClient(METRICS).readFromIndex(0, 100_000)) {
