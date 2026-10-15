@@ -126,6 +126,32 @@ fun handleAllUserMethods(request: WebRequest, @PathParam userId: String): Comple
   </TabItem>
 </Tabs>
 
+### Choosing a response content type
+
+Set `contentType(...)` on an explicit response when serving a format such as JavaScript. It replaces any inferred
+payload type, whether called before or after `payload(...)`. Without an explicit type, strings remain `text/plain`
+and bytes or streams remain `application/octet-stream`. Generic `header(...)` calls still append values, allowing
+multiple `Set-Cookie` headers.
+
+<Tabs>
+  <TabItem label="Java">
+
+```java
+return WebResponse.builder().payload("export function example() {}")
+        .contentType("text/javascript").build();
+```
+
+  </TabItem>
+  <TabItem label="Kotlin">
+
+```kotlin
+return WebResponse.builder().payload("export function example() {}")
+    .contentType("text/javascript").build()
+```
+
+  </TabItem>
+</Tabs>
+
 ### Suppressing a response
 
 If you want to listen to a `WebRequest` without returning a response—e.g. for monitoring or audit logging—use `passive = true`:
@@ -247,6 +273,13 @@ public class WebAssets {
 </Tabs>
 
 This serves files from `/static` (in classpath or filesystem) under the URI path `/web/**`.
+
+Static responses use content-based ETags, so changed bytes invalidate a cached response even if file size and
+modification time are unchanged. On conditional GET/HEAD requests, `If-None-Match` takes precedence over
+`If-Modified-Since`. The validator identifies the selected uncompressed, gzip, or Brotli file.
+Computing it reads the complete file with bounded memory on each request; the response body remains streamed.
+Keep deployed assets stable while serving requests and use fingerprinted URLs with suitable cache lifetimes for
+large or frequently requested assets.
 
 ### Features
 

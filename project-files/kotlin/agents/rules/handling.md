@@ -679,6 +679,14 @@ fun createBooking(
 
 ### @ServeStatic
 
+Static responses use a content-based ETag for the selected identity, gzip, or Brotli file. `If-None-Match` takes
+precedence over `If-Modified-Since` on conditional GET/HEAD. Validation reads the complete file with bounded memory
+on every request, while response bodies remain streamed. Keep assets stable until pending responses finish and
+prefer fingerprinted URLs with suitable cache lifetimes for large or frequently requested files.
+
+`WebResponse.builder().contentType(...)` replaces an inferred or previously configured type, before or after
+`payload(...)`. Generic `header(...)` calls remain additive, including multiple `Set-Cookie` values.
+
 Serves static assets (like a frontend) from the classpath.
 
 Routing safety notes:

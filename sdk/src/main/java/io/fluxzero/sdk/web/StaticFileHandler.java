@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +54,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static java.util.stream.Collectors.toSet;
 
+/**
+ * Serves static resources with streamed bodies and content-based validators for the selected representation.
+ * ETags are SHA-256 digests computed with bounded memory on every request, including conditional GET/HEAD and
+ * ranges. This detects changes even when file size and modification time are preserved. Files should remain
+ * stable until pending responses finish; prefer immutable, versioned asset paths.
+ */
 @Slf4j
 @EqualsAndHashCode
 @ToString
@@ -198,7 +206,7 @@ public class StaticFileHandler implements Closeable {
         long fileSize = Files.size(actualPath);
         FileTime lastModifiedTime = Files.getLastModifiedTime(actualPath);
         String lastModified = formatHttpDate(lastModifiedTime.toMillis());
-        String eTag = "\"" + lastModifiedTime.toMillis() + "-" + fileSize + "\"";
+        String eTag = computeEntityTag(actualPath);
 
         Map<String, String> headers = new LinkedHashMap<>();
         headers.put("Accept-Ranges", "bytes");
@@ -208,8 +216,11 @@ public class StaticFileHandler implements Closeable {
         headers.put("Cache-Control", getCacheControlHeader(resolvedPath));
         headers.put("Vary", "Accept-Encoding");
 
-        if (eTag.equals(request.getHeader("If-None-Match")) ||
-            lastModified.equalsIgnoreCase(request.getHeader("If-Modified-Since"))) {
+        // If-None-Match supersedes If-Modified-Since, even when no supplied tag matches (RFC 9110, 13.1.3).
+        List<String> ifNoneMatch = request.getHeaders("If-None-Match");
+        if (request.getHeaders().containsKey("If-None-Match")
+                ? matchesEntityTag(ifNoneMatch, eTag)
+                : lastModified.equalsIgnoreCase(request.getHeader("If-Modified-Since"))) {
             return WebResponse.notModified(headers);
         }
 
@@ -226,6 +237,46 @@ public class StaticFileHandler implements Closeable {
             return WebResponse.partial(() -> new PartialFileInputStream(actualPath, range.start(), range.length()),
                                        headers);
         }
+    }
+
+    @SneakyThrows
+    private static String computeEntityTag(Path path) {
+        // Do not cache by size/mtime: reproducible builds and in-place replacements can preserve both.
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (var input = Files.newInputStream(path)) {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = input.read(buffer)) != -1) {
+                digest.update(buffer, 0, count);
+            }
+        }
+        return "\"" + HexFormat.of().formatHex(digest.digest()) + "\"";
+    }
+
+    private static boolean matchesEntityTag(List<String> values, String eTag) {
+        if (values.size() == 1 && "*".equals(Objects.toString(values.getFirst(), "").trim())) {
+            return true;
+        }
+        for (String value : values) {
+            if (value == null) {
+                continue;
+            }
+            // Commas are allowed inside opaque entity tags. Only split outside their quotes.
+            boolean quoted = false;
+            int start = 0;
+            for (int i = 0; i <= value.length(); i++) {
+                if (i == value.length() || value.charAt(i) == ',' && !quoted) {
+                    String candidate = value.substring(start, i).trim();
+                    if (eTag.equals(candidate.startsWith("W/") ? candidate.substring(2) : candidate)) {
+                        return true;
+                    }
+                    start = i + 1;
+                } else if (value.charAt(i) == '"') {
+                    quoted = !quoted;
+                }
+            }
+        }
+        return false;
     }
 
     @SneakyThrows

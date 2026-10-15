@@ -20,7 +20,12 @@ the exact resource, `<path>.html`, `<path>/index.html`, then the fallback. Keep 
 cannot hide a missing endpoint. Use `classpath:` or `file:` to restrict the source intentionally.
 
 Fingerprint immutable assets and configure caching deliberately; do not give HTML an immutable one-year cache when it
-must point clients to newly deployed assets.
+must point clients to newly deployed assets. ETags identify the bytes of the selected file (identity, gzip, or Brotli).
+Conditional GET/HEAD gives `If-None-Match` precedence over `If-Modified-Since`, including weak tags, lists, and `*`.
+An old ETag therefore causes a fresh response even if the replacement has the same timestamp and length.
+Validation reads the complete selected file with bounded memory on each request; response bodies remain streamed.
+Keep assets stable while requests are served. For large or frequently requested assets, use fingerprinted URLs and
+appropriate cache lifetimes to reduce revalidation traffic.
 
 ## Form and multipart parameters
 
@@ -52,7 +57,10 @@ route. Add a routed test; method declaration order is not the selection contract
 Automatically mapped objects support JSON, strings support `text/plain` and JSON string representation, and
 `byte[]`/`InputStream` support `application/octet-stream`. Fluxzero chooses a supported representation from `Accept`
 best-effort and leaves the normal default when none matches; do not promise `406` without an explicit application
-policy. An explicit `WebResponse` or `Content-Type` wins.
+policy. An explicit `WebResponse` or `Content-Type` wins. `WebResponse.builder().contentType(...)` replaces the
+current type, including one inferred from a payload, regardless of whether it is set before or after `payload(...)`.
+For example, serve an ES module with `contentType("text/javascript")`. Generic `header(...)` calls remain additive
+for multivalued headers such as `Set-Cookie`.
 
 Streamed responses are assembled as raw bytes by the SDK request gateway, including JSON content.
 Use `getPayloadAs(...)` to convert the body. Async fixtures exercise this same path. For locally returned gzip
