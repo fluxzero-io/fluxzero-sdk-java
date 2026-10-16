@@ -31,7 +31,6 @@ import lombok.SneakyThrows;
 import lombok.Value;
 
 import java.beans.PropertyDescriptor;
-import java.io.File;
 import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.AccessibleObject;
@@ -49,7 +48,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.lang.reflect.WildcardType;
-import java.net.URL;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAccessor;
@@ -691,6 +689,8 @@ public class ReflectionUtils {
 
     /**
      * Returns package annotations, optionally including enclosing packages when {@code recursive} is true.
+     * Each package uses the first {@code package-info} definition selected by its class loader; competing definitions
+     * of the same package are not combined. For duplicate annotation types in parent packages, the nearest package wins.
      */
     public static Collection<? extends Annotation> getPackageAnnotations(Package p, boolean recursive) {
         return packageAnnotationsCache.apply(p, recursive);
@@ -1081,23 +1081,11 @@ public class ReflectionUtils {
         if (definedPackage != null) {
             return definedPackage;
         }
-        String packagePath = name.replace('.', '/');
-        URL resource = ReflectionUtils.class.getClassLoader().getResource(packagePath);
-        if (resource == null) {
+        try {
+            return Class.forName(name + ".package-info", false, ReflectionUtils.class.getClassLoader()).getPackage();
+        } catch (Throwable ignored) {
             return null;
         }
-        File packageDir = new File(resource.getFile());
-        if (packageDir.exists() && packageDir.isDirectory()
-            && new File(resource.getFile() + "/package-info.class").exists()) {
-            try {
-                var result = classForName(name + ".package-info");
-                if (result != null) {
-                    return result.getPackage();
-                }
-            } catch (Throwable ignored) {
-            }
-        }
-        return null;
     }
 
     /**

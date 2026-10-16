@@ -328,17 +328,20 @@ public class ValidationUtils {
         Check command / query authorization
      */
 
+    private static final Function<Package, RequiredRole[]> packageRequiredRolesCache = memoize(
+            target -> getPackageAndParentPackages(target).stream()
+                    .map(p -> getPackageAnnotations(p, false))
+                    .map(ValidationUtils::getRequiredRoles)
+                    .filter(Objects::nonNull).findFirst().orElse(null));
+
     private static final Function<Class<?>, RequiredRole[]> requiredRolesCache = memoize(
             payloadClass -> Optional.ofNullable(getRequiredRoles(getTypeAnnotations(payloadClass)))
-                    .orElseGet(() -> getRequiredRoles(getPackageAnnotations(payloadClass.getPackage()))));
+                    .orElseGet(() -> packageRequiredRolesCache.apply(payloadClass.getPackage())));
 
     private static final BiFunction<Class<?>, Executable, RequiredRole[]> requiredRolesForMethodCache = memoize(
             (target, executable) -> Optional.ofNullable(getRequiredRoles(Arrays.asList(executable.getAnnotations())))
                     .or(() -> Optional.ofNullable(getRequiredRoles(getTypeAnnotations(target))))
-                    .orElseGet(() -> getPackageAndParentPackages(target.getPackage()).stream()
-                            .map(p -> ReflectionUtils.getPackageAnnotations(p, false))
-                            .map(ValidationUtils::getRequiredRoles)
-                            .filter(Objects::nonNull).findFirst().orElse(null)));
+                    .orElseGet(() -> packageRequiredRolesCache.apply(target.getPackage())));
 
     /**
      * Verifies whether the given user is authorized to issue the given payload, based on roles declared via annotations
@@ -372,6 +375,32 @@ public class ValidationUtils {
     public static boolean requiresAuthorization(Class<?> payloadType) {
         RequiredRole[] requiredRoles = requiredRolesCache.apply(payloadType);
         return requiredRoles != null && !Arrays.asList(requiredRoles).contains(noUserRequired);
+    }
+
+    /**
+     * Returns whether authorization for a payload can reject a request without throwing an exception.
+     * Such requests must be filtered during handler selection rather than treated as successful invocations.
+     *
+     * @param payloadType the payload type to inspect
+     * @return whether the effective policy can silently reject a user
+     */
+    public static boolean canIgnoreSilently(Class<?> payloadType) {
+        RequiredRole[] roles = requiredRolesCache.apply(payloadType);
+        return roles != null && !Arrays.asList(roles).contains(noUserRequired)
+               && (roles.length == 0 || Arrays.stream(roles).anyMatch(role -> !role.throwIfUnauthorized()));
+    }
+
+    /**
+     * Returns whether the effective method, class or package policy depends on the current user.
+     * User-dependent handler eligibility must be evaluated for each request, not cached by payload type.
+     *
+     * @param target the handler type
+     * @param method the handler method
+     * @return whether selecting the handler requires a user authorization check
+     */
+    public static boolean requiresAuthorization(Class<?> target, Executable method) {
+        RequiredRole[] roles = requiredRolesForMethodCache.apply(target, method);
+        return roles != null && !Arrays.asList(roles).contains(noUserRequired);
     }
 
     /**

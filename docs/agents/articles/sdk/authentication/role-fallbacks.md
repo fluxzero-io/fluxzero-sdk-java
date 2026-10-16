@@ -6,8 +6,9 @@
 negative check. Add a positive role requirement when roleless access is not allowed.
 
 The attribute `throwIfUnauthorized` belongs on `@ForbidsAnyRole`/`@RequiresAnyRole`, not on `@HandleQuery`.
-Keep the default throwing behavior for ordinary denial; silently making every candidate ineligible does not produce
-a fallback result. This Java/Kotlin example assumes a configured `UserProvider` that resolves the authenticated caller:
+Keep the default throwing behavior for ordinary denial. With `false`, an ineligible handler is skipped for the
+current user and other eligible handlers can respond. Silently making every candidate ineligible produces no response,
+not a successful `null` result. This Java/Kotlin example assumes a configured `UserProvider` that resolves the authenticated caller:
 
 ```java
 @Component

@@ -43,6 +43,8 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_MESSAGE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static io.fluxzero.sdk.web.WebRequest.methodKey;
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.assertAuthorized;
+import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.canIgnoreSilently;
+import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.ignoreSilently;
 import static io.fluxzero.sdk.tracking.handling.validation.ValidationUtils.requiresAuthorization;
 import static java.util.Optional.ofNullable;
 
@@ -103,8 +105,8 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
             User user = getCurrentUser(message);
             try {
                 User.current.set(user);
-                if (message.getType() != null) {
-                    assertAuthorized(message.getPayloadClass(), user);
+                if (message.getType() != null && !assertAuthorized(message.getPayloadClass(), user)) {
+                    return null;
                 }
                 return next.apply(message, descriptor, combiner);
             } finally {
@@ -138,8 +140,8 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
             try {
                 User.current.set(user);
                 Object payload = input.getPayload();
-                if (authorizePayload && payload != null) {
-                    assertAuthorized(payload.getClass(), user);
+                if (authorizePayload && payload != null && !assertAuthorized(payload.getClass(), user)) {
+                    return null;
                 }
                 return next.apply(input, descriptor);
             } finally {
@@ -242,7 +244,12 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
         public Optional<HandlerInvoker> getInvoker(DeserializingMessage m) {
             return delegate.getInvoker(m).flatMap(
                     i -> {
-                        if (Optional.ofNullable(m.getPayloadClass())
+                        Class<?> payloadClass = m.getPayloadClass();
+                        if (payloadClass != null && canIgnoreSilently(payloadClass)
+                            && ignoreSilently(payloadClass, getCurrentUser(m))) {
+                            return Optional.empty();
+                        }
+                        if (Optional.ofNullable(payloadClass)
                                 .map(c -> i.getTargetClass().isAssignableFrom(c)).orElse(false)) {
                             return Optional.of(i);
                         }
@@ -308,16 +315,15 @@ public class AuthenticatingInterceptor implements DispatchInterceptor, HandlerIn
                     if (!preparation.isPrepared()) {
                         return preparation;
                     }
+                    if (payloadClass != null && canIgnoreSilently(payloadClass)) {
+                        return HandlerMethodPreparation.unsupported();
+                    }
                     HandlerMethodPlan<DeserializingMessage> plan = preparation.plan();
                     if (payloadClass != null && plan.getTargetClass().isAssignableFrom(payloadClass)) {
                         return preparation;
                     }
-                    try {
-                        return assertAuthorized(plan.getTargetClass(), plan.getMethod(), null)
-                                ? preparation : HandlerMethodPreparation.noMatch();
-                    } catch (Throwable ignored) {
-                        return HandlerMethodPreparation.unsupported();
-                    }
+                    return requiresAuthorization(plan.getTargetClass(), plan.getMethod())
+                            ? HandlerMethodPreparation.unsupported() : preparation;
                 }
 
                 @Override

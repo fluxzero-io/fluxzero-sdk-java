@@ -92,11 +92,18 @@ public @interface RequiresRole {
 
 Fluxzero security annotations can be applied at package, type, constructor, and method level. Package-level `@RequiresUser` is the recommended default; `@NoUserRequired` permits anonymous access and overrides broader user requirements for explicit public surfaces.
 
-Precedence is method, then class, then package, then super-package. Put broad defaults high in the package tree and explicit exceptions only at the endpoint or payload that needs them.
+For payloads, authorization annotations on the type take precedence over package policy. For handlers, precedence is method, then class, then package. In both cases, use the nearest package with authorization annotations; its policy replaces broader package policies, while requirements declared together in that package still apply together. Packages with only unrelated annotations do not stop inheritance. Put broad defaults high in the package tree and explicit exceptions only at the endpoint or payload that needs them. If multiple JARs define `package-info` for the same package, use the first definition selected by the classloader for all classes in that package; definitions from other JARs are not combined. Application packaging and classloader configuration determine this order.
+
+For separate command/query handlers, payload and handler checks must both allow access: making a handler public does not remove a requirement declared on its command or query. An `editor` requirement on the payload and a `reviewer` requirement on its handler require both roles.
+
+A typical explicit exception is a `@NoUserRequired` healthcheck method in a web package protected by `@RequiresUser`. Other endpoints still inherit the package default. The exception does not make protected commands or queries sent by the healthcheck public. Type policy includes inherited type and interface annotations; precedence between policy levels does not imply replacing individual inherited annotations.
 
 `throwIfUnauthorized` belongs on auth annotations such as `@RequiresUser` and `@RequiresAnyRole`, not on
-`@HandleQuery`. Keep the default throwing behavior for ordinary denial. For queries whose result varies by role,
-prefer one authenticated handler with an explicit role branch rather than competing silently filtered methods.
+`@HandleQuery`. Keep the default throwing behavior for ordinary denial. With `false`, an unauthorized handler is
+skipped; denial on a command/query payload skips all handlers for that payload. Skipping produces no response,
+including no successful `null` response, so a caller may time out if no handler responds. Authorization is evaluated
+for each request's user even when handler plans are reused. For queries whose result varies by role, one authenticated
+handler with an explicit role branch is often clearer.
 
 `@ForbidsAnyRole` is the negative role check. By default it rejects both an absent user and a user with any listed
 forbidden role; it does not grant anonymous access. Read negative roles and role-specific query results for
