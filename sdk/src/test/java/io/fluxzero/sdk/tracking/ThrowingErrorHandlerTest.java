@@ -32,6 +32,9 @@ import static org.mockito.Mockito.verify;
 
 class ThrowingErrorHandlerTest {
 
+    @io.fluxzero.sdk.modeling.Aggregate
+    record EventRoot() {}
+
     private final ThrowingEventHandler eventHandler = new ThrowingEventHandler();
     private final TestFixture testFixture = TestFixture.createAsync(
             DefaultFluxzero.builder().disableAutomaticAggregateCaching()
@@ -40,14 +43,14 @@ class ThrowingErrorHandlerTest {
 
     @Test
     void testTrackingStoppedDuringFirstEvent() {
-        testFixture.whenEventsAreApplied("testAggregate", Object.class, "error")
+        testFixture.whenEventsAreApplied("testAggregate", EventRoot.class, "error")
                 .expectThat(fc -> verify(fc.client().getTrackingClient(MessageType.EVENT), never())
                         .storePosition(any(), any(), anyLong()));
     }
 
     @Test
     void testTrackingStoppedDuringSecondEvent() {
-        testFixture.whenEventsAreApplied("testAggregate", Object.class, 1, "error")
+        testFixture.whenEventsAreApplied("testAggregate", EventRoot.class, 1, "error")
                 .expectThat(fc -> {
                     TrackingClient trackingClient = fc.client().getTrackingClient(MessageType.EVENT);
                     verify(trackingClient).storePosition(any(), any(), eq((long) eventHandler.getFirstIndex()));

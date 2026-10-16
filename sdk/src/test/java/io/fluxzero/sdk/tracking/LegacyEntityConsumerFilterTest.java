@@ -57,7 +57,9 @@ class LegacyEntityConsumerFilterTest {
         var fixture = (async ? TestFixture.createAsync(handler) : TestFixture.create(handler))
                 .withProperty(ConsumerConfiguration.CONSUMER_FILTERING_PROPERTY, filtering);
         try (var app = fixture.getFluxzero()) {
-            fixture.givenAppliedEvents("state", UnannotatedState.class, new Created("stored state"))
+            // Simulate a pre-upgrade stream without loading its now-invalid unannotated root.
+            fixture.given(fc -> fc.eventStore().storeEvents("state", new Message(new Created("stored state"))
+                            .addMetadata(Entity.AGGREGATE_TYPE_METADATA_KEY, UnannotatedState.class.getName())))
                     .whenEvent(new Message(new Notice()).addMetadata(Metadata.of(
                             Entity.AGGREGATE_ID_METADATA_KEY, "state",
                             Entity.AGGREGATE_TYPE_METADATA_KEY, UnannotatedState.class.getName())))

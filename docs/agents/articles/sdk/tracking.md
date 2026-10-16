@@ -91,6 +91,7 @@ Automatic Model command handlers expose their actual payload matcher boundary, f
 Model-owned `@Apply` methods. Scheduled commands select the `ScheduledCommand` envelope on SCHEDULE, then apply
 ordinary COMMAND selection after relay; do not narrow the relay by locally registered inner command types.
 Local automatic handling issues no server Read. These rules apply equally to Java and Kotlin.
+All persistent legacy aggregate roots require `@Aggregate`; unannotated loads or newly created roots fail.
 Implicit legacy aggregate-value arguments require `@Aggregate` on their declared type, including inherited markers.
 Such an argument does not constrain payload selection; another required payload argument or `allowedClasses` can.
 An unannotated bare value is a payload argument. Runtime does not inspect aggregate metadata for filtering.

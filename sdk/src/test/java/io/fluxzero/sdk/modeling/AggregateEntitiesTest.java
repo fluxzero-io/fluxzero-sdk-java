@@ -1573,6 +1573,7 @@ public class AggregateEntitiesTest {
 
     @Data
     @AllArgsConstructor
+    @io.fluxzero.sdk.modeling.Aggregate
     static class MutableAggregate {
         @Member
         MutableEntity child;
@@ -2070,6 +2071,7 @@ public class AggregateEntitiesTest {
 
     @Value
     @Builder(toBuilder = true)
+    @io.fluxzero.sdk.modeling.Aggregate
     static class MetaAggregate {
         @Default
         @EntityId
@@ -2116,15 +2118,18 @@ public class AggregateEntitiesTest {
     }
 
     @Builder
+    @io.fluxzero.sdk.modeling.Aggregate
     record MapChild(@EntityId Key mapChildId, @With Object data) implements Updatable {
     }
 
     @Builder
+    @io.fluxzero.sdk.modeling.Aggregate
     public record MissingChild(@EntityId MissingChildId missingChildId, @Member @With MissingGrandChild grandChild) {
     }
 
     @Value
     @Builder(toBuilder = true)
+    @io.fluxzero.sdk.modeling.Aggregate
     static class PaymentAggregate {
         @EntityId
         String paymentId;
@@ -2154,6 +2159,7 @@ public class AggregateEntitiesTest {
 
     @Value
     @Builder(toBuilder = true)
+    @io.fluxzero.sdk.modeling.Aggregate
     static class TypedPaymentAggregate {
         @EntityId
         TypedPaymentId paymentId;
@@ -2256,6 +2262,7 @@ public class AggregateEntitiesTest {
     record MissingGrandChild(@EntityId String missingGrandChildId) {
     }
 
+    @io.fluxzero.sdk.modeling.Aggregate
     record RecordAggregate(@EntityId String id, @Member RecordChild child) {
         RecordAggregate withChild(RecordChild child) {
             return new RecordAggregate(id, child);
@@ -2271,6 +2278,7 @@ public class AggregateEntitiesTest {
     record RecordGrandChild(@EntityId String recordGrandChildId) {
     }
 
+    @io.fluxzero.sdk.modeling.Aggregate
     record ConstructorRecordAggregate(@EntityId String id, @Member ConstructorRecordChild child) {
     }
 
@@ -2281,6 +2289,7 @@ public class AggregateEntitiesTest {
     record ConstructorRecordGrandChild(@EntityId String recordGrandChildId) {
     }
 
+    @io.fluxzero.sdk.modeling.Aggregate
     record DuplicateListAggregate(@EntityId String id, @Member List<DuplicateListChild> children) {
     }
 
@@ -2303,6 +2312,7 @@ public class AggregateEntitiesTest {
     record GrandChild(@EntityId String grandChildId, @Alias GrandChildAlias alias) {
     }
 
+    @io.fluxzero.sdk.modeling.Aggregate
     record FolderAggregate(@EntityId String id, @Member Folder rootFolder) {
         FolderAggregate withRootFolder(Folder rootFolder) {
             return new FolderAggregate(id, rootFolder);

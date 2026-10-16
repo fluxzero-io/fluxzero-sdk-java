@@ -6,12 +6,17 @@ before upgrading to 3.0.
 Java and Kotlin callers receive deprecation warnings; builds treating warnings as errors may need adjustment.
 Prefer independent `@Model` types for new domain state. `@Member` remains supported and is not deprecated, including within `@Stateful` handlers.
 
-For implicit legacy aggregate-value injection into message handlers, SDK 2.x requires `@Aggregate` on the declared
-parameter type, including through an interface or superclass. This applies to Java and Kotlin. An unannotated bare
-value parameter is a payload parameter, even if the message carries aggregate context. Explicit `Entity<T>` arguments
-and injection inside an existing entity context keep their own resolution path. Explicitly loading an unannotated
-aggregate still uses the default persistence configuration. Add the annotation to existing implicitly injected types
-when upgrading; this requirement does not depend on `fluxzero.defaults.version` or consumer filtering.
+SDK 2.x requires `@Aggregate` on every persistent aggregate root, including through an interface or superclass.
+This applies to Java and Kotlin. Add the annotation to previously unannotated roots: `loadAggregate(...)` and
+repository loads reject known unannotated root types. Untyped loads validate the root as soon as its type becomes
+known, including during creation or replay, before storing the root or publishing its events. This requirement does
+not depend on `fluxzero.defaults.version` or consumer filtering. Ordinary members, independent Models and
+side-effect-free `asEntity(...)` wrappers do not require `@Aggregate`.
+
+For implicit aggregate-value injection, the declared parameter type must also carry the marker. An unannotated
+bare value parameter is a payload parameter, even if the message carries aggregate context. Explicit `Entity<T>`
+arguments and injection inside an existing entity context keep their own resolution path, but loading a persistent
+aggregate through those paths still requires an annotated root.
 
 Upgrading to SDK 2.x does not force a data migration. Renaming `@Aggregate` to `@Model` does not transfer existing
 streams, snapshots or embedded children. Preserve existing Java/Kotlin handlers and serialized contracts until

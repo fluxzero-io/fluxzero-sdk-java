@@ -432,7 +432,8 @@ Automatic Model commands contribute the payload boundary of their actual command
 `@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the
 schedule log, then the dispatched command matches its normal command consumer; the relay accepts every wrapped
 command, including commands handled by another application. Local automatic handling does not issue a server Read.
-In SDK 2.x, implicit legacy aggregate-value injection requires `@Aggregate` on the declared parameter type, including
+In SDK 2.x, every persistent legacy aggregate root requires `@Aggregate`; unannotated loads or newly created roots fail.
+Implicit legacy aggregate-value injection also requires `@Aggregate` on the declared parameter type, including
 through an interface or superclass. This applies equally to Java and Kotlin. Add the marker to previously unannotated
 types used this way; otherwise a bare value parameter selects the payload. Explicit `Entity<T>` parameters and
 injection within an existing entity context keep their own resolution path. An aggregate argument alone supplies no

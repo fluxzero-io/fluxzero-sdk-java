@@ -2679,10 +2679,12 @@ Keeping this API available in 2.x lets existing stored applications continue to 
 a data migration. Use independent `@Model` types for new domain state: each Model keeps
 its history as relationships evolve, and an operation can still commit changes across several Models atomically.
 
-**Mark implicitly injected aggregate values.** In SDK 2.x, a bare aggregate-value parameter in a message handler
-requires `@Aggregate` on its declared type, interface or superclass. Without that marker, the parameter selects
-the payload. Add the annotation to existing types used for this injection in Java or Kotlin. Explicit `Entity<T>`
-parameters and injection within an existing entity context keep their own resolution path.
+**Annotate every aggregate root.** In SDK 2.x, all aggregate roots must declare or inherit `@Aggregate`,
+including through an interface or superclass. Add it to previously unannotated roots in Java and Kotlin.
+`loadAggregate(...)` and repository loads reject known unannotated root types; untyped loads validate the root
+as soon as its type becomes known, including during creation or replay. A bare aggregate-value parameter also
+requires the marker on its declared type for implicit handler injection. Ordinary members, independent `@Model`
+types and side-effect-free `asEntity(...)` wrappers do not need `@Aggregate`.
 
 `@Member` remains supported and is not deprecated. Its role is deliberately embedded state whose creation,
 changes, history, retention and deletion all belong to its owner, including nested handlers in `@Stateful` objects.

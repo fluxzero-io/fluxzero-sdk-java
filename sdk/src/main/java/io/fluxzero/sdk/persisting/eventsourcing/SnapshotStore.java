@@ -54,6 +54,9 @@ public interface SnapshotStore extends Namespaced<SnapshotStore> {
      * <p>The snapshot typically contains the latest known state and metadata such as the aggregate ID and sequence number.
      * Storing a snapshot will overwrite any existing snapshot for the same aggregate ID.
      *
+     * The default store requires the root type to declare or inherit
+     * {@link io.fluxzero.sdk.modeling.Aggregate @Aggregate}, including for explicitly supplied snapshots.
+     *
      * @param snapshot The aggregate entity to be stored as a snapshot.
      * @param <T>      The aggregate root type.
      * @return A {@link CompletableFuture} indicating whether the operation completed successfully.

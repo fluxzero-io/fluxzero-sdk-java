@@ -524,6 +524,9 @@ public class FluxzeroSpringConfigTest {
     static class GetUser {
     }
 
+    @io.fluxzero.sdk.modeling.Aggregate
+    record CommandAggregate() {}
+
     @Value
     static class AggregateCommand {
         @Apply
@@ -531,7 +534,7 @@ public class FluxzeroSpringConfigTest {
             if (user == null) {
                 throw new IllegalCommandException("User is null");
             }
-            return new Object();
+            return new CommandAggregate();
         }
     }
 

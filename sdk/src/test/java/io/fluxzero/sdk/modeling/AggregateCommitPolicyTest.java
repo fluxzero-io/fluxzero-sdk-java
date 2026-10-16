@@ -65,11 +65,11 @@ class AggregateCommitPolicyTest {
     @Test
     void afterHandlerPolicyStartsCommitBeforeBatchCompletes() {
         CommitProbe commits = new CommitProbe(true);
-        Entity<String> aggregate = aggregate("handler", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
+        Entity<AggregateValue> aggregate = aggregate("handler", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
 
         DeserializingMessage.forEachInBatch(List.of(message("one"), message("two")), message -> {
             if ("one".equals(message.getMessageId())) {
-                Invocation.performInvocation(() -> aggregate.update(value -> "after-handler"));
+                Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue("after-handler")));
                 assertTrue(commits.started(1));
             } else {
                 assertTrue(commits.started(1));
@@ -82,11 +82,11 @@ class AggregateCommitPolicyTest {
     @Test
     void afterBatchPolicyDefersCommitUntilBatchCompletes() {
         CommitProbe commits = new CommitProbe(true);
-        Entity<String> aggregate = aggregate("batch", AggregateCommitPolicy.ASYNC_AFTER_BATCH, commits);
+        Entity<AggregateValue> aggregate = aggregate("batch", AggregateCommitPolicy.ASYNC_AFTER_BATCH, commits);
 
         DeserializingMessage.forEachInBatch(List.of(message("one"), message("two")), message -> {
             if ("one".equals(message.getMessageId())) {
-                Invocation.performInvocation(() -> aggregate.update(value -> "after-batch"));
+                Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue("after-batch")));
                 assertFalse(commits.started(1));
             } else {
                 assertFalse(commits.started(1));
@@ -101,11 +101,11 @@ class AggregateCommitPolicyTest {
     @EnumSource(value = AggregateCommitPolicy.class, names = {"SYNC_AFTER_BATCH", "ASYNC_AFTER_BATCH"})
     void caughtNestedRejectionDoesNotCommitAggregateBeforeBatchEnds(AggregateCommitPolicy policy) {
         CommitProbe commits = new CommitProbe(true);
-        Entity<String> aggregate = aggregate("nested-rejection", policy, commits);
+        Entity<AggregateValue> aggregate = aggregate("nested-rejection", policy, commits);
         IllegalStateException rejection = new IllegalStateException("command rejected");
 
         DeserializingMessage.forEachInBatch(List.of(message("one"), message("two")), current -> {
-            Invocation.performInvocation(() -> aggregate.update(value -> current.getMessageId()));
+            Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue(current.getMessageId())));
             if ("one".equals(current.getMessageId())) {
                 assertSame(rejection, assertThrows(IllegalStateException.class,
                         () -> message("rejected").run(nested -> {
@@ -116,18 +116,18 @@ class AggregateCommitPolicyTest {
         });
 
         assertEquals(1, commits.started.get());
-        assertEquals("two", aggregate.get());
+        assertEquals(new AggregateValue("two"), aggregate.get());
     }
 
     @Test
     void syncAfterHandlerWaitsForEachCommitBeforeStartingTheNext() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> first = aggregate("sync-handler-1", AggregateCommitPolicy.SYNC_AFTER_HANDLER, commits);
-        Entity<String> second = aggregate("sync-handler-2", AggregateCommitPolicy.SYNC_AFTER_HANDLER, commits);
+        Entity<AggregateValue> first = aggregate("sync-handler-1", AggregateCommitPolicy.SYNC_AFTER_HANDLER, commits);
+        Entity<AggregateValue> second = aggregate("sync-handler-2", AggregateCommitPolicy.SYNC_AFTER_HANDLER, commits);
 
         CompletableFuture<Void> handler = CompletableFuture.runAsync(() -> Invocation.performInvocation(() -> {
-            first.update(value -> "first");
-            second.update(value -> "second");
+            first.update(value -> new AggregateValue("first"));
+            second.update(value -> new AggregateValue("second"));
             return null;
         }));
 
@@ -146,12 +146,12 @@ class AggregateCommitPolicyTest {
     @Test
     void asyncAfterHandlerStartsAllCommitsBeforeWaiting() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> first = aggregate("async-handler-1", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
-        Entity<String> second = aggregate("async-handler-2", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
+        Entity<AggregateValue> first = aggregate("async-handler-1", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
+        Entity<AggregateValue> second = aggregate("async-handler-2", AggregateCommitPolicy.ASYNC_AFTER_HANDLER, commits);
 
         CompletableFuture<Void> handler = CompletableFuture.runAsync(() -> Invocation.performInvocation(() -> {
-            first.update(value -> "first");
-            second.update(value -> "second");
+            first.update(value -> new AggregateValue("first"));
+            second.update(value -> new AggregateValue("second"));
             return null;
         }));
 
@@ -165,14 +165,14 @@ class AggregateCommitPolicyTest {
     @Test
     void asyncAfterHandlerAwaitAfterBatchStartsCommitAfterHandlerAndWaitsForBatchCompletion() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> aggregate = aggregate(
+        Entity<AggregateValue> aggregate = aggregate(
                 "async-handler-await-batch", AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
         AtomicBoolean reachedNextMessage = new AtomicBoolean();
 
         CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
                 List.of(message("one"), message("two")), message -> {
                     if ("one".equals(message.getMessageId())) {
-                        Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                        Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue("first")));
                     } else {
                         reachedNextMessage.set(true);
                     }
@@ -189,14 +189,14 @@ class AggregateCommitPolicyTest {
     @Test
     void asyncAfterHandlerAwaitAfterBatchRegistersPostHandlerCompletion() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> aggregate = aggregate(
+        Entity<AggregateValue> aggregate = aggregate(
                 "async-handler-await-batch-result",
                 AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
         AtomicReference<CompletableFuture<Void>> postHandlerCompletion = new AtomicReference<>();
 
         CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
                 List.of(message("one")), message -> {
-                    Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                    Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue("first")));
                     postHandlerCompletion.set(Invocation.resultPublicationBarrier(message));
                 }));
 
@@ -219,12 +219,12 @@ class AggregateCommitPolicyTest {
         TestFixture.create()
                 .withProperty(AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, "false")
                 .whenApplying(fc -> {
-                    Entity<String> aggregate = aggregate(
+                    Entity<AggregateValue> aggregate = aggregate(
                             "async-handler-await-batch-result-disabled",
                             AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
                     CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
                             List.of(message("one")), message -> {
-                                Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                                Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue("first")));
                                 postHandlerCompletion.set(Invocation.resultPublicationBarrier(message));
                             }));
 
@@ -246,7 +246,7 @@ class AggregateCommitPolicyTest {
         CommitProbe commits = new CommitProbe();
         AtomicInteger loads = new AtomicInteger();
         AtomicBoolean activeAfterBatch = new AtomicBoolean(true);
-        Supplier<Entity<String>> loader = () -> {
+        Supplier<Entity<AggregateValue>> loader = () -> {
             loads.incrementAndGet();
             return immutableAggregate("active-for-batch", "before");
         };
@@ -254,17 +254,17 @@ class AggregateCommitPolicyTest {
         CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> {
             DeserializingMessage.forEachInBatch(List.of(message("one"), message("two")), message -> {
                 Invocation.performInvocation(() -> {
-                    Entity<String> aggregate = ModifiableAggregateRoot.load(
+                    Entity<AggregateValue> aggregate = ModifiableAggregateRoot.load(
                             "active-for-batch", loader,
                             AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH,
                             EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
                             AggregateEventRouting.MESSAGE_ROUTING_KEY, true, entityHelper, serializer,
                             DispatchInterceptor.noOp, commits::commit);
                     if ("one".equals(message.getMessageId())) {
-                        aggregate.update(value -> "first");
+                        aggregate.update(value -> new AggregateValue("first"));
                     } else {
-                        assertEquals("first", aggregate.get());
-                        aggregate.update(value -> "second");
+                        assertEquals(new AggregateValue("first"), aggregate.get());
+                        aggregate.update(value -> new AggregateValue("second"));
                     }
                     return null;
                 });
@@ -289,29 +289,29 @@ class AggregateCommitPolicyTest {
         var secondRepository = secondFixture.getFluxzero().aggregateRepository();
 
         Invocation.performInvocation(() -> {
-            Entity<String> first = firstRepository.load("shared-id", String.class);
-            first.update(value -> "first-updated");
+            Entity<AggregateValue> first = firstRepository.load("shared-id", AggregateValue.class);
+            first.update(value -> new AggregateValue("first-updated"));
 
-            Entity<String> second = secondRepository.load("shared-id", String.class);
+            Entity<AggregateValue> second = secondRepository.load("shared-id", AggregateValue.class);
             assertNotSame(first, second);
             assertNull(second.get());
-            second.update(value -> "second-updated");
-            assertEquals("first-updated", first.get());
+            second.update(value -> new AggregateValue("second-updated"));
+            assertEquals(new AggregateValue("first-updated"), first.get());
             return null;
         });
 
         assertTrue(ModifiableAggregateRoot.getIfActive("shared-id").isEmpty());
-        Entity<String> firstReloaded = firstRepository.load("shared-id", String.class);
-        Entity<String> secondReloaded = secondRepository.load("shared-id", String.class);
+        Entity<AggregateValue> firstReloaded = firstRepository.load("shared-id", AggregateValue.class);
+        Entity<AggregateValue> secondReloaded = secondRepository.load("shared-id", AggregateValue.class);
         assertNotSame(firstReloaded, secondReloaded);
-        assertEquals("first-updated", firstReloaded.get());
-        assertEquals("second-updated", secondReloaded.get());
+        assertEquals(new AggregateValue("first-updated"), firstReloaded.get());
+        assertEquals(new AggregateValue("second-updated"), secondReloaded.get());
     }
 
     @Test
     void asyncAfterHandlerAwaitAfterBatchPropagatesCommitFailureAtBatchCompletion() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> aggregate = aggregate(
+        Entity<AggregateValue> aggregate = aggregate(
                 "async-handler-await-batch-failure",
                 AggregateCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH, commits);
         AtomicBoolean handlerCompleted = new AtomicBoolean();
@@ -319,7 +319,7 @@ class AggregateCommitPolicyTest {
 
         CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
                 List.of(message("one")), message -> {
-                    Invocation.performInvocation(() -> aggregate.update(value -> "first"));
+                    Invocation.performInvocation(() -> aggregate.update(value -> new AggregateValue("first")));
                     handlerCompleted.set(true);
                 }));
 
@@ -335,13 +335,13 @@ class AggregateCommitPolicyTest {
     @Test
     void syncAfterBatchWaitsForEachCommitBeforeStartingTheNext() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> first = aggregate("sync-batch-1", AggregateCommitPolicy.SYNC_AFTER_BATCH, commits);
-        Entity<String> second = aggregate("sync-batch-2", AggregateCommitPolicy.SYNC_AFTER_BATCH, commits);
+        Entity<AggregateValue> first = aggregate("sync-batch-1", AggregateCommitPolicy.SYNC_AFTER_BATCH, commits);
+        Entity<AggregateValue> second = aggregate("sync-batch-2", AggregateCommitPolicy.SYNC_AFTER_BATCH, commits);
 
         CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
                 List.of(message("one")), message -> Invocation.performInvocation(() -> {
-                    first.update(value -> "first");
-                    second.update(value -> "second");
+                    first.update(value -> new AggregateValue("first"));
+                    second.update(value -> new AggregateValue("second"));
                     return null;
                 })));
 
@@ -360,13 +360,13 @@ class AggregateCommitPolicyTest {
     @Test
     void asyncAfterBatchStartsAllCommitsBeforeWaiting() throws Exception {
         CommitProbe commits = new CommitProbe();
-        Entity<String> first = aggregate("async-batch-1", AggregateCommitPolicy.ASYNC_AFTER_BATCH, commits);
-        Entity<String> second = aggregate("async-batch-2", AggregateCommitPolicy.ASYNC_AFTER_BATCH, commits);
+        Entity<AggregateValue> first = aggregate("async-batch-1", AggregateCommitPolicy.ASYNC_AFTER_BATCH, commits);
+        Entity<AggregateValue> second = aggregate("async-batch-2", AggregateCommitPolicy.ASYNC_AFTER_BATCH, commits);
 
         CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> DeserializingMessage.forEachInBatch(
                 List.of(message("one")), message -> Invocation.performInvocation(() -> {
-                    first.update(value -> "first");
-                    second.update(value -> "second");
+                    first.update(value -> new AggregateValue("first"));
+                    second.update(value -> new AggregateValue("second"));
                     return null;
                 })));
 
@@ -377,19 +377,22 @@ class AggregateCommitPolicyTest {
         assertDoesNotThrow(() -> batch.get(1, TimeUnit.SECONDS));
     }
 
-    private static Entity<String> aggregate(String id, AggregateCommitPolicy policy, CommitProbe commits) {
-        Entity<String> delegate = immutableAggregate(id, "before");
+    @Aggregate
+    record AggregateValue(String value) {}
+
+    private static Entity<AggregateValue> aggregate(String id, AggregateCommitPolicy policy, CommitProbe commits) {
+        Entity<AggregateValue> delegate = immutableAggregate(id, "before");
         return new ModifiableAggregateRoot<>(
                 delegate, policy, EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
                 AggregateEventRouting.MESSAGE_ROUTING_KEY, true, entityHelper, serializer,
                 DispatchInterceptor.noOp, commits::commit);
     }
 
-    private static Entity<String> immutableAggregate(String id, String value) {
-        return ImmutableAggregateRoot.<String>builder()
+    private static Entity<AggregateValue> immutableAggregate(String id, String value) {
+        return ImmutableAggregateRoot.<AggregateValue>builder()
                 .id(id)
-                .type(String.class)
-                .value(value)
+                .type(AggregateValue.class)
+                .value(new AggregateValue(value))
                 .entityHelper(entityHelper)
                 .serializer(serializer)
                 .build();

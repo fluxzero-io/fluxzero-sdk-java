@@ -88,9 +88,35 @@ public class DefaultEntityHelper implements EntityHelper {
     }
 
     /**
+     * Requires a persistent aggregate root type to declare or inherit {@link Aggregate}. An annotation on an enclosing
+     * class does not mark a nested type. Plain members and side-effect-free entity wrappers need no such marker.
+     *
+     * @throws IllegalArgumentException if the type has no aggregate marker
+     */
+    public static void requireAggregateType(Class<?> type) {
+        if (ReflectionUtils.getTypeMetadata(type).typeAnnotation(Aggregate.class) == null) {
+            throw new IllegalArgumentException("Aggregate root type %s must declare or inherit @Aggregate."
+                                                       .formatted(type.getName()));
+        }
+    }
+
+    /**
+     * Validates a persistent aggregate root once its type is known. Only an empty, untyped root may temporarily use
+     * {@link Object}; its first non-null value must have an aggregate marker.
+     *
+     * @throws IllegalArgumentException if the root's known type has no aggregate marker
+     */
+    public static void requireAggregateRoot(Entity<?> root) {
+        Class<?> type = root.type();
+        if (!Object.class.equals(type) || root.isPresent()) {
+            requireAggregateType(type);
+        }
+    }
+
+    /**
      * Returns the shared persistence configuration for a model or aggregate root.
      * <p>
-     * Unannotated values retain the legacy default aggregate configuration. An unknown {@link Object} root keeps the
+     * Unannotated side-effect-free values retain the default configuration. An unknown {@link Object} root keeps the
      * historical non-caching default used while an aggregate type is still being inferred from its first event.
      */
     public static EntityMetadata.RootConfiguration getRootConfiguration(Class<?> type) {
