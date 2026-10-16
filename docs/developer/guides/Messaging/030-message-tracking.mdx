@@ -460,6 +460,11 @@ The websocket handshake independently advertises filter language 2 and native me
 peers that explicitly advertise support. With older peers, routed messages use the existing JSON/CBOR object
 representation; BINARY transport falls back to CBOR. Old clients may omit `route` and new readers continue to accept
 native v1 and historical stored messages. Envelopes without a route retain their v1 binary representation.
+Runtime storage activation is separate: writers default to native v1 and omit routes. First upgrade every Runtime
+reader sharing the storage, then set `fluxzero.runtime.messageEnvelopeVersion=2`
+(`FLUXZERO_RUNTIME_MESSAGE_ENVELOPE_VERSION=2`) and restart writers. Type filtering works before activation;
+stored requests without routes remain broadly eligible. Returning the writer setting to `1` does not convert existing
+v2 data: rollback to an older 2.x Runtime requires the Runtime route-storage downcaster and its offline procedure.
 
 Runtime uses the updated Common dependency for filtering and advertises its filter capability in the existing
 websocket handshake. The SDK checks each connection, including reconnects: older runtimes retain broad delivery

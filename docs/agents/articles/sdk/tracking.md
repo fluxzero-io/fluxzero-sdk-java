@@ -111,6 +111,10 @@ publishers can call `WebRequestRoute.update(message)` after changing final reque
 `Fluxzero-Message-Envelope-Version: 2` independently negotiates native routed envelopes. Older peers receive ordinary
 JSON/CBOR (CBOR fallback for BINARY); route-absent native messages stay byte-compatible v1. Old stored inputs remain
 eligible without deriving routes from metadata. SDK protocol readers accept both envelope versions.
+Runtime storage writers default to native v1 (routes omitted). Upgrade all storage readers before setting
+`fluxzero.runtime.messageEnvelopeVersion=2` / `FLUXZERO_RUNTIME_MESSAGE_ENVELOPE_VERSION=2` and restarting writers.
+Before activation, type filtering works and absent stored routes remain broadly eligible. Switching back to `1` does
+not rewrite existing v2 data; use the Runtime offline route downcaster before rollback to a compatible older 2.x reader.
 Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 2` in the existing websocket handshake.
 The SDK adapts every send/replay to the actual selected session. Missing/unknown capabilities strip the filter,
 keep metadata-only refreshes local and fall back to the historic scan wait for SDK-selected long waits; explicit
