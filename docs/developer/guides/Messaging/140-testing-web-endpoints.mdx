@@ -198,6 +198,14 @@ fun getGames(@QueryParam term: String): CompletableFuture<List<Game>> {
 
 ---
 
+## Cookies between requests
+
+The fixture automatically stores response cookies and sends them on subsequent requests. To test a request without
+a stored session cookie, call `withoutCookies("session")`; pass several names to remove several cookies, or call
+`withoutCookies()` to remove them all. Like `withCookie(name, value)`, it returns the same fixture for chaining.
+Later responses can still store cookies. Explicit `Cookie` headers are unchanged; use `withoutHeader("Cookie")`
+to remove a header previously set with `withHeader`.
+
 ## Testing error responses and exceptions
 
 Fluxzero allows you to verify how your web endpoints handle exceptional scenarios. This includes asserting
