@@ -58,6 +58,9 @@ import java.lang.annotation.Target;
  * Aggregates can be loaded using methods like {@link io.fluxzero.sdk.Fluxzero#loadAggregate}. Updates
  * are applied via {@link Apply @Apply} methods, and legality checks can be enforced using
  * {@link AssertLegal @AssertLegal}.
+ * <p>SDK 2.x requires this annotation on a bare aggregate value parameter's type for implicit injection into
+ * message handlers. An annotation inherited from an interface or superclass also qualifies. Explicit
+ * {@code Entity<T>} parameters and injection within an existing entity context do not require this marker.
  *
  * <h2>Child Entities</h2>
  * Use {@link Member} to define child, grandchild, or other descendant entities in the aggregate. These entities can

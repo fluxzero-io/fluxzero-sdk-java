@@ -54,7 +54,7 @@ class TestFixturePendingConsumerTest {
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         try (var blueprint = new ConsumerBlueprint(serializer, () -> ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
-                List.of(new ConsumerFilter.PayloadType(Accepted.class.getName(), null)), null, List.of(), false),
+                List.of(new ConsumerFilter.PayloadType(Accepted.class.getName(), null)), null, List.of()),
                 new AtomicLong()::incrementAndGet)) {
             var config = ConsumerConfiguration.builder().name("pending").consumerBlueprint(blueprint).build();
             var tracker = mock(Tracker.class);

@@ -1517,7 +1517,7 @@ final class ModelPipeline {
             return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
                     List.of(new ConsumerFilter.PayloadType(trackingTarget.getName(), null),
                             new ConsumerFilter.PayloadType(trackingTarget.getName() + "<", null, true)),
-                    null, List.of(), false);
+                    null, List.of());
         }
 
         @Override

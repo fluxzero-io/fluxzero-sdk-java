@@ -2016,6 +2016,7 @@ public class AggregateEntitiesTest {
 
     @Value
     @Builder(toBuilder = true)
+    @io.fluxzero.sdk.modeling.Aggregate
     public static class Aggregate {
 
         @Default

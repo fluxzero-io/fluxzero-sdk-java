@@ -32,6 +32,20 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerFilterTest {
     @Test
+    void payloadSelectionNeverReadsMessageMetadata() {
+        var predicate = ConsumerFilter.select(null, 1, 1, "application/json",
+                List.of(new ConsumerFilter.PayloadType("Current", null)), null, List.of()).compile();
+        for (String type : List.of("Current", "Unrelated")) {
+            var message = new SerializedMessage(new Data<>(new byte[0], type, 0, "application/json"),
+                                                null, "id", 0L) {
+                @Override public Metadata getMetadata() { throw new AssertionError("metadata read"); }
+                @Override public boolean metadataContainsKey(String key) { throw new AssertionError("metadata read"); }
+            };
+            assertEquals("Current".equals(type), predicate.test(message));
+        }
+    }
+
+    @Test
     void preservesCustomReadMetricOverrides() {
         Read custom = new Read(MessageType.EVENT, "consumer", "tracker", 10, 0L, null,
                                false, false, false, false, 0L, null) {
@@ -49,7 +63,7 @@ class ConsumerFilterTest {
     void acceptsCurrentTypesAtEveryRevisionAndOnlyDeclaredLegacyInputs() {
         var filter = ConsumerFilter.select(null, 1, 1, "application/json",
                 List.of(new ConsumerFilter.PayloadType("Current", null)), null,
-                List.of(new ConsumerFilter.PayloadType("Legacy", 0)), false);
+                List.of(new ConsumerFilter.PayloadType("Legacy", 0)));
         var predicate = filter.compile();
         assertTrue(predicate.test(message("Current", 0)));
         assertTrue(predicate.test(message("Current", 9)));
@@ -64,20 +78,20 @@ class ConsumerFilterTest {
     void upcastInputsBypassWebConstraintsAndUnknownVersionsAllowDelivery() {
         var filter = ConsumerFilter.select(null, 1, 1, null, null,
                 List.of(new ConsumerFilter.WebRoute("GET", null, "^/orders/[^/]+/?$")),
-                List.of(new ConsumerFilter.PayloadType("Legacy", 0)), false);
+                List.of(new ConsumerFilter.PayloadType("Legacy", 0)));
         assertTrue(filter.compile().test(web("GET", "/orders/a%2Fb?include=all")));
         assertFalse(filter.compile().test(web("POST", "/orders/a")));
         assertFalse(filter.compile().test(web("GET", "/other")));
         assertTrue(filter.compile().test(message("Legacy", 0).withMetadata(Metadata.of("method", "POST", "url", "/other"))));
         assertTrue(filter.compile().test(message("Current", 0)));
         assertTrue(filter.compile().test(web("GET", "/bad%xx")));
-        assertTrue(ConsumerFilter.select(null, 1, 99, null, List.of(), List.of(), List.of(), false).compile().test(message("Anything", 0)));
+        assertTrue(ConsumerFilter.select(null, 1, 99, null, List.of(), List.of(), List.of()).compile().test(message("Anything", 0)));
     }
 
     @Test
     void absoluteOriginsWithoutAPathUseTheRootRoute() {
         var predicate = ConsumerFilter.select(null, 1, 1, null, null,
-                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/$")), List.of(), false)
+                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/$")), List.of())
                 .compile();
         assertTrue(predicate.test(web("GET", "https://example.test:8443")));
         assertTrue(predicate.test(web("HEAD", "https://example.test:8443?x=y")));
@@ -89,7 +103,7 @@ class ConsumerFilterTest {
     @Test
     void distinguishesOriginsAndKeepsUnknownUnionMembersUnrestricted() {
         var filter = ConsumerFilter.select(null, 1, 1, null, null,
-                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/endpoint$")), List.of(), false);
+                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/endpoint$")), List.of());
         assertTrue(filter.compile().test(web("PATCH", "https://example.test:8443/endpoint?x=y")));
         assertFalse(filter.compile().test(web("PATCH", "/endpoint")));
         assertTrue(ConsumerFilter.union(java.util.Arrays.asList(filter, null)).compile().test(web("DELETE", "/other")));
@@ -99,7 +113,7 @@ class ConsumerFilterTest {
     void preservesFilteredReadsThroughEveryTransportAndFallsBackForAnEntireMixedBinaryBatch() throws Exception {
         Read filtered = read();
         filtered.setConsumerFilter(ConsumerFilter.select(null, 8, 1, "application/json",
-                List.of(new ConsumerFilter.PayloadType("Current", null)), null, List.of(), false));
+                List.of(new ConsumerFilter.PayloadType("Current", null)), null, List.of()));
         filtered.setMaxScanLookBack(60_000L);
         Read metric = (Read) filtered.toMetric();
         assertEquals(filtered.getRequestId(), metric.getRequestId());

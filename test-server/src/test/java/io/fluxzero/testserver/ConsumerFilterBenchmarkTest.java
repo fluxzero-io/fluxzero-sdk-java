@@ -130,7 +130,7 @@ class ConsumerFilterBenchmarkTest {
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         types.add(new ConsumerFilter.PayloadType("Accepted", null));
         var migrations = IntStream.range(0, 300).mapToObj(i -> new ConsumerFilter.PayloadType("example.legacy.Payload" + i, 0)).toList();
-        return ConsumerFilter.select(null, 1, 1, Data.JSON_FORMAT, types, null, migrations, false);
+        return ConsumerFilter.select(null, 1, 1, Data.JSON_FORMAT, types, null, migrations);
     }
 
     private static Read read(String consumer, ConsumerFilter filter) {

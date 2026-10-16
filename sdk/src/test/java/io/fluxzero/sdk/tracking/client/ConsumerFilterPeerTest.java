@@ -136,7 +136,7 @@ class ConsumerFilterPeerTest {
 
     private static ConsumerBlueprint blueprint(AtomicReference<String> type) {
         return new ConsumerBlueprint(new JacksonSerializer(), () -> ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
-                List.of(new ConsumerFilter.PayloadType(type.get(), null)), null, List.of(), false),
+                List.of(new ConsumerFilter.PayloadType(type.get(), null)), null, List.of()),
                 new AtomicLong()::incrementAndGet);
     }
 

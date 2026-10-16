@@ -54,7 +54,7 @@ class TypeAliasTest {
         JacksonSerializer serializer = new JacksonSerializer();
         serializer.registerUpcasters(new LeadingDotUpcaster());
         var handlers = ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
-                List.of(new ConsumerFilter.PayloadType(CurrentType.class.getName(), null)), null, List.of(), false);
+                List.of(new ConsumerFilter.PayloadType(CurrentType.class.getName(), null)), null, List.of());
         var predicate = serializer.describeConsumerFilter(handlers).compile();
         for (int revision : List.of(0, 1)) {
             var input = new SerializedMessage(data(".serialization.TypeAliasTest$CurrentType", revision,
@@ -64,7 +64,7 @@ class TypeAliasTest {
         }
         // A migration input remains eligible even if its target is unrelated to this consumer.
         var unrelated = ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
-                List.of(new ConsumerFilter.PayloadType(String.class.getName(), null)), null, List.of(), false);
+                List.of(new ConsumerFilter.PayloadType(String.class.getName(), null)), null, List.of());
         assertTrue(serializer.describeConsumerFilter(unrelated).compile().test(new SerializedMessage(
                 data(".serialization.TypeAliasTest$CurrentType", 0, "{\"value\":\"test\"}"),
                 Metadata.empty(), "migration", 0L)));

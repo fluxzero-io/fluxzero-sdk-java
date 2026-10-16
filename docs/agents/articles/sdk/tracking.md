@@ -91,6 +91,9 @@ Automatic Model command handlers expose their actual payload matcher boundary, f
 Model-owned `@Apply` methods. Scheduled commands select the `ScheduledCommand` envelope on SCHEDULE, then apply
 ordinary COMMAND selection after relay; do not narrow the relay by locally registered inner command types.
 Local automatic handling issues no server Read. These rules apply equally to Java and Kotlin.
+Implicit legacy aggregate-value arguments require `@Aggregate` on their declared type, including inherited markers.
+Such an argument does not constrain payload selection; another required payload argument or `allowedClasses` can.
+An unannotated bare value is a payload argument. Runtime does not inspect aggregate metadata for filtering.
 Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
 custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
 Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic

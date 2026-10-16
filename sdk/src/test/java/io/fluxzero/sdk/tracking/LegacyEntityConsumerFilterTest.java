@@ -18,22 +18,25 @@ package io.fluxzero.sdk.tracking;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class LegacyEntityConsumerFilterTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void unannotatedEntityArgumentsRemainAvailableForDifferentPayloadTypes(boolean async) throws Exception {
+    void annotatedEntityArgumentsRemainAvailableForDifferentPayloadTypes(boolean async) throws Exception {
         var handler = new Handler();
         var fixture = async ? TestFixture.createAsync(handler) : TestFixture.create(handler);
         try (var app = fixture.getFluxzero()) {
@@ -46,11 +49,39 @@ class LegacyEntityConsumerFilterTest {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,false", "true,true"})
+    void unannotatedValueArgumentsArePayloadsEvenWhenAggregateContextIsPresent(
+            boolean async, boolean filtering) throws Exception {
+        var handler = new UnannotatedHandler();
+        var fixture = (async ? TestFixture.createAsync(handler) : TestFixture.create(handler))
+                .withProperty(ConsumerConfiguration.CONSUMER_FILTERING_PROPERTY, filtering);
+        try (var app = fixture.getFluxzero()) {
+            fixture.givenAppliedEvents("state", UnannotatedState.class, new Created("stored state"))
+                    .whenEvent(new Message(new Notice()).addMetadata(Metadata.of(
+                            Entity.AGGREGATE_ID_METADATA_KEY, "state",
+                            Entity.AGGREGATE_TYPE_METADATA_KEY, UnannotatedState.class.getName())))
+                    .expectNoErrors();
+            assertFalse(handler.result.isDone());
+            fixture.whenEvent(new UnannotatedState("payload")).expectNoErrors();
+            assertEquals(new UnannotatedState("payload"), handler.result.get(2, TimeUnit.SECONDS));
+        }
+    }
+
     record Created(String value) {}
     record Notice() {}
-    // Legacy aggregates deliberately do not require @Aggregate or @Model.
-    record State(String value) {
+    @Aggregate
+    interface AggregateMarker {}
+    // The marker may be inherited from an interface; the concrete type need not repeat it.
+    record State(String value) implements AggregateMarker {
         @Apply static State create(Created event) { return new State(event.value()); }
+    }
+    record UnannotatedState(String value) {
+        @Apply static UnannotatedState create(Created event) { return new UnannotatedState(event.value()); }
+    }
+    static class UnannotatedHandler {
+        final CompletableFuture<UnannotatedState> result = new CompletableFuture<>();
+        @HandleEvent void handle(UnannotatedState state) { result.complete(state); }
     }
     static class Handler {
         final CompletableFuture<State> result = new CompletableFuture<>();

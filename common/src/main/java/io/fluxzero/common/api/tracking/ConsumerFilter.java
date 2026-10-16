@@ -33,7 +33,6 @@ import java.util.regex.Pattern;
  * optimizations, never authorization rules. Missing constraints and unknown versions allow delivery.
  *
  * @param subscriptionId unique effective-consumer identity shared by its transport sessions; null scopes to one session
- * @param includeAggregateContext whether legacy aggregate metadata may supply handler arguments independent of payload type
  * @param revision monotonically increasing revision within one client session and consumer
  * @param version filter language version; currently {@code 1}
  * @param format payload format for which {@code payloadTypes} is complete; other formats remain eligible
@@ -46,7 +45,7 @@ import java.util.regex.Pattern;
  */
 @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
 public record ConsumerFilter(String subscriptionId, long revision, int version, String format, List<PayloadType> payloadTypes,
-                             List<WebRoute> webRoutes, List<PayloadType> upcastInputs, boolean includeAggregateContext,
+                             List<WebRoute> webRoutes, List<PayloadType> upcastInputs,
                              boolean payloadRestricted, boolean webRestricted, boolean referenceOnly) {
     public static final int VERSION = 1;
 
@@ -62,9 +61,9 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
      */
     public static ConsumerFilter select(String subscriptionId, long revision, int version, String format,
                                         List<PayloadType> payloadTypes, List<WebRoute> webRoutes,
-                                        List<PayloadType> upcastInputs, boolean includeAggregateContext) {
+                                        List<PayloadType> upcastInputs) {
         return new ConsumerFilter(subscriptionId, revision, version, format, payloadTypes, webRoutes, upcastInputs,
-                                  includeAggregateContext, payloadTypes != null, webRoutes != null, false);
+                                  payloadTypes != null, webRoutes != null, false);
     }
 
     /** A serialized input name, optionally limited to one revision or matching an entire package prefix. */
@@ -87,7 +86,7 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
 
     /** Builds an unrestricted projection for metadata that cannot safely be narrowed. */
     public static ConsumerFilter unrestricted() {
-        return ConsumerFilter.select(null, 0L, VERSION, null, null, null, List.of(), false);
+        return ConsumerFilter.select(null, 0L, VERSION, null, null, null, List.of());
     }
 
     /** Combines alternative handlers; an unknown constraint widens the corresponding selection. */
@@ -96,7 +95,7 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
         List<WebRoute> routes = new ArrayList<>();
         List<PayloadType> casters = new ArrayList<>();
         String format = null;
-        boolean payloadsKnown = true, routesKnown = true, includeAggregates = false;
+        boolean payloadsKnown = true, routesKnown = true;
         boolean first = true;
         for (ConsumerFilter filter : filters) {
             if (filter == null || filter.version != VERSION || filter.referenceOnly) {
@@ -107,7 +106,6 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
             }
             format = filter.format;
             first = false;
-            includeAggregates |= filter.includeAggregateContext;
             payloadsKnown &= filter.payloadRestricted;
             routesKnown &= filter.webRestricted;
             if (filter.payloadTypes != null) {
@@ -120,19 +118,19 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
         }
         return ConsumerFilter.select(null, 0L, VERSION, format, payloadsKnown ? payloads.stream().distinct().toList() : null,
                                   routesKnown ? routes.stream().distinct().toList() : null,
-                                  casters.stream().distinct().toList(), includeAggregates);
+                                  casters.stream().distinct().toList());
     }
 
     /** Returns the same contract with its lifecycle revision and current serializer migration inputs. */
     public ConsumerFilter forRevision(String subscriptionId, long revision, String format, List<PayloadType> upcastInputs) {
         return new ConsumerFilter(subscriptionId, revision, version, format, payloadTypes, webRoutes, upcastInputs,
-                                  includeAggregateContext, payloadRestricted, webRestricted, false);
+                                  payloadRestricted, webRestricted, false);
     }
 
     /** Compact reference to a full snapshot. An unknown reference must be resolved before claiming or scanning. */
     public ConsumerFilter asReference() {
         return new ConsumerFilter(subscriptionId, revision, version, null, List.of(), List.of(), List.of(),
-                                  false, false, false, true);
+                                  false, false, true);
     }
 
     /** Compiles once at the subscription boundary; no regex compilation or application class loading occurs per message. */
@@ -145,9 +143,7 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
         List<CompiledRoute> routes = !webRestricted ? null : webRoutes.stream()
                 .map(route -> new CompiledRoute(route, Pattern.compile(route.pathRegex))).toList();
         return message -> {
-            if (message.getType() == null || casters.test(message)
-                || includeAggregateContext && (message.metadataContainsKey("$aggregateId")
-                                               || message.metadataContainsKey("$aggregateType"))) {
+            if (message.getType() == null || casters.test(message)) {
                 return true;
             }
             if ((format == null || Objects.equals(format, message.data().getFormat())) && !payloads.test(message)) {

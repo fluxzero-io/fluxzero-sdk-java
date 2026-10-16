@@ -58,7 +58,9 @@ import static io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace;
  * <ul>
  *   <li>If the input implements {@link HasEntity}, the existing entity is used.</li>
  *   <li>If the input implements {@link HasMessage}, the resolver attempts to extract the aggregate type and ID. Event
- *   and notification inputs load from their consumer namespace; other handler types use the application repository.</li>
+ *   and notification inputs load from their consumer namespace; other handler types use the application repository.
+ *   Implicit value parameters must carry {@link Aggregate}, including through an interface or superclass. Explicit
+ *   {@code Entity<T>} parameters and entity-context injection do not require that marker.</li>
  * </ul>
  *
  * <p>The entity is only resolved if:
@@ -103,6 +105,19 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         return ReflectionUtils.getMethodAnnotation(method, HandleMessage.class)
                 .map(EntityParameterResolver::supportsMessageEntityInjection)
                 .orElse(true);
+    }
+
+    @Override
+    public boolean mayApply(Parameter parameter, Annotation methodAnnotation, Class<?> targetClass) {
+        return getClass() != EntityParameterResolver.class || isModelParameter(parameter)
+               || !(methodAnnotation instanceof HandleEvent || methodAnnotation instanceof HandleNotification)
+               || isLegacyMessageParameter(parameter);
+    }
+
+    private static boolean isLegacyMessageParameter(Parameter parameter) {
+        return Entity.class.isAssignableFrom(parameter.getType())
+               // Nested payload classes do not inherit the enclosing aggregate's injection role.
+               || ReflectionUtils.getTypeMetadata(parameter.getType()).typeAnnotation(Aggregate.class) != null;
     }
 
     private static boolean supportsMessageEntityInjection(Annotation methodAnnotation) {
@@ -472,6 +487,9 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         if (input instanceof HasEntity) {
             return ((HasEntity) input).getEntity();
         } else if (input instanceof HasMessage message) {
+            if (!isLegacyMessageParameter(parameter)) {
+                return null;
+            }
             var type = Entity.getAggregateType(message);
             String aggregateId = Entity.getAggregateId(message);
             if (aggregateId != null) {
@@ -553,6 +571,9 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     private boolean canMatchFromMessageMetadata(Parameter parameter, HasMessage message) {
+        if (getClass() == EntityParameterResolver.class && !isLegacyMessageParameter(parameter)) {
+            return false;
+        }
         Class<?> aggregateType = Entity.getAggregateType(message);
         String aggregateId = Entity.getAggregateId(message);
         if (aggregateId != null) {

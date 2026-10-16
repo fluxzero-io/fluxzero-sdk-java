@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class HandlerFilterPropagationTest {
     private final ConsumerFilter filter = ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
-            List.of(new ConsumerFilter.PayloadType(String.class.getName(), null)), null, List.of(), false);
+            List.of(new ConsumerFilter.PayloadType(String.class.getName(), null)), null, List.of());
     private final HandlerInvoker invoker = HandlerInvoker.noOp();
     private final Handler<DeserializingMessage> delegate = new Handler<>() {
         @Override public Class<?> getTargetClass() { return getClass(); }

@@ -120,7 +120,7 @@ class ConsumerFilterTrackingTest {
         try (var strategy = new DefaultTrackingStrategy(messages, new InMemoryPositionStore())) {
             var a = strategy.getBatch(tracker("a", "session-a", filter(1, "A"), 16));
             var independent = ConsumerFilter.select("another-app", 1, 1, Data.JSON_FORMAT,
-                    List.of(new ConsumerFilter.PayloadType("B", null)), null, List.of(), false);
+                    List.of(new ConsumerFilter.PayloadType("B", null)), null, List.of());
             var b = strategy.getBatch(tracker("b", "session-b", independent, 16));
             messages.append(List.of(message("A", 0))).join();
             assertEquals("A", a.get(2, TimeUnit.SECONDS).getMessages().getFirst().getType());
@@ -132,7 +132,7 @@ class ConsumerFilterTrackingTest {
 
     private static ConsumerFilter filter(long revision, String type) {
         return ConsumerFilter.select("application-subscription", revision, 1, Data.JSON_FORMAT,
-                List.of(new ConsumerFilter.PayloadType(type, null)), null, List.of(), false);
+                List.of(new ConsumerFilter.PayloadType(type, null)), null, List.of());
     }
 
     private static WebSocketTracker tracker(String id, String session, ConsumerFilter filter, int size) {

@@ -31,7 +31,6 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.modeling.EntityParameterResolver;
 import io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
@@ -406,7 +405,6 @@ public class DefaultHandlerFactory implements HandlerFactory {
 
     private ConsumerFilter describePayloads(Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config) {
         List<ConsumerFilter.PayloadType> inputs = new ArrayList<>();
-        boolean includeAggregateContext = false;
         for (var executable : Stream.concat(ReflectionUtils.getAllMethods(targetClass).stream(),
                                             Stream.of(targetClass.getDeclaredConstructors()))
                 .filter(method -> config.methodMatches(targetClass, method)).toList()) {
@@ -425,13 +423,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                             .filter(io.fluxzero.common.ObjectUtils.silentTest(resolver -> resolver.mayApply(executable, targetClass)))
                             .filter(resolver -> resolver.mayApply(parameter, annotation, targetClass)).toList();
                     if (resolvers.stream().anyMatch(resolver -> resolver.getClass() == PayloadParameterResolver.class)
-                        && resolvers.stream().allMatch(resolver -> resolver.getClass() == PayloadParameterResolver.class
-                                || resolver.getClass() == EntityParameterResolver.class
-                                   && !((EntityParameterResolver) resolver).isModelParameter(parameter))) {
+                        && resolvers.stream().allMatch(resolver -> resolver.getClass() == PayloadParameterResolver.class)) {
                         required = List.of(parameter.getType());
-                        // Legacy entity injection is independent of the payload whenever aggregate context is present.
-                        includeAggregateContext |= resolvers.stream().anyMatch(resolver ->
-                                resolver.getClass() == EntityParameterResolver.class);
                         break;
                     }
                 }
@@ -444,7 +437,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 inputs.add(new ConsumerFilter.PayloadType(type.getName() + "<", null, true));
             }
         }
-        return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null, inputs.stream().distinct().toList(), null, List.of(), includeAggregateContext);
+        return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null, inputs.stream().distinct().toList(), null, List.of());
     }
 
     private static boolean isClosedPayloadType(Class<?> type) {
@@ -459,7 +452,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null,
                                      List.of(new ConsumerFilter.PayloadType(type.getName(), null),
                                              new ConsumerFilter.PayloadType(type.getName() + "<", null, true)),
-                                     null, List.of(), false);
+                                     null, List.of());
     }
 
     protected Class<? extends Annotation> getHandlerAnnotation(MessageType messageType) {

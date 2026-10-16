@@ -6,6 +6,13 @@ before upgrading to 3.0.
 Java and Kotlin callers receive deprecation warnings; builds treating warnings as errors may need adjustment.
 Prefer independent `@Model` types for new domain state. `@Member` remains supported and is not deprecated, including within `@Stateful` handlers.
 
+For implicit legacy aggregate-value injection into message handlers, SDK 2.x requires `@Aggregate` on the declared
+parameter type, including through an interface or superclass. This applies to Java and Kotlin. An unannotated bare
+value parameter is a payload parameter, even if the message carries aggregate context. Explicit `Entity<T>` arguments
+and injection inside an existing entity context keep their own resolution path. Explicitly loading an unannotated
+aggregate still uses the default persistence configuration. Add the annotation to existing implicitly injected types
+when upgrading; this requirement does not depend on `fluxzero.defaults.version` or consumer filtering.
+
 Upgrading to SDK 2.x does not force a data migration. Renaming `@Aggregate` to `@Model` does not transfer existing
 streams, snapshots or embedded children. Preserve existing Java/Kotlin handlers and serialized contracts until
 an explicitly qualified migration changes their ownership.

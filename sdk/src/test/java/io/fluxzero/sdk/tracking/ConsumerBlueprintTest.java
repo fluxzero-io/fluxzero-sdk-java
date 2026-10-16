@@ -57,6 +57,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerBlueprintTest {
     @Test
+    void nestedPayloadDoesNotInheritItsEnclosingAggregatesInjectionRole() throws Exception {
+        var handler = new NestedEventHandler();
+        var configuration = new AtomicReference<ConsumerConfiguration>();
+        var delivered = new CopyOnWriteArrayList<SerializedMessage>();
+        try (Fluxzero app = application(delivered, configuration, EVENT)) {
+            app.registerHandlers(handler);
+            assertTrue(configuration.get().getConsumerBlueprint().getFilter().payloadRestricted());
+            app.eventGateway().publish(new Message(new Ignored()), Guarantee.STORED).join();
+            app.eventGateway().publish(new Message(new AggregateContainer.Changed("nested")), Guarantee.STORED).join();
+            assertEquals("nested", handler.result.get(2, TimeUnit.SECONDS));
+            assertEquals(1, delivered.size());
+        }
+    }
+
+    @io.fluxzero.sdk.modeling.Aggregate
+    static class AggregateContainer {
+        record Changed(String value) {}
+    }
+
+    static class NestedEventHandler {
+        final CompletableFuture<String> result = new CompletableFuture<>();
+        @HandleEvent void handle(AggregateContainer.Changed event) { result.complete(event.value()); }
+    }
+
+    @Test
     void additionalJsonViewDoesNotWidenTheTypedPayloadSelection() throws Exception {
         var handler = new JsonViewHandler();
         var configuration = new AtomicReference<ConsumerConfiguration>();
@@ -278,7 +303,7 @@ class ConsumerBlueprintTest {
     void customSerializersRemainUnrestricted() {
         var custom = new JacksonSerializer() {};
         var description = io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
-                List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Current", null)), null, List.of(), false);
+                List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Current", null)), null, List.of());
         assertFalse(custom.describeConsumerFilter(description).payloadRestricted());
     }
 
@@ -286,7 +311,7 @@ class ConsumerBlueprintTest {
     void serializerPreservesCustomHandlerMigrationInputs() {
         var description = io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
                 List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Current", null)), null,
-                List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Legacy", 0)), false);
+                List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Legacy", 0)));
         assertTrue(new JacksonSerializer().describeConsumerFilter(description).compile()
                 .test(raw("Legacy", 0, Metadata.empty())));
     }
@@ -295,9 +320,9 @@ class ConsumerBlueprintTest {
     void serializerCannotNarrowUnknownOrDifferentFormatHandlerContracts() {
         for (var description : List.of(
                 io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 1, "text/plain",
-                        List.of(), null, List.of(), false),
+                        List.of(), null, List.of()),
                 io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 99, Data.JSON_FORMAT,
-                        List.of(), null, List.of(), false))) {
+                        List.of(), null, List.of()))) {
             assertTrue(description.compile().test(raw("AnyJson", 0, Metadata.empty())));
             assertTrue(new JacksonSerializer().describeConsumerFilter(description).compile()
                     .test(raw("AnyJson", 0, Metadata.empty())));
