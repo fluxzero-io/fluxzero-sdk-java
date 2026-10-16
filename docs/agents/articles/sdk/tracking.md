@@ -103,7 +103,15 @@ pong and close cleanup even on unmatched paths.
 Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses
 that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Stateful/member,
 socket-session and graph-change expansion currently retain broad delivery. Runtime uses the Common implementation; Test Server/local tracking match.
-Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 1` in the existing websocket handshake.
+`SerializedMessage.route` is optional and independent of body `Data.type`. Web producers project method + space +
+origin/raw path after their final serialized interceptors, including proxy chunks and socket frames. Query and fragment
+are excluded; encoded separators, plus signs and Unicode are not decoded. Runtime filtering never reads metadata or
+body bytes. Missing routes stay eligible, while null body type does not widen a known route. Low-level Java/Kotlin
+publishers can call `WebRequestRoute.update(message)` after changing final request metadata.
+`Fluxzero-Message-Envelope-Version: 2` independently negotiates native routed envelopes. Older peers receive ordinary
+JSON/CBOR (CBOR fallback for BINARY); route-absent native messages stay byte-compatible v1. Old stored inputs remain
+eligible without deriving routes from metadata. SDK protocol readers accept both envelope versions.
+Runtime and Test Server advertise `Fluxzero-Consumer-Filter-Versions: 2` in the existing websocket handshake.
 The SDK adapts every send/replay to the actual selected session. Missing/unknown capabilities strip the filter,
 keep metadata-only refreshes local and fall back to the historic scan wait for SDK-selected long waits; explicit
 builder waits retain their historical semantics. New runtimes accept old clients. Upcasting remains

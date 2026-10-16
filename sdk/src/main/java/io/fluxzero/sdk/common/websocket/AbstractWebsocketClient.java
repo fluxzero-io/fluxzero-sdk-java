@@ -210,7 +210,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final Map<Long, WebSocketRequest> requests = new ConcurrentHashMap<>();
     private final ThreadLocal<ResultHandlingContext> resultHandlingContext = new ThreadLocal<>();
     private final Map<String, Backlog<Request>> sessionBacklogs = new ConcurrentHashMap<>();
-    private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
+    private final Map<TransportCodecKey, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final TaskScheduler pingScheduler;
     private final Map<String, PingRegistration> pingDeadlines = new ConcurrentHashMap<>();
     private final Set<String> runtimeIngressBackpressured = ConcurrentHashMap.newKeySet();
@@ -1937,15 +1937,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return configured instanceof WebSocketTransportFormat format ? format : WebSocketTransportFormat.JSON;
     }
 
+    private record TransportCodecKey(WebSocketTransportFormat format, boolean routedEnvelopes) {}
+
     protected WebSocketTransportCodec transportCodec(WebsocketSession session) {
-        WebSocketTransportFormat format = getTransportFormat(session);
-        WebSocketTransportCodec cached = transportCodecs.get(format);
-        if (cached != null) {
-            return cached;
-        }
-        WebSocketTransportCodec created = WebSocketTransportCodecs.forFormat(format, objectMapper, payloadCodecs());
-        WebSocketTransportCodec raced = transportCodecs.putIfAbsent(format, created);
-        return raced == null ? created : raced;
+        boolean routed = (boolean) session.getUserProperties().computeIfAbsent(
+                "fluxzero.routedEnvelopes", ignored -> WebSocketCapabilities.supportsRoutedEnvelopes(session.getHandshakeResponseHeaders()));
+        var key = new TransportCodecKey(getTransportFormat(session), routed);
+        return transportCodecs.computeIfAbsent(key, value -> WebSocketTransportCodecs.forFormat(
+                value.format(), objectMapper, payloadCodecs(), value.routedEnvelopes()));
     }
 
     /** Returns compact payload codecs owned by this concrete protocol client. */
@@ -2003,6 +2002,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             headers.put(WebSocketCapabilities.SUPPORTED_DOCUMENT_COMPRESSION_HEADER, new ArrayList<>(List.of("ZSTD,LZ4,NONE")));
             WebSocketCapabilities.asHeaders(clientConfig.getSupportedCompressionAlgorithms()).forEach(
                     (name, values) -> headers.put(name, new ArrayList<>(values)));
+            headers.put(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, new ArrayList<>(List.of("2")));
             headers.put(WebSocketCapabilities.SUPPORTS_MIXED_MODEL_EVENT_BLOCKS_HEADER,
                         new ArrayList<>(List.of("true")));
             headers.put(WebSocketCapabilities.SUPPORTED_MODEL_MEMBERSHIP_VERSIONS_HEADER,

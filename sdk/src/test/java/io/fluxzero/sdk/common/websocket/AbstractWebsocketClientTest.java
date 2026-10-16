@@ -98,6 +98,35 @@ import static org.mockito.Mockito.when;
 
 class AbstractWebsocketClientTest {
     @Test
+    void nativeEnvelopeCodecCacheFollowsEachSelectedPeerIncludingReplacementSessions() throws Exception {
+        var config = WebSocketClient.ClientConfig.builder().name("route-capability").namespace("test")
+                .runtimeBaseUrl("ws://localhost").build();
+        for (boolean firstModern : List.of(false, true)) {
+            try (var client = new TestClient(mock(WebsocketConnector.class), config) {
+                @Override protected List<? extends io.fluxzero.common.websocket.WebSocketPayloadCodec> payloadCodecs() {
+                    return List.of(io.fluxzero.common.api.tracking.TrackingWebSocketCodec.INSTANCE);
+                }
+            }) {
+                var message = new SerializedMessage(new io.fluxzero.common.api.Data<>(new byte[0], null, 0),
+                        Metadata.empty(), "route", 0L);
+                message.setRoute("GET /path");
+                var request = new Append(io.fluxzero.common.MessageType.WEBREQUEST, List.of(message), io.fluxzero.common.Guarantee.STORED);
+                for (boolean modern : List.of(firstModern, !firstModern, firstModern)) {
+                    var session = mockSession("client_route-" + java.util.UUID.randomUUID());
+                    session.getUserProperties().put(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                                                   WebSocketTransportFormat.BINARY);
+                    when(session.getHandshakeResponseHeaders()).thenReturn(modern
+                            ? Map.of(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, List.of("2")) : Map.of());
+                    var codec = client.transportCodec(session);
+                    byte[] bytes = codec.encode(request);
+                    assertEquals(modern, io.fluxzero.common.api.tracking.TrackingWireCodec.tryDecode(bytes) != null);
+                    assertEquals(request, codec.decode(bytes));
+                }
+            }
+        }
+    }
+
+    @Test
     void concurrentReplayCannotChangeTheWireRequestOfAnAlreadySelectedSession() throws Exception {
         var legacy = mockSession("client_legacy");
         var current = mockSession("client_current");

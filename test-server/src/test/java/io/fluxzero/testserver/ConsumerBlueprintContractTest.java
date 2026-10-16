@@ -113,7 +113,8 @@ class ConsumerBlueprintContractTest {
     }
 
     private static SerializedMessage web(String method, String url) {
-        return event("[B", 0).withMetadata(Metadata.of("method", method, "url", url));
+        return io.fluxzero.sdk.web.WebRequestRoute.update(
+                event(null, 0).withMetadata(Metadata.of("method", method, "url", url)));
     }
 
     record First() {}

@@ -454,8 +454,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
                 addConsumerTypeNames(payloads, input.name(), input.revision(), input.prefix());
             }
         }
-        return ConsumerFilter.select(null, 0L, 1, format,
-                payloads == null ? null : payloads.stream().distinct().toList(), handlers.webRestricted() ? handlers.webRoutes() : null,
+        return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, format,
+                payloads == null ? null : payloads.stream().distinct().toList(), handlers.routeRestricted() ? handlers.routes() : null,
                 bypass.stream().distinct().toList());
     }
 

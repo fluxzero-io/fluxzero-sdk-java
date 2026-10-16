@@ -1007,7 +1007,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             return new SerializedMessage(
                     request.getData(), request.getMetadata(), request.getSegment(), null, request.getSource(),
                     request.getTarget(), request.getRequestId(), request.getTimestamp(), request.getMessageId(),
-                    request.getOriginalRevision());
+                    request.getOriginalRevision(), request.getRoute());
         }
 
         private SerializedMessage request() {

@@ -175,7 +175,7 @@ class EncodedMessageSerializationTest {
 
     private static SerializedMessage message() {
         return new SerializedMessage(new Data<>(new byte[]{1, 2}, "type", 1, "json"),
-                Metadata.of("first", "one", "second", "two"), 0, 10L, "source", "target", 1, 20L, "sample", 1);
+                Metadata.of("first", "one", "second", "two"), 0, 10L, "source", "target", 1, 20L, "sample", 1, null);
     }
 
     private static ResultBatch response(SerializedMessage message) {

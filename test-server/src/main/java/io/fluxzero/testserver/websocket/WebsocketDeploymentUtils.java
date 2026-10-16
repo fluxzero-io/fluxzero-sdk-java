@@ -81,6 +81,7 @@ public class WebsocketDeploymentUtils {
         Map<String, Object> userProperties = new java.util.concurrent.ConcurrentHashMap<>();
         userProperties.put(HANDSHAKE_HEADERS_USER_PROPERTY, requestHeaders);
 
+        response.getHeaders().put(WebSocketCapabilities.MESSAGE_ENVELOPE_VERSION_HEADER, "2");
         response.getHeaders().put(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER,
                                   Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION));
 

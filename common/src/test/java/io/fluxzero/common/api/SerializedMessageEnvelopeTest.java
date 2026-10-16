@@ -199,7 +199,7 @@ class SerializedMessageEnvelopeTest {
     void runtimeNumericFieldsDoNotChangeTheCompleteMessageSize() {
         SerializedMessage source = new SerializedMessage(
                 new Data<>(new byte[]{1}, "type", 0, null), Metadata.empty(),
-                null, null, null, null, null, null, "message", null);
+                null, null, null, null, null, null, "message", null, null);
         long size = source.getBytes();
 
         source.setSegment(1);
@@ -225,7 +225,7 @@ class SerializedMessageEnvelopeTest {
     void roundTripsNullPayloadAndEmptyMetadata() throws Exception {
         SerializedMessage source = new SerializedMessage(
                 new Data<byte[]>((byte[]) null, "type", 0, null), Metadata.empty(),
-                null, null, null, null, null, null, "message", null);
+                null, null, null, null, null, null, "message", null, null);
 
         SerializedMessage decoded = roundTrip(source).message();
 
@@ -453,7 +453,7 @@ class SerializedMessageEnvelopeTest {
                 new Data<>(new byte[]{1, 2, 3, 4}, "type-😀", 2, "application/json"),
                 Metadata.of("tenant", "München-東京"),
                 3, 99L, "brön", "doel-😀", 12, 1234L,
-                "bericht-東京", 1);
+                "bericht-東京", 1, null);
     }
 
     private record Encoded(byte[] bytes, SerializedMessage message) {

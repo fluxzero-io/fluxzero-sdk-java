@@ -33,7 +33,7 @@ class WebSocketCapabilitiesTest {
         assertFalse(WebSocketCapabilities.supportsConsumerFiltering(null));
         assertFalse(WebSocketCapabilities.supportsConsumerFiltering(Map.of()));
         assertFalse(WebSocketCapabilities.supportsConsumerFiltering(Map.of(
-                WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("2,unknown"))));
+                WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("1,unknown"))));
         assertTrue(WebSocketCapabilities.supportsConsumerFiltering(Map.of(
                 WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER.toLowerCase(), List.of("2, 1"))));
     }

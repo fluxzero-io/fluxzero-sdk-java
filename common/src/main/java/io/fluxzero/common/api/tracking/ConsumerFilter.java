@@ -16,12 +16,12 @@ package io.fluxzero.common.api.tracking;
 
 import io.fluxzero.common.api.SerializedMessage;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -34,24 +34,24 @@ import java.util.regex.Pattern;
  *
  * @param subscriptionId unique effective-consumer identity shared by its transport sessions; null scopes to one session
  * @param revision monotonically increasing revision within one client session and consumer
- * @param version filter language version; currently {@code 1}
+ * @param version filter language version; currently {@code 2}
  * @param format payload format for which {@code payloadTypes} is complete; other formats remain eligible
  * @param payloadTypes eligible payload names/revisions when payloadRestricted is true
- * @param webRoutes eligible web routes when webRestricted is true
+ * @param routes eligible logical routes when routeRestricted is true
  * @param payloadRestricted whether payloadTypes is a complete constraint
- * @param webRestricted whether webRoutes is a complete constraint
+ * @param routeRestricted whether routes is a complete constraint
  * @param upcastInputs inputs that must bypass both constraints because upcasting may change type or metadata
  * @param referenceOnly whether this read refers to a previously supplied snapshot instead of carrying its constraints
  */
 @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
 public record ConsumerFilter(String subscriptionId, long revision, int version, String format, List<PayloadType> payloadTypes,
-                             List<WebRoute> webRoutes, List<PayloadType> upcastInputs,
-                             boolean payloadRestricted, boolean webRestricted, boolean referenceOnly) {
-    public static final int VERSION = 1;
+                             List<RoutePattern> routes, List<PayloadType> upcastInputs,
+                             boolean payloadRestricted, boolean routeRestricted, boolean referenceOnly) {
+    public static final int VERSION = 2;
 
     public ConsumerFilter {
         payloadTypes = payloadTypes == null ? List.of() : List.copyOf(payloadTypes);
-        webRoutes = webRoutes == null ? List.of() : List.copyOf(webRoutes);
+        routes = routes == null ? List.of() : List.copyOf(routes);
         upcastInputs = upcastInputs == null ? List.of() : List.copyOf(upcastInputs);
     }
 
@@ -60,10 +60,10 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
      * wire preserve that distinction even for peers whose JSON collection handling normalizes null to empty.
      */
     public static ConsumerFilter select(String subscriptionId, long revision, int version, String format,
-                                        List<PayloadType> payloadTypes, List<WebRoute> webRoutes,
+                                        List<PayloadType> payloadTypes, List<RoutePattern> routes,
                                         List<PayloadType> upcastInputs) {
-        return new ConsumerFilter(subscriptionId, revision, version, format, payloadTypes, webRoutes, upcastInputs,
-                                  payloadTypes != null, webRoutes != null, false);
+        return new ConsumerFilter(subscriptionId, revision, version, format, payloadTypes, routes, upcastInputs,
+                                  payloadTypes != null, routes != null, false);
     }
 
     /** A serialized input name, optionally limited to one revision or matching an entire package prefix. */
@@ -77,10 +77,15 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
         }
     }
 
-    /** A method/origin and an SDK-compiled raw-path regular expression. Null method/origin mean any method/no origin. */
-    public record WebRoute(String method, String origin, String pathRegex) {
-        public WebRoute {
-            Objects.requireNonNull(pathRegex, "pathRegex");
+    /**
+     * Generic route matcher. The prefix regex consumes the beginning of the route; the value regex then matches the
+     * entire remaining region with opaque, anchoring bounds. This preserves anchors and lookarounds of a compiled
+     * value pattern without allowing it to inspect a producer-specific prefix. An empty prefix matches the full route.
+     */
+    public record RoutePattern(String prefixRegex, String valueRegex) {
+        public RoutePattern {
+            Objects.requireNonNull(prefixRegex, "prefixRegex");
+            Objects.requireNonNull(valueRegex, "valueRegex");
         }
     }
 
@@ -92,7 +97,7 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
     /** Combines alternative handlers; an unknown constraint widens the corresponding selection. */
     public static ConsumerFilter union(Collection<ConsumerFilter> filters) {
         List<PayloadType> payloads = new ArrayList<>();
-        List<WebRoute> routes = new ArrayList<>();
+        List<RoutePattern> routes = new ArrayList<>();
         List<PayloadType> casters = new ArrayList<>();
         String format = null;
         boolean payloadsKnown = true, routesKnown = true;
@@ -107,12 +112,12 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
             format = filter.format;
             first = false;
             payloadsKnown &= filter.payloadRestricted;
-            routesKnown &= filter.webRestricted;
+            routesKnown &= filter.routeRestricted;
             if (filter.payloadTypes != null) {
                 payloads.addAll(filter.payloadTypes);
             }
-            if (filter.webRoutes != null) {
-                routes.addAll(filter.webRoutes);
+            if (filter.routes != null) {
+                routes.addAll(filter.routes);
             }
             casters.addAll(filter.upcastInputs);
         }
@@ -123,8 +128,8 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
 
     /** Returns the same contract with its lifecycle revision and current serializer migration inputs. */
     public ConsumerFilter forRevision(String subscriptionId, long revision, String format, List<PayloadType> upcastInputs) {
-        return new ConsumerFilter(subscriptionId, revision, version, format, payloadTypes, webRoutes, upcastInputs,
-                                  payloadRestricted, webRestricted, false);
+        return new ConsumerFilter(subscriptionId, revision, version, format, payloadTypes, routes, upcastInputs,
+                                  payloadRestricted, routeRestricted, false);
     }
 
     /** Compact reference to a full snapshot. An unknown reference must be resolved before claiming or scanning. */
@@ -135,48 +140,43 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
 
     /** Compiles once at the subscription boundary; no regex compilation or application class loading occurs per message. */
     public Predicate<SerializedMessage> compile() {
-        if (referenceOnly || version != VERSION || !payloadRestricted && !webRestricted) {
+        if (referenceOnly || version != VERSION || !payloadRestricted && !routeRestricted) {
             return message -> true;
         }
         Predicate<SerializedMessage> casters = compilePayloads(upcastInputs);
         Predicate<SerializedMessage> payloads = !payloadRestricted ? message -> true : compilePayloads(payloadTypes);
-        List<CompiledRoute> routes = !webRestricted ? null : webRoutes.stream()
-                .map(route -> new CompiledRoute(route, Pattern.compile(route.pathRegex))).toList();
+        Map<String, List<Pattern>> groupedRoutes = new LinkedHashMap<>();
+        if (routeRestricted) {
+            routes.forEach(route -> groupedRoutes.computeIfAbsent(route.prefixRegex, ignored -> new ArrayList<>())
+                    .add(Pattern.compile(route.valueRegex)));
+        }
+        List<RouteGroup> compiledRoutes = !routeRestricted ? null : groupedRoutes.entrySet().stream()
+                .map(entry -> new RouteGroup(Pattern.compile(entry.getKey()), List.copyOf(entry.getValue())))
+                .toList();
         return message -> {
-            if (message.getType() == null || casters.test(message)) {
-                return true;
-            }
-            if ((format == null || Objects.equals(format, message.data().getFormat())) && !payloads.test(message)) {
-                return false;
-            }
-            if (routes == null) {
-                return true;
-            }
-            try {
-                if (message.getMetadata() == null) {
+            if (message.getType() != null) {
+                if (casters.test(message)) {
                     return true;
                 }
-                String url = message.getMetadata().get("url");
-                String method = message.getMetadata().get("method");
-                if (url == null || method == null) {
-                    return true;
+                if ((format == null || Objects.equals(format, message.data().getFormat())) && !payloads.test(message)) {
+                    return false;
                 }
-                URI uri = URI.create(url.startsWith("/") || url.contains("://") ? url : "/" + url);
-                String path = uri.getRawPath();
-                path = path == null || path.isBlank() ? "/" : path.startsWith("/") ? path : "/" + path;
-                String origin = uri.getScheme() == null || uri.getHost() == null ? null
-                        : uri.getScheme() + "://" + uri.getHost() + (uri.getPort() < 0 ? "" : ":" + uri.getPort());
-                for (CompiledRoute route : routes) {
-                    if ((route.route.method == null || route.route.method.equals(method))
-                        && Objects.equals(route.route.origin, origin) && route.path.matcher(path).matches()) {
-                        return true;
+            }
+            if (compiledRoutes == null || message.getRoute() == null) {
+                return true;
+            }
+            String route = message.getRoute();
+            for (RouteGroup candidate : compiledRoutes) {
+                var prefix = candidate.prefix.matcher(route);
+                if (prefix.lookingAt()) {
+                    for (Pattern value : candidate.values) {
+                        if (value.matcher(route).region(prefix.end(), route.length()).matches()) {
+                            return true;
+                        }
                     }
                 }
-                return false;
-            } catch (IllegalArgumentException e) {
-                // Preserve the SDK's normal malformed-request handling instead of hiding the request.
-                return true;
             }
+            return false;
         };
     }
 
@@ -211,6 +211,6 @@ public record ConsumerFilter(String subscriptionId, long revision, int version, 
         };
     }
 
-    private record CompiledRoute(WebRoute route, Pattern path) {
+    private record RouteGroup(Pattern prefix, List<Pattern> values) {
     }
 }

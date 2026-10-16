@@ -446,6 +446,21 @@ Unknown/custom metadata widens delivery rather than risk excluding a relevant me
 perform dispatch and authorization. Registering a new handler or migration updates future delivery; use replay when
 previously skipped messages need processing.
 
+Web requests carry an optional message-level `route`, separate from the body's `Data.type`. Its value is the method,
+space, and origin plus raw path (for example `GET /orders/a%2Fb`), without query or fragment. SDK gateways refresh it
+from the final request after serialized dispatch interceptors; the HTTP proxy, request chunks and socket frames also
+supply it. Runtime selection reads the route and payload type/revision only, never message metadata or body bytes.
+Encoded separators, plus signs and Unicode retain the same meaning as the handler matcher. Low-level publishers
+that create `SerializedMessage` web requests can call `WebRequestRoute.update(message)` after their final changes.
+Absent routes, including old stored requests, stay eligible. An absent payload type does not disable a known route.
+Java and Kotlin applications use the same automatic behavior and compatibility rules.
+
+The websocket handshake independently advertises filter language 2 and native message envelope version 2 through
+`Fluxzero-Consumer-Filter-Versions` and `Fluxzero-Message-Envelope-Version`. Native routed envelopes are sent only to
+peers that explicitly advertise support. With older peers, routed messages use the existing JSON/CBOR object
+representation; BINARY transport falls back to CBOR. Old clients may omit `route` and new readers continue to accept
+native v1 and historical stored messages. Envelopes without a route retain their v1 binary representation.
+
 Runtime uses the updated Common dependency for filtering and advertises its filter capability in the existing
 websocket handshake. The SDK checks each connection, including reconnects: older runtimes retain broad delivery
 and the historic wait; new runtimes still accept old SDKs. Test Server and local tracking use the same selection.

@@ -189,7 +189,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (!serializedMessages.isEmpty()) {
             try {
                 SerializedMessage[] finalMessages = serializedMessages.stream().flatMap(
-                        m -> ofNullable(interceptor.apply(m))).toArray(SerializedMessage[]::new);
+                        m -> ofNullable(updateRoute(interceptor.apply(m)))).toArray(SerializedMessage[]::new);
                 if (finalMessages.length > 0) {
                     return AsyncCompletionScope.register(gatewayClient.append(guarantee, finalMessages));
                 }
@@ -280,7 +280,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 if (serialized != null) {
                     serialized = interceptor.apply(serialized);
                     if (serialized != null) {
-                        finalMessages[resultSize++] = serialized;
+                        finalMessages[resultSize++] = updateRoute(serialized);
                     }
                 }
             }
@@ -385,7 +385,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                         serializedMessages.get(i), message, messageType, topic);
                 requests[requestIndex] = serializedMessage == null
                         ? PendingRequest.completed(emptyReturnMessage())
-                        : PendingRequest.external(serializedMessage, externalTimeouts[requestIndex]);
+                        : PendingRequest.external(updateRoute(serializedMessage), externalTimeouts[requestIndex]);
             }
             return java.util.Arrays.asList(requests);
         } finally {
@@ -611,11 +611,16 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 applicationNamespace ? null : namespace);
     }
 
+    private SerializedMessage updateRoute(SerializedMessage message) {
+        return messageType == MessageType.WEBREQUEST
+                ? io.fluxzero.sdk.web.WebRequestRoute.update(message) : message;
+    }
+
     private PendingRequest prepareExternalRequest(Message message, Duration timeout) {
         SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                 message.serialize(serializer), message, messageType, topic);
         return serializedMessage == null ? PendingRequest.completed(emptyReturnMessage())
-                : PendingRequest.external(serializedMessage, timeout);
+                : PendingRequest.external(updateRoute(serializedMessage), timeout);
     }
 
     private Message interceptDispatch(Message message) {

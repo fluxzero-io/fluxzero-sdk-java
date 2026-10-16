@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ConsumerFilterTest {
     @Test
     void payloadSelectionNeverReadsMessageMetadata() {
-        var predicate = ConsumerFilter.select(null, 1, 1, "application/json",
+        var predicate = ConsumerFilter.select(null, 1, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, "application/json",
                 List.of(new ConsumerFilter.PayloadType("Current", null)), null, List.of()).compile();
         for (String type : List.of("Current", "Unrelated")) {
             var message = new SerializedMessage(new Data<>(new byte[0], type, 0, "application/json"),
@@ -61,7 +61,7 @@ class ConsumerFilterTest {
 
     @Test
     void acceptsCurrentTypesAtEveryRevisionAndOnlyDeclaredLegacyInputs() {
-        var filter = ConsumerFilter.select(null, 1, 1, "application/json",
+        var filter = ConsumerFilter.select(null, 1, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, "application/json",
                 List.of(new ConsumerFilter.PayloadType("Current", null)), null,
                 List.of(new ConsumerFilter.PayloadType("Legacy", 0)));
         var predicate = filter.compile();
@@ -76,35 +76,35 @@ class ConsumerFilterTest {
 
     @Test
     void upcastInputsBypassWebConstraintsAndUnknownVersionsAllowDelivery() {
-        var filter = ConsumerFilter.select(null, 1, 1, null, null,
-                List.of(new ConsumerFilter.WebRoute("GET", null, "^/orders/[^/]+/?$")),
+        var filter = ConsumerFilter.select(null, 1, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, null, null,
+                List.of(new ConsumerFilter.RoutePattern("GET ", "^/orders/[^/]+/?$")),
                 List.of(new ConsumerFilter.PayloadType("Legacy", 0)));
-        assertTrue(filter.compile().test(web("GET", "/orders/a%2Fb?include=all")));
+        assertTrue(filter.compile().test(web("GET", "/orders/a%2Fb")));
         assertFalse(filter.compile().test(web("POST", "/orders/a")));
         assertFalse(filter.compile().test(web("GET", "/other")));
         assertTrue(filter.compile().test(message("Legacy", 0).withMetadata(Metadata.of("method", "POST", "url", "/other"))));
         assertTrue(filter.compile().test(message("Current", 0)));
-        assertTrue(filter.compile().test(web("GET", "/bad%xx")));
+        assertFalse(filter.compile().test(web("GET", "/bad%xx")));
         assertTrue(ConsumerFilter.select(null, 1, 99, null, List.of(), List.of(), List.of()).compile().test(message("Anything", 0)));
     }
 
     @Test
     void absoluteOriginsWithoutAPathUseTheRootRoute() {
-        var predicate = ConsumerFilter.select(null, 1, 1, null, null,
-                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/$")), List.of())
+        var predicate = ConsumerFilter.select(null, 1, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, null, null,
+                List.of(new ConsumerFilter.RoutePattern("[^ ]+ https://example\\.test:8443", "^/$")), List.of())
                 .compile();
-        assertTrue(predicate.test(web("GET", "https://example.test:8443")));
-        assertTrue(predicate.test(web("HEAD", "https://example.test:8443?x=y")));
-        assertTrue(predicate.test(web("OPTIONS", "https://example.test:8443/#fragment")));
+        assertTrue(predicate.test(web("GET", "https://example.test:8443/")));
+        assertTrue(predicate.test(web("HEAD", "https://example.test:8443/")));
+        assertTrue(predicate.test(web("OPTIONS", "https://example.test:8443/")));
         assertFalse(predicate.test(web("GET", "https://other.test:8443")));
         assertFalse(predicate.test(web("GET", "https://example.test:8443/other")));
     }
 
     @Test
     void distinguishesOriginsAndKeepsUnknownUnionMembersUnrestricted() {
-        var filter = ConsumerFilter.select(null, 1, 1, null, null,
-                List.of(new ConsumerFilter.WebRoute(null, "https://example.test:8443", "^/endpoint$")), List.of());
-        assertTrue(filter.compile().test(web("PATCH", "https://example.test:8443/endpoint?x=y")));
+        var filter = ConsumerFilter.select(null, 1, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, null, null,
+                List.of(new ConsumerFilter.RoutePattern("[^ ]+ https://example\\.test:8443", "^/endpoint$")), List.of());
+        assertTrue(filter.compile().test(web("PATCH", "https://example.test:8443/endpoint")));
         assertFalse(filter.compile().test(web("PATCH", "/endpoint")));
         assertTrue(ConsumerFilter.union(java.util.Arrays.asList(filter, null)).compile().test(web("DELETE", "/other")));
     }
@@ -112,7 +112,7 @@ class ConsumerFilterTest {
     @Test
     void preservesFilteredReadsThroughEveryTransportAndFallsBackForAnEntireMixedBinaryBatch() throws Exception {
         Read filtered = read();
-        filtered.setConsumerFilter(ConsumerFilter.select(null, 8, 1, "application/json",
+        filtered.setConsumerFilter(ConsumerFilter.select(null, 8, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, "application/json",
                 List.of(new ConsumerFilter.PayloadType("Current", null)), null, List.of()));
         filtered.setMaxScanLookBack(60_000L);
         Read metric = (Read) filtered.toMetric();
@@ -169,6 +169,8 @@ class ConsumerFilterTest {
     }
 
     private static SerializedMessage web(String method, String url) {
-        return message("[B", 0).withMetadata(Metadata.of("method", method, "url", url));
+        var message = message(null, 0);
+        message.setRoute(method + " " + url);
+        return message;
     }
 }

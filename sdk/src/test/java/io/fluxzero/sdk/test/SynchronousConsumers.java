@@ -216,7 +216,7 @@ final class SynchronousConsumers {
             }
             ConsumerFilter filter = blueprint.getFilter();
             return filter.referenceOnly() || filter.version() != ConsumerFilter.VERSION
-                   || !filter.payloadRestricted() && !filter.webRestricted();
+                   || !filter.payloadRestricted() && !filter.routeRestricted();
         }
     }
 }

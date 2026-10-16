@@ -125,7 +125,7 @@ public final class SerializedMessagePackCodec {
                 unpackInt(unpacker),
                 unpackLong(unpacker),
                 unpackString(unpacker),
-                null);
+                null, null);
     }
 
     private static Metadata unpackSerializedMetadata(MessagePackIO.Reader unpacker) throws IOException {
@@ -149,7 +149,7 @@ public final class SerializedMessagePackCodec {
                 unpackInt(unpacker),
                 unpackLong(unpacker),
                 unpackString(unpacker),
-                null);
+                null, null);
     }
 
     private static Metadata unpackMetadata(MessagePackIO.Reader unpacker) throws IOException {

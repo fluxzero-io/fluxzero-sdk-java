@@ -135,7 +135,7 @@ class ConsumerFilterPeerTest {
     }
 
     private static ConsumerBlueprint blueprint(AtomicReference<String> type) {
-        return new ConsumerBlueprint(new JacksonSerializer(), () -> ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
+        return new ConsumerBlueprint(new JacksonSerializer(), () -> ConsumerFilter.select(null, 0, ConsumerFilter.VERSION, Data.JSON_FORMAT,
                 List.of(new ConsumerFilter.PayloadType(type.get(), null)), null, List.of()),
                 new AtomicLong()::incrementAndGet);
     }
@@ -198,7 +198,7 @@ class ConsumerFilterPeerTest {
             when(session.getUserProperties()).thenReturn(new ConcurrentHashMap<>());
             when(session.getRequestURI()).thenReturn(URI.create("ws://localhost:1/tracking"));
             when(session.getHandshakeResponseHeaders()).thenReturn(supported
-                    ? Map.of(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("1")) : Map.of());
+                    ? Map.of(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("2")) : Map.of());
             try {
                 doAnswer(call -> {
                     ByteBuffer buffer = call.getArgument(0);

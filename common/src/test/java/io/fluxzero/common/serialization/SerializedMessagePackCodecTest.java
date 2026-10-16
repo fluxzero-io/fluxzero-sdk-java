@@ -134,6 +134,6 @@ class SerializedMessagePackCodecTest {
         return new SerializedMessage(
                 new Data<>(new byte[]{1, 2, 3}, "type", 1, "application/json"),
                 Metadata.of("tenant", source), 3, index, source, "target", null, 123L,
-                "message-" + source, null);
+                "message-" + source, null, null);
     }
 }

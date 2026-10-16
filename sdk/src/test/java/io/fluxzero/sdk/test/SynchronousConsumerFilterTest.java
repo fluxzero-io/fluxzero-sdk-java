@@ -173,7 +173,7 @@ class SynchronousConsumerFilterTest {
 
     @Test
     void incorrectRouteFilterBreaksAnOrdinaryWebExpectation() {
-        var fixture = TestFixture.create(builder(filter -> ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
+        var fixture = TestFixture.create(builder(filter -> ConsumerFilter.select(null, 0, ConsumerFilter.VERSION, Data.JSON_FORMAT,
                 null, List.of(), List.of())), new WebHandler());
         assertThrows(GivenWhenThenAssertionError.class,
                      () -> fixture.whenGet("/api/items/a%2Fb").expectResult("ok"));
@@ -199,7 +199,7 @@ class SynchronousConsumerFilterTest {
         var handler = new Handler<DeserializingMessage>() {
             @Override public Class<?> getTargetClass() { return EventHandler.class; }
             @Override public ConsumerFilter getConsumerFilter() {
-                return ConsumerFilter.select(null, 0, 1, null,
+                return ConsumerFilter.select(null, 0, ConsumerFilter.VERSION, null,
                         List.of(new ConsumerFilter.PayloadType(Other.class.getName(), null)), null, List.of());
             }
             @Override public Optional<HandlerInvoker> getInvoker(
@@ -215,8 +215,8 @@ class SynchronousConsumerFilterTest {
 
     @Test
     void routeAdmissionCannotBeCachedByJavaPayloadType() {
-        var fixture = TestFixture.create(builder(filter -> ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
-                null, List.of(new ConsumerFilter.WebRoute("GET", null, "^/api/items/first$")), List.of())), new WebHandler());
+        var fixture = TestFixture.create(builder(filter -> ConsumerFilter.select(null, 0, ConsumerFilter.VERSION, Data.JSON_FORMAT,
+                null, List.of(io.fluxzero.sdk.web.WebRequestRoute.pattern("GET", null, "^/api/items/first$")), List.of())), new WebHandler());
         fixture.whenGet("/api/items/first").expectResult("ok");
         assertThrows(GivenWhenThenAssertionError.class,
                      () -> fixture.whenGet("/api/items/second").expectResult("ok"));
@@ -267,7 +267,7 @@ class SynchronousConsumerFilterTest {
     }
 
     private static ConsumerFilter rejectPayloads(ConsumerFilter filter) {
-        return ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT, List.of(), null, List.of());
+        return ConsumerFilter.select(null, 0, ConsumerFilter.VERSION, Data.JSON_FORMAT, List.of(), null, List.of());
     }
 
     private static SerializedMessage legacy(String id) {

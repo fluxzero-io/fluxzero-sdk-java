@@ -59,8 +59,8 @@ class ConsumerFilterRecoveryTest {
                 .name("capabilities").runtimeBaseUrl("ws://localhost:1").disableMetrics(true).build());
         try (var client = new WebsocketTrackingClient(URI.create("ws://localhost:1/tracking"), owner, EVENT, null, false)) {
             var legacy = session(Map.of());
-            var supported = session(Map.of(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("1")));
-            var unknown = session(Map.of(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("2")));
+            var supported = session(Map.of(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("2")));
+            var unknown = session(Map.of(WebSocketCapabilities.CONSUMER_FILTER_VERSIONS_HEADER, List.of("99")));
             for (Long cursor : java.util.Arrays.asList(null, -20L, 50L)) {
                 Read request = new Read(EVENT, "consumer", "tracker", 10, 900_000L, "typeFilter",
                                         true, true, true, true, cursor, 123L);

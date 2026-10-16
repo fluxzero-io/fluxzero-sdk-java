@@ -63,7 +63,7 @@ class WebConsumerFilterTest {
         var message = request(method, url);
         assertEquals(expected, handler.getInvoker(new JacksonSerializer().deserializeMessage(message, WEBREQUEST))
                 .isPresent(), "actual handler selection");
-        assertTrue(handler.getConsumerFilter().webRestricted());
+        assertTrue(handler.getConsumerFilter().routeRestricted());
         assertEquals(expected, handler.getConsumerFilter().compile().test(message), "server selection");
     }
 
@@ -129,7 +129,7 @@ class WebConsumerFilterTest {
             fixture.whenWebRequest(WebRequest.builder().method(OPTIONS).url(root + "/index.html").build())
                     .expectWebResult(r -> r.getStatus() == 204 && r.getHeader("Allow").contains(HEAD)).expectNoErrors();
             if (async) {
-                assertTrue(configuration.get().getConsumerBlueprint().getFilter().webRestricted());
+                assertTrue(configuration.get().getConsumerBlueprint().getFilter().routeRestricted());
             }
         }
     }
@@ -174,7 +174,7 @@ class WebConsumerFilterTest {
             }
             if (async) {
                 var filter = configuration.get().getConsumerBlueprint().getFilter();
-                assertFalse(filter.webRestricted());
+                assertFalse(filter.routeRestricted());
                 assertTrue(filter.compile().test(request(WS_CLOSE, "/unmatched-close-path")));
             }
         }
@@ -213,8 +213,8 @@ class WebConsumerFilterTest {
     }
 
     private static SerializedMessage request(String method, String url) {
-        return new SerializedMessage(new Data<>(new byte[0], "[B", 0, "application/octet-stream"),
-                Metadata.of("method", method, "url", url), UUID.randomUUID().toString(), System.currentTimeMillis());
+        return io.fluxzero.sdk.web.WebRequestRoute.update(new SerializedMessage(new Data<>(new byte[0], null, 0, "unknown"),
+                Metadata.of("method", method, "url", url), UUID.randomUUID().toString(), System.currentTimeMillis()));
     }
 
     static class Plain {

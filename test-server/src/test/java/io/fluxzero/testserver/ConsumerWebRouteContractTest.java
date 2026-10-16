@@ -71,7 +71,7 @@ class ConsumerWebRouteContractTest {
                     };
                 }, WEBREQUEST).build(client)) {
             app.registerHandlers(mounted ? new MountedSite() : new Site());
-            assertTrue(configuration.get().getConsumerBlueprint().getFilter().webRestricted());
+            assertTrue(configuration.get().getConsumerBlueprint().getFilter().routeRestricted());
             String root = mounted ? "/site" : "";
             var accepted = List.of(message(GET, root + "/api/ping"), message(GET, root + "/index.html"),
                     message(HEAD, root + "/index.html"), message(OPTIONS, root + "/index.html"),
@@ -86,7 +86,7 @@ class ConsumerWebRouteContractTest {
 
             // Registration must widen an already open filtered read before socket lifecycle input is appended.
             app.registerHandlers(new SocketHandler());
-            assertFalse(configuration.get().getConsumerBlueprint().getFilter().webRestricted());
+            assertFalse(configuration.get().getConsumerBlueprint().getFilter().routeRestricted());
             var frames = List.of(message(WS_HANDSHAKE, "/socket"), message(WS_OPEN, "/socket"),
                     message(WS_MESSAGE, "/socket"), message(WS_PONG, "/socket"),
                     message(WS_CLOSE, "/unmatched-close-path"));
@@ -114,9 +114,9 @@ class ConsumerWebRouteContractTest {
     }
 
     private static SerializedMessage message(String method, String url) {
-        return new SerializedMessage(new Data<>(new byte[0], "[B", 0, "application/octet-stream"),
+        return io.fluxzero.sdk.web.WebRequestRoute.update(new SerializedMessage(new Data<>(new byte[0], null, 0, "unknown"),
                 Metadata.of("method", method, "url", url, "sessionId", "contract-session"),
-                UUID.randomUUID().toString(), System.currentTimeMillis());
+                UUID.randomUUID().toString(), System.currentTimeMillis()));
     }
 
     @Consumer(name = "web-filter-contract", minIndex = 0)

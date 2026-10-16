@@ -260,7 +260,7 @@ class ConsumerBlueprintTest {
         try (Fluxzero app = application(new CopyOnWriteArrayList<>(), configuration, WEBREQUEST)) {
             app.registerHandlers(new WebHandler());
             var filter = configuration.get().getConsumerBlueprint().getFilter();
-            assertTrue(filter.webRestricted());
+            assertTrue(filter.routeRestricted());
             var predicate = filter.compile();
             for (String method : List.of("GET", "HEAD", "OPTIONS")) {
                 assertTrue(predicate.test(raw("[B", 0, Metadata.of("method", method, "url", "/items/abc/detail?x=y"))), method);
@@ -302,14 +302,14 @@ class ConsumerBlueprintTest {
     @Test
     void customSerializersRemainUnrestricted() {
         var custom = new JacksonSerializer() {};
-        var description = io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
+        var description = io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, Data.JSON_FORMAT,
                 List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Current", null)), null, List.of());
         assertFalse(custom.describeConsumerFilter(description).payloadRestricted());
     }
 
     @Test
     void serializerPreservesCustomHandlerMigrationInputs() {
-        var description = io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 1, Data.JSON_FORMAT,
+        var description = io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, Data.JSON_FORMAT,
                 List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Current", null)), null,
                 List.of(new io.fluxzero.common.api.tracking.ConsumerFilter.PayloadType("Legacy", 0)));
         assertTrue(new JacksonSerializer().describeConsumerFilter(description).compile()
@@ -319,7 +319,7 @@ class ConsumerBlueprintTest {
     @Test
     void serializerCannotNarrowUnknownOrDifferentFormatHandlerContracts() {
         for (var description : List.of(
-                io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 1, "text/plain",
+                io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, io.fluxzero.common.api.tracking.ConsumerFilter.VERSION, "text/plain",
                         List.of(), null, List.of()),
                 io.fluxzero.common.api.tracking.ConsumerFilter.select(null, 0, 99, Data.JSON_FORMAT,
                         List.of(), null, List.of()))) {
@@ -355,9 +355,9 @@ class ConsumerBlueprintTest {
     }
 
     private static SerializedMessage raw(String type, int revision, Metadata metadata) {
-        return new SerializedMessage(new Data<>("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8), type, revision,
+        return io.fluxzero.sdk.web.WebRequestRoute.update(new SerializedMessage(new Data<>("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8), type, revision,
                                                 Data.JSON_FORMAT), metadata, java.util.UUID.randomUUID().toString(),
-                                     System.currentTimeMillis());
+                                     System.currentTimeMillis()));
     }
 
     record Created(String value) {}

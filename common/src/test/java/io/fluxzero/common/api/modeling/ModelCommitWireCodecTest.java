@@ -42,6 +42,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void routedCommitEventsRequireAnExplicitNativeEnvelopeCapability() throws Exception {
+        var commit = commit("routed", false);
+        commit.getSubsteps().getFirst().getEvent().setRoute("partition/one");
+        var batch = new RequestBatch<>(List.of(commit));
+        assertNull(ModelCommitWireCodec.tryEncode(batch));
+        assertEquals(batch, ModelCommitWireCodec.tryDecode(ModelCommitWireCodec.tryEncode(batch, true)));
+        for (var format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer, List.of(ModelWebSocketCodec.INSTANCE));
+            assertEquals(batch, codec.decode(codec.encode(batch)));
+        }
+    }
+
+    @Test
     void deadlineEffectsRoundTripOnEveryTransport() throws Exception {
         CommitModels ordinary = commit("deadline-wire", false);
         ordinary.getSubsteps().getFirst().getEvent().setIndex(null);
@@ -615,7 +628,7 @@ class ModelCommitWireCodecTest {
                         5,
                         6L,
                         "message-" + id,
-                        null);
+                        null, null);
         ModelCommitTarget target =
                 ModelCommitTarget.builder()
                         .modelId("model-" + id)
@@ -674,7 +687,7 @@ class ModelCommitWireCodecTest {
                 event.getData(), event.getMetadata(), event.getSegment(),
                 event.getIndex(), event.getSource(), event.getTarget(),
                 event.getRequestId(), event.getTimestamp(), commit.getCommitId(),
-                event.getOriginalRevision());
+                event.getOriginalRevision(), event.getRoute());
         return new CommitModels(
                 commit.getCommitId(), commit.getReadStateIndex(),
                 commit.getReadModelIds(),

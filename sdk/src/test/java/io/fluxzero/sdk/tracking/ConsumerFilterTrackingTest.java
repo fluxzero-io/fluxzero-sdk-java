@@ -119,7 +119,7 @@ class ConsumerFilterTrackingTest {
         var messages = new InMemoryMessageStore(MessageType.EVENT);
         try (var strategy = new DefaultTrackingStrategy(messages, new InMemoryPositionStore())) {
             var a = strategy.getBatch(tracker("a", "session-a", filter(1, "A"), 16));
-            var independent = ConsumerFilter.select("another-app", 1, 1, Data.JSON_FORMAT,
+            var independent = ConsumerFilter.select("another-app", 1, ConsumerFilter.VERSION, Data.JSON_FORMAT,
                     List.of(new ConsumerFilter.PayloadType("B", null)), null, List.of());
             var b = strategy.getBatch(tracker("b", "session-b", independent, 16));
             messages.append(List.of(message("A", 0))).join();
@@ -131,7 +131,7 @@ class ConsumerFilterTrackingTest {
     }
 
     private static ConsumerFilter filter(long revision, String type) {
-        return ConsumerFilter.select("application-subscription", revision, 1, Data.JSON_FORMAT,
+        return ConsumerFilter.select("application-subscription", revision, ConsumerFilter.VERSION, Data.JSON_FORMAT,
                 List.of(new ConsumerFilter.PayloadType(type, null)), null, List.of());
     }
 

@@ -44,10 +44,18 @@ public final class WebSocketTransportCodecs {
     public static WebSocketTransportCodec forFormat(
             WebSocketTransportFormat format, ObjectMapper objectMapper,
             List<? extends WebSocketPayloadCodec> payloadCodecs) {
+        return forFormat(format, objectMapper, payloadCodecs, false);
+    }
+
+    /** Creates a codec after negotiating the peer's ability to read native routed envelopes. */
+    public static WebSocketTransportCodec forFormat(
+            WebSocketTransportFormat format, ObjectMapper objectMapper,
+            List<? extends WebSocketPayloadCodec> payloadCodecs, boolean routedEnvelopes) {
         return switch (Objects.requireNonNullElse(format, JSON)) {
             case JSON -> json(objectMapper);
             case CBOR -> cbor(objectMapper);
-            case BINARY -> binary(objectMapper, payloadCodecs);
+            case BINARY -> new CborWebSocketTransportCodec(
+                    new CborObjectMapper(objectMapper), BINARY, List.copyOf(payloadCodecs), routedEnvelopes);
         };
     }
 
@@ -62,7 +70,7 @@ public final class WebSocketTransportCodecs {
      * Jackson CBOR codec. This keeps the JSON object model but writes {@code byte[]} fields as native binary.
      */
     public static WebSocketTransportCodec cbor(ObjectMapper objectMapper) {
-        return new CborWebSocketTransportCodec(new CborObjectMapper(objectMapper), CBOR, List.of());
+        return new CborWebSocketTransportCodec(new CborObjectMapper(objectMapper), CBOR, List.of(), false);
     }
 
     /**
@@ -76,7 +84,7 @@ public final class WebSocketTransportCodecs {
     public static WebSocketTransportCodec binary(
             ObjectMapper objectMapper, List<? extends WebSocketPayloadCodec> payloadCodecs) {
         return new CborWebSocketTransportCodec(
-                new CborObjectMapper(objectMapper), BINARY, List.copyOf(payloadCodecs));
+                new CborObjectMapper(objectMapper), BINARY, List.copyOf(payloadCodecs), false);
     }
 
     private record JsonWebSocketTransportCodec(ObjectMapper objectMapper) implements WebSocketTransportCodec {
@@ -98,7 +106,7 @@ public final class WebSocketTransportCodecs {
 
     private record CborWebSocketTransportCodec(
             ObjectMapper objectMapper, WebSocketTransportFormat format,
-            List<? extends WebSocketPayloadCodec> payloadCodecs)
+            List<? extends WebSocketPayloadCodec> payloadCodecs, boolean routedEnvelopes)
             implements WebSocketTransportCodec {
         @Override
         public WebSocketTransportFormat format() {
@@ -108,7 +116,7 @@ public final class WebSocketTransportCodecs {
         @Override
         public byte[] encode(JsonType value) throws IOException {
             for (WebSocketPayloadCodec payloadCodec : payloadCodecs) {
-                byte[] compact = payloadCodec.tryEncode(value, format);
+                byte[] compact = payloadCodec.tryEncode(value, format, routedEnvelopes);
                 if (compact != null) {
                     return compact;
                 }

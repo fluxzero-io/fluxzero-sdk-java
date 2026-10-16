@@ -68,6 +68,22 @@ public final class WebSocketCapabilities {
                 .anyMatch(Integer.toString(io.fluxzero.common.api.tracking.ConsumerFilter.VERSION)::equals);
     }
 
+    /** Highest native message envelope version this peer can read, including packed Model-event blocks. */
+    public static final String MESSAGE_ENVELOPE_VERSION_HEADER = "Fluxzero-Message-Envelope-Version";
+
+    /** Routed native envelopes are sent only after an explicit peer capability. Missing means v1. */
+    public static boolean supportsRoutedEnvelopes(Map<String, List<String>> headers) {
+        if (headers == null) return false;
+        return headers.entrySet().stream()
+                .filter(entry -> MESSAGE_ENVELOPE_VERSION_HEADER.equalsIgnoreCase(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .flatMap(entry -> entry.getValue().stream()).filter(Objects::nonNull)
+                .anyMatch(value -> {
+                    try { return Integer.parseInt(value.strip()) >= 2; }
+                    catch (NumberFormatException ignored) { return false; }
+                });
+    }
+
     private WebSocketCapabilities() {
     }
 

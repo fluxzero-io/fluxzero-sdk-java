@@ -91,6 +91,8 @@ class ProxyWebsocketEndpointTest {
 
         ArgumentCaptor<SerializedMessage> requests = ArgumentCaptor.forClass(SerializedMessage.class);
         verify(gatewayClient, times(4)).append(eq(Guarantee.STORED), requests.capture());
+        requests.getAllValues().forEach(message -> assertEquals(
+                WebRequest.getMethod(message.getMetadata()) + " /socket", message.getRoute()));
         int expectedSegment = ConsistentHashing.computeSegment("customer-123");
         assertEquals(List.of(HttpRequestMethod.WS_OPEN, HttpRequestMethod.WS_MESSAGE,
                              HttpRequestMethod.WS_MESSAGE, HttpRequestMethod.WS_PONG),
@@ -121,6 +123,7 @@ class ProxyWebsocketEndpointTest {
         ArgumentCaptor<SerializedMessage> request = ArgumentCaptor.forClass(SerializedMessage.class);
         verify(requestHandler).sendRequest(request.capture(), any(), eq(ProxyWebsocketEndpoint.CLOSE_NOTIFICATION_TIMEOUT));
         assertEquals(HttpRequestMethod.WS_CLOSE, WebRequest.getMethod(request.getValue().getMetadata()));
+        assertEquals("WS_CLOSE /socket", request.getValue().getRoute());
         assertEquals(ConsistentHashing.computeSegment("customer-123"), request.getValue().getSegment());
     }
 

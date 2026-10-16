@@ -60,6 +60,46 @@ import static org.mockito.Mockito.when;
 class DefaultGenericGatewayTest {
 
     @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"1,false", "256,false", "1,true", "256,true"})
+    void webRoutesReflectTheFinalSerializedInterceptorOnEveryPublicationPath(int count, boolean requests) {
+        Client client = mock(Client.class);
+        when(client.forNamespace(null)).thenReturn(client);
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        List<SerializedMessage> published = new ArrayList<>();
+        when(gatewayClient.append(any(Guarantee.class), any(SerializedMessage[].class))).thenAnswer(invocation -> {
+            published.addAll(Arrays.asList((SerializedMessage[]) invocation.getRawArguments()[1]));
+            return CompletableFuture.completedFuture(null);
+        });
+        RequestHandler requestHandler = mock(RequestHandler.class);
+        var serializer = new JacksonSerializer();
+        var response = new Message("ok").serialize(serializer);
+        when(requestHandler.sendRequests(anyList(), any())).thenAnswer(invocation -> {
+            List<SerializedMessage> batch = invocation.getArgument(0);
+            published.addAll(batch);
+            return batch.stream().map(ignored -> CompletableFuture.completedFuture(response)).toList();
+        });
+        var interceptor = new DispatchInterceptor() {
+            @Override public Message interceptDispatch(Message message, MessageType type, String topic) { return message; }
+            @Override public SerializedMessage modifySerializedMessage(
+                    SerializedMessage wire, Message message, MessageType type, String topic) {
+                return wire.withMetadata(wire.getMetadata().with("method", "PATCH", "url", "/changed%2Fpath?x=1"));
+            }
+        };
+        var gateway = new DefaultGenericGateway(client, gatewayClient, requestHandler, serializer, interceptor,
+                MessageType.WEBREQUEST, null, HandlerRegistry.noOp(), mock(ResponseMapper.class));
+        Message[] messages = IntStream.range(0, count).mapToObj(i -> io.fluxzero.sdk.web.WebRequest.builder()
+                .method("GET").url("/original").build()).toArray(Message[]::new);
+        if (requests) {
+            gateway.sendForMessages(messages).forEach(CompletableFuture::join);
+        } else {
+            gateway.sendAndForget(Guarantee.STORED,
+                    wire -> wire.withMetadata(wire.getMetadata().with("url", "/final%2Fpath?x=2")), messages).join();
+        }
+        assertEquals(count, published.size());
+        published.forEach(wire -> assertEquals(requests ? "PATCH /changed%2Fpath" : "PATCH /final%2Fpath", wire.getRoute()));
+    }
+
+    @ParameterizedTest
     @ValueSource(ints = {255, 256, 512, 8193})
     void sendAndForgetPreservesSerializationContext(int batchSize) {
         assertSerializationContext(batchSize, false);

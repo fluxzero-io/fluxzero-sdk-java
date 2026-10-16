@@ -139,7 +139,7 @@ public abstract class WebsocketEndpoint {
     private final boolean ownsCommandIdempotencyStore;
 
     private final Map<String, SessionBacklog> sessionBacklogs = new ConcurrentHashMap<>();
-    private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
+    private final Map<TransportCodecKey, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
     private final Set<String> expectedTransportCloseSessionIds = ConcurrentHashMap.newKeySet();
     private final TaskScheduler pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler");
@@ -902,10 +902,14 @@ public abstract class WebsocketEndpoint {
                 .orElse(WebSocketTransportFormat.JSON);
     }
 
+    private record TransportCodecKey(WebSocketTransportFormat format, boolean routedEnvelopes) {}
+
     protected WebSocketTransportCodec transportCodec(ServerWebsocketSession session) {
-        return transportCodecs.computeIfAbsent(getTransportFormat(session),
-                                               format -> WebSocketTransportCodecs.forFormat(
-                                                       format, objectMapper, payloadCodecs()));
+        boolean routed = (boolean) session.getUserProperties().computeIfAbsent(
+                "fluxzero.routedEnvelopes", ignored -> WebSocketCapabilities.supportsRoutedEnvelopes(getRequestHeaders(session)));
+        var key = new TransportCodecKey(getTransportFormat(session), routed);
+        return transportCodecs.computeIfAbsent(key, value -> WebSocketTransportCodecs.forFormat(
+                value.format(), objectMapper, payloadCodecs(), value.routedEnvelopes()));
     }
 
     /** Returns compact payload codecs owned by this concrete endpoint protocol. */
