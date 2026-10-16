@@ -141,6 +141,25 @@ public abstract class AbstractSerializer<I> implements Serializer {
     }
 
     @Override
+    public Optional<Data<byte[]>> describeSerialization(Object object, String format) {
+        if (!supportsConsumerFiltering() || object instanceof Collection<?> || object instanceof Map<?, ?>) {
+            // Inferring generic container types would iterate application-controlled payload contents.
+            return Optional.empty();
+        }
+        String selectedFormat = format == null ? this.format : format;
+        if (Objects.equals(this.format, selectedFormat)) {
+            return Optional.of(new Data<>(new byte[0], getTypeString(object), getRevisionNumber(object), selectedFormat));
+        }
+        return switch (object) {
+            case null -> Optional.of(new Data<>(new byte[0], null, 0, selectedFormat));
+            case String ignored -> Optional.of(new Data<>(new byte[0], asString(String.class), 0, selectedFormat));
+            case byte[] ignored -> Optional.of(new Data<>(new byte[0], asString(byte[].class), 0, selectedFormat));
+            case InputStream ignored -> Optional.of(new Data<>(new byte[0], asString(byte[].class), 0, selectedFormat));
+            default -> Optional.empty();
+        };
+    }
+
+    @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public SerializedObject<byte[]> normalize(SerializedObject<?> serializedObject) {
         Data<?> data = serializedObject.data();
@@ -401,7 +420,10 @@ public abstract class AbstractSerializer<I> implements Serializer {
         return (V) doClone(value);
     }
 
-    /** Whether this concrete serializer preserves the standard declared-type contract for delivery filtering. */
+    /**
+     * Whether this concrete serializer preserves the standard declared-type contract for delivery filtering and
+     * header-only serialization descriptions. Custom serialization overrides must keep both descriptions consistent.
+     */
     protected boolean supportsConsumerFiltering() {
         return false;
     }

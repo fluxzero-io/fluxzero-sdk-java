@@ -118,6 +118,12 @@ continuity for unfiltered consumers and downgrades. Fresh supporting connections
 Long reads preserve immediate relevant wakeup, independent transport liveness and cancellation. SDK-selected long
 waits keep the previous sixty-second scan-yield boundary under irrelevant traffic. No stored-data migration is needed.
 
+Synchronous TestFixture applies the same consumer selection before tracked handler execution, including automatic
+Model and `@TrackSelf` handlers. Original serialized inputs retain their pre-upcast type/revision. True local handlers
+bypass selection; registration and caster changes refresh the consumer union. The same filtering off-switch applies.
+This validates admission while retaining synchronous dispatch semantics. Use async coverage for serialized dispatch
+interceptors, batching and consumer lifecycle; use connected tests for protocol negotiation.
+
 Asynchronous TestFixture completion follows the conservative handler selection for all peers: inputs excluded by a
 consumer's blueprint do not keep that consumer pending, including when an older peer still delivers them broadly.
 Set `fluxzero.tracking.consumerFiltering=false` when a test also needs to await batch interceptors for handler-irrelevant

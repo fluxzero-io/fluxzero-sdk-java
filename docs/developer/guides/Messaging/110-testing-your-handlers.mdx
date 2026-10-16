@@ -557,6 +557,21 @@ fixture.whenExecuting { httpClient.put("/user", "/users/user-profile-pete.json")
 By default, `TestFixture.create(...)` creates a **synchronous** fixture where handlers are executed in the same thread.
 This makes unit tests fast and deterministic.
 
+Synchronous fixtures also check the payload and web-route selection of each tracked handler's consumer. They use the
+same consumer assignment, combined handler selection and serializer/upcaster metadata as tracking. This is enabled
+by default, so ordinary behavior expectations also detect filters that would exclude a needed input. An original
+`SerializedMessage` input is checked using its original pre-upcast type and revision. Register casters before
+using historical inputs. For logical inputs the serializer describes type/revision/format without serializing the
+body, so filtering does not run payload getters before validation. Unknown serializer/envelope overrides and generic
+container payloads retain broad admission; verify their wire behavior with async tests. Explicit `@LocalHandler`
+methods and ordinary local self-handling commands/queries bypass consumer selection, just as they do in production.
+
+The application property `fluxzero.tracking.consumerFiltering=false`
+(`FLUXZERO_TRACKING_CONSUMER_FILTERING`) or a per-consumer `consumerFiltering(false)` override disables this check.
+This applies to both Java and Kotlin fixtures. Synchronous execution still skips the external serialized-dispatch
+phase: use an asynchronous fixture to verify a custom `DispatchInterceptor.modifySerializedMessage` transformation,
+consumer retries, batching, or delivery timing. Use a connected Test Server/Runtime test for transport negotiation.
+
 However, in production, handlers are typically dispatched **asynchronously** via consumers. To simulate this behavior in tests,
 especially for event-driven workflows or stateful consumers, you can use:
 

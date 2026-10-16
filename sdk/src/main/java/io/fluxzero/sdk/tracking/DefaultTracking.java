@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -204,6 +205,28 @@ public class DefaultTracking implements Tracking {
     @Override
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
+        return register(fluxzero, handlers, (configuration, prepared) ->
+                registerConsumerHandlers(configuration, prepared.stream().map(PreparedHandler::handler).toList(),
+                                         fluxzero), true);
+    }
+
+    /** A prepared handler and its effective tracking target after expansion, preserving instance-specific assignment. */
+    public record PreparedHandler(Object target, Handler<DeserializingMessage> handler) {}
+
+    /**
+     * Describes effective consumers using the ordinary tracking preparation without starting trackers, initializing
+     * schedules, or opening document readers. The observer owns its returned registration; this instance also
+     * cancels it on shutdown. Intended for synchronous test infrastructure validating consumer admission.
+     */
+    public Registration observeConsumers(Fluxzero fluxzero, List<?> handlers,
+                                         BiFunction<ConsumerConfiguration, List<PreparedHandler>, Registration> observer) {
+        return register(fluxzero, handlers, observer, false);
+    }
+
+    @Synchronized
+    private Registration register(Fluxzero fluxzero, List<?> handlers,
+                                  BiFunction<ConsumerConfiguration, List<PreparedHandler>, Registration> activation,
+                                  boolean initialize) {
         if (closing.get()) {
             throw new IllegalStateException("Tracking is closed");
         }
@@ -217,7 +240,7 @@ public class DefaultTracking implements Tracking {
                     .filter(Objects::nonNull).collect(toSet());
             handlerTypes.forEach(type -> registeredHandlerTypes.merge(type, 1, Integer::sum));
             try {
-                return startHandlers(fc, trackingTargets, handlerTypes);
+                return startHandlers(fc, trackingTargets, handlerTypes, activation, initialize);
             } catch (RuntimeException | Error e) {
                 unregisterHandlerTypes(handlerTypes);
                 throw e;
@@ -239,7 +262,9 @@ public class DefaultTracking implements Tracking {
     }
 
     @SuppressWarnings("unchecked")
-    private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
+    private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes,
+                                       BiFunction<ConsumerConfiguration, List<PreparedHandler>, Registration> activation,
+                                       boolean initialize) {
         Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
         assignedHandlers = enableDocumentTombstones(assignedHandlers);
         Map<ConsumerConfiguration, List<Object>> effectiveHandlers = new LinkedHashMap<>();
@@ -249,7 +274,7 @@ public class DefaultTracking implements Tracking {
         assignedHandlers = effectiveHandlers;
         Registration documentReads = Registration.noOp();
         try {
-            if (messageType == MessageType.DOCUMENT && handlerFactory instanceof DefaultHandlerFactory) {
+            if (initialize && messageType == MessageType.DOCUMENT && handlerFactory instanceof DefaultHandlerFactory) {
                 for (var entry : assignedHandlers.entrySet()) {
                     var reader = documentReaders.computeIfAbsent(entry.getKey(), ignored -> new DocumentMessageReader(
                             () -> fluxzero.client().forNamespace(entry.getKey().getNamespace()).getSearchClient()));
@@ -259,7 +284,8 @@ public class DefaultTracking implements Tracking {
                     }
                 }
             }
-            Registration registration = startPreparedHandlers(fluxzero, handlerTypes, assignedHandlers).merge(documentReads);
+            Registration registration = startPreparedHandlers(
+                    fluxzero, handlerTypes, assignedHandlers, activation, initialize).merge(documentReads);
             shutdownFunction.updateAndGet(r -> r.merge(registration));
             return registration;
         } catch (RuntimeException | Error e) {
@@ -270,31 +296,35 @@ public class DefaultTracking implements Tracking {
 
     @SuppressWarnings("unchecked")
     private Registration startPreparedHandlers(Fluxzero fluxzero, Set<Class<?>> handlerTypes,
-                                                Map<ConsumerConfiguration, List<Object>> assignedHandlers) {
-        assignedHandlers.forEach((configuration, targets) ->
-                targets.forEach(target -> handlerInitializer.accept(target, configuration)));
+                                                Map<ConsumerConfiguration, List<Object>> assignedHandlers,
+                                                BiFunction<ConsumerConfiguration, List<PreparedHandler>, Registration> activation,
+                                                boolean initialize) {
+        if (initialize) {
+            assignedHandlers.forEach((configuration, targets) ->
+                    targets.forEach(target -> handlerInitializer.accept(target, configuration)));
+        }
         Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
         assignedHandlers.forEach((config, matches) ->
                 matches.forEach(target -> consumersByHandler.computeIfAbsent(target, t -> new ArrayList<>())
                         .add(config)));
-        Map<ConsumerConfiguration, List<Handler<DeserializingMessage>>> consumers =
+        Map<ConsumerConfiguration, List<PreparedHandler>> consumers =
                 assignedHandlers.entrySet().stream().flatMap(e -> {
-                    List<Handler<DeserializingMessage>> converted = e.getValue().stream().flatMap(target -> {
+                    List<PreparedHandler> converted = e.getValue().stream().flatMap(target -> {
                         HandlerDecorator decorator =
                                 conditionalExclusivityDecorator(e.getKey(), consumersByHandler.get(target));
                         if (target instanceof Handler<?> handler) {
-                            return Stream.of(decorator.wrap((Handler<DeserializingMessage>) handler));
+                            return Stream.of(new PreparedHandler(target, decorator.wrap((Handler<DeserializingMessage>) handler)));
                         }
                         return handlerFactory.createHandler(target, handlerFilter,
                                                             e.getKey().getHandlerInterceptors())
-                                .map(decorator::wrap).stream();
+                                .map(decorator::wrap).map(handler -> new PreparedHandler(target, handler)).stream();
                     }).collect(toList());
                     return converted.isEmpty() ? Stream.empty() :
                             Stream.of(new SimpleEntry<>(e.getKey(), converted));
                 }).collect(toMap(Entry::getKey, Entry::getValue));
 
         Registration handlerRegistration = consumers.entrySet().stream()
-                .map(e -> registerConsumerHandlers(e.getKey(), e.getValue(), fluxzero))
+                .map(e -> activation.apply(e.getKey(), e.getValue()))
                 .reduce(Registration::merge).orElse(Registration.noOp());
         Registration registration = registrationWithHandlerTypes(handlerRegistration, handlerTypes);
         return registration;

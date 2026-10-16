@@ -452,6 +452,13 @@ and the historic wait; new runtimes still accept old SDKs. Test Server and local
 Filtered consumers bypass the SDK's broad prefetch cache on supporting peers. An explicitly configured prefetch
 cache remains available when connected to an older Runtime.
 
+Synchronous `TestFixture` tests apply the same consumer payload/route selection before executing tracked handlers,
+including automatic Model commands and `@TrackSelf` payloads. True local handlers bypass this selection. Consumer
+assignment and filter overrides are shared with tracking; a combined consumer filter admits an input if any of its
+handlers may need it. Supplied legacy `SerializedMessage` inputs retain their original type/revision for the check.
+The synchronous fixture keeps local execution semantics; use async tests for custom serialized-dispatch changes
+and consumer lifecycle behavior.
+
 Asynchronous `TestFixture` tests wait for inputs admitted by each consumer's handler selection. This also applies
 when an older Runtime delivers extra messages. Set `fluxzero.tracking.consumerFiltering=false` if a test needs to
 await batch interceptors for messages that none of its handlers use.

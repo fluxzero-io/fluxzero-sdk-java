@@ -54,6 +54,11 @@ import java.util.stream.Stream;
  * {@link ModelPipeline} lifecycle.</p>
  */
 public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory, AutoCloseable {
+    /** Framework target of the automatic local command handler; its effective consumer target is the payload class. */
+    public static Class<?> automaticHandlerTarget() {
+        return ModelPipeline.class;
+    }
+
     private final DefaultModelRepository repository;
     private final MutationPlan.Catalog definitions;
     private final ModelPipeline pipeline;

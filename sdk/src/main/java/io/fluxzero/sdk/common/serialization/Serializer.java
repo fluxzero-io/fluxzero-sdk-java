@@ -88,6 +88,20 @@ public interface Serializer extends ContentFilter {
     }
 
     /**
+     * Describes the type, revision and format produced by {@link #serialize(Object, String)} without reading the
+     * payload body, evaluating its getters or running custom codecs. The returned data has an empty body and must
+     * only be used for consumer admission. An empty result means the header cannot be known safely in advance;
+     * callers must retain broad admission, rather than guess or serialize the payload as a fallback.
+     *
+     * @param object the logical payload
+     * @param format the requested format, or {@code null} for the serializer default
+     * @return a header-only description, or empty for an unsupported/custom serialization contract
+     */
+    default Optional<Data<byte[]>> describeSerialization(Object object, String format) {
+        return Optional.empty();
+    }
+
+    /**
      * Serializes the given object to a {@link Data} wrapper using the default format.
      *
      * @param object the object to serialize
