@@ -26,12 +26,10 @@ import java.lang.annotation.Target;
  * has any of the specified roles.
  *
  * <h2>Usage</h2>
- * This annotation acts as a negative filter for message handling based on user roles.
- * <ul>
- *   <li>On a <strong>handler method</strong>, <strong>class</strong>, or <strong>package</strong>: the handler is
- *       <strong>skipped</strong> if the user has a forbidden role. This allows other handlers to take over instead.</li>
- *   <li>On a <strong>payload</strong>: an <strong>exception is thrown</strong> if the user has a forbidden role.</li>
- * </ul>
+ * The same policy applies to handler methods, classes, packages, and payloads. With a nonempty role list, an absent user causes
+ * {@link UnauthenticatedException}; a user with a forbidden role causes {@link UnauthorizedException}.
+ * With {@link #throwIfUnauthorized()} set to {@code false}, the handler or payload is skipped instead.
+ * Other eligible handlers can respond, but a denied payload is not passed to any handler.
  *
  * <p>
  * This is useful in scenarios where certain roles (e.g. admins) should receive different behavior or be excluded from
@@ -42,25 +40,13 @@ import java.lang.annotation.Target;
  * @ForbidsAnyRole("admin")
  * @HandleCommand
  * void handle(UserRequest request) {
- *     // This handler will only run if the user is NOT an admin
  * }
- * }</pre>
- *
- * <h2>Fallback pattern with multiple handlers</h2>
- * <pre>{@code
- * @ForbidsAnyRole("admin")
- * @HandleCommand
- * void handleAsUserOnly(MyCommand command) { ... }
- *
- * @RequiresAnyRole(value = "admin", throwIfUnauthorized = false)
- * @HandleCommand
- * void handleAsAdmin(MyCommand command) { ... }
  * }</pre>
  *
  * <h2>Notes</h2>
  * <ul>
  *   <li>Role checks are performed via the configured {@link io.fluxzero.sdk.tracking.handling.authentication.UserProvider}.</li>
- *   <li>For unauthenticated users or missing roles, this restriction does <em>not</em> apply.</li>
+ *   <li>An authenticated user without any forbidden role passes this check; anonymous access is not granted.</li>
  *   <li>This annotation supports usage as a meta-annotation for reusable constraints.</li>
  * </ul>
  *
@@ -74,7 +60,8 @@ import java.lang.annotation.Target;
 public @interface ForbidsAnyRole {
     /**
      * One or more roles that should be excluded. If the user has any of these roles, the handler or payload will not be
-     * used.
+     * used. An empty list allows every authenticated user and silently skips anonymous users, regardless of
+     * {@link #throwIfUnauthorized()}.
      */
     String[] value() default {};
 
@@ -83,7 +70,7 @@ public @interface ForbidsAnyRole {
      * <p>
      * If {@code true} (the default), an exception will be thrown when the user is unauthorized:
      * <ul>
-     *   <li>{@link UnauthenticatedException} – if no authenticated user is present</li>
+     *   <li>{@link UnauthenticatedException} – if no authenticated user is present and the role list is nonempty</li>
      *   <li>{@link UnauthorizedException} – if the user is present but has forbidden roles</li>
      * </ul>
      * <p>

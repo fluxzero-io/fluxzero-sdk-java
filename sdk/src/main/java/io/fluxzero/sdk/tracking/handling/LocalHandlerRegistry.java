@@ -38,11 +38,13 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -220,7 +222,14 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             return LocalHandlerResult.notHandled();
         }
         try {
+            if (!prepared.method().isApplicable(input)) {
+                return handle(input.getMessage(), allowExternalPublication).map(LocalHandlerResult::asynchronous)
+                        .orElseGet(LocalHandlerResult::notHandled);
+            }
             Object result = input.invoke(prepared.method());
+            if (input instanceof LocalExecution execution && execution.wasSkipped()) {
+                return LocalHandlerResult.notHandled();
+            }
             if (result instanceof Optional<?> optional) {
                 result = optional.orElse(null);
             }
@@ -244,7 +253,13 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             return false;
         }
         try {
+            if (!prepared.method().isApplicable(execution)) {
+                return false;
+            }
             Object result = execution.invoke(prepared.method());
+            if (execution.wasSkipped()) {
+                return false;
+            }
             if (result instanceof Optional<?> optional) {
                 result = optional.orElse(null);
             }
@@ -374,6 +389,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             boolean request = m.getMessageType().isRequest();
             Fluxzero fluxzero = null;
             CompletableFuture<Object> future = new CompletableFuture<>();
+            List<DeferredCompletion> deferredCompletions = null;
             for (Handler<DeserializingMessage> handler : localHandlers) {
                 var optionalInvoker = handler.getInvoker(m);
                 if (optionalInvoker.isPresent()) {
@@ -388,10 +404,24 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                                         m.toMessage(), m.getMessageType(), m.getTopic());
                             }
                         }
+                        boolean deferredLog = false;
                         try {
                             Object result = Invocation.performInvocation(invoker, invoker::invoke);
+                            if (invoker.wasSkipped()) {
+                                continue;
+                            }
                             if (result instanceof Optional<?> optional) {
                                 result = optional.orElse(null);
+                            }
+                            if (result instanceof CompletableFuture<?> asynchronous && invoker.maySkip()) {
+                                CompletableFuture<Object> response = responseFuture(asynchronous);
+                                if (deferredCompletions == null) {
+                                    deferredCompletions = new ArrayList<>();
+                                }
+                                deferredLog = invoker.isSkipPending();
+                                deferredCompletions.add(new DeferredCompletion(asynchronous, response, invoker,
+                                                                                invokerLogsMessage && deferredLog));
+                                result = response;
                             }
                             if (!passive && !future.isDone()) {
                                 if (result instanceof CompletableFuture<?>) {
@@ -408,10 +438,10 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                                 future.completeExceptionally(e);
                             }
                         } finally {
-                            if (!passive) {
+                            if (!passive && !invoker.wasSkipped()) {
                                 handled = true;
                             }
-                            logMessage = logMessage || invokerLogsMessage;
+                            logMessage = logMessage || invokerLogsMessage && !deferredLog && !invoker.wasSkipped();
                         }
                     }
                 }
@@ -419,24 +449,70 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             try {
                 return handled ? Optional.of(future) : Optional.empty();
             } finally {
+                if (deferredCompletions != null) {
+                    Fluxzero publishingFluxzero = fluxzero == null ? Fluxzero.getOptionally().orElse(null) : fluxzero;
+                    boolean allowMirror = handled && !logMessage && allowExternalPublication;
+                    AtomicBoolean mirrored = new AtomicBoolean();
+                    var context = m.captureContext();
+                    for (DeferredCompletion completion : deferredCompletions) {
+                        if (allowMirror && completion.logMessage()) {
+                            completion.invoker().onSkipDecision(context.wrap(() -> {
+                                if (!completion.invoker().wasSkipped() && mirrored.compareAndSet(false, true)) {
+                                    try {
+                                        logMessage(m, publishingFluxzero);
+                                    } catch (Throwable e) {
+                                        completion.response().completeExceptionally(e);
+                                    }
+                                }
+                            }));
+                        }
+                        completion.source().whenComplete(context.wrap((result, error) -> {
+                            if (!completion.invoker().wasSkipped()) {
+                                try {
+                                    if (error == null) {
+                                        completion.response().complete(result);
+                                    } else {
+                                        completion.response().completeExceptionally(error);
+                                    }
+                                } catch (Throwable e) {
+                                    completion.response().completeExceptionally(e);
+                                }
+                            }
+                        }));
+                    }
+                }
                 if (handled && logMessage && allowExternalPublication) {
                     Fluxzero publishingFluxzero = fluxzero == null
                             ? Fluxzero.getOptionally().orElse(null) : fluxzero;
-                    if (publishingFluxzero != null) {
-                        dispatchInterceptor.beforeExternalDispatch(
-                                m.toMessage(), m.getMessageType(), m.getTopic());
-                        SerializedMessage serializedMessage = message.getSerializedObject();
-                        serializedMessage = dispatchInterceptor.modifySerializedMessage(
-                                serializedMessage, m.toMessage(), m.getMessageType(), m.getTopic());
-                        if (serializedMessage != null) {
-                            publishingFluxzero.client().forNamespace(getConsumerNamespace(m))
-                                    .getGatewayClient(m.getMessageType(), m.getTopic())
-                                    .append(Guarantee.NONE, serializedMessage);
-                        }
-                    }
+                    logMessage(m, publishingFluxzero);
                 }
             }
         });
+    }
+
+    private CompletableFuture<Object> responseFuture(CompletableFuture<?> source) {
+        return new CompletableFuture<>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                boolean cancelled = super.cancel(mayInterruptIfRunning);
+                if (cancelled) {
+                    source.cancel(mayInterruptIfRunning);
+                }
+                return cancelled;
+            }
+        };
+    }
+
+    private void logMessage(DeserializingMessage message, Fluxzero fluxzero) {
+        if (fluxzero != null) {
+            dispatchInterceptor.beforeExternalDispatch(message.toMessage(), message.getMessageType(), message.getTopic());
+            SerializedMessage serialized = dispatchInterceptor.modifySerializedMessage(
+                    message.getSerializedObject(), message.toMessage(), message.getMessageType(), message.getTopic());
+            if (serialized != null) {
+                fluxzero.client().forNamespace(getConsumerNamespace(message))
+                        .getGatewayClient(message.getMessageType(), message.getTopic()).append(Guarantee.NONE, serialized);
+            }
+        }
     }
 
     @Override
@@ -520,6 +596,10 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         public Object invoke(HandlerMethodPlan<DeserializingMessage> plan) {
             return message.apply(m -> Invocation.performInvocation(plan, () -> plan.invoke(this)));
         }
+    }
+
+    private record DeferredCompletion(CompletableFuture<?> source, CompletableFuture<Object> response,
+                                      HandlerInvoker invoker, boolean logMessage) {
     }
 
     private record PreparedLocalPlan(HandlerMethodPlan<DeserializingMessage> method) {

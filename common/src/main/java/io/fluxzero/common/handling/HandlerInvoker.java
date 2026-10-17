@@ -186,6 +186,30 @@ public interface HandlerInvoker extends HandlerDescriptor {
     boolean isPassive();
 
     /**
+     * Whether this invoker can silently skip after selection, possibly during asynchronous completion.
+     * Callers that publish a result must recheck {@link #wasSkipped()} after the result completes in that case.
+     */
+    default boolean maySkip() {
+        return false;
+    }
+
+    /**
+     * Whether a deferred invocation has yet to decide if it will be skipped. Local mirroring must wait for that
+     * decision, but may proceed immediately once authorization has allowed the handler to start.
+     */
+    default boolean isSkipPending() {
+        return false;
+    }
+
+    /**
+     * Runs a callback when the pending skip decision is available, including a silent refusal. The callback may run
+     * on the completing thread; callers own context propagation. Ordinary invokers invoke it immediately.
+     */
+    default void onSkipDecision(Runnable callback) {
+        callback.run();
+    }
+
+    /**
      * Indicates whether this invocation was deliberately skipped after handler selection.
      *
      * @return {@code true} if the underlying handler method was not invoked
@@ -253,6 +277,21 @@ public interface HandlerInvoker extends HandlerDescriptor {
         @Override
         public boolean isPassive() {
             return delegate.isPassive();
+        }
+
+        @Override
+        public boolean maySkip() {
+            return delegate.maySkip();
+        }
+
+        @Override
+        public boolean isSkipPending() {
+            return delegate.isSkipPending();
+        }
+
+        @Override
+        public void onSkipDecision(Runnable callback) {
+            delegate.onSkipDecision(callback);
         }
 
         @Override

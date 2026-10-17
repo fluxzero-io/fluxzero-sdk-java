@@ -55,7 +55,7 @@ data class DeleteAccount(val userId: String)
 
 ## @ForbidsAnyRole
 
-This annotation works the other way around — it **prevents** message handling if the user has any of the specified roles.
+This annotation **prevents** message handling if the user has any of the specified roles. With a nonempty role list, the default throwing policy also rejects an absent user with `UnauthenticatedException`. An empty list allows every authenticated user and silently skips anonymous users regardless of `throwIfUnauthorized`.
 
 <Tabs>
 <TabItem value="Java" label="Java">
@@ -157,63 +157,153 @@ fun handle(command: SignUpAsGuest) { ... }
 
 ## Controlling behavior on unauthorized access
 
-All authorization annotations include an optional `throwIfUnauthorized()` property (default: `true`) that controls what happens when access is denied.
+Keep the default throwing behavior for ordinary access restrictions:
 
-- If `throwIfUnauthorized = true`:
-  - If a user is required but not present, an `UnauthenticatedException` is thrown.
-  - If a user is present but lacks required roles, an `UnauthorizedException` is thrown.
+- If a user is required but not present, an `UnauthenticatedException` is thrown.
+- If a user is present but lacks the required access, an `UnauthorizedException` is thrown.
 
-- If `throwIfUnauthorized = false`:
-  - The message is silently skipped, allowing delegation to other eligible handlers (if any).
+With `throwIfUnauthorized = false`, a denied handler is skipped instead of throwing. Other eligible handlers can still process the request. On a command or query payload, denial skips every handler for that payload. A skipped request does not produce a successful `null` response; if no handler responds, the caller may eventually time out.
 
-<Aside type="tip">
-  Skipping unauthorized messages with <code>throwIfUnauthorized = false</code> is useful for fallback scenarios or role-specific handler resolution.
-</Aside>
+Authorization is evaluated for the current request's user, including when handlers are prepared for reuse. For a query whose result varies by role, one authenticated handler with an explicit role branch is often the clearest option.
 
 ---
 
 ## Role annotations support nesting and overrides
 
-Fluxzero evaluates annotations hierarchically:
+You can protect a command or query and the handler that processes it. For a separate command/query handler, **both checks must allow access**. Making one side public does not remove a requirement on the other side. These examples use the default throwing behavior on denial.
 
-- If `@RequiresAnyRole("admin")` is placed on a **package**, it applies to all handlers and payloads in that package.
-- You can override it on specific classes or methods.
+Consider `OrderHandler.handle(ApproveOrder)`. Both types have their own package hierarchy. Read each column **from the method or type up toward its parent packages**: the search stops at the nearest authorization policy. Package names below are relative to `com.example`.
+
+```mermaid
+flowchart TB
+    accTitle: Package policy selection for OrderHandler and ApproveOrder
+    accDescr: OrderHandler.handle has no authorization annotation, nor does OrderHandler. The nearest handler package-info requires reviewer, replacing the parent package's RequiresUser. ApproveOrder has no type policy. Its nearest package-info requires sales, replacing its parent package's RequiresUser. The method handles ApproveOrder only when the user has both sales and reviewer roles.
+
+    subgraph handler["Handler hierarchy"]
+        HParent["`handlers
+        package-info.java
+        @RequiresUser
+        Not reached`"]
+        HOwn["`handlers.orders
+        package-info.java
+        @RequiresAnyRole(&quot;reviewer&quot;)
+        3. Selected policy`"]
+        HType["`OrderHandler
+        2. No type policy`"]
+        HMethod["`handle(ApproveOrder)
+        1. No method policy`"]
+        HParent -.- HOwn
+        HOwn --- HType
+        HType --- HMethod
+    end
+
+    subgraph payload["Payload hierarchy"]
+        PParent["`api
+        package-info.java
+        @RequiresUser
+        Not reached`"]
+        POwn["`api.orders
+        package-info.java
+        @RequiresAnyRole(&quot;sales&quot;)
+        2. Selected policy`"]
+        PType["`ApproveOrder
+        1. No type policy`"]
+        PParent -.- POwn
+        POwn --- PType
+    end
+
+    HMethod -->|Requires reviewer| access["`OrderHandler handles ApproveOrder
+    Signed in AND reviewer AND sales`"]
+    PType -->|Requires sales| access
+
+    classDef selected stroke-width:3px
+    classDef unused stroke-dasharray:5 5
+    class HOwn,POwn,access selected
+    class HParent,PParent unused
+```
+
+The package policies with a heavy solid border are selected; the dashed parent policies are not added to them. The handler requires `reviewer` and the payload requires `sales`, so a signed-in user needs **both roles**. Within one hierarchy the nearest policy wins; **between payload and handler the two checks are combined with AND**. If one policy lists several roles in `@RequiresAnyRole`, satisfying any one of those roles passes that check; the other check must still pass independently.
+
+### Choosing the policy on each side
+
+Use the first level with authorization annotations in each row. Each side uses its **own** type and package hierarchy.
+
+| Check | Search order |
+| --- | --- |
+| Command or query | Payload type → own package → parent packages |
+| Handler | Handler method → handler type → own package → parent packages |
+
+Packages provide defaults. A subpackage with authorization annotations replaces the broader package policy; requirements declared together at the selected level still apply together. Unrelated annotations do not stop the search. If no level defines authorization, that side allows access.
+
+### A public healthcheck in a protected package
+
+Suppose the web handlers live in a package annotated with `@RequiresUser`. Regular endpoints inherit that requirement. The healthcheck explicitly uses `@NoUserRequired`, so a monitoring probe can call it without logging in.
+
+```mermaid
+flowchart TB
+    accTitle: Public healthcheck overrides the package default
+    accDescr: The web package requires a user. Regular endpoint methods inherit this default. The healthcheck method declares NoUserRequired, replacing the package default only for that handler.
+    packagePolicy["Web package: @RequiresUser"] -->|Inherited default| regular["Regular endpoint: login required"]
+    packagePolicy -->|Explicit method override| health["GET /health: @NoUserRequired"]
+```
+
+In Java, declare the default in `com/myapp/web/package-info.java`:
+
+```java
+@RequiresUser
+package com.myapp.web;
+
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
+```
+
+Then allow anonymous requests on the healthcheck method. In a Kotlin-only project, a class-level default provides the same method-override pattern:
 
 <Tabs>
 <TabItem value="Java" label="Java">
 
 ```java
-// package-info.java
-@RequiresUser
-package com.myapp.handlers;
-```
+package com.myapp.web;
 
-```java
-@NoUserRequired
-@HandleCommand
-void handle(PublicPing ping) { ... } // Overrides the package-level requirement
+import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
+import io.fluxzero.sdk.web.HandleGet;
+
+public class HealthEndpoint {
+    @HandleGet("/health")
+    @NoUserRequired
+    public String health() {
+        return "OK";
+    }
+}
 ```
 
 </TabItem>
 <TabItem value="Kotlin" label="Kotlin">
 
 ```kotlin
-// No direct package annotations in Kotlin, use class-level instead
-@RequiresUser
-class SecuredHandler {
-    @HandleCommand
-    fun handle(command: UpdateAccount) { ... }
-}
+package com.myapp.web
 
-@NoUserRequired
-class PublicHandler {
-    @HandleCommand
-    fun handle(command: PublicPing) { ... }
+import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser
+import io.fluxzero.sdk.web.HandleGet
+
+@RequiresUser
+class HealthEndpoint {
+    @HandleGet("/health")
+    @NoUserRequired
+    fun health(): String = "OK"
 }
 ```
 
 </TabItem>
 </Tabs>
+
+This exception applies to the healthcheck handler. It does not grant anonymous access to protected commands or queries sent by that handler.
+
+### Type inheritance and shared packages
+
+Type policy includes inherited type and interface annotations. Different authorization annotations inherited this way can coexist; the table describes fallback between levels, not replacement of individual inherited annotations.
+
+When multiple JARs define `package-info` for the same package, the first definition selected by the classloader supplies that package's policy. Other definitions of that same package are not combined. This policy applies to classes from every JAR in that package; the application controls precedence through its packaging and classloader configuration. Ancestor authorization packages use the defining loader of the payload or handler class, including applications loaded below the SDK's loader. Changing the thread context loader does not change that policy.
 
 ---
 
@@ -268,8 +358,8 @@ fun handle(command: DeleteAccount) { ... }
 
 ## Best practices
 
-- Use role annotations on **payload classes** to guarantee strict access checks across environments.
-- Apply them on **handlers** to allow fallback logic or specialization by role.
+- Put shared requirements on **command and query types** so their handlers respect the operation's access policy.
+- Apply **handler** annotations for additional requirements or explicit exceptions to handler package defaults.
 - Set **default access rules at the package level**, and override them as needed.
 - Create **custom annotations** to avoid repeating role strings throughout your codebase.
 
