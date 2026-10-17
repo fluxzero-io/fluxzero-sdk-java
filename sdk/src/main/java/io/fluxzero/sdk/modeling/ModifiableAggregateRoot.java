@@ -146,13 +146,25 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     private static Map<String, Class<?>> getActiveAggregatesFor(
             Collection<? extends ModifiableAggregateRoot<?>> activeAggregates, Object entityId) {
         List<Entity<?>> candidates = activeAggregates.stream()
-                .filter(a -> a.getEntity(entityId).isPresent()).collect(Collectors.toList());
+                .filter(a -> findActiveEntity(a, entityId).isPresent()).collect(Collectors.toList());
         Comparator<Entity<?>> byPresent = Comparator.comparing(
-                a -> a.getEntity(entityId).map(Entity::isPresent).orElse(false));
+                a -> findActiveEntity(a, entityId).map(Entity::isPresent).orElse(false));
         Comparator<Entity<?>> byOrder = Comparator.comparing(candidates::indexOf);
         return candidates.stream()
                 .sorted(byPresent.thenComparing(byOrder))
                 .collect(toMap(e -> e.id().toString(), Entity::type, (a, b) -> b, LinkedHashMap::new));
+    }
+
+    private static Optional<? extends Entity<?>> findActiveEntity(Entity<?> aggregate, Object entityId) {
+        Optional<? extends Entity<?>> existing = aggregate.getEntity(entityId);
+        if (existing.isPresent()) {
+            return existing;
+        }
+        // Relationship lookups use repository IDs; keep the existing functional-ID and alias precedence.
+        String repositoryId = entityId.toString();
+        return aggregate.findEntity(entity -> entity.id() != null && entity.type() != null
+                && repositoryId.equals(entity.type().isAnnotationPresent(Model.class)
+                        ? entity.id().toString() : EntityMetadata.of(entity.type()).repositoryId(entity.id())));
     }
 
     /**
