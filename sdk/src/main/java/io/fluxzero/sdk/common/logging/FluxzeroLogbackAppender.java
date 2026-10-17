@@ -24,11 +24,13 @@ import ch.qos.logback.core.Appender;
 import ch.qos.logback.core.AppenderBase;
 import ch.qos.logback.core.Context;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.web.WebRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +52,8 @@ import static io.fluxzero.common.ObjectUtils.stackTrace;
  * <p>
  * This appender inspects log messages for severity {@code WARN} or higher and forwards them as {@link ConsoleWarning}
  * or {@link ConsoleError} messages to the Fluxzero error gateway, along with detailed metadata such as stack traces, logger
- * name, and message content.
+ * name, and message content. Web request metadata is limited to its method and bounded path without the origin,
+ * query or fragment. Correlation data and explicit application diagnostics remain available.
  *
  * @see ConsoleWarning
  * @see ConsoleError
@@ -141,8 +144,8 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
             Optional<Throwable> throwable =
                     ofNullable((ThrowableProxy) event.getThrowableProxy()).map(ThrowableProxy::getThrowable);
             if (ignoreEvent(event)) {
-                String errorMessage = "Ignoring error: %s".formatted(event.getFormattedMessage());
-                throwable.ifPresentOrElse(e -> log.info(errorMessage, e), () -> log.info(errorMessage));
+                throwable.ifPresentOrElse(e -> log.info("Ignoring error: {}", event.getFormattedMessage(), e),
+                                          () -> log.info("Ignoring error: {}", event.getFormattedMessage()));
                 return;
             }
             Optional<Fluxzero> fluxzero = Fluxzero.getOptionally();
@@ -153,7 +156,7 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
             // Handler and invocation on the triggering message describe its publisher. Only a currently active
             // invocation may attribute the log event to a handler; currentCorrelationData restores it below.
             Metadata metadata = ofNullable(DeserializingMessage.getCurrent())
-                    .map(DeserializingMessage::getMetadata).orElse(Metadata.empty())
+                    .map(FluxzeroLogbackAppender::diagnosticMetadata).orElse(Metadata.empty())
                     .without("$handler").without("$invocation");
             metadata = metadata.with(Fluxzero.currentCorrelationData()).with(
                     "stackTrace", format("[%s] %s %s - %s%s", event.getThreadName(), event.getLevel(),
@@ -188,6 +191,18 @@ public class FluxzeroLogbackAppender extends AppenderBase<ILoggingEvent> {
         } catch (Throwable e) {
             log.info(ClientUtils.ignoreMarker, "Failed to publish console error", e);
         }
+    }
+
+    private static Metadata diagnosticMetadata(DeserializingMessage message) {
+        Metadata metadata = message.getMetadata();
+        if (message.getMessageType() != MessageType.WEBREQUEST) {
+            return metadata;
+        }
+        // Request headers, session data and query parameters must not become console error metadata.
+        // Missing routing metadata must not prevent reporting the original failure.
+        return Metadata.of(WebRequest.methodKey, metadata.get(WebRequest.methodKey),
+                           WebRequest.urlKey, metadata.get(WebRequest.urlKey) == null
+                                   ? null : WebRequest.getPathForLogging(metadata));
     }
 
     private void publishReport(Fluxzero fluxzero, Message message) {

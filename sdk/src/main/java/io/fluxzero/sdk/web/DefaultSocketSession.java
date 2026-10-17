@@ -22,6 +22,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.exception.FunctionalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.tracking.handling.Request;
@@ -124,7 +125,8 @@ public class DefaultSocketSession implements SocketSession {
             try {
                 sendMessage(socketRequest);
             } catch (Throwable e) {
-                log.error("Failed to send request {}", request, e);
+                log.error("Failed to send socket request {} of type {}",
+                          socketRequest.getRequestId(), request == null ? null : request.getClass().getName(), e);
                 response.completeExceptionally(e);
             }
         } else {
@@ -136,7 +138,9 @@ public class DefaultSocketSession implements SocketSession {
 
     /**
      * Prepares an invoker for a valid socket request, wrapping synchronous or asynchronous results and failures in
-     * correlated socket responses. Returns empty for invalid requests or when no handler matches.
+     * correlated socket responses. Functional exception messages are preserved; other failures receive
+     * {@code Request failed} while the original cause is logged with the request ID for diagnosis.
+     * Returns empty for invalid requests or when no handler matches.
      */
     public Optional<HandlerInvoker> tryHandleRequest(DeserializingMessage message,
                                                      Handler<DeserializingMessage> handler) {
@@ -164,19 +168,25 @@ public class DefaultSocketSession implements SocketSession {
                                     if (result instanceof CompletableFuture<?> future) {
                                         return future.thenApply(r -> SocketResponse.success(
                                                         request.getRequestId(), JsonUtils.valueToTree(r)))
-                                                .exceptionally(
-                                                        e -> SocketResponse.error(request.getRequestId(), ofNullable(
-                                                                ObjectUtils.unwrapException(e).getMessage()).orElse(
-                                                                "Request failed")));
+                                                .exceptionally(e -> errorResponse(request.getRequestId(), e));
                                     }
                                     return SocketResponse.success(request.getRequestId(),
                                                                   JsonUtils.valueToTree(result));
                                 } catch (Throwable e) {
-                                    return SocketResponse.error(request.getRequestId(),
-                                                                ofNullable(e.getMessage()).orElse("Request failed"));
+                                    return errorResponse(request.getRequestId(), e);
                                 }
                             }
                         }));
+    }
+
+    private SocketResponse errorResponse(long requestId, Throwable error) {
+        Throwable cause = ofNullable(ObjectUtils.unwrapException(error)).orElse(error);
+        if (cause instanceof FunctionalException) {
+            return SocketResponse.error(requestId, ofNullable(cause.getMessage()).orElse("Request failed"));
+        }
+        // These failures are converted to results before the outer error-reporting interceptor sees them.
+        log.error("Socket request {} failed", requestId, cause);
+        return SocketResponse.error(requestId, "Request failed");
     }
 
     /**
@@ -210,8 +220,7 @@ public class DefaultSocketSession implements SocketSession {
                                         f.completeExceptionally(e);
                                     }
                                 },
-                                () -> log.warn("No outstanding request {} for response {}", response.getRequestId(),
-                                               response))));
+                                () -> log.warn("No outstanding socket request for response {}", response.getRequestId()))));
     }
 
     @Override

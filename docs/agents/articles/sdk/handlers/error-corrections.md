@@ -87,3 +87,13 @@ Assert the original error with `expectError(...)`, the compensation/correction m
 Keep a successful control beside the failure scenario when the same handler normally produces a product-visible delivery or projection. Prove three rows independently: a successful adapter produces the ordinary notification/document, a failing adapter reports the error and emits the correction, and the public query/feed observes the final ordinary or corrected record. A correction-only test can pass even when the normal trigger-to-delivery path or the projection is disconnected.
 
 Add a no-duplicate scenario when the product promises exactly-once visible correction. Replaying or redelivering the trigger should not produce duplicate payments, emails, documents, or user-facing feed entries.
+
+
+Default HTTP error mapping preserves deliberate functional and validation messages, but maps deserialization
+failures to a fixed 400 request-format message and unexpected technical errors to a fixed 500 message. Preserve
+original causes for internal diagnosis. Validation paths and map keys identify failing fields; do not blindly
+remove them or rewrite custom validation messages. Application-written logs, explicit responses and custom
+response mappers remain application-controlled, in both Java and Kotlin.
+
+Console error reporting limits automatic web request metadata to the method and bounded path, omitting headers,
+session data, origin, query and fragment. Correlation data and explicit application diagnostics remain available.
