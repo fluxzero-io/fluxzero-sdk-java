@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Command;
+import lombok.AllArgsConstructor;
 import lombok.Value;
 
 /**
@@ -34,6 +35,7 @@ import lombok.Value;
  * {@link io.fluxzero.common.api.tracking.ResetPosition} command instead.
  */
 @Value
+@AllArgsConstructor
 public class StorePosition extends Command {
     /**
      * The type of message being tracked (e.g. {@code EVENT}, {@code COMMAND}, etc.).
@@ -62,11 +64,29 @@ public class StorePosition extends Command {
     Guarantee guarantee;
 
     /**
+     * The tracked topic or document collection, or {@code null} for an unscoped stream. Included in metrics for
+     * attribution; the connected endpoint remains authoritative for storage and routing.
+     */
+    String topic;
+
+    /** Creates a position update for an unscoped stream. */
+    public StorePosition(MessageType messageType, String consumer, int[] segment, long lastIndex, Guarantee guarantee) {
+        this(messageType, consumer, segment, lastIndex, guarantee, null);
+    }
+
+    /** Creates and validates a position update for an unscoped stream. */
+    public static StorePosition fromJson(MessageType messageType, String consumer, int[] segment, long lastIndex,
+                                         Guarantee guarantee) {
+        return fromJson(messageType, consumer, segment, lastIndex, guarantee, null);
+    }
+
+    /**
      * Creates a position request from JSON properties, validating that the segment has two ordered boundaries
      * within the supported segment range.
      */
     @JsonCreator(mode = JsonCreator.Mode.PROPERTIES)
-    public static StorePosition fromJson(MessageType messageType, String consumer, int[] segment, long lastIndex, Guarantee guarantee) {
+    public static StorePosition fromJson(MessageType messageType, String consumer, int[] segment, long lastIndex,
+                                         Guarantee guarantee, String topic) {
         if (segment.length != 2) {
             throw new IllegalArgumentException("Segment must be of length 2");
         }
@@ -76,7 +96,7 @@ public class StorePosition extends Command {
         if (segment[0] < 0 || segment[1] > SegmentRange.MAX_SEGMENT) {
             throw new IllegalArgumentException("Segment must be within range 0 - 128");
         }
-        return new StorePosition(messageType, consumer, segment, lastIndex, guarantee);
+        return new StorePosition(messageType, consumer, segment, lastIndex, guarantee, topic);
     }
 
     /**
