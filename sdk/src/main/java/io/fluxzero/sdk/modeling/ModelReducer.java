@@ -378,6 +378,7 @@ public final class ModelReducer {
             }
         }
         if (payloadValues == null && modelValues == null) {
+            beginState.validateAliasResults(List.of());
             return List.of();
         }
         Map<String, AppliedValue> finalValues;
@@ -643,6 +644,7 @@ public final class ModelReducer {
     private List<Change> finishApply(
             DeserializingMessage message, CommitAttempt beginState, List<Change> transitions,
             boolean assertions, DependencyLoader assertionLoader, CommitAttempt deferred) {
+        beginState.validateAliasResults(transitions);
         if (assertions && afterAssertions) {
             if (deferred != null) {
                 deferred.retainAfterAssertion(new DeferredAssertion(message, this));
@@ -1009,7 +1011,8 @@ public final class ModelReducer {
         Entity<?> target = resultTarget(handler, beginState, targetId);
         // A nullable read retains an empty entity, including its absence/tombstone revision.
         // Returning a new value may create it without discarding that conflict boundary.
-        boolean creation = value != null && (handler.collectionApplyResult() || handler.dynamicApplyResult())
+        boolean aliasCreation = !Entity.isLoading() && beginState.aliasCreation(targetType, value, targetId);
+        boolean creation = aliasCreation || value != null && (handler.collectionApplyResult() || handler.dynamicApplyResult())
                            && (target == null || target.isEmpty());
         boolean graphWrite = (handler.collectionApplyResult() || handler.dynamicApplyResult())
                              && target != null && target == beginState.graphReadEntity(targetId);
@@ -1024,7 +1027,8 @@ public final class ModelReducer {
 
     private static Entity<?> resultTarget(EntityMetadata.HandlerMethod handler, CommitAttempt context, String modelId) {
         Entity<?> target = context.entity(modelId);
-        return target == null && (handler.collectionApplyResult() || handler.dynamicApplyResult())
+        return target == null && (handler.collectionApplyResult() || handler.dynamicApplyResult()
+                                  || context.isAliasCreationTarget(modelId))
                 ? context.graphReadEntity(modelId) : target;
     }
 
@@ -1403,7 +1407,7 @@ public final class ModelReducer {
                                 transition.modelType());
                     }
                 }
-                steps.add(new CommitAttempt.Step(current.message(), transitions));
+                steps.add(new CommitAttempt.Step(current.message(), transitions, -1, context.aliasReplayBindings()));
             }
             attempt.checkReadBoundary();
             attempt.evaluated(
@@ -1478,7 +1482,7 @@ public final class ModelReducer {
                             transition.modelId(), transition, Change::then));
             transitions.merge(addition.modelId(), addition, Change::then);
             steps.set(i, new CommitAttempt.Step(
-                    existing, List.copyOf(transitions.values())));
+                    existing, List.copyOf(transitions.values()), step.cascadeCause(), step.aliasBindings()));
             return;
         }
         steps.add(new CommitAttempt.Step(message, List.of(addition)));

@@ -288,6 +288,55 @@ fun credit(@Association("destinationId") destination: Account): Account = destin
 </TabItem>
 </Tabs>
 
+## Selecting a Model by alias
+
+A command can identify a customer by email when it does not have the internal customer ID. With
+`fluxzero.model.aliasTargets=true`, a command property named `email` selects the Model's `@Alias email`:
+
+```java
+@Model
+record Customer(@EntityId String customerId, @Alias String email, String name) {}
+
+record RenameCustomerByEmail(String email, String name) {
+    @Apply
+    Customer apply(Customer customer) {
+        return new Customer(customer.customerId(), customer.email(), name);
+    }
+}
+```
+
+Enable this after both SDK and Runtime support identity selection. It is also enabled by
+`fluxzero.defaults.version=2026.10.18` or later; an explicit `fluxzero.model.aliasTargets=false` retains compatibility
+behavior. SDK and Runtime may be upgraded in either order while the feature remains disabled. An enabled feature
+against an older Runtime fails clearly before sending the unsupported operation.
+
+The property name supplies the meaning: `customerId` addresses a primary ID and `email` addresses that alias, even
+when the same string is a primary ID of another Model. Generic `loadModel` and `loadGraph` calls keep primary-ID
+precedence. An explicit Graph, typed ID or `@Association` binding remains more specific. A null primary-ID field
+is invalid; it does not fall back to an email field.
+
+Several supplied alias properties must agree on one owner. Collection-valued selectors are also a conjunction for
+one Model. A value on another alias property does not count as a match. The result rules are:
+
+| Selection | Apply result |
+| --- | --- |
+| Every selector finds the same owner | May update that owner, change its aliases or delete it. |
+| Some selectors find one owner, others are absent | Updates that owner and must satisfy every selector in the final value. |
+| Every selector is absent | May create a Model with a valid primary ID and matching alias properties. It cannot overwrite another existing primary Model. |
+| Selectors find different owners | Rejected as ambiguous before Apply. |
+
+Null or blank alias values and empty collections do not select a Model; at least one effective alias value is required.
+A present null primary-ID property still fails without falling back to aliases.
+
+Creation still needs a factory or a nullable Model parameter; normal create/update compatibility checks apply.
+An explicit primary ID plus alias fields uses the ID for selection, so a command can change an email normally.
+
+The commit validates the observed alias mapping atomically with the Model revision. If ownership changes, `RETRY`
+repeats the entire decision, including assertions. `ACCEPT` cannot apply its old decision to a different owner and
+reports a conflict instead. Upgrade all SDK readers of these Models before enabling the new targeting contract.
+New readers understand canonical bindings even with compatibility defaults; older SDKs do not. Stored events retain canonical selection bindings, so replay does not consult today's
+alias mapping for the original choice.
+
 ## Parents and ancestors
 
 If no direct payload property identifies an injected model, Fluxzero follows stored ancestor relations at the

@@ -62,7 +62,7 @@ public final class ModelEventWireCodec {
 
     /** Encodes routed native envelopes only for a peer that explicitly supports them. */
     public static byte[] tryEncode(JsonType value, boolean routedEnvelopes) throws IOException {
-        if (value instanceof GetModelEvents request) {
+        if (value instanceof GetModelEvents request && value.getClass() == GetModelEvents.class) {
             return encodeRequests(
                     new RequestBatch<>(List.of(request)),
                     DIRECT_REQUEST_MAGIC);
@@ -135,7 +135,7 @@ public final class ModelEventWireCodec {
             return false;
         }
         for (JsonType value : batch.getRequests()) {
-            if (!(value instanceof GetModelEvents)) {
+            if (value.getClass() != GetModelEvents.class) {
                 return false;
             }
         }

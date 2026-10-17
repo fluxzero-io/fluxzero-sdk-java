@@ -29,6 +29,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class WebSocketCapabilitiesTest {
 
     @Test
+    void identitySelectionRequiresAnExplicitSupportedVersion() {
+        assertFalse(WebSocketCapabilities.supportsModelIdentitySelection(null));
+        assertFalse(WebSocketCapabilities.supportsModelIdentitySelection(Map.of()));
+        assertFalse(WebSocketCapabilities.supportsModelIdentitySelection(Map.of(
+                WebSocketCapabilities.MODEL_IDENTITY_SELECTION_VERSION_HEADER, List.of("2"))));
+        assertTrue(WebSocketCapabilities.supportsModelIdentitySelection(Map.of(
+                WebSocketCapabilities.MODEL_IDENTITY_SELECTION_VERSION_HEADER.toLowerCase(), List.of("1"))));
+    }
+
+    @Test
     void consumerFilteringRequiresAnExplicitSupportedLanguage() {
         assertFalse(WebSocketCapabilities.supportsConsumerFiltering(null));
         assertFalse(WebSocketCapabilities.supportsConsumerFiltering(Map.of()));

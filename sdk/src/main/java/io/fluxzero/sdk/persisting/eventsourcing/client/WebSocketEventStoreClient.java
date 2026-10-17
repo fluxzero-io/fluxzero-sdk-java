@@ -189,9 +189,20 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         return sendCommand(new AppendEvents(List.of(new EventBatch(aggregateId, events, storeOnly)), resolveGuarantee(guarantee)));
     }
 
-    /**
-     * Commits an independent-model commit and retains the positions returned by the runtime.
-     */
+    @Override
+    protected io.fluxzero.common.api.Request adaptRequestForSession(
+            io.fluxzero.common.api.Request request, io.fluxzero.sdk.common.websocket.WebsocketSession session) {
+        if ((request instanceof io.fluxzero.common.api.modeling.GetModelEventsByIdentity
+             || request instanceof io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads)
+            && !io.fluxzero.common.websocket.WebSocketCapabilities.supportsModelIdentitySelection(
+                    session.getHandshakeResponseHeaders())) {
+            throw new UnsupportedOperationException(
+                    "This Runtime does not support explicit Model identity selection; upgrade the Runtime before enabling alias mutation targets");
+        }
+        return request;
+    }
+
+    /** Commits an independent-model commit and retains the positions returned by the Runtime. */
     @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         return send(commit);

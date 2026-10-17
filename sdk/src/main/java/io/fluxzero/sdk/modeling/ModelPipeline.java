@@ -69,6 +69,7 @@ final class ModelPipeline {
             CompletableFuture.completedFuture(null);
 
     private final DefaultModelRepository repository;
+    private final EventStoreClient eventStoreClient;
     private final DeadlinePlan deadlines;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
@@ -100,7 +101,7 @@ final class ModelPipeline {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.deadlines = new DeadlinePlan(repository, serializer, knownModelTypes);
         this.serializer = Objects.requireNonNull(serializer, "serializer");
-        Objects.requireNonNull(eventStoreClient, "eventStoreClient");
+        this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
         this.conflictResolver = Objects.requireNonNull(conflictResolver, "conflictResolver");
         if (maxConflictRetries < 0) {
@@ -426,7 +427,8 @@ final class ModelPipeline {
             result.finishReadBoundary();
             return result;
         } catch (Throwable failure) {
-            CommitAttempt.ReadBoundaryConflict conflict = attempt.readBoundaryConflict();
+            CommitAttempt.ReadBoundaryConflict conflict = failure instanceof CommitAttempt.ReadBoundaryConflict read
+                    ? read : attempt.readBoundaryConflict();
             if (conflict == null) { throw failure; }
             // Only the built-in RETRY path may speculate. The failed attempt has not been staged or submitted.
             if (conflictResolver != DefaultModelConflictResolver.INSTANCE || maxConflictRetries == 0) { throw conflict; }
@@ -667,7 +669,8 @@ final class ModelPipeline {
                     }
                     if (retry.accepting()) {
                         if (!result.isRebaseRequired()) {
-                            return CompletableFuture.completedFuture(optional);
+                            return result.isAccepted() ? CompletableFuture.completedFuture(optional)
+                                    : CompletableFuture.failedFuture(new ModelCommitConflictException(result));
                         }
                         if (attempts >= retry.maxAttempts()) {
                             return CompletableFuture.failedFuture(new IllegalStateException(
@@ -1280,7 +1283,7 @@ final class ModelPipeline {
                 }
             }
             return new ModelReducer.ResolvedSubstep(
-                    resolve(resolution, boundary, stagedValues), definition.reducer());
+                    resolveIdentities(resolution, boundary, stagedValues), definition.reducer());
         }
 
         @Override
@@ -1290,7 +1293,7 @@ final class ModelPipeline {
             if (definition.reducer().requiresStorageBoundary()) { context.ensureReadBoundary(); }
             MutationPlan.Resolution resolution = definition.targets().resolve(message, null, false);
             return new ModelReducer.ResolvedSubstep(
-                    resolve(resolution, context.readStateIndex(), values), definition.reducer());
+                    resolveIdentities(resolution, context.readStateIndex(), values), definition.reducer());
         }
 
         @Override
@@ -1304,8 +1307,104 @@ final class ModelPipeline {
             return resolve(resolution, context.readStateIndex(), values).withValues(values);
         }
 
+        private CommitAttempt resolveIdentities(MutationPlan.Resolution resolution, Long boundary,
+                                                Map<String, Object> stagedValues) {
+            if (resolution.aliasTargets().isEmpty()) { return resolve(resolution, boundary, stagedValues); }
+            List<String> lookups = resolution.aliasTargets().stream().flatMap(target -> target.values().stream())
+                    .map(MutationPlan.AliasValue::lookup).distinct().toList();
+            var response = eventStoreClient.getModelEvents(new io.fluxzero.common.api.modeling.GetModelEventsByIdentity(
+                    lookups.stream().map(id -> new io.fluxzero.common.api.modeling.ModelEventStreamRequest(id, -1L, 0))
+                            .toList(), io.fluxzero.common.api.modeling.ModelReadBoundary.current(), 0,
+                    io.fluxzero.common.api.modeling.GetModelEventsByIdentity.Selection.ALIAS));
+            if (response.getStreams().size() != lookups.size()) {
+                throw new EventSourcingException("Explicit alias lookup returned an unexpected stream count");
+            }
+            long selectedBoundary = boundary == null ? response.getStateIndex() : boundary;
+            Map<String, String> owners = new LinkedHashMap<>();
+            List<io.fluxzero.common.api.modeling.ModelAliasObservation> observations = new ArrayList<>();
+            for (int i = 0; i < lookups.size(); i++) {
+                var stream = response.getStreams().get(i);
+                if (!lookups.get(i).equals(stream.getModelId())) {
+                    throw new EventSourcingException("Explicit alias lookup returned an unexpected identity");
+                }
+                var head = stream.getHead();
+                if (head != null && head.getStateIndex() > selectedBoundary) {
+                    throw new CommitAttempt.ReadBoundaryConflict(lookups.get(i), response.getStateIndex());
+                }
+                String owner = head == null ? null : head.getModelId();
+                owners.put(lookups.get(i), owner);
+                observations.add(new io.fluxzero.common.api.modeling.ModelAliasObservation(lookups.get(i), owner));
+            }
+            Map<String, MutationPlan.ResolvedModel> targets = new LinkedHashMap<>();
+            resolution.models().forEach(target -> MutationPlan.merge(targets, target));
+            Map<EntityMetadata.ModelParameter, MutationPlan.DirectReferences> references =
+                    new LinkedHashMap<>(resolution.references());
+            List<ModelAliasSelection> selections = new ArrayList<>();
+            ModelBatchScope.Snapshot pending = durableOnly ? ModelBatchScope.Snapshot.EMPTY
+                    : repository.graphStagedValues(io.fluxzero.common.api.modeling.ModelReadBoundary.current());
+            Map<String, Object> visible = new LinkedHashMap<>();
+            pending.values().forEach((id, entity) -> visible.put(id, entity.get()));
+            visible.putAll(stagedValues);
+            for (MutationPlan.AliasTarget target : resolution.aliasTargets()) {
+                Set<String> selectedOwners = new LinkedHashSet<>();
+                boolean missing = false;
+                List<MutationPlan.AliasValue> found = new ArrayList<>();
+                for (MutationPlan.AliasValue selector : target.values()) {
+                    String owner = owners.get(selector.lookup());
+                    if (owner != null && visible.containsKey(owner)) {
+                        pending.overlayExactIdentity(owner, target.modelType());
+                        Object staged = visible.get(owner);
+                        if (staged == null || !EntityMetadata.of(staged.getClass()).aliases(staged)
+                                .contains(selector.lookup())) { owner = null; }
+                    }
+                    for (var entry : visible.entrySet()) {
+                        Object staged = entry.getValue();
+                        if (staged != null && target.modelType().isInstance(staged)
+                            && EntityMetadata.of(staged.getClass()).aliases(staged).contains(selector.lookup())) {
+                            if (owner != null && !owner.equals(entry.getKey())) {
+                                throw new IllegalStateException("Alias '" + selector.lookup() + "' has multiple owners");
+                            }
+                            pending.overlayExactIdentity(entry.getKey(), target.modelType());
+                            owner = entry.getKey();
+                        }
+                    }
+                    if (owner == null) { missing = true; }
+                    else { selectedOwners.add(owner); found.add(selector); }
+                }
+                if (selectedOwners.size() > 1) {
+                    throw new IllegalStateException("Alias selectors for " + target.modelType().getName()
+                            + " address different Models: " + selectedOwners);
+                }
+                String owner = selectedOwners.isEmpty() ? null : selectedOwners.iterator().next();
+                if (owner != null) {
+                    MutationPlan.merge(targets, new MutationPlan.ResolvedModel(owner, target.modelType(), target.access(),
+                            target.values().stream().map(value -> value.property().property().name()).distinct().toList()));
+                }
+                if (target.parameter() != null) {
+                    references.put(target.parameter(), new MutationPlan.DirectReferences(true, owner, List.of()));
+                }
+                selections.add(new ModelAliasSelection(target, owner, missing, List.copyOf(found)));
+            }
+            var selected = new MutationPlan.Resolution(List.copyOf(targets.values()), resolution.deferredWrites(),
+                    resolution.ancestorDependencies(), references).withPrimaryOnly();
+            CommitAttempt loaded = resolve(selected, selectedBoundary, stagedValues);
+            for (ModelAliasSelection selection : selections) {
+                if (selection.owner() == null) { continue; }
+                Object value = visible.containsKey(selection.owner()) ? visible.get(selection.owner())
+                        : loaded.entity(selection.owner()).get();
+                for (var selector : selection.foundSelectors()) {
+                    if (value == null || !selector.matches(value)) {
+                        throw new IllegalStateException("Alias '" + selector.lookup()
+                                + "' belongs to a different property than '" + selector.property().property().name() + "'");
+                    }
+                }
+            }
+            return loaded.withIdentitySelections(selections, observations);
+        }
+
         private CommitAttempt resolve(
                 MutationPlan.Resolution resolution, Long boundary, Map<String, Object> stagedValues) {
+            if (compiler.aliasTargets()) { resolution = resolution.withPrimaryOnly(); }
             if (deferredContext != null) {
                 if (resolution.hasAncestorDependencies() || resolution.models().stream()
                         .anyMatch(target -> !commitEntities.containsKey(target.modelId()))) {
@@ -1336,6 +1435,7 @@ final class ModelPipeline {
                                 ? planKey == null ? resolution
                                         : resolution.withResolvedModels(effectiveTargets)
                                 : new MutationPlan.Resolution(missing, List.of());
+                if (resolution.primaryOnly()) { loadResolution = loadResolution.withPrimaryOnly(); }
                 stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
                 effectiveTargets = canonicalTargets(effectiveTargets);
             }
@@ -1395,7 +1495,7 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution = definitionFor(
                                 message.getPayloadClass())
                         .targets().resolve(message, null, applyOnly);
-                if (resolution.hasAncestorDependencies()) {
+                if (resolution.hasAncestorDependencies() || !resolution.aliasTargets().isEmpty()) {
                     continue;
                 }
                 resolution.models().stream()
@@ -1437,6 +1537,7 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
+            if (compiler.aliasTargets()) { resolution = resolution.withPrimaryOnly(); }
             if (durableOnly) {
                 // Callbacks can discover typed assertion dependencies that were not in their initial target plan.
                 // Register those explicit types before a document head needs the local logical-name catalog.

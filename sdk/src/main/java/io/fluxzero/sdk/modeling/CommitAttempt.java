@@ -118,7 +118,7 @@ public final class CommitAttempt {
         private final ModelCommitConflict conflict;
 
         public ReadBoundaryConflict(String modelId, long stateIndex) {
-            super("Document model '%s' changed before its transaction snapshot was established".formatted(modelId));
+            super("Model identity '%s' changed before its transaction snapshot was established".formatted(modelId));
             conflict = new ModelCommitConflict(modelId, stateIndex, -1L);
         }
 
@@ -151,6 +151,7 @@ public final class CommitAttempt {
 
     void resetGraphReads() {
         deadlineOrigins = null;
+        identityReads = null;
         deferredBoundary = null;
         failedPreparationReads = null;
         protectedAssertions = false;
@@ -222,8 +223,81 @@ public final class CommitAttempt {
                || view.context().readContext() == null ? graph : Graphs.withReadContext(graph, null);
     }
 
+    private List<ModelAliasSelection> identitySelections = List.of();
+    private List<io.fluxzero.common.api.modeling.ModelAliasObservation> identityObservations = List.of();
+    private Map<String, io.fluxzero.common.api.modeling.ModelAliasObservation> identityReads;
+    private Set<String> aliasCreations;
+
+    CommitAttempt withIdentitySelections(List<ModelAliasSelection> selections,
+                                        List<io.fluxzero.common.api.modeling.ModelAliasObservation> observations) {
+        identitySelections = List.copyOf(selections);
+        identityObservations = List.copyOf(observations);
+        return this;
+    }
+
+    /** Alias mapping observations retained independently of assertion-only dependencies. */
+    public List<io.fluxzero.common.api.modeling.ModelAliasObservation> identityReads() {
+        return identityReads == null ? List.of() : List.copyOf(identityReads.values());
+    }
+
+    Map<String, String> aliasReplayBindings() {
+        if (identitySelections.isEmpty()) { return Map.of(); }
+        Map<String, String> result = new LinkedHashMap<>();
+        for (var selection : identitySelections) {
+            for (var selector : selection.target().values()) {
+                result.put(selection.target().modelType().getName() + ":" + selector.property().property().name(),
+                           selection.owner() == null ? "" : selection.owner());
+            }
+        }
+        return Map.copyOf(result);
+    }
+
+    boolean aliasCreation(Class<?> type, Object value, String id) {
+        if (identitySelections.isEmpty()) { return false; }
+        List<ModelAliasSelection> candidates = identitySelections.stream()
+                .filter(selection -> selection.writable() && selection.owner() == null && selection.accepts(type)).toList();
+        if (candidates.isEmpty()) { return false; }
+        candidates.forEach(selection -> selection.validate(value));
+        Map<String, Object> visible = new LinkedHashMap<>();
+        graphEntities().forEach((key, entity) -> visible.put(key, entity.get()));
+        CommitAttempt loaded = readResolver().resolveValidation(id, type, readStateIndex(), visible);
+        Entity<?> before = loaded.entity(id);
+        if (before != null && before.isPresent()) {
+            throw new IllegalStateException("Alias creation returned existing primary model '" + id + "'");
+        }
+        loaded.joinReads(this);
+        CommitAttempt owner = graphReadOwner;
+        if (owner.graphReadEntities == null) { owner.graphReadEntities = new LinkedHashMap<>(); }
+        owner.graphReadEntities.put(id, before);
+        if (aliasCreations == null) { aliasCreations = new LinkedHashSet<>(); }
+        aliasCreations.add(id);
+        return true;
+    }
+
+    boolean isAliasCreationTarget(String id) { return aliasCreations != null && aliasCreations.contains(id); }
+
+    void validateAliasResults(List<Change> changes) {
+        for (ModelAliasSelection selection : identitySelections) {
+            if (!selection.writable() || !selection.requireResultMatch()) { continue; }
+            List<Change> selected = changes.stream().filter(change -> selection.accepts(change.modelType())
+                    && (selection.owner() == null || selection.owner().equals(change.modelId()))).toList();
+            if (selected.size() != 1) {
+                throw new IllegalStateException("Alias selection requires exactly one matching Apply result for "
+                        + selection.target().modelType().getName());
+            }
+            selection.validate(selected.getFirst().after());
+        }
+    }
+
     void bindGraphReads(CommitAttempt owner) {
         graphReadOwner = owner;
+        for (var observation : identityObservations) {
+            if (owner.identityReads == null) { owner.identityReads = new LinkedHashMap<>(); }
+            var previous = owner.identityReads.putIfAbsent(observation.alias(), observation);
+            if (previous != null && !previous.equals(observation)) {
+                throw new ReadBoundaryConflict(observation.alias(), readStateIndex());
+            }
+        }
         if (deferredBoundary != null) { owner.deferredBoundary = deferredBoundary; }
         recordAncestorReads(false);
     }
@@ -974,6 +1048,8 @@ public final class CommitAttempt {
         result.ancestorReads = ancestorReads;
         result.aliasResolutions = aliasResolutions;
         result.aliasSelections = aliasSelections;
+        result.identitySelections = identitySelections;
+        result.identityObservations = identityObservations;
         result.overlayAliasSelections(values);
         return result;
     }
@@ -1091,9 +1167,13 @@ public final class CommitAttempt {
         boolean apply = ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT;
         List<String> reads = apply ? applyReadModelIds : readModelIds;
         Set<String> aliasHeads = apply ? graphApplyAliasHeads : graphAliasHeads;
-        if (aliasHeads == null || aliasHeads.isEmpty()) { return reads; }
+        if ((aliasHeads == null || aliasHeads.isEmpty()) && identityReads == null) { return reads; }
         Set<String> combined = new LinkedHashSet<>(reads);
-        combined.addAll(aliasHeads);
+        if (aliasHeads != null) { combined.addAll(aliasHeads); }
+        if (identityReads != null) {
+            identityReads.values().stream().map(io.fluxzero.common.api.modeling.ModelAliasObservation::expectedOwner)
+                    .filter(Objects::nonNull).forEach(combined::add);
+        }
         return List.copyOf(combined);
     }
 
@@ -1292,7 +1372,11 @@ public final class CommitAttempt {
     public record Step(
             DeserializingMessage message,
             List<Change> changes,
-            int cascadeCause) {
+            int cascadeCause,
+            Map<String, String> aliasBindings) {
+        public Step(DeserializingMessage message, List<Change> changes, int cascadeCause) {
+            this(message, changes, cascadeCause, Map.of());
+        }
         /** An ordinary effective update, with no automatic-deletion cause. */
         public Step(DeserializingMessage message, List<Change> changes) {
             this(message, changes, -1);
@@ -1300,6 +1384,7 @@ public final class CommitAttempt {
 
         public Step {
             changes = List.copyOf(changes);
+            aliasBindings = Map.copyOf(aliasBindings);
             if (!changes.isEmpty()) {
                 boolean direct = changes.getFirst().directMutation();
                 if (changes.stream().anyMatch(change -> change.directMutation() != direct)) {

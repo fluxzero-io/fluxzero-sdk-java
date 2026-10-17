@@ -98,3 +98,7 @@ updates or NONE markers. Revision-only registration preserves rebuild cursors; c
 require rebuilding. Use `graphMigration = GraphMigrationTarget.PROJECTION` to migrate only an existing ASYNC/AWAIT
 composition; this option is observational at NONE. Handler completion confirms node storage, while projections follow
 asynchronously; AWAIT applies to ordinary Model commits.
+
+Property-qualified Model mutation identity selection uses `fluxzero.model.aliasTargets`, enabled by defaults version
+`2026.10.18` or later. An explicit boolean wins in either direction. Keep it disabled until both SDK and Runtime support
+identity selection; see the actions guide for selector and result contracts.

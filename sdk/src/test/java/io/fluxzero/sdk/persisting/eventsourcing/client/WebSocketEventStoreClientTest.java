@@ -92,6 +92,45 @@ class WebSocketEventStoreClientTest {
     }
 
     @Test
+    void absentAliasNeverReceivesPackedMembershipsOfItsEqualPrimaryId() throws Exception {
+        var request = new io.fluxzero.common.api.modeling.GetModelEventsByIdentity(
+                List.of(new ModelEventStreamRequest("model-1", -1L, 1),
+                        new ModelEventStreamRequest("alias", -1L, 1)), ModelReadBoundary.current(), 1024,
+                io.fluxzero.common.api.modeling.GetModelEventsByIdentity.Selection.ALIAS);
+        var event = new SerializedMessage(new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "event-1", 1L);
+        var packed = new GetModelEventsResult(request.getRequestId(), 11L, true,
+                List.of(new ModelEventPayload(11L, event)),
+                List.of(new ModelEventStream("model-1", null, List.of()), stream("alias", "model-1")),
+                new long[0], List.of(), new long[0],
+                List.of(new ModelEventDataBlock(membershipBlock("model-1"))));
+        var expanded = ModelEventPageDecoder.expand(request, packed);
+        assertEquals(List.of(0, 1), expanded.getStreams().stream().map(value -> value.getMemberships().size()).toList());
+    }
+
+    @Test
+    void identityRequestsRequireCapabilityWhileLegacyRequestsRemainUsable() {
+        var client = new RecordingEventStoreClient();
+        var session = mock(io.fluxzero.sdk.common.websocket.WebsocketSession.class);
+        var legacy = new GetModelEvents(List.of(), ModelReadBoundary.current(), 0);
+        var explicit = new io.fluxzero.common.api.modeling.GetModelEventsByIdentity(
+                List.of(), ModelReadBoundary.current(), 0,
+                io.fluxzero.common.api.modeling.GetModelEventsByIdentity.Selection.PRIMARY);
+        var guarded = new io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads(commit("identity"),
+                List.of(new io.fluxzero.common.api.modeling.ModelAliasObservation("missing", null)));
+        try {
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of());
+            assertEquals(legacy, client.adaptRequestForSession(legacy, session));
+            assertThrows(UnsupportedOperationException.class, () -> client.adaptRequestForSession(explicit, session));
+            assertThrows(UnsupportedOperationException.class, () -> client.adaptRequestForSession(guarded, session));
+            org.mockito.Mockito.when(session.getHandshakeResponseHeaders()).thenReturn(java.util.Map.of(
+                    io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_IDENTITY_SELECTION_VERSION_HEADER,
+                    List.of("1")));
+            assertEquals(explicit, client.adaptRequestForSession(explicit, session));
+            assertEquals(guarded, client.adaptRequestForSession(guarded, session));
+        } finally { client.close(); }
+    }
+
+    @Test
     void preservesModelResultJfrClassificationInConcreteClient() {
         RecordingEventStoreClient subject = new RecordingEventStoreClient();
         try {

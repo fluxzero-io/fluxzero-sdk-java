@@ -37,6 +37,9 @@ public final class ModelEventMetadata {
      */
     public static final String SUBSTEP = "$modelCommitSubstep";
 
+    /** Canonical property-qualified Model references observed by this substep, encoded as a JSON string map. */
+    public static final String ALIAS_BINDINGS = "$modelAliasBindings";
+
     /**
      * Comma-separated internal cascade substeps caused by this event. Complete Graph-change handlers observe their
      * targets at those substeps' own boundaries; ordinary payload handlers retain {@link #SUBSTEP}.

@@ -74,6 +74,25 @@ It is a release of the existing commit, not another mutation path: repeated call
 commit remains enabled, and a context without pending changes completes without Runtime transport. Do not call or wait
 on it inside `@Apply`; the apply has not returned its change yet.
 
+## Property-qualified alias mutation targets
+
+Enable `fluxzero.model.aliasTargets=true` (or defaults version `2026.10.18`+) only after SDK and Runtime both support
+identity-selection version 1. Explicit false retains compatibility behavior; an absent defaults version keeps it off.
+Both upgrade orders preserve existing operations. Unsupported Runtime peers reject enabled identity operations before
+sending them. Generic loads remain primary-ID-first.
+
+For Model commands, explicit Graph/association/typed-ID bindings and the declared primary-ID property take priority.
+A present null ID is invalid, not an alias fallback. Otherwise, properties named like actual `@Alias` properties
+select alias-only, with their alias affixes. Validate the selected property, not just the flattened alias set.
+Multiple alias fields and collection values must agree on one owner; no fanout. All absent permits result-directed
+creation with a valid new primary ID and all selectors matching. Mixed found/absent updates the found owner and
+requires the final value to match all selectors. Fully matched aliases may change or disappear, including deletion.
+An explicit ID plus alias data remains an ordinary update.
+
+Alias ownership and canonical head observations are checked atomically. RETRY reselects and repeats assertions;
+ACCEPT rejects a changed selection instead of applying an old decision to another owner. Persisted canonical alias
+bindings protect replay, including alias-selected dependencies. See the human updating-entities guide for an example.
+
 ## Assertions and interceptors
 
 Expected business refusals must be `FunctionalException` subclasses, not `IllegalStateException`,
@@ -443,3 +462,8 @@ self-applying command classes. When an explicit command handler owns orchestrati
 entry point and call `Fluxzero.assertAndApply` from the handler.
 
 See the [complete handling examples](https://fluxzero.io/docs/fluxzero-2-deep-dive#automatic-command-handling-and-existing-handlers).
+
+Only non-null, non-blank alias values participate; empty collections are ignored. At least one effective alias
+selector is required. A present null primary-ID property remains an error and never falls back to aliases.
+Upgrade all SDK readers of these Model events before enabling alias targets: canonical replay bindings require
+the new reader implementation, even when that reader retains the compatibility selection default.

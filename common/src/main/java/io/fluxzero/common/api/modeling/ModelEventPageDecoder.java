@@ -168,8 +168,11 @@ public final class ModelEventPageDecoder {
             ModelEventStream stream = result.getStreams().get(ordinal);
             String storedId = stream.getHead() == null
                     ? stream.getModelId() : stream.getHead().getModelId();
-            ordinalsByModel.computeIfAbsent(
-                    storedId, ignored -> new ArrayList<>()).add(ordinal);
+            boolean absentAlias = stream.getHead() == null && request instanceof GetModelEventsByIdentity explicit
+                    && explicit.getSelection() == GetModelEventsByIdentity.Selection.ALIAS;
+            if (!absentAlias) {
+                ordinalsByModel.computeIfAbsent(storedId, ignored -> new ArrayList<>()).add(ordinal);
+            }
             memberships.add(new ArrayList<>(stream.getMemberships()));
         }
         var decodedBlocks = decodeBlocks(blocks, ModelStreamBatchDecoder::decodeMemberships);

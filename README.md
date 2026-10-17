@@ -46,6 +46,7 @@ See [all versioned defaults](docs/developer/guides/Configuration/280-application
 | --- | --- |
 | `2026.10.04` | `fluxzero.interceptApply.assertCurrent=true` |
 | `2026.10.09` | `fluxzero.search.collectionValues=true` (interval overlap; reindex existing documents for indexed min/max) |
+| `2026.10.18` | `fluxzero.model.aliasTargets=true` (property-qualified alias mutation targets; requires Runtime identity-selection capability) |
 
 ## Work on the SDK
 

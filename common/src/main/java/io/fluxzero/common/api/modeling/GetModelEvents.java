@@ -18,6 +18,7 @@ package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.api.Request;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.beans.ConstructorProperties;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.Objects;
  * event message is always allowed through to guarantee progress, even when it exceeds that bound.
  */
 @Value
+@NonFinal
 public class GetModelEvents extends Request {
 
     /**

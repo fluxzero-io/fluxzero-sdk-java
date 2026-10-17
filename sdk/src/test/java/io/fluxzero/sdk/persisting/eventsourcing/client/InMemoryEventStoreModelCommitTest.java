@@ -21,6 +21,9 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads;
+import io.fluxzero.common.api.modeling.ModelAliasObservation;
+import io.fluxzero.common.api.modeling.GetModelEventsByIdentity;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.CommitModelsWithDeadlines;
 import io.fluxzero.common.api.modeling.ModelDeadlineUpdate;
@@ -72,6 +75,63 @@ class InMemoryEventStoreModelCommitTest {
     void stopOperations() throws InterruptedException {
         operations.shutdownNow();
         assertTrue(operations.awaitTermination(2, TimeUnit.SECONDS), "Test operations did not terminate");
+    }
+
+    @Test
+    void explicitAliasSelectionSeesAnOwnerBehindAPrimaryAndDoesNotFallBackOnAbsence() {
+        var store = denseStore();
+        store.commitModels(commit("primary", ModelCommitStep.builder().event(event("primary"))
+                .targets(List.of(storedTarget("shared"), storedTarget("only-primary"))).build())).join();
+        store.commitModels(commit("alias", ModelCommitStep.builder().event(event("alias"))
+                .targets(List.of(storedTarget("owner").toBuilder().aliases(List.of("shared", "only-alias")).build()))
+                .build())).join();
+        var requests = List.of("shared", "only-primary", "only-alias").stream()
+                .map(id -> new ModelEventStreamRequest(id, -1L, 10)).toList();
+        var aliases = store.getModelEvents(new GetModelEventsByIdentity(requests, ModelReadBoundary.current(), 0,
+                GetModelEventsByIdentity.Selection.ALIAS));
+        assertEquals("owner", aliases.getStreams().get(0).getHead().getModelId());
+        assertEquals(null, aliases.getStreams().get(1).getHead());
+        assertTrue(aliases.getStreams().get(1).getMemberships().isEmpty());
+        assertEquals("owner", aliases.getStreams().get(2).getHead().getModelId());
+        assertEquals(1, aliases.getPayloads().size(), "An absent alias must not leak equal-primary events");
+        var primaries = store.getModelEvents(new GetModelEventsByIdentity(requests, ModelReadBoundary.current(), 0,
+                GetModelEventsByIdentity.Selection.PRIMARY));
+        assertEquals("shared", primaries.getStreams().get(0).getHead().getModelId());
+        assertEquals("only-primary", primaries.getStreams().get(1).getHead().getModelId());
+        assertEquals(null, primaries.getStreams().get(2).getHead());
+        assertEquals("shared", modelStream(store, "shared").getHead().getModelId(), "Generic lookup is unchanged");
+    }
+
+    @Test
+    void aliasOwnerChangeUnderPrimaryShadowRejectsAcceptWithoutRebasingTheOldDecision() {
+        var store = denseStore();
+        var initial = store.commitModels(commit("primary", ModelCommitStep.builder().event(event("primary"))
+                .targets(List.of(storedTarget("selected"))).build())).join();
+        long boundary = initial.getUpdates().getLast().getStateIndex();
+        var decision = new CommitModelsWithIdentityReads(commit("decision", boundary, ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder().event(event("decision")).targets(List.of(storedTarget("new"))).build()),
+                List.of(new ModelAliasObservation("selected", null)));
+        store.commitModels(commit("concurrent", ModelCommitStep.builder().event(event("concurrent"))
+                .targets(List.of(storedTarget("owner").toBuilder().aliases(List.of("selected")).build())).build())).join();
+        var result = store.commitModels(decision).join();
+        assertFalse(result.isAccepted());
+        assertFalse(result.isRebaseRequired(), "Changed target selection cannot use apply-only ACCEPT rebase");
+        assertEquals("selected", result.getConflicts().getFirst().getModelId());
+        assertEquals(null, modelStream(store, "new").getHead());
+    }
+
+    @Test
+    void unchangedAbsentAliasUnderPrimaryShadowCanCommitAndRetainsIdempotency() {
+        var store = denseStore();
+        var initial = store.commitModels(commit("primary", ModelCommitStep.builder().event(event("primary"))
+                .targets(List.of(storedTarget("selected"))).build())).join();
+        var request = new CommitModelsWithIdentityReads(commit("create", initial.getUpdates().getLast().getStateIndex(),
+                ModelConflictPolicy.RETRY, ModelCommitStep.builder().event(event("create"))
+                        .targets(List.of(storedTarget("new").toBuilder().aliases(List.of("selected")).build())).build()),
+                List.of(new ModelAliasObservation("selected", null)));
+        assertTrue(store.commitModels(request).join().isAccepted());
+        assertTrue(store.commitModels(request).join().isDuplicate(), "A committed receipt precedes later observation checks");
+        assertEquals("selected", modelStream(store, "selected").getHead().getModelId());
     }
 
     @Test

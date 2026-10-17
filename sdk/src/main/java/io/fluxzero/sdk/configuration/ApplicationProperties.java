@@ -190,6 +190,17 @@ public class ApplicationProperties {
                 : Boolean.parseBoolean(configured.trim());
     }
 
+    /** Property-aware Model identity selection override. Requires a Runtime advertising identity selection version 1. */
+    public static final String MODEL_ALIAS_TARGETS_PROPERTY = "fluxzero.model.aliasTargets";
+    private static final LocalDate MODEL_ALIAS_TARGETS_DEFAULTS_VERSION = LocalDate.of(2026, 10, 18);
+
+    /** Resolves Model identity selection from the owning application's property source. */
+    public static boolean modelAliasTargets(PropertySource source) {
+        String configured = source.get(MODEL_ALIAS_TARGETS_PROPERTY);
+        return configured == null ? defaultsVersionAtLeast(source, MODEL_ALIAS_TARGETS_DEFAULTS_VERSION)
+                : Boolean.parseBoolean(configured.trim());
+    }
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**
@@ -299,6 +310,12 @@ public class ApplicationProperties {
      *         <td>Ranges use min/max interval overlap; ascending field sorting uses MIN, descending MAX, missing values last.
      *         Requires a compatible Runtime; incomplete indexed extrema retain legacy behavior until application reindexing.
      *         This fallback includes explicit MIN/MAX. Set false for legacy behavior.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.10.18}</td>
+     *         <td>{@code fluxzero.model.aliasTargets = true}</td>
+     *         <td>Model mutation ID properties select primary IDs; matching alias properties select canonical owners.
+     *         Requires Runtime identity-selection version 1. Set false to retain compatibility selection.</td>
      *     </tr>
      * </table>
      * <p>

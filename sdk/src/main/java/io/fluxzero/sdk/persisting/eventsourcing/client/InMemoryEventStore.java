@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
@@ -381,8 +382,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 .asDuplicateForRequest(
                                 commit.getRequestId()), List.of());
             }
-            if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines
-                && modelScheduleWriter == null) {
+            boolean deadlineEffects = commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines
+                    || !commit.getDeadlineUpdates().isEmpty();
+            if (deadlineEffects && modelScheduleWriter == null) {
                 throw new UnsupportedOperationException("Model commit scheduling is not configured");
             }
             Map<Long, SerializedMessage> existingEvents = existingEvents(commit);
@@ -408,6 +410,13 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             ModelCommitAssignment.Description description =
                     ModelCommitAssignment.describe(commit);
+            var identityConflicts = ModelCommitConflicts.detectAliasOwners(commit, modelAliases::get, modelStateIndex);
+            if (!identityConflicts.isEmpty()) {
+                // A different selector owner requires fresh target selection and assertions, never a state-only rebase.
+                return new ModelCommitOutcome(CommitModelsResult.conflict(commit.getRequestId(), commit.getCommitId(),
+                        identityConflicts, ModelConflictPolicy.resolve(commit.getConflictPolicy()) == ModelConflictPolicy.RETRY),
+                        List.of());
+            }
             var headConflicts = ModelCommitConflicts.detect(
                             commit, modelHeads,
                             ModelStreamHead::sequenceNumber,
@@ -450,9 +459,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }
-            if (commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines) {
+            if (deadlineEffects) {
                 long cutoff = modelDeadlineClock.getAsLong();
-                if (deadlines.hasExpiredReplacement(cutoff)) {
+                if (commit.hasExpiredReplacement(cutoff)) {
                     return new ModelCommitOutcome(CommitModelsResult.reevaluateDeadlines(
                             commit.getRequestId(), commit.getCommitId(), cutoff), List.of());
                 }
@@ -545,8 +554,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 commit, List.copyOf(updates),
                                 Set.of()));
             }
-            Runnable schedulesStored = commit instanceof io.fluxzero.common.api.modeling.CommitModelsWithDeadlines deadlines
-                    ? modelScheduleWriter.apply(deadlines.getDeadlineUpdates()) : null;
+            Runnable schedulesStored = deadlineEffects
+                    ? modelScheduleWriter.apply(commit.getDeadlineUpdates()) : null;
             modelCommits.put(commit.getCommitId(), result);
             modelGraphProjectionSignals.add(
                     new ModelGraphProjectionSignal(
@@ -1832,13 +1841,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         request.getRequests().forEach(streamRequest ->
                 resolvedModelIds.put(
                         streamRequest.getModelId(),
-                        resolveModelId(streamRequest.getModelId(), stateIndex)));
+                        resolveModelId(streamRequest.getModelId(), stateIndex, request)));
         LinkedHashMap<String, List<ModelStreamMembership>> streamCandidates = new LinkedHashMap<>();
         long firstExcludedStateIndex = Long.MAX_VALUE;
         for (var streamRequest : request.getRequests()) {
             String resolvedModelId = resolvedModelIds.get(
                     streamRequest.getModelId());
-            List<ModelStreamMembership> history = modelStreams.getOrDefault(resolvedModelId, List.of());
+            List<ModelStreamMembership> history = resolvedModelId == null ? List.of()
+                    : modelStreams.getOrDefault(resolvedModelId, List.of());
             // A cached revision usually already reaches the tail. Checking that must not scan its whole history.
             List<ModelStreamMembership> candidates = streamRequest.getMaxSize() == 0 || history.isEmpty()
                                                     || history.getLast().sequenceNumber() <= streamRequest.getLastSequenceNumber()
@@ -1875,7 +1885,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         for (var streamRequest : request.getRequests()) {
             String resolvedModelId = resolvedModelIds.get(
                     streamRequest.getModelId());
-            ModelStreamHead head = stateIndex == modelStateIndex ? modelHeads.get(resolvedModelId)
+            ModelStreamHead head = resolvedModelId == null ? null
+                    : stateIndex == modelStateIndex ? modelHeads.get(resolvedModelId)
                     : modelHeadHistory.getOrDefault(resolvedModelId, List.of()).stream()
                             .filter(candidate -> candidate.stateIndex() <= stateIndex)
                             .reduce((first, second) -> second).orElse(null);
@@ -1894,6 +1905,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 payloads.entrySet().stream()
                         .map(entry -> new ModelEventPayload(entry.getKey(), entry.getValue())).toList(),
                 List.copyOf(streams));
+    }
+
+    private String resolveModelId(String requestedId, long stateIndex, GetModelEvents request) {
+        if (request instanceof io.fluxzero.common.api.modeling.GetModelEventsByIdentity explicit) {
+            return switch (explicit.getSelection()) {
+                case PRIMARY -> requestedId;
+                case ALIAS -> modelAliases.get(requestedId);
+            };
+        }
+        return resolveModelId(requestedId, stateIndex);
     }
 
     private String resolveModelId(

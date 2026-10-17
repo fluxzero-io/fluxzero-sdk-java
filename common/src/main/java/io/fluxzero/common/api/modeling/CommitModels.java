@@ -159,6 +159,31 @@ public class CommitModels extends Command implements RetryAwareRequest {
         return List.of();
     }
 
+    /** Replaces scheduler effects while retaining explicit identity observations and all existing commit facets. */
+    public CommitModels withDeadlineUpdates(List<ModelDeadlineUpdate> updates) {
+        CommitModels result = new CommitModelsWithDeadlines(this, updates);
+        return getAliasObservations().isEmpty() ? result
+                : new CommitModelsWithIdentityReads(result, getAliasObservations());
+    }
+
+    /** Scheduler effects included atomically with this commit. Empty on ordinary commits. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<ModelDeadlineUpdate> getDeadlineUpdates() {
+        return List.of();
+    }
+
+    /** Explicit alias-owner observations; null owners record absence independently of primary IDs. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<ModelAliasObservation> getAliasObservations() {
+        return List.of();
+    }
+
+    /** Whether a proposed replacement's original deadline has elapsed at commit acceptance. */
+    public boolean hasExpiredReplacement(long cutoff) {
+        return getDeadlineUpdates().stream().anyMatch(update -> update.schedule() != null
+                && update.previousDeadline() != null && update.previousDeadline() <= cutoff);
+    }
+
     /**
      * Routes retries of the same commit consistently without choosing one target model as its owner.
      */
@@ -176,6 +201,12 @@ public class CommitModels extends Command implements RetryAwareRequest {
         for (ModelCommitStep substep : substeps) {
             long bytes = substep.getBytes();
             result = bytes > Long.MAX_VALUE - result ? Long.MAX_VALUE : result + bytes;
+        }
+        for (ModelDeadlineUpdate update : getDeadlineUpdates()) {
+            if (update.schedule() != null) {
+                long bytes = update.schedule().getMessage().getBytes();
+                result = bytes > Long.MAX_VALUE - result ? Long.MAX_VALUE : result + bytes;
+            }
         }
         return result;
     }

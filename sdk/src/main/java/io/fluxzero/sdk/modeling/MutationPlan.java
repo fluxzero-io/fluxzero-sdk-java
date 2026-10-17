@@ -169,6 +169,10 @@ public final class MutationPlan {
         }
 
         private final boolean assertCurrentDefault;
+        private final boolean aliasTargets;
+
+        /** Whether this application uses property-aware Model identity selection. */
+        public boolean aliasTargets() { return aliasTargets; }
 
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
             this(parameterResolvers, ApplicationProperties.assertCurrent());
@@ -177,7 +181,14 @@ public final class MutationPlan {
         /** Creates application-bound plans with the already resolved interceptor validation default. */
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                         boolean assertCurrentDefault) {
+            this(parameterResolvers, assertCurrentDefault, false);
+        }
+
+        /** Creates application-bound plans with resolved validation and identity-selection defaults. */
+        public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+                        boolean assertCurrentDefault, boolean aliasTargets) {
             this.assertCurrentDefault = assertCurrentDefault;
+            this.aliasTargets = aliasTargets;
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
                     new ArrayList<>(parameterResolvers.size() + 1);
             if (parameterResolvers.stream().noneMatch(EntityParameterResolver.class::isInstance)) {
@@ -340,7 +351,7 @@ public final class MutationPlan {
                     ? directSingleTargetApply(handlers.getFirst(), key.payloadType()) : null;
             return new MutationPlan(
                     new ModelReducer(compileHandlers(handlers), direct, List.of(), this, embedded),
-                    compile(key.payloadType(), handlers, List.of(), embedded),
+                    compile(key.payloadType(), handlers, List.of(), embedded, true),
                     ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty() || !embedded.isEmpty(), false);
         }
 
@@ -865,7 +876,7 @@ public final class MutationPlan {
                     .map(ModelCommitPolicy::resolve).forEach(policies::add);
             return new MutationPlan(
                     compiler.compileReducer(handlers, payloadType, assertionModels, embedded),
-                    compile(payloadType, handlers, assertionModels, embedded),
+                    compile(payloadType, handlers, assertionModels, embedded, compiler.aliasTargets),
                     ModelCommitPolicy.merge(policies),
                     traits.commit() || writes, (traits.commit() || embedded.stream()
                             .anyMatch(plan -> plan.methods().stream()
@@ -1034,7 +1045,14 @@ public final class MutationPlan {
     private static TargetPlan compile(
             Class<?> payloadType, Collection<EntityMetadata.HandlerMethod> handlers,
             Collection<Class<?>> assertionModels, List<EmbeddedModelPlan> embedded) {
-        Payload payload = Payload.of(Objects.requireNonNull(payloadType, "payloadType"));
+        return compile(payloadType, handlers, assertionModels, embedded, false);
+    }
+
+    private static TargetPlan compile(
+            Class<?> payloadType, Collection<EntityMetadata.HandlerMethod> handlers,
+            Collection<Class<?>> assertionModels, List<EmbeddedModelPlan> embedded, boolean aliasTargets) {
+        Payload ordinary = Payload.of(Objects.requireNonNull(payloadType, "payloadType"));
+        Payload payload = aliasTargets ? ordinary.aliasAware.get() : ordinary;
         List<Slot> slots = new ArrayList<>();
         List<Deferred> deferred = new ArrayList<>();
         Set<PlannedAncestor> ancestors = new LinkedHashSet<>();
@@ -1307,7 +1325,7 @@ public final class MutationPlan {
 
         /** Returns a statically unambiguous single-apply target without loading or applying any model. */
         public String routingTarget(HasMessage input) {
-            if (routingTarget == null) {
+            if (routingTarget == null || !routingTarget.property.aliases().isEmpty()) {
                 return null;
             }
             DirectReferences direct = routingTarget.parameter == null ? DirectReferences.missing()
@@ -1321,7 +1339,7 @@ public final class MutationPlan {
         }
 
         boolean isDirectSingleTarget() {
-            return slots.size() == 1 && !slots.getFirst().collection
+            return slots.size() == 1 && slots.getFirst().property.aliases().isEmpty() && !slots.getFirst().collection
                    && !slots.getFirst().optionalReference()
                    && (slots.getFirst().handler != null || !slots.getFirst().property.missing())
                    && deferred.isEmpty() && ancestors.isEmpty();
@@ -1372,6 +1390,7 @@ public final class MutationPlan {
             validate(explicitType, applyOnlyTargets, replayTarget);
             Object payload = checkedPayload(input);
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
+            List<AliasTarget> aliasTargets = List.of();
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             Property replayBinding = replayTarget == null ? null : replayBinding(replayTarget);
@@ -1386,6 +1405,55 @@ public final class MutationPlan {
                     || slot.handler == null && !slot.apply && slot.property.missing()
                     || applyOnlyTargets && !slot.apply
                     || compatibleExplicit(slot.modelType, explicitType)) {
+                    continue;
+                }
+                if (!slot.property.aliases().isEmpty() && replayTarget != null
+                    && slot.requestedType.isAssignableFrom(replayTarget.modelType())) {
+                    merge(result, new ResolvedModel(replayTarget.modelId(), replayTarget.modelType(), slot.access,
+                                                   List.of(slot.property.name())));
+                    if (slot.parameter != null) {
+                        references.put(slot.parameter, DirectReferences.scalar(replayTarget.modelId()));
+                    }
+                    if (!deferred.isEmpty()) { slotIds.put(slot, List.of(replayTarget.modelId())); }
+                    continue;
+                }
+                if (!slot.property.aliases().isEmpty() && replayTarget != null) {
+                    if (!(input instanceof HasMessage message)) {
+                        throw new IllegalStateException("Alias replay dependencies require persisted canonical bindings");
+                    }
+                    String encoded = message.getMetadata().get(
+                            io.fluxzero.common.api.modeling.ModelEventMetadata.ALIAS_BINDINGS);
+                    Map<String, String> bindings = encoded == null ? Map.of()
+                            : io.fluxzero.common.serialization.JsonUtils.fromJson(encoded,
+                                    factory -> factory.constructMapType(Map.class, String.class, String.class));
+                    Set<String> owners = new LinkedHashSet<>();
+                    for (AliasInput selector : slot.property.aliases()) {
+                        if (selector.values(payload).isEmpty()) { continue; }
+                        String owner = bindings.get(slot.modelType.getName() + ":" + selector.property().name());
+                        if (owner == null) { throw new IllegalStateException("Missing canonical alias replay binding for "
+                                + slot.modelType.getName() + "." + selector.property().name()); }
+                        owners.add(owner);
+                    }
+                    if (owners.size() != 1) { throw new IllegalStateException("Inconsistent canonical alias replay bindings"); }
+                    String owner = owners.iterator().next();
+                    if (!owner.isEmpty()) {
+                        merge(result, new ResolvedModel(owner, slot.modelType, slot.access, List.of(slot.property.name())));
+                    }
+                    if (slot.parameter != null) {
+                        references.put(slot.parameter, DirectReferences.scalar(owner.isEmpty() ? null : owner));
+                    }
+                    if (!deferred.isEmpty()) { slotIds.put(slot, owner.isEmpty() ? List.of() : List.of(owner)); }
+                    continue;
+                }
+                if (!slot.property.aliases().isEmpty()) {
+                    List<AliasValue> values = slot.property.aliases().stream()
+                            .flatMap(alias -> alias.values(payload).stream()).toList();
+                    if (values.isEmpty()) { throw new IllegalArgumentException(
+                            "At least one non-empty alias selector is required for " + slot.modelType.getName()); }
+                    if (aliasTargets.isEmpty()) { aliasTargets = new ArrayList<>(); }
+                    aliasTargets.add(new AliasTarget(slot.modelType, slot.access, List.copyOf(values),
+                                                     slot.parameter, slot.handler));
+                    if (!deferred.isEmpty()) { slotIds.put(slot, List.of()); }
                     continue;
                 }
                 List<String> ids = slot.property.equals(replayBinding)
@@ -1486,7 +1554,7 @@ public final class MutationPlan {
             return new Resolution(
                     List.copyOf(result.values()), unresolved,
                     unresolvedAncestors,
-                    references);
+                    references, aliasTargets, false);
         }
 
         private Property replayBinding(ResolvedModel target) {
@@ -1707,7 +1775,14 @@ public final class MutationPlan {
             List<ResolvedModel> models,
             List<DeferredWriteTarget> deferredWrites,
             List<AncestorDependency> ancestorDependencies,
-            Map<EntityMetadata.ModelParameter, DirectReferences> references) {
+            Map<EntityMetadata.ModelParameter, DirectReferences> references,
+            List<AliasTarget> aliasTargets, boolean primaryOnly) {
+        public Resolution(List<ResolvedModel> models, List<DeferredWriteTarget> deferredWrites,
+                          List<AncestorDependency> ancestorDependencies,
+                          Map<EntityMetadata.ModelParameter, DirectReferences> references) {
+            this(models, deferredWrites, ancestorDependencies, references, List.of(), false);
+        }
+
         public Resolution(List<ResolvedModel> models, List<DeferredWriteTarget> deferredWrites) {
             this(models, deferredWrites, List.of(), Map.of());
         }
@@ -1721,6 +1796,7 @@ public final class MutationPlan {
 
         public Resolution {
             models = List.copyOf(models);
+            aliasTargets = List.copyOf(aliasTargets);
             deferredWrites = List.copyOf(deferredWrites);
             ancestorDependencies = List.copyOf(ancestorDependencies);
             references = Collections.unmodifiableMap(new LinkedHashMap<>(references));
@@ -1733,6 +1809,11 @@ public final class MutationPlan {
             return !ancestorDependencies.isEmpty();
         }
 
+        public Resolution withPrimaryOnly() {
+            return primaryOnly ? this : new Resolution(models, deferredWrites, ancestorDependencies, references,
+                                                       aliasTargets, true);
+        }
+
         boolean canLoadContext() {
             return !models.isEmpty() || references.entrySet().stream()
                     .anyMatch(entry -> entry.getKey().collectionWrapped() && entry.getValue().present());
@@ -1743,7 +1824,7 @@ public final class MutationPlan {
          * ancestor dependencies.
          */
         public Resolution withResolvedModels(List<ResolvedModel> resolvedModels) {
-            return new Resolution(resolvedModels, deferredWrites, List.of(), references);
+            return new Resolution(resolvedModels, deferredWrites, List.of(), references, aliasTargets, primaryOnly);
         }
     }
 
@@ -1833,12 +1914,39 @@ public final class MutationPlan {
     private record PlannedAncestor(AncestorDependency dependency, boolean apply) {
     }
 
+    private record AliasInput(EntityMetadata.AliasProperty alias, Property property) {
+        private List<AliasValue> values(Object payload) {
+            Object raw = property.read(payload);
+            Collection<?> candidates = raw instanceof Collection<?> collection ? collection
+                    : raw == null ? List.of() : List.of(raw);
+            return candidates.stream().filter(Objects::nonNull).map(Object::toString)
+                    .filter(value -> !value.isBlank()).map(value -> new AliasValue(alias, value)).toList();
+        }
+    }
+
+    record AliasValue(EntityMetadata.AliasProperty property, String value) {
+        String lookup() { return property.value(value); }
+        boolean matches(Object model) {
+            Object actual = property.property().read(model);
+            return actual instanceof Collection<?> values
+                    ? values.stream().anyMatch(value -> value != null && value.toString().equals(this.value))
+                    : actual != null && actual.toString().equals(value);
+        }
+    }
+
+    record AliasTarget(Class<?> modelType, Access access, List<AliasValue> values,
+                       EntityMetadata.ModelParameter parameter, String handler) {
+    }
+
     private record Property(
             String name,
             Class<?> type,
             Type genericType,
             Function<Object, Object> reader,
-            String error) {
+            String error, List<AliasInput> aliases) {
+        private Property(String name, Class<?> type, Type genericType, Function<Object, Object> reader, String error) {
+            this(name, type, genericType, reader, error, List.of());
+        }
         private static Property missing(String error) {
             return new Property(null, null, null, null, error);
         }
@@ -1858,6 +1966,8 @@ public final class MutationPlan {
 
     private static final class Payload {
         private final Class<?> type;
+        private final boolean aliasTargets;
+        private final Supplier<Payload> aliasAware;
         private final ReflectionUtils.TypeMetadata metadata;
         private final Map<String, Property> properties;
         private final ConcurrentHashMap<String, Property> nestedProperties = new ConcurrentHashMap<>();
@@ -1866,8 +1976,12 @@ public final class MutationPlan {
             return ReflectionUtils.getTypeMetadata(type).specializedMetadata(Payload.class, Payload::new);
         }
 
-        private Payload(Class<?> type) {
+        private Payload(Class<?> type) { this(type, false); }
+
+        private Payload(Class<?> type, boolean aliasTargets) {
             this.type = type;
+            this.aliasTargets = aliasTargets;
+            this.aliasAware = aliasTargets ? () -> this : memoize(() -> new Payload(type, true));
             metadata = ReflectionUtils.getTypeMetadata(type);
             Map<String, AccessibleObject> members = new LinkedHashMap<>();
             metadata.fields().stream().filter(field -> !field.isSynthetic())
@@ -1912,8 +2026,14 @@ public final class MutationPlan {
             }
             List<Property> typed = properties.values().stream()
                     .filter(property -> property.modelType().filter(modelType::equals).isPresent()).toList();
-            if (typed.size() < 2) {
-                return typed.isEmpty() ? null : typed.getFirst();
+            if (typed.size() == 1) { return typed.getFirst(); }
+            if (typed.isEmpty()) {
+                if (!aliasTargets) { return null; }
+                List<AliasInput> aliases = model.aliasProperties().stream()
+                        .filter(alias -> properties.containsKey(alias.property().name()))
+                        .map(alias -> new AliasInput(alias, properties.get(alias.property().name()))).toList();
+                return aliases.isEmpty() ? null : new Property(aliases.getFirst().property().name(),
+                        String.class, String.class, null, null, aliases);
             }
             throw new IllegalStateException(
                     "Payload %s has ambiguous Id<%s> properties %s for model %s. ".formatted(

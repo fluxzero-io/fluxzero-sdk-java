@@ -52,6 +52,18 @@ public final class WebSocketCapabilities {
     public static final String RUNTIME_SESSION_ID_HEADER = "Fluxzero-Runtime-Session-Id";
     public static final String RUNTIME_VERSION_HEADER = "Fluxzero-Runtime-Version";
 
+    /** Explicit primary/alias selection and atomic alias-owner observations understood by the server. */
+    public static final String MODEL_IDENTITY_SELECTION_VERSION_HEADER = "Fluxzero-Model-Identity-Selection-Version";
+
+    /** Missing or unknown capability versions never enable explicit identity selection. */
+    public static boolean supportsModelIdentitySelection(Map<String, List<String>> headers) {
+        return headers != null && headers.entrySet().stream()
+                .filter(entry -> MODEL_IDENTITY_SELECTION_VERSION_HEADER.equalsIgnoreCase(entry.getKey()))
+                .filter(entry -> entry.getValue() != null)
+                .flatMap(entry -> entry.getValue().stream())
+                .anyMatch("1"::equals);
+    }
+
     /** Filter languages accepted by the server, including live refresh and independent scan/idle boundaries. */
     public static final String CONSUMER_FILTER_VERSIONS_HEADER = "Fluxzero-Consumer-Filter-Versions";
 
