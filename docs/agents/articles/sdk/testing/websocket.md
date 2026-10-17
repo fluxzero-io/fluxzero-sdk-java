@@ -62,3 +62,10 @@ fixture
 For request/response sockets, assert both sides: the outgoing socket request, the incoming `SocketResponse.success(...)` or `SocketResponse.error(...)`, and timeout behavior by advancing fixture time. Do not sleep in tests.
 
 Use a real local stack only for handshake, browser, proxy, serialization, or infrastructure smoke checks. `TestFixture` models socket lifecycle and delivery but does not open a network WebSocket; describe it as fixture-level socket behavior, not an end-to-end network test.
+
+
+For failed incoming `SocketRequest`s, assert the unchanged request ID and the public error boundary in both sync
+and async fixtures: a `FunctionalException` preserves its application message; a technical failure returns
+`Request failed`. Exercise both synchronous throws and failed `CompletableFuture`s. The original technical cause
+is logged internally with the request ID; requests and responses are not copied into failed-send or unmatched-response
+logs. Explicitly constructed socket error responses remain application-controlled.

@@ -426,3 +426,20 @@ The built-in `/proxy/health` and `/proxy/ready` responses already have tiny fixe
 the same HTTP response generator as application responses. These options do not change their
 payloads or readiness semantics and do not define the proxy's overall process-memory limit. The
 same environment settings apply to Java and Kotlin applications.
+
+
+## Error responses and diagnostics
+
+The default response mapper preserves explicit `FunctionalException` messages, including application-defined
+validation and authorization feedback. Treat these messages as public. SDK-generated authentication and role-denial
+messages omit the user ID and handler name. The same rule applies to automatic WebSocket handshakes.
+
+Deserialization failures return HTTP 400 with a fixed request-format message; unexpected technical failures return
+HTTP 500 with a fixed message. The original exceptions and causes remain available internally for diagnosis.
+Explicit `WebResponse` objects and custom response mappers remain under application control. These rules apply to
+both Java and Kotlin handlers.
+
+Validation paths, including collection indexes and map keys, remain available for identifying the failing field.
+Choose suitable public field keys and validation messages when exposing structured validation results. Internal
+error reporting still retains useful causes, stack traces and correlation context; it is not a general-purpose
+redactor for application-written exception messages or logs.

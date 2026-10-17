@@ -48,6 +48,10 @@ import java.util.concurrent.TimeoutException;
  *   <li>Otherwise, the response is treated as a normal payload with status 200 OK</li>
  * </ul>
  *
+ * <p>Functional exception messages, including validation and application-defined authorization messages, are
+ * intended for the caller and are preserved. Deserialization failures receive a fixed bad-request message;
+ * their technical details and causes remain available on the original exception for internal diagnostics.
+ *
  * <p>Automatically mapped responses are eligible for best-effort content negotiation against the request
  * {@code Accept} header before they are serialized. Explicit {@link WebResponse} instances and explicit
  * {@code Content-Type} response metadata are left unchanged.
@@ -75,7 +79,9 @@ public class DefaultWebResponseMapper implements WebResponseMapper {
         boolean explicitContentType = WebResponse.getHeaders(metadata).containsKey("Content-Type");
         WebResponse.Builder builder = WebResponse.builder();
         if (response instanceof Throwable) {
-            if (response instanceof ValidationException || response instanceof DeserializationException) {
+            if (response instanceof DeserializationException) {
+                builder.status(400).payload("The request could not be read. Please check its format.");
+            } else if (response instanceof ValidationException) {
                 builder.status(400).payload(((Exception) response).getMessage());
             } else if (response instanceof UnauthorizedException || response instanceof UnauthenticatedException) {
                 builder.status(401).payload(((Exception) response).getMessage());
