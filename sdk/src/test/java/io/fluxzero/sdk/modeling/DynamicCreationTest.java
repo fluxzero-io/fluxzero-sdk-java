@@ -32,8 +32,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-/** Characterizes the current rejection; it does not endorse that rejection as the intended contract. */
-class DynamicReadTargetCharacterizationTest {
+class DynamicCreationTest {
     private final ItemId id = new ItemId("new");
     private TestFixture fixture;
 
@@ -59,19 +58,19 @@ class DynamicReadTargetCharacterizationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void absentNullableAssertionTargetIsRejectedByCollection(boolean async) {
-        assertRejected(fixture(async), new Checked(id));
+    void absentNullableAssertionTargetCanBeCreatedByCollection(boolean async) {
+        assertCreated(fixture(async), new Checked(id));
     }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void absentNullableInterceptorTargetIsRejectedByCollection(boolean async) {
-        assertRejected(fixture(async), new Intercepted(id));
+    void absentNullableInterceptorTargetCanBeCreatedByCollection(boolean async) {
+        assertCreated(fixture(async), new Intercepted(id));
     }
 
     @Test
-    void absentNullableAssertionTargetIsRejectedByDynamicResult() {
-        assertRejected(fixture(false), new DynamicChecked(id));
+    void absentNullableAssertionTargetCanBeCreatedByDynamicResult() {
+        assertCreated(fixture(false), new DynamicChecked(id));
     }
 
     @ParameterizedTest
@@ -85,16 +84,82 @@ class DynamicReadTargetCharacterizationTest {
                 }).expectNoErrors();
     }
 
-    private void assertRejected(TestFixture fixture, Object command) {
-        fixture.whenCommand(command)
+    private void assertCreated(TestFixture fixture, Object command) {
+        fixture.whenCommand(command).expectSuccessfulResult().expectThat(fc -> {
+            fc.cache().clear();
+            assertEquals(new Item(id, 1), Fluxzero.loadModel(id).get());
+        }).expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void deletedNullableTargetCanBeRecreatedWithItsHistory(boolean async) {
+        fixture(async).givenCommands(new Unread(id), new Delete(id))
+                .whenCommand(new Checked(id)).expectSuccessfulResult().expectThat(fc -> {
+                    fc.cache().clear();
+                    assertEquals(new Item(id, 1), Fluxzero.loadModel(id).get());
+                    assertEquals(3, fc.eventStore().getEvents(id.toString()).count());
+                }).expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void earlierSubstepDeletionCanBeRecreatedAtomically(boolean async) {
+        fixture(async).givenCommands(new Unread(id))
+                .whenCommand(new Recreate(id)).expectSuccessfulResult().expectThat(fc -> {
+                    fc.cache().clear();
+                    assertEquals(new Item(id, 1), Fluxzero.loadModel(id).get());
+                    assertEquals(3, fc.eventStore().getEvents(id.toString()).count());
+                }).expectNoErrors();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void existingReadOnlyTargetIsNotPromotedToAWrite(boolean async) {
+        fixture(async).givenCommands(new Unread(id))
+                .whenCommand(new ReadOnlyChecked(id))
                 .expectExceptionalResult((Throwable error) ->
                         (error instanceof IllegalStateException || error instanceof TechnicalException)
-                        && error.getMessage().contains("returned model 'item-new', which is not a resolved write target"),
-                        "The known unresolved write-target rejection")
+                        && error.getMessage().contains("not a resolved write target"), "Read-only target rejected")
                 .expectThat(fc -> {
-                    assertNull(Fluxzero.loadModel(id).get());
-                    assertEquals(0, fc.eventStore().getEvents(id.toString()).count());
+                    fc.cache().clear();
+                    assertEquals(new Item(id, 1), Fluxzero.loadModel(id).get());
+                    assertEquals(1, fc.eventStore().getEvents(id.toString()).count());
                 });
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void mixedGraphUpdateAndCheckedCreationRetainBothRevisions(boolean async) {
+        var existingId = new ItemId("existing");
+        fixture(async).givenCommands(new Unread(existingId))
+                .whenCommand(new Mixed(existingId, id)).expectSuccessfulResult().expectThat(fc -> {
+                    fc.cache().clear();
+                    assertEquals(new Item(existingId, 2), Fluxzero.loadModel(existingId).get());
+                    assertEquals(new Item(id, 1), Fluxzero.loadModel(id).get());
+                }).expectNoErrors();
+    }
+
+    record Delete(ItemId itemId) {
+        @Apply Item apply(Item item) { return null; }
+    }
+
+    record Recreate(ItemId itemId) {
+        @InterceptApply List<Object> intercept() { return List.of(new Delete(itemId), new Checked(itemId)); }
+    }
+
+    record ReadOnlyChecked(ItemId itemId) {
+        @AssertLegal void check(@Nullable Item item) {}
+        @Apply List<Item> apply() { return List.of(new Item(itemId, 2)); }
+    }
+
+    record Mixed(ItemId existingId, ItemId itemId) {
+        @AssertLegal void check(@io.fluxzero.sdk.tracking.handling.Association("itemId") @Nullable Item item) {
+            assertNull(item);
+        }
+        @Apply List<Item> apply(@io.fluxzero.sdk.tracking.handling.Association("existingId") Graph<Item> existing) {
+            return List.of(new Item(existingId, existing.get().value() + 1), new Item(itemId, 1));
+        }
     }
 
     @Model

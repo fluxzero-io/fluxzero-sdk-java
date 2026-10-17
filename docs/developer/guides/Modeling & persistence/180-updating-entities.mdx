@@ -564,6 +564,10 @@ data class IncrementChildren(val rootId: RootId) {
 The SDK retains each inspected Model's own revision; the children need not share a revision or sequence number.
 The values must come from this evaluation's tracked Graph, not a detached search result or arbitrary current-state read.
 An identity not read in the evaluation remains a new create-if-absent target, never a blind overwrite.
+A collection or dynamically typed Model result may also create an identity already found absent by a nullable
+Model parameter in an assertion or interceptor. That read retains its absence or deletion revision for conflict
+checking; a concurrent creation cannot be blindly overwritten. Reading an existing Model in an assertion or
+interceptor alone does not make it writable. Existing results still need a resolved write target or a tracked Graph read.
 
 Use `@InterceptApply List<Graph<Child>>` when you want explicit `graph.update(...)` or `graph.delete()` operations.
 Return those changed Graphs so their identity and read boundary travel with the mutation. Use an ordered collection
