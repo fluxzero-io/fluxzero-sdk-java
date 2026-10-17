@@ -7,6 +7,9 @@
   "annotations" : [ {
     "annotationType" : "lombok.Value",
     "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
   } ],
   "documentation" : " Command sent to the Fluxzero Runtime to update the tracked position for a specific consumer and segment range.\n <p>\n This is typically used after a {@code Tracker} has successfully processed a\n {@link io.fluxzero.common.api.tracking.MessageBatch}, allowing the system to record the latest confirmed index.\n <p>\n <strong>Important:</strong> The {@code lastIndex} can only move forward. Attempts to store a lower index than\n currently registered will be ignored. This ensures resilience against out-of-order or stale tracker activity (e.g.\n due to temporary disconnects), and helps prevent split-brain scenarios.\n <p>\n If you need to explicitly lower a segment’s index (e.g. for replay or recovery purposes), use the\n {@link io.fluxzero.common.api.tracking.ResetPosition} command instead.\n",
   "typeParameters" : [ ],
@@ -52,6 +55,14 @@
     "annotations" : [ ],
     "documentation" : " The segment range [start, end) that the tracker is responsible for.\n",
     "constantValue" : null
+  }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The tracked topic or document collection, or {@code null} for an unscoped stream. Included in metrics for\n attribution; the connected endpoint remains authoritative for storage and routing.\n",
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "StorePosition",
@@ -59,12 +70,73 @@
     "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : null
+    "documentation" : "Creates a position update for an unscoped stream. "
   } ],
   "methods" : [ {
+    "name" : "fromJson",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#fromJson",
+    "returnType" : "io.fluxzero.common.api.tracking.StorePosition",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates and validates a position update for an unscoped stream. "
+  }, {
     "name" : "fromJson",
     "qualifiedName" : "io.fluxzero.common.api.tracking.StorePosition#fromJson",
     "returnType" : "io.fluxzero.common.api.tracking.StorePosition",
@@ -99,6 +171,11 @@
     }, {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

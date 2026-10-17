@@ -419,6 +419,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "awaitCollectionDelay",
+    "qualifiedName" : "io.fluxzero.common.Backlog#awaitCollectionDelay",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delayNanos",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "consume",
     "qualifiedName" : "io.fluxzero.common.Backlog#consume",
     "returnType" : "void",
