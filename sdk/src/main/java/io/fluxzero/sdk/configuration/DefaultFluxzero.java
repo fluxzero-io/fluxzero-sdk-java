@@ -347,6 +347,7 @@ public class DefaultFluxzero implements Fluxzero {
                 log.info("Initiating controlled shutdown");
             }
             try {
+                ObjectUtils.tryRun(client::prepareShutdown);
                 cleanupTasks.forEach(ObjectUtils::tryRun);
                 taskScheduler.shutdown();
                 shutdownHandler.run();

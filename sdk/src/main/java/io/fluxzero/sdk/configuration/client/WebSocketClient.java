@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.ZSTD;
@@ -112,6 +113,18 @@ public class WebSocketClient extends AbstractClient {
         return new WebSocketClient(clientConfig, null);
     }
 
+    private final AtomicBoolean shutdownStarted = new AtomicBoolean();
+
+    @Override
+    public void prepareShutdown() {
+        shutdownStarted.set(true);
+    }
+
+    /** Whether this client or its owning application has started controlled shutdown. */
+    public boolean isShuttingDown() {
+        return shutdownStarted.get() || applicationClient != null && applicationClient.isShuttingDown();
+    }
+
     private final Object namespaceClientLock = new Object();
     private WebsocketNamespaceClient namespaceClient;
     private boolean namespaceDiscoveryClosed;
@@ -136,6 +149,7 @@ public class WebSocketClient extends AbstractClient {
 
     @Override
     public void shutDown() {
+        io.fluxzero.common.ObjectUtils.tryRun(this::prepareShutdown);
         WebsocketNamespaceClient discovery;
         synchronized (namespaceClientLock) {
             namespaceDiscoveryClosed = true;

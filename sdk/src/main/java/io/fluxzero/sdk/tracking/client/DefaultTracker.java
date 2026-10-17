@@ -46,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -109,6 +110,7 @@ public class DefaultTracker implements Runnable, Registration {
     private final AtomicBoolean cancellationRequested = new AtomicBoolean();
     private final AtomicBoolean cancellationCompleted = new AtomicBoolean();
     private final AtomicBoolean disconnectRequested = new AtomicBoolean();
+    private final CompletableFuture<Void> termination = new CompletableFuture<>();
     private volatile Long lastProcessedIndex;
     private volatile boolean processing;
 
@@ -288,6 +290,7 @@ public class DefaultTracker implements Runnable, Registration {
                 } finally {
                     thread.set(null);
                     Tracker.current.remove();
+                    termination.complete(null);
                 }
             }
         }
@@ -615,14 +618,6 @@ public class DefaultTracker implements Runnable, Registration {
             completeCancellation();
             return;
         }
-        while (processing) {
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                currentThread().interrupt();
-                return;
-            }
-        }
         if (trackerThread != null) {
             try {
                 long remainingNanos = threadStopDeadline - System.nanoTime();
@@ -633,6 +628,9 @@ public class DefaultTracker implements Runnable, Registration {
                     log.warn("Tracker thread {} did not stop within {} after cancellation. Continuing shutdown so "
                              + "the client can release its resources", trackerThread.getName(),
                              TRACKER_THREAD_STOP_TIMEOUT);
+                    // Keep interceptor resources alive until the processing stack has actually unwound.
+                    termination.thenRun(this::completeCancellation);
+                    return;
                 }
             } catch (InterruptedException e) {
                 currentThread().interrupt();

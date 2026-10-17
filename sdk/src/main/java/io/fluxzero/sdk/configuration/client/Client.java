@@ -185,6 +185,14 @@ public interface Client extends Namespaced<Client> {
     void shutDown();
 
     /**
+     * Announces controlled shutdown before application callbacks and consumers drain. Implementations may stop
+     * liveness monitoring, but must keep transport and other resources available until {@link #shutDown()}.
+     * Repeated calls must be harmless. The default implementation does nothing.
+     */
+    default void prepareShutdown() {
+    }
+
+    /**
      * Registers a shutdown hook that will be called before this client shuts down.
      *
      * @param task the action to invoke before shutdown

@@ -37,6 +37,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ApplicationLifecycleMetricsIntegrationTest {
 
     @Test
+    void preparesClientBeforeApplicationAndClientShutdownCallbacks() {
+        LocalClient client = org.mockito.Mockito.spy(LocalClient.newInstance(null));
+        var prepared = new java.util.concurrent.atomic.AtomicBoolean();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            prepared.set(true);
+            return null;
+        }).when(client).prepareShutdown();
+        Fluxzero fluxzero = DefaultFluxzero.builder().disableAutomaticTracking().disableTrackingMetrics()
+                .disableCacheEvictionMetrics().disableApplicationLifecycleMetrics()
+                .disableShutdownHook().disableKeepalive().build(client);
+        var callbacks = new java.util.concurrent.atomic.AtomicInteger();
+        fluxzero.beforeShutdown(() -> {
+            assertTrue(prepared.get());
+            callbacks.incrementAndGet();
+        });
+        client.beforeShutdown(() -> {
+            assertTrue(prepared.get());
+            callbacks.incrementAndGet();
+        });
+        fluxzero.close(true);
+        assertEquals(2, callbacks.get());
+    }
+
+    @Test
     void canDisableLifecycleMetricsExplicitly() {
         LocalClient client = LocalClient.newInstance(null);
         List<SerializedMessage> metrics = new CopyOnWriteArrayList<>();

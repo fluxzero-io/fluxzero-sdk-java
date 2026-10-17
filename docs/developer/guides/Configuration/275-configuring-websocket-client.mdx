@@ -119,6 +119,17 @@ Set `fluxzero.websocket.transportMetrics.enabled=true`
 without functional progress; an idle connection is not stalled. The optional stall-close timeout is disabled by
 default. Consider it when a silent connection failure must be detected even while local backpressure pauses receiving.
 
+Controlled application shutdown disables ingress-stall/recovery diagnostics and stall-triggered connection closure
+before shutdown callbacks and consumers drain. Connections remain available for pending results, position updates
+and shutdown publications. This applies to namespace clients as well. If you manage a client lifecycle directly,
+call `Client.prepareShutdown()` before draining your own callbacks, then `Client.shutDown()` to release resources.
+The same lifecycle applies in Java and Kotlin.
+
+Tracker cancellation waits at most one second across the parallel trackers in a registration. It does not interrupt
+an active handler or acknowledge unfinished work. A blocked worker runs interceptor cleanup after it eventually
+exits; custom cleanup must remain bounded. Component shutdown budgets can accumulate, so this is not a global
+application-shutdown deadline.
+
 For defaults, valid ranges and the exact admission and shutdown contracts, see
 <Jdoclink className="WebSocketClient.ClientConfig" />.
 
