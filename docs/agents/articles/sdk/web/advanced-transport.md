@@ -19,6 +19,11 @@ ignore path is `/api/*`, and the default fallback is `index.html`. With `cleanUr
 the exact resource, `<path>.html`, `<path>/index.html`, then the fallback. Keep API paths excluded so an SPA fallback
 cannot hide a missing endpoint. Use `classpath:` or `file:` to restrict the source intentionally.
 
+`@ServeStatic` can also annotate a `@SocketEndpoint` registered by class. Static resources are served independently
+of socket sessions, including before a session opens and after it closes. A class/package `@Path` contributes to the
+static mount just as it does to other web routes; use the same mounted prefix in HTTP and socket tests. This applies
+to Java and Kotlin handlers.
+
 Fingerprint immutable assets and configure caching deliberately; do not give HTML an immutable one-year cache when it
 must point clients to newly deployed assets. ETags identify the bytes of the selected file (identity, gzip, or Brotli).
 Conditional GET/HEAD gives `If-None-Match` precedence over `If-Modified-Since`, including weak tags, lists, and `*`.

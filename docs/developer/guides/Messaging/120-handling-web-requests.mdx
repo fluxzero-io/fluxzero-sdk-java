@@ -27,6 +27,9 @@ Named JSON body fields that are missing or explicitly null provide no parameter 
 `WebRequestContext.getParameter(name, sources...)` continues to the next configured source in that case.
 An empty string, `false`, or zero is a value and does not trigger this fallback.
 
+A `@HandleGet` without a mapping value or `@Path` serves `/`. Empty request URLs also resolve to this root;
+automatic HEAD and OPTIONS use the same route. This applies in Java and Kotlin.
+
 ## Why this design?
 
 This architecture enables several key benefits:

@@ -74,6 +74,7 @@ import static java.util.stream.Collectors.toList;
  * Serialized GZIP responses received through the SDK request/response gateway are decompressed before payload
  * deserialization. Their Content-Encoding header is removed and any Content-Length reflects the decoded bytes.
  * Empty bodies retain their representation headers, as required for responses such as HEAD and 304.
+ * An empty HTTP body does not require a serialized Java type, even when its content type is JSON.
  * </p>
  *
  * @see WebRequest

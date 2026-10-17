@@ -29,6 +29,7 @@ import lombok.With;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -126,36 +127,58 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         return new DefaultCasterChain<>(casterCandidates, dataType, down);
     }
 
-    private final Map<DataRevision, AnnotatedCaster<T>> casters;
+    private volatile Map<DataRevision, AnnotatedCaster<T>> casters;
     private final boolean down;
     private final Class<T> dataType;
 
     protected DefaultCasterChain(Collection<?> casterCandidates, Class<T> dataType, boolean down) {
-        this.casters = CastInspector.getCasters(down ? Downcast.class : Upcast.class, casterCandidates, dataType)
+        this.casters = Map.copyOf(CastInspector.getCasters(down ? Downcast.class : Upcast.class, casterCandidates, dataType)
                 .stream().collect(toMap(u -> new DataRevision(u.getParameters()), identity(), (a, b) -> {
                     throw new DeserializationException(format(
                             "Failed to create CasterChain. Methods '%s' and '%s' both apply to the same data revision.",
                             a, b));
-                }, HashMap::new));
+                })));
         this.down = down;
         this.dataType = dataType;
     }
 
+    /** Registers the complete batch atomically; a conflicting candidate leaves the chain unchanged. */
     @Override
     public Registration registerCasterCandidates(Object... candidates) {
-        return CastInspector.getCasters(down ? Downcast.class : Upcast.class, Arrays.asList(candidates), dataType)
-                .stream().<Registration>map(c -> {
-                    DataRevision dataRevision = new DataRevision(c.getParameters());
-                    AnnotatedCaster<T> existingCaster = casters.putIfAbsent(dataRevision, c);
-                    if (existingCaster != null) {
-                        if (existingCaster.equals(c)) {
-                            return Registration.noOp();
-                        }
-                        throw new DeserializationException(format(
-                                "Failed to register candidate. A caster for %s already exists.", dataRevision));
+        List<AnnotatedCaster<T>> discovered = CastInspector.getCasters(
+                down ? Downcast.class : Upcast.class, Arrays.asList(candidates), dataType);
+        Map<DataRevision, AnnotatedCaster<T>> added = new HashMap<>();
+        synchronized (this) {
+            Map<DataRevision, AnnotatedCaster<T>> updated = new HashMap<>(casters);
+            for (AnnotatedCaster<T> c : discovered) {
+                DataRevision dataRevision = new DataRevision(c.getParameters());
+                AnnotatedCaster<T> existingCaster = updated.putIfAbsent(dataRevision, c);
+                if (existingCaster != null) {
+                    if (existingCaster.equals(c)) {
+                        continue;
                     }
-                    return () -> casters.remove(dataRevision);
-                }).reduce(Registration::merge).orElseGet(Registration::noOp);
+                    throw new DeserializationException(format(
+                            "Failed to register candidate. A caster for %s already exists.", dataRevision));
+                }
+                added.put(dataRevision, c);
+            }
+            if (added.isEmpty()) {
+                return Registration.noOp();
+            }
+            // Publish the complete batch once; a later conflicting candidate must leave no active partial batch.
+            casters = Map.copyOf(updated);
+        }
+        return () -> {
+            synchronized (this) {
+                Map<DataRevision, AnnotatedCaster<T>> updated = new HashMap<>(casters);
+                added.forEach((revision, caster) -> {
+                    if (updated.get(revision) == caster) {
+                        updated.remove(revision);
+                    }
+                });
+                casters = Map.copyOf(updated);
+            }
+        };
     }
 
     @Override

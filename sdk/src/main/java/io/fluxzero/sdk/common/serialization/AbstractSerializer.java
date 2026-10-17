@@ -239,9 +239,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
                     }
                     if (!isKnownType(s.data().getType())) {
                         if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
-                            throw new DeserializationException(
-                                    format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
-                                           s.data().getType(), s.data().getRevision()));
+                            throw new UnknownSerializedTypeException(s.data().getType(), s.data().getRevision());
                         }
                         if (unknownTypeStrategy == UnknownTypeStrategy.IGNORE) {
                             return Stream.empty();
@@ -299,9 +297,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         }
         if (!isKnownType(s.data().getType())) {
             if (unknownTypeStrategy == UnknownTypeStrategy.FAIL) {
-                throw new DeserializationException(
-                        format("Could not deserialize object. The serialized type is unknown: %s (rev. %d)",
-                               s.data().getType(), s.data().getRevision()));
+                throw new UnknownSerializedTypeException(s.data().getType(), s.data().getRevision());
             }
             if (unknownTypeStrategy == UnknownTypeStrategy.IGNORE) {
                 return null;

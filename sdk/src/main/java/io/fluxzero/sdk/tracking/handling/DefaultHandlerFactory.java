@@ -231,11 +231,11 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 SocketEndpoint handler = ReflectionUtils.getTypeAnnotation(targetClass, SocketEndpoint.class);
                 if (handler != null) {
                     var socketConfig = config;
-                    return new SocketEndpointHandler(
+                    return withStaticFiles(new SocketEndpointHandler(
                             targetClass, createHandlerMatcher(targetClass, socketConfig),
                             createHandlerMatcher(SocketEndpointHandler.SocketEndpointWrapper.class, socketConfig),
                             repositoryProvider, parameterResolvers,
-                            e -> socketConfig.getAnnotation(e).orElse(null));
+                            e -> socketConfig.getAnnotation(e).orElse(null)), targetClass, socketConfig);
                 }
             }
 
@@ -316,6 +316,14 @@ public class DefaultHandlerFactory implements HandlerFactory {
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
                 }
             }
+        }
+        return withStaticFiles(handler, targetClass, config);
+    }
+
+    private Handler<DeserializingMessage> withStaticFiles(
+            Handler<DeserializingMessage> handler, Class<?> targetClass,
+            HandlerConfiguration<DeserializingMessage> config) {
+        if (messageType == MessageType.WEBREQUEST) {
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
                     var messageFilter = config.messageFilter().and((m, e, a, t)-> {
