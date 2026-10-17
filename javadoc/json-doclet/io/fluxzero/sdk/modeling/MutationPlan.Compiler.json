@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "aliasTargets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler.aliasTargets",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "assertCurrentDefault",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler.assertCurrentDefault",
     "type" : "boolean",
@@ -101,8 +109,44 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Creates application-bound plans with the already resolved interceptor validation default. "
+  }, {
+    "name" : "Compiler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#Compiler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertCurrentDefault",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliasTargets",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates application-bound plans with resolved validation and identity-selection defaults. "
   } ],
   "methods" : [ {
+    "name" : "aliasTargets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#aliasTargets",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether this application uses property-aware Model identity selection. "
+  }, {
     "name" : "annotationType",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler#annotationType",
     "returnType" : "java.lang.Class<? extends java.lang.annotation.Annotation>",

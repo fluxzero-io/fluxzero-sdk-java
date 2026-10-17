@@ -50,6 +50,11 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDocumentProjections",
     "kind" : "class"
   }, {
+    "file" : "CommitModelsWithIdentityReads.json",
+    "name" : "CommitModelsWithIdentityReads",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads",
+    "kind" : "class"
+  }, {
     "file" : "CommitModelsWithRelationships.json",
     "name" : "CommitModelsWithRelationships",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithRelationships",
@@ -105,6 +110,16 @@
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric",
     "kind" : "class"
   }, {
+    "file" : "GetModelEventsByIdentity.json",
+    "name" : "GetModelEventsByIdentity",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelEventsByIdentity.Selection.json",
+    "name" : "GetModelEventsByIdentity.Selection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity$Selection",
+    "kind" : "enum"
+  }, {
     "file" : "GetModelEventsResult.json",
     "name" : "GetModelEventsResult",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
@@ -154,6 +169,11 @@
     "name" : "GetRelationshipsResult",
     "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult",
     "kind" : "class"
+  }, {
+    "file" : "ModelAliasObservation.json",
+    "name" : "ModelAliasObservation",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation",
+    "kind" : "record"
   }, {
     "file" : "ModelChangeTarget.json",
     "name" : "ModelChangeTarget",

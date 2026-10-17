@@ -785,6 +785,21 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Access",
     "kind" : "enum"
   }, {
+    "file" : "MutationPlan.AliasInput.json",
+    "name" : "MutationPlan.AliasInput",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AliasInput",
+    "kind" : "record"
+  }, {
+    "file" : "MutationPlan.AliasTarget.json",
+    "name" : "MutationPlan.AliasTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AliasTarget",
+    "kind" : "record"
+  }, {
+    "file" : "MutationPlan.AliasValue.json",
+    "name" : "MutationPlan.AliasValue",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AliasValue",
+    "kind" : "record"
+  }, {
     "file" : "MutationPlan.AncestorDependency.json",
     "name" : "MutationPlan.AncestorDependency",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AncestorDependency",

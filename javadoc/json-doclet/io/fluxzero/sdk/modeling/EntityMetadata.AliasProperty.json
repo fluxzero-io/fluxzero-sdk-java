@@ -3,7 +3,7 @@
   "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$AliasProperty",
   "packageName" : "io.fluxzero.sdk.modeling",
   "kind" : "record",
-  "modifiers" : [ "final", "private", "static" ],
+  "modifiers" : [ "final", "static" ],
   "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
@@ -37,7 +37,7 @@
   "constructors" : [ {
     "name" : "AliasProperty",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$AliasProperty#AliasProperty",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -135,7 +135,7 @@
     "name" : "value",
     "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$AliasProperty#value",
     "returnType" : "java.lang.String",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {

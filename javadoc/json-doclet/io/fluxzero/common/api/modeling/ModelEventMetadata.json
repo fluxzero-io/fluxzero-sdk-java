@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "ALIAS_BINDINGS",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata.ALIAS_BINDINGS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Canonical property-qualified Model references observed by this substep, encoded as a JSON string map. ",
+    "constantValue" : "$modelAliasBindings"
+  }, {
     "name" : "CASCADE_SUBSTEPS",
     "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata.CASCADE_SUBSTEPS",
     "type" : "java.lang.String",

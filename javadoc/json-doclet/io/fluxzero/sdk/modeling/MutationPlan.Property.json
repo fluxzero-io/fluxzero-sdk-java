@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Property.aliases",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasInput>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "error",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Property.error",
     "type" : "java.lang.String",
@@ -85,8 +93,59 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Property",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Property#Property",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "genericType",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reader",
+      "type" : "java.util.function.Function<java.lang.Object,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "error",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliases",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasInput>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Property#aliases",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasInput>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "equals",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Property#equals",
     "returnType" : "boolean",
@@ -236,6 +295,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "aliases",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasInput>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "error",
     "type" : "java.lang.String",
     "annotations" : [ ],

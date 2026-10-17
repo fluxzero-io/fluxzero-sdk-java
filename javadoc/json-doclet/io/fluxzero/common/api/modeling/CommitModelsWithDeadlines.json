@@ -138,37 +138,7 @@
     "varArgs" : false,
     "documentation" : null
   } ],
-  "methods" : [ {
-    "name" : "getBytes",
-    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines#getBytes",
-    "returnType" : "long",
-    "modifiers" : [ "public" ],
-    "annotations" : [ {
-      "annotationType" : "java.lang.Override",
-      "values" : {}
-    } ],
-    "typeParameters" : [ ],
-    "parameters" : [ ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "hasExpiredReplacement",
-    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithDeadlines#hasExpiredReplacement",
-    "returnType" : "boolean",
-    "modifiers" : [ "public" ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "cutoff",
-      "type" : "long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : "Whether a proposed replacement's original scheduler time has been reached at commit acceptance. "
-  } ],
+  "methods" : [ ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ ]

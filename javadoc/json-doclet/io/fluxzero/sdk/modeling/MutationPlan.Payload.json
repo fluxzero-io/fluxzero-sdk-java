@@ -10,6 +10,22 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "aliasAware",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Payload.aliasAware",
+    "type" : "java.util.function.Supplier<io.fluxzero.sdk.modeling.MutationPlan.Payload>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "aliasTargets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Payload.aliasTargets",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "metadata",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Payload.metadata",
     "type" : "io.fluxzero.common.reflection.ReflectionUtils.TypeMetadata",
@@ -51,6 +67,26 @@
     "parameters" : [ {
       "name" : "type",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Payload",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Payload#Payload",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliasTargets",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

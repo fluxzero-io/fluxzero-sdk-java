@@ -34,6 +34,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "aliasCreations",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.aliasCreations",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "aliasResolutions",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.aliasResolutions",
     "type" : "java.util.Map<java.lang.String,java.lang.String>",
@@ -282,6 +290,30 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "identityObservations",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.identityObservations",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "identityReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.identityReads",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelAliasObservation>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "identitySelections",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.identitySelections",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelAliasSelection>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "preparationRetries",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt.preparationRetries",
     "type" : "int",
@@ -385,6 +417,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "aliasCreation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#aliasCreation",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "aliasReadProof",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#aliasReadProof",
     "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt.GraphReadProof",
@@ -397,6 +455,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "aliasReplayBindings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#aliasReplayBindings",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1201,6 +1270,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "identityReads",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#identityReads",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Alias mapping observations retained independently of assertion-only dependencies. "
+  }, {
     "name" : "immutable",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#immutable",
     "returnType" : "java.util.Map<K,V>",
@@ -1246,6 +1326,22 @@
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isAliasCreationTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#isAliasCreationTarget",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
       "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
@@ -2102,6 +2198,22 @@
     "varArgs" : false,
     "documentation" : " Returns the Model changes retained by this attempt.\n"
   }, {
+    "name" : "validateAliasResults",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#validateAliasResults",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "changes",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "validateLoadedEntity",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#validateLoadedEntity",
     "returnType" : "void",
@@ -2185,6 +2297,27 @@
     }, {
       "name" : "action",
       "type" : "java.util.function.Supplier<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withIdentitySelections",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt#withIdentitySelections",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selections",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.ModelAliasSelection>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "observations",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

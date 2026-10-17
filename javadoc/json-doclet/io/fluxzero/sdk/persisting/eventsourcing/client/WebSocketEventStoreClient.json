@@ -111,6 +111,30 @@
     "documentation" : " Constructs the WebSocket client with full customization.\n\n @param endPointUri    URI of the event sourcing endpoint.\n @param fetchBatchSize The size of event batches fetched from the server.\n @param client         The WebSocket client.\n @param sendMetrics    Whether to send metrics to the Fluxzero Runtime.\n"
   } ],
   "methods" : [ {
+    "name" : "adaptRequestForSession",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#adaptRequestForSession",
+    "returnType" : "io.fluxzero.common.api.Request",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.Request",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "awaitModelGraphProjection",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#awaitModelGraphProjection",
     "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
@@ -180,7 +204,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Commits an independent-model commit and retains the positions returned by the runtime.\n"
+    "documentation" : "Commits an independent-model commit and retains the positions returned by the Runtime. "
   }, {
     "name" : "deleteEvents",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#deleteEvents",

@@ -42,6 +42,14 @@
     "documentation" : "Highest native message envelope version this peer can read, including packed Model-event blocks. ",
     "constantValue" : "Fluxzero-Message-Envelope-Version"
   }, {
+    "name" : "MODEL_IDENTITY_SELECTION_VERSION_HEADER",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.MODEL_IDENTITY_SELECTION_VERSION_HEADER",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Explicit primary/alias selection and atomic alias-owner observations understood by the server. ",
+    "constantValue" : "Fluxzero-Model-Identity-Selection-Version"
+  }, {
     "name" : "REPLACES_SESSION_ID_HEADER",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities.REPLACES_SESSION_ID_HEADER",
     "type" : "java.lang.String",
@@ -421,6 +429,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Whether this peer advertises the consumer filter language understood by this SDK. Missing means unsupported. "
+  }, {
+    "name" : "supportsModelIdentitySelection",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#supportsModelIdentitySelection",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Missing or unknown capability versions never enable explicit identity selection. "
   }, {
     "name" : "supportsRoutedEnvelopes",
     "qualifiedName" : "io.fluxzero.common.websocket.WebSocketCapabilities#supportsRoutedEnvelopes",

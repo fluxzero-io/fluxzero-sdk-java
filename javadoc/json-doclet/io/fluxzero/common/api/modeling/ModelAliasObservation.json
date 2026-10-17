@@ -1,0 +1,129 @@
+{
+  "name" : "ModelAliasObservation",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+    "values" : {
+      "value" : "ALWAYS"
+    }
+  } ],
+  "documentation" : " An alias mapping observed while selecting a mutation target. A null owner explicitly records absence.\n The owner, when present, must also participate in the commit's canonical Model-head dependencies.\n This observation is independent of any primary identity equal to {@link #alias()}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "alias",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation.alias",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "expectedOwner",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation.expectedOwner",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelAliasObservation",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation#ModelAliasObservation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "alias",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expectedOwner",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "alias",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation#alias",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "expectedOwner",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation#expectedOwner",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelAliasObservation#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "alias",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "expectedOwner",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

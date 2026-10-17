@@ -1,0 +1,158 @@
+{
+  "name" : "CommitModelsWithIdentityReads",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Atomically validates explicit alias selections with Model mutations and existing commit facets.\n Null expected owners mean observed absence. Unsupported peers must reject this distinct wire type.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.CommitModels",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aliasObservations",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads.aliasObservations",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deadlineUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads.deadlineUpdates",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "readAliasIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads.readAliasIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "readRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads.readRelationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommitModelsWithIdentityReads",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads#CommitModelsWithIdentityReads",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "observations",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "CommitModelsWithIdentityReads",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithIdentityReads#CommitModelsWithIdentityReads",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"commitId\",\"readStateIndex\",\"readModelIds\",\"substeps\",\"conflictPolicy\",\"guarantee\",\"possibleDuplicate\",\"migration\",\"readRelationships\",\"readAliasIds\",\"deadlineUpdates\",\"aliasObservations\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readModelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "substeps",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitStep>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "possibleDuplicate",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRelationships",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readAliasIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadlineUpdates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliasObservations",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

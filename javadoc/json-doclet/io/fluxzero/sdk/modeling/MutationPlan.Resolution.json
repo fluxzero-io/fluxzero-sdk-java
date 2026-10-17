@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "aliasTargets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution.aliasTargets",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasTarget>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "ancestorDependencies",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution.ancestorDependencies",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AncestorDependency>",
@@ -29,6 +37,14 @@
     "name" : "models",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution.models",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "primaryOnly",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution.primaryOnly",
+    "type" : "boolean",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -117,8 +133,59 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Resolution",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#Resolution",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "models",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deferredWrites",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.DeferredWriteTarget>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestorDependencies",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AncestorDependency>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "references",
+      "type" : "java.util.Map<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter,io.fluxzero.sdk.modeling.MutationPlan.DirectReferences>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliasTargets",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasTarget>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "primaryOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "aliasTargets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#aliasTargets",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasTarget>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "ancestorDependencies",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#ancestorDependencies",
     "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AncestorDependency>",
@@ -201,6 +268,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "primaryOnly",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#primaryOnly",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "references",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#references",
     "returnType" : "java.util.Map<io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter,io.fluxzero.sdk.modeling.MutationPlan.DirectReferences>",
@@ -216,6 +294,17 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#toString",
     "returnType" : "java.lang.String",
     "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withPrimaryOnly",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution#withPrimaryOnly",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+    "modifiers" : [ "public" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
@@ -241,6 +330,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "aliasTargets",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AliasTarget>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "ancestorDependencies",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.AncestorDependency>",
     "annotations" : [ ],
@@ -253,6 +347,11 @@
   }, {
     "name" : "models",
     "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "primaryOnly",
+    "type" : "boolean",
     "annotations" : [ ],
     "documentation" : null
   }, {

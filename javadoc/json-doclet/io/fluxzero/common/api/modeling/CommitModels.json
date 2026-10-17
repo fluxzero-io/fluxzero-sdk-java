@@ -271,6 +271,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getAliasObservations",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#getAliasObservations",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelAliasObservation>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_EMPTY"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Explicit alias-owner observations; null owners record absence independently of primary IDs. "
+  }, {
     "name" : "getBytes",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#getBytes",
     "returnType" : "long",
@@ -284,6 +300,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns the complete serialized event-message bytes carried once by this commit.\n"
+  }, {
+    "name" : "getDeadlineUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#getDeadlineUpdates",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_EMPTY"
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Scheduler effects included atomically with this commit. Empty on ordinary commits. "
   }, {
     "name" : "getReadAliasIds",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#getReadAliasIds",
@@ -316,6 +348,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : "Relationship selections read by the evaluation; ordinary commits carry no such dependencies. "
+  }, {
+    "name" : "hasExpiredReplacement",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#hasExpiredReplacement",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cutoff",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether a proposed replacement's original deadline has elapsed at commit acceptance. "
   }, {
     "name" : "markPossibleDuplicate",
     "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#markPossibleDuplicate",
@@ -372,6 +420,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns a payload-free representation for operational metrics.\n"
+  }, {
+    "name" : "withDeadlineUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels#withDeadlineUpdates",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModels",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelDeadlineUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Replaces scheduler effects while retaining explicit identity observations and all existing commit facets. "
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

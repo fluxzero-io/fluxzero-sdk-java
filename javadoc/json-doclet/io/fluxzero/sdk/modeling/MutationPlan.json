@@ -569,6 +569,42 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "compile",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#compile",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.TargetPlan",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.Collection<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assertionModels",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "embedded",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.EmbeddedModelPlan>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliasTargets",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "direct",
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#direct",
     "returnType" : "boolean",
@@ -1007,6 +1043,24 @@
     "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Access",
     "kind" : "enum",
     "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "AliasInput",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AliasInput",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "AliasTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AliasTarget",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "AliasValue",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AliasValue",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "AncestorDependency",

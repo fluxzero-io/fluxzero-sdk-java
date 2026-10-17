@@ -1,0 +1,75 @@
+{
+  "name" : "GetModelEventsByIdentity",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Selects Model streams explicitly by primary identity or alias, without fallback between those namespaces.\n The distinct wire type requires peer support. Ordinary {@link GetModelEvents} retains primary-first lookup.\n Alias selection is current-only; retain the returned canonical identity for subsequent pages and historical reads.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.GetModelEvents",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "selection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity.selection",
+    "type" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity.Selection",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "The identity namespace to consult. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetModelEventsByIdentity",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity#GetModelEventsByIdentity",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requests\",\"boundary\",\"maxBytes\",\"selection\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requests",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStreamRequest>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selection",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity.Selection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Selection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsByIdentity$Selection",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

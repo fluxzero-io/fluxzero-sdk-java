@@ -120,6 +120,32 @@
     "varArgs" : false,
     "documentation" : " Detects ordinary model conflicts plus relationship-only changes for identities whose evaluated operation\n depended on their relationship closure, such as cascade-deletion roots.\n"
   }, {
+    "name" : "detectAliasOwners",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitConflicts#detectAliasOwners",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitConflict>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owners",
+      "type" : "java.util.function.Function<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "currentBoundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks explicit alias-owner observations independently of equal primary IDs. A mismatch invalidates target\n selection and must never be accepted by merely rebasing the old target. Callers must reject or reevaluate\n the complete command, including its assertions. Canonical owner heads remain ordinary read dependencies.\n"
+  }, {
     "name" : "detectAliases",
     "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitConflicts#detectAliases",
     "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitConflict>",

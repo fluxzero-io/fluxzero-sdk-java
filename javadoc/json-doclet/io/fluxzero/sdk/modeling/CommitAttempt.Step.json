@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "aliasBindings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step.aliasBindings",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "cascadeCause",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step.cascadeCause",
     "type" : "int",
@@ -79,8 +87,49 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "Step",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#Step",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "changes",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.Change>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cascadeCause",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "aliasBindings",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "aliasBindings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#aliasBindings",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "cascadeCause",
     "qualifiedName" : "io.fluxzero.sdk.modeling.CommitAttempt$Step#cascadeCause",
     "returnType" : "int",
@@ -165,6 +214,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "aliasBindings",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "cascadeCause",
     "type" : "int",
     "annotations" : [ ],
