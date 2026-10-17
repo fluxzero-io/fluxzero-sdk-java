@@ -441,7 +441,10 @@ injection within an existing entity context keep their own resolution path. An a
 payload restriction, but another required payload parameter or `allowedClasses` can still narrow the handler.
 Runtime does not inspect aggregate metadata for this selection.
 Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
-HEAD/OPTIONS, including static mount/fallback routes. Socket consumers retain known HTTP and implicit handshake
+HEAD/OPTIONS, including static mount/fallback routes. Shared automatic OpenAPI, API-reference and static routes
+remain eligible for each declaring handler's consumer, even when another handler owns their execution. This preserves
+synchronous fixture admission when local and tracked registration orders differ; execution remains deduplicated.
+Socket consumers retain known HTTP and implicit handshake
 paths. Session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where the SDK's
 session lookup accepts them; those lifecycle methods do not make unrelated HTTP methods/routes eligible. Automatic
 OPTIONS is derived from HTTP routes only. Missing routes remain eligible for legacy inputs.

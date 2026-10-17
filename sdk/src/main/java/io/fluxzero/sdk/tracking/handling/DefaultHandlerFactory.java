@@ -23,7 +23,11 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.common.handling.HandlerMethodPlan;
+import io.fluxzero.common.handling.HandlerMethodPlanner;
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -354,13 +358,17 @@ public class DefaultHandlerFactory implements HandlerFactory {
             HandlerConfiguration<DeserializingMessage> config, Class<?> selfPayloadType) {
         Class<?> targetClass = asClass(target);
         HandlerMatcher<Object, DeserializingMessage> matcher = createHandlerMatcher(target, config);
+        List<ConsumerFilter> helperFilters = messageType == MessageType.WEBREQUEST ? new ArrayList<>() : List.of();
         java.util.function.Supplier<ConsumerFilter> consumerFilter = () -> {
             if (getClass() != DefaultHandlerFactory.class) {
                 return null;
             }
-            return matcher.getClass() == WebHandlerMatcher.class ? ((WebHandlerMatcher) matcher).getConsumerFilter()
+            ConsumerFilter filter = matcher.getClass() == WebHandlerMatcher.class
+                    ? ((WebHandlerMatcher) matcher).getConsumerFilter()
                     : selfPayloadType == null ? describePayloads(targetClass, config)
                     : describeSelfPayload(selfPayloadType);
+            return helperFilters.isEmpty() ? filter
+                    : ConsumerFilter.union(Stream.concat(Stream.of(filter), helperFilters.stream()).toList());
         };
         Handler<DeserializingMessage> handler = (target instanceof Class<?>
                 ? DefaultHandler.forPayloadTarget(targetClass, targetSupplier, matcher)
@@ -371,20 +379,68 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 if (openApiDocumentEndpoints.add(endpoint)) {
                     endpoint.validateResources();
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                } else {
+                    describeSharedWebHelper(endpoint, config, helperFilters);
                 }
             }
             for (ApiReferenceEndpoint endpoint : ApiReferenceEndpoint.forHandler(targetClass)) {
                 if (apiReferenceEndpoints.add(endpoint)) {
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
+                } else {
+                    describeSharedWebHelper(endpoint, config, helperFilters);
                 }
             }
         }
-        return withStaticFiles(handler, targetClass, config);
+        return withStaticFiles(handler, targetClass, config, helperFilters);
     }
 
     private Handler<DeserializingMessage> withStaticFiles(
             Handler<DeserializingMessage> handler, Class<?> targetClass,
             HandlerConfiguration<DeserializingMessage> config) {
+        List<ConsumerFilter> helperFilters = new ArrayList<>();
+        Handler<DeserializingMessage> result = withStaticFiles(handler, targetClass, config, helperFilters);
+        if (helperFilters.isEmpty()) {
+            return result;
+        }
+        // Socket endpoints do not have the DefaultHandler's filter supplier. Preserve their invocation path.
+        var filter = memoize(() -> ConsumerFilter.union(
+                Stream.concat(Stream.of(result.getConsumerFilter()), helperFilters.stream()).toList()));
+        return new Handler.DelegatingHandler<>(result) {
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                return filter.get();
+            }
+
+            @Override
+            public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                return delegate.getInvoker(message);
+            }
+
+            @Override
+            public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
+                return delegate.getInvokerOrNull(message);
+            }
+
+            @Override
+            public HandlerMethod<DeserializingMessage> getHandlerMethodOrNull(DeserializingMessage message) {
+                return delegate.getHandlerMethodOrNull(message);
+            }
+
+            @Override
+            public HandlerMethodPlan<DeserializingMessage> getHandlerMethodPlanOrNull(DeserializingMessage message) {
+                return delegate.getHandlerMethodPlanOrNull(message);
+            }
+
+            @Override
+            public HandlerMethodPlanner<DeserializingMessage> getHandlerMethodPlanner() {
+                return delegate.getHandlerMethodPlanner();
+            }
+        };
+    }
+
+    private Handler<DeserializingMessage> withStaticFiles(
+            Handler<DeserializingMessage> handler, Class<?> targetClass,
+            HandlerConfiguration<DeserializingMessage> config, List<ConsumerFilter> helperFilters) {
         if (messageType == MessageType.WEBREQUEST) {
             for (StaticFileHandler h : StaticFileHandler.forTargetClass(targetClass)) {
                 if (staticFileHandlers.add(h)) {
@@ -397,10 +453,21 @@ public class DefaultHandlerFactory implements HandlerFactory {
                     });
                     var staticHandlerConfig = config.toBuilder().messageFilter(messageFilter).build();
                     handler = handler.or(createDefaultHandler(h, m -> h, staticHandlerConfig));
+                } else {
+                    describeSharedWebHelper(h, config, helperFilters);
                 }
             }
         }
         return handler;
+    }
+
+    private void describeSharedWebHelper(Object helper, HandlerConfiguration<DeserializingMessage> config,
+                                         List<ConsumerFilter> filters) {
+        if (getClass() == DefaultHandlerFactory.class) {
+            // Local registration and grouped consumer preparation can assign a shared helper to different targets.
+            // Keep its declared routes eligible without changing the single invocation owner or its route registry.
+            filters.add(WebHandlerMatcher.create(helper, parameterResolvers, config).getConsumerFilter());
+        }
     }
 
     private ConsumerFilter describePayloads(Class<?> targetClass, HandlerConfiguration<DeserializingMessage> config) {

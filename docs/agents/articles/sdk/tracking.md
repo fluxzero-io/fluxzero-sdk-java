@@ -108,7 +108,9 @@ An unannotated bare value is a payload argument. Runtime does not inspect aggreg
 Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
 custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
 Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
-HEAD/OPTIONS, including static mount/fallback routes. Socket consumers preserve known HTTP and handshake paths;
+HEAD/OPTIONS, including static mount/fallback routes. Shared automatic OpenAPI, API-reference and static routes
+remain eligible for all declaring consumers while invocation retains one owner. This also preserves sync-fixture
+admission when local and tracked registration orders differ. Socket consumers preserve known HTTP and handshake paths;
 session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where session lookup can
 handle them. This only widens the necessary websocket methods. Websocket methods do not imply automatic OPTIONS.
 Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses

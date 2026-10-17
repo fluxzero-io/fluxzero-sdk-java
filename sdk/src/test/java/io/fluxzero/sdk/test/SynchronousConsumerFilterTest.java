@@ -22,13 +22,16 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.handling.MethodInvocationValidator;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -36,15 +39,29 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
+import io.fluxzero.sdk.tracking.DefaultTracking.PreparedHandler;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
+import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
+import io.fluxzero.sdk.tracking.handling.RepositoryProvider;
+import io.fluxzero.sdk.web.ApiDocInfo;
 import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.HandleHead;
+import io.fluxzero.sdk.web.HandleOptions;
+import io.fluxzero.sdk.web.HandleSocketOpen;
 import io.fluxzero.sdk.web.Path;
+import io.fluxzero.sdk.web.ServeStatic;
+import io.fluxzero.sdk.web.SocketEndpoint;
+import io.fluxzero.sdk.web.WebParamParameterResolver;
+import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.charset.StandardCharsets;
@@ -185,6 +202,112 @@ class SynchronousConsumerFilterTest {
         for (String value : List.of("a%2Fb", "a%252Fb", "a+b", "%E2%82%AC")) {
             fixture.whenGet("/api/items/" + value + "?x=1").expectResult("ok");
         }
+    }
+
+    @ParameterizedTest
+    @CsvSource({"GET,/shared/openapi.json", "HEAD,/shared/openapi.json", "OPTIONS,/shared/openapi.json",
+            "GET,/shared/docs", "HEAD,/shared/docs", "OPTIONS,/shared/docs",
+            "GET,/shared/assets/index.html", "HEAD,/shared/assets/index.html", "OPTIONS,/shared/assets/index.html"})
+    void sharedWebHelpersSurviveDifferentLocalAndTrackedOwners(String method, String path) {
+        var first = new SharedWebHelpers("/first");
+        var second = new SharedWebHelpers("/second");
+        var serializer = new JacksonSerializer();
+        var localFactory = webFactory(serializer);
+        var trackedFactory = webFactory(serializer);
+        var localFirst = localFactory.createHandler(first, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        var localSecond = localFactory.createHandler(second, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        // Consumer preparation may visit groups in a different order than local registration.
+        var trackedSecond = trackedFactory.createHandler(second, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        var trackedFirst = trackedFactory.createHandler(first, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        var message = serializer.deserializeMessage(WebRequest.builder().method(method).url(path + "?x=1")
+                                                            .build().serialize(serializer), MessageType.WEBREQUEST);
+        assertTrue(localFirst.getInvoker(message).isPresent());
+        assertTrue(localSecond.getInvoker(message).isEmpty(), "automatic endpoints retain one local owner");
+        assertTrue(trackedSecond.getInvoker(message).isPresent());
+        assertTrue(trackedFirst.getInvoker(message).isEmpty(), "automatic endpoints retain one tracked owner");
+        try (var app = DefaultFluxzero.builder().disableShutdownHook().disableKeepalive().build(LocalClient.newInstance())) {
+            var consumers = new SynchronousConsumers();
+            var firstRegistration = consumers.observe(app, MessageType.WEBREQUEST,
+                    ConsumerConfiguration.builder().name("first").consumerFiltering(true).build(),
+                    List.of(new PreparedHandler(first, trackedFirst)));
+            var secondRegistration = consumers.observe(app, MessageType.WEBREQUEST,
+                    ConsumerConfiguration.builder().name("second").consumerFiltering(true).build(),
+                    List.of(new PreparedHandler(second, trackedSecond)));
+            try {
+                assertTrue(consumers.wrap(first, localFirst).getInvoker(message).isPresent());
+                assertTrue(trackedFirst.getConsumerFilter().routeRestricted());
+                assertFalse(trackedFirst.getConsumerFilter().compile().test(
+                        WebRequest.get("/unrelated").build().serialize(serializer)));
+                assertFalse(trackedFirst.getConsumerFilter().compile().test(
+                        WebRequest.post(path).build().serialize(serializer)));
+            } finally {
+                firstRegistration.cancel();
+                secondRegistration.cancel();
+            }
+        }
+    }
+
+    @Test
+    void duplicateHelperDescriptionsDoNotStealExplicitHttpHelpers() {
+        var serializer = new JacksonSerializer();
+        var factory = webFactory(serializer);
+        var explicit = factory.createHandler(new Object() {
+            @HandleHead("/shared/openapi.json") String head() { return "explicit-head"; }
+            @HandleOptions("/shared/docs") String options() { return "explicit-options"; }
+        }, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        var owner = factory.createHandler(new SharedWebHelpers("/first"), HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        var duplicate = factory.createHandler(new SharedWebHelpers("/second"), HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        for (var request : List.of(WebRequest.builder().method("HEAD").url("/shared/openapi.json").build(),
+                                   WebRequest.builder().method("OPTIONS").url("/shared/docs").build())) {
+            var message = serializer.deserializeMessage(request.serialize(serializer), MessageType.WEBREQUEST);
+            assertTrue(explicit.getInvoker(message).isPresent());
+            assertTrue(owner.getInvoker(message).isEmpty());
+            assertTrue(duplicate.getInvoker(message).isEmpty());
+        }
+        var automatic = serializer.deserializeMessage(WebRequest.builder().method("OPTIONS")
+                .url("/shared/assets/index.html").build().serialize(serializer), MessageType.WEBREQUEST);
+        assertTrue(owner.getInvoker(automatic).isPresent(), "describing duplicates must not replace the route owner");
+        assertTrue(duplicate.getInvoker(automatic).isEmpty());
+    }
+
+    @Test
+    void sharedStaticRoutesRemainEligibleForSocketEndpoints() {
+        var serializer = new JacksonSerializer();
+        var factory = webFactory(serializer);
+        factory.createHandler(new SharedWebHelpers("/first"), HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        var socket = factory.createHandler(SharedStaticSocket.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        assertTrue(socket.getConsumerFilter().routeRestricted());
+        for (String method : List.of("GET", "HEAD", "OPTIONS")) {
+            var wire = WebRequest.builder().method(method).url("/shared/assets/index.html").build().serialize(serializer);
+            assertTrue(socket.getConsumerFilter().compile().test(wire));
+            assertTrue(socket.getInvoker(serializer.deserializeMessage(wire, MessageType.WEBREQUEST)).isEmpty());
+        }
+        assertFalse(socket.getConsumerFilter().compile().test(WebRequest.get("/unrelated").build().serialize(serializer)));
+    }
+
+    private static DefaultHandlerFactory webFactory(JacksonSerializer serializer) {
+        return new DefaultHandlerFactory(MessageType.WEBREQUEST, HandlerDecorator.noOp,
+                List.of(new MessageParameterResolver(), new WebParamParameterResolver()),
+                MethodInvocationValidator.noOp(), ignored -> null, new RepositoryProvider() {
+                    @Override public <T> Map<Object, T> getRepository(Class<T> type) {
+                        return new java.util.concurrent.ConcurrentHashMap<>();
+                    }
+                }, false, serializer);
+    }
+
+    @SocketEndpoint
+    @ServeStatic(value = "/shared/assets", resourcePath = "classpath:/web/static")
+    static class SharedStaticSocket {
+        @HandleSocketOpen("/socket") static SharedStaticSocket open() { return new SharedStaticSocket(); }
+    }
+
+    @ApiDocInfo(serveOpenApi = true, openApiPath = "/shared/openapi.json",
+            serveApiReference = true, apiReferencePath = "/shared/docs")
+    @ServeStatic(value = "/shared/assets", resourcePath = "classpath:/web/static")
+    static class SharedWebHelpers {
+        @Path final String path;
+        SharedWebHelpers(String path) { this.path = path; }
+        @HandleGet String get() { return path; }
     }
 
     @Test
