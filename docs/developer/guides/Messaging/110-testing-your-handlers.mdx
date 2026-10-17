@@ -451,7 +451,12 @@ fixture.givenCommands(CreateUser(userProfile))
 
 ## User-aware tests
 
-You can simulate a command being issued by a specific user:
+User-aware tests use your application's `UserProvider`. The CLI starter supplies a `SenderProvider` and registers it in
+`META-INF/services/io.fluxzero.sdk.tracking.handling.authentication.UserProvider`, so plain fixtures can find it without
+starting Spring. Keep that registration when adapting the starter. Alternatively, register the provider explicitly on
+the fixture's `DefaultFluxzero` builder. An IDP dependency or a Spring bean alone does not configure a plain fixture.
+
+With that provider configured, you can simulate a command being issued by a specific user:
 
 <Tabs>
   <TabItem label="Java">
@@ -475,6 +480,11 @@ fixture.whenCommandByUser(user, "confirm-user.json")
 
   </TabItem>
 </Tabs>
+
+A supplied `User` skips the fixture's initial ID lookup, but still travels through the provider's metadata handling.
+With ID metadata enabled, later resolution can call `getUserById(...)`; a refreshing provider can also reload current
+roles. Create the corresponding application user as setup when your provider resolves users from stored profiles.
+Without a provider, the no-op fallback does not preserve the supplied user.
 
 You can also pass a user ID string directly instead of a `User` object. The test fixture will resolve it using the
 configured `UserProvider` (by default loaded via Java’s `ServiceLoader`):

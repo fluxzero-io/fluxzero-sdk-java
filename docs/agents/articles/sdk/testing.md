@@ -45,7 +45,21 @@ For registered types, `@class` may be a unique simple name or distinguishing suf
 Arrays and NDJSON resources can mix current and revisioned records. Read the focused JSON-fixture and revisioned-JSON
 articles before constructing migration fixtures.
 
-The default fixture wrapper returns the system user when no active user is present and delegates ID lookup to a provider registered on the builder. Use `whenCommandByUser`, `whenQueryByUser`, and related helpers for user-sensitive rules. To exercise a configured provider's `getUserById(...)`, keep the normal fixture wrapper and pass a user ID, not a constructed `User`, in at least one scenario. Use `withProductionUserProvider()` separately for unauthenticated/no-fallback behavior; it switches to the process-wide `UserProvider.defaultUserProvider` and does not preserve an arbitrary provider registered only on that fixture builder.
+User-aware fixtures require a working application `UserProvider`, including when `...ByUser` receives a constructed
+`User`. Keep the CLI starter's provider and its
+`META-INF/services/io.fluxzero.sdk.tracking.handling.authentication.UserProvider` registration, or register the provider
+explicitly on the fixture builder with `DefaultFluxzero.builder().registerUserProvider(new SenderProvider())`.
+A plain `TestFixture.create(...)` does not start Spring or discover arbitrary Spring beans. Without a registered provider,
+the SDK's no-op fallback does not preserve the supplied user in metadata; the fixture wrapper does not supply that
+missing implementation. Deferring browser login does not remove the domain's need for user identity.
+
+The default fixture wrapper falls back to the configured provider's system user when no active user is present and delegates ID lookup to that provider. Use `whenCommandByUser`, `whenQueryByUser`, and related helpers for user-sensitive rules. To exercise a configured provider's `getUserById(...)`, keep the normal fixture wrapper and pass a user ID, not a constructed `User`, in at least one scenario. Use `withProductionUserProvider()` separately for unauthenticated/no-fallback behavior; it switches to the process-wide `UserProvider.defaultUserProvider` and does not preserve an arbitrary provider registered only on that fixture builder.
+
+Passing a constructed `User` skips only the fixture's initial ID lookup. Metadata creation still uses the configured
+provider. With `AbstractUserProvider` and ID metadata enabled (`fluxzero.defaults.version >= 2026.08.04` or the explicit
+`fluxzero.auth.useUserIdMetadata` property), later message resolution can call `getUserById(...)`; configure it to resolve
+the supplied identity. A refreshing provider can also replace roles from current application state. Do not disable the
+new defaults or pass an actor in the business payload to conceal an absent provider.
 
 Neither a constructed user nor a user ID proves HTTP credential establishment: `...ByUser` helpers add or resolve `$user` directly. When a frontend signs in with a cookie or bearer token, use HTTP authentication boundary testing and at least one raw `whenWebRequest(...)` carrying that credential.
 

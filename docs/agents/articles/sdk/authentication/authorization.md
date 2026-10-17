@@ -144,7 +144,12 @@ final class SenderProvider extends AbstractUserProvider
 
 A missing Model is represented by an empty `Entity`, and `Entity.get()` returns `null`; the `profile == null` branch above is the normal absence path. Do not wrap `Fluxzero.loadModel(...).get()` in `catch (RuntimeException)` and translate every failure to `null`. That would erase the distinction between normal absence and storage, serialization, `TechnicalException`, or programming failures. Preserve the original failure in provider code and instrument that boundary. During initial request authentication, the current `AuthenticatingInterceptor` converts an exception thrown by `fromMessage(...)` to no user, so do not claim that the HTTP caller will observe the technical exception; test and monitor provider failures separately. If malformed raw identifiers are deliberately treated as unknown callers, catch only the exact identifier-conversion failure before loading application state.
 
-Spring registers a `UserProvider` bean with the Fluxzero builder. Outside Spring, register it explicitly with `DefaultFluxzero.builder().registerUserProvider(...)`. Use `RefreshingUserProvider` when persisted role or profile changes must affect later requests instead of trusting stale role data embedded in an earlier session.
+The CLI starter registers its application-owned `SenderProvider` through
+`META-INF/services/io.fluxzero.sdk.tracking.handling.authentication.UserProvider`, whose content is the provider's fully
+qualified class name. Keep the descriptor aligned with the class/package when adapting the starter; this registration
+also serves plain `TestFixture.create(...)` tests. The IDP client dependency alone does not register an application-specific
+provider. Spring also registers a `UserProvider` bean with the Fluxzero builder; a plain fixture does not start Spring.
+An explicit alternative is `DefaultFluxzero.builder().registerUserProvider(...)`. Use `RefreshingUserProvider` when persisted role or profile changes must affect later requests instead of trusting stale role data embedded in an earlier session.
 
 Map validated IDP claims to existing application state according to the client credential and first-user lifecycle and an explicit provisioning policy. Successful external authentication does not itself authorize creation of a domain user. Choose pre-provisioning, administrator invitation, or explicit self-registration as the product requires, and make that choice idempotent and auditable. Do not use the system user to send an admin-only create-user command merely because an authenticated subject is missing; reserve system authority for a named, deliberate bootstrap, migration, or infrastructure operation.
 
@@ -184,7 +189,10 @@ TestFixture.create(
         .expectWebResult(response -> response.getStatus() == 200);
 ```
 
-The normal fixture wraps the builder-configured provider with `TestUserProvider`; ID lookup still delegates to that configured provider. Passing a ready-made `Sender` proves authorization for that object, but it bypasses `getUserById(...)` and cannot prove that a runtime request can resolve a created user.
+The normal fixture wraps the builder-configured provider with `TestUserProvider`; ID lookup still delegates to that configured provider. Passing a ready-made `Sender` skips only the fixture's initial `getUserById(...)` call; it still needs a working provider
+for metadata propagation. ID-based metadata can trigger lookup during message handling, and a refreshing provider can
+reload the current user and roles. Seed the corresponding application user and verify the identity and permissions
+observed by the handler. Use the ID-based scenario above to test initial lookup explicitly.
 
 Both forms bypass real HTTP credential extraction: `...ByUser` puts `$user` on the message after accepting or resolving the supplied identity. Add the raw cookie/bearer scenarios from HTTP authentication boundary testing before claiming a proxy-facing sign-in path works.
 
