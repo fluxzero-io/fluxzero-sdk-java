@@ -544,6 +544,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "findActiveEntity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#findActiveEntity",
+    "returnType" : "java.util.Optional<? extends io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregate",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getActiveAggregates",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ModifiableAggregateRoot#getActiveAggregates",
     "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.ModifiableAggregateRoot<?>>",
