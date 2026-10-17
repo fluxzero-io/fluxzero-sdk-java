@@ -19,11 +19,24 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.util.stream.Stream;
+
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.verify;
 
 class TestFixtureSpyingTest {
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ordinaryFixturesDoNotCreateComponentSpies(boolean async) {
+        TestFixture fixture = TestFixture.create(new Handler());
+        if (async) {
+            fixture = fixture.async();
+        }
+        fixture.whenCommand(new InspectSpies()).expectResult(false);
+    }
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
@@ -56,6 +69,14 @@ class TestFixtureSpyingTest {
 
     private static class Handler {
         @HandleCommand
+        boolean handle(InspectSpies ignored) {
+            Fluxzero fc = Fluxzero.get();
+            return Stream.of(fc.commandGateway(), fc.errorGateway(), fc.keyValueStore(), fc.aggregateRepository(),
+                             fc.client().getEventStoreClient())
+                    .anyMatch(component -> mockingDetails(component).isSpy());
+        }
+
+        @HandleCommand
         void handle(ReportError ignored) {
             Fluxzero.get().errorGateway().report("reported");
         }
@@ -64,6 +85,9 @@ class TestFixtureSpyingTest {
         String handle(ReadValue ignored) {
             return Fluxzero.get().keyValueStore().get("key");
         }
+    }
+
+    private record InspectSpies() {
     }
 
     private record ReportError() {
