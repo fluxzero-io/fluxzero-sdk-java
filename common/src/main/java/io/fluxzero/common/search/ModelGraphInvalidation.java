@@ -31,9 +31,26 @@ public final class ModelGraphInvalidation {
     /** Marks a notification that must be hydrated from the current canonical node documents. */
     public static final String METADATA_KEY = "$fluxzeroModelGraphLive";
 
+    private static final String METADATA_PATH = JacksonInverter.metadataPath(METADATA_KEY);
+    private static final String METADATA_PREFIX = METADATA_PATH + "/";
     private static final JacksonInverter INVERTER = new JacksonInverter();
 
     private ModelGraphInvalidation() { }
+
+    /**
+     * Returns whether the stored invalidation marker is present, without reconstructing unrelated metadata.
+     * Like the notification protocol, this checks key presence regardless of its value or graph facets.
+     */
+    public static boolean isInvalidation(SerializedDocument document) {
+        for (List<Document.Path> paths : document.deserializeDocument().getEntries().values()) {
+            for (Document.Path path : paths) {
+                if (path.getValue().equals(METADATA_PATH) || path.getValue().startsWith(METADATA_PREFIX)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     /** Captures the root identity and invalidation boundary without copying any of its content. */
     public static SerializedDocument create(SerializedDocument root, ModelGraphProjectionConfiguration configuration,
