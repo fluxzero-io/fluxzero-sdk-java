@@ -72,7 +72,9 @@ public class ModifiableEntity<T> extends DelegatingEntity<T> {
     @Override
     public Entity<T> update(UnaryOperator<T> function) {
         return (Entity<T>) ((Entity) root).update(
-                r -> delegate.update(function).root().get()).getEntity(id()).orElse(null);
+                r -> (delegate.getClass() == ImmutableEntity.class
+                        ? ((ImmutableEntity<T>) delegate).updateRoot(function)
+                        : delegate.update(function).root()).get()).getEntity(id()).orElse(null);
     }
 
     @SuppressWarnings("unchecked")
