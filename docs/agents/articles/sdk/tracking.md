@@ -64,3 +64,16 @@ adds no wait. Admitted result callbacks receive at most one additional second. O
 one second for already-issued commands, without waiting for long polls. These are per-component budgets and
 can accumulate during full application shutdown. A disconnected Runtime or a timeout still requires the usual
 replay-safe recovery; closing from a result callback does not wait on that callback itself.
+
+## Controlled shutdown
+
+Canceling a tracking registration waits at most one second for its tracker threads, sharing that budget across
+parallel trackers. Active batches are not interrupted. If a worker remains blocked, cancellation returns so client
+shutdown can continue; the worker releases its segment and runs interceptor cleanup only after it actually exits.
+A timeout does not acknowledge unfinished work. Keep side effects replay-safe if the application closes before the
+batch completes. Custom interceptor cleanup must itself be bounded; this is not a global application-shutdown deadline.
+
+An active batch requests release of its segment ownership after finishing
+with a `DisconnectTracker` using `STORED` delivery. This also applies when other consumers keep the client connected. Cancellation from
+inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
+exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.

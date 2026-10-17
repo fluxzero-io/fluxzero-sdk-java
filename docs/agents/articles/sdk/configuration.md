@@ -62,3 +62,11 @@ Runtime health and readiness are different: `/health` means the process is up, w
 of the thread that first accesses the field, with `UuidFactory` as fallback. The selected instance is shared;
 constructing a provider directly does not trigger that discovery. Use `replaceIdentityProvider(...)` for an
 application-specific provider. This contract is the same for Java and Kotlin.
+
+## Controlled shutdown
+
+`Fluxzero.close()` calls `Client.prepareShutdown()` before application cleanup and consumer drain. WebSocket clients
+then suppress ingress-stall/recovery monitoring and stall-triggered closure, including existing and new namespace
+clients, while preserving transport, pending results and other diagnostics. Direct lifecycle owners can call
+`prepareShutdown()` before their own drain and `shutDown()` afterwards. Custom clients inherit a no-op preparation
+hook and must keep resources usable until shutdown. This lifecycle is the same for Java and Kotlin.

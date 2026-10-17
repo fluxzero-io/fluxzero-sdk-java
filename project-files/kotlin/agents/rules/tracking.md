@@ -273,6 +273,13 @@ with a `DisconnectTracker` using `STORED` delivery. This also applies when other
 inside a handler releases ownership only after the processing stack has returned. A Runtime handover is not an
 exactly-once guarantee after a crash; retain the usual replay-safe handling of external side effects.
 
+Tracker cancellation waits at most one second across its parallel trackers. Active batches are not interrupted;
+uncompleted work is not acknowledged. If a worker remains blocked, cancellation returns and its interceptor cleanup
+runs only when the worker exits. Custom cleanup must itself be bounded; shutdown budgets can accumulate.
+Controlled application shutdown suppresses ingress-stall/recovery monitoring before consumers drain while retaining
+transport for completion. Direct lifecycle owners call `Client.prepareShutdown()` before their own drain and
+`Client.shutDown()` afterwards.
+
 Closing the client gives outstanding terminal releases a bounded grace period before closing the transport.
 The caching wrapper and WebSocket tracking client each wait at most two seconds; an already completed release
 adds no wait. Admitted result callbacks receive at most one additional second. Other WebSocket clients allow
