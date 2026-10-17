@@ -28,6 +28,7 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
+import io.fluxzero.sdk.tracking.handling.Request;
 import io.fluxzero.sdk.web.path.ClassPathHandler;
 import io.fluxzero.sdk.web.path.PackagePathHandler;
 import io.fluxzero.sdk.web.path.subpath.ExternalUrlPathHandler;
@@ -39,6 +40,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -49,7 +51,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.common.MessageType.WEBRESPONSE;
 import static io.fluxzero.sdk.web.HttpRequestMethod.*;
+import static io.fluxzero.sdk.tracking.BatchInterceptor.preservingConsumerFilter;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WebConsumerFilterTest {
@@ -142,14 +146,19 @@ class WebConsumerFilterTest {
         var handled = new ConcurrentHashMap<String, CompletableFuture<Void>>();
         var probe = new SessionProbe();
         var configuration = new AtomicReference<ConsumerConfiguration>();
-        var builder = builder(configuration);
-        builder = builder.addBatchInterceptor((consumer, tracker) -> batch -> {
+        var builder = builder(configuration).addDispatchInterceptor((message, type, topic) -> {
+            if (message.getPayload() instanceof SocketRequest request) {
+                probe.request.set(request);
+            }
+            return message;
+        }, WEBRESPONSE);
+        builder = builder.addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> batch -> {
             consumer.accept(batch);
             batch.getMessages().forEach(m -> {
                 var completion = handled.get(m.getMessageId());
                 if (completion != null) completion.complete(null);
             });
-        }, WEBREQUEST);
+        }), WEBREQUEST);
         Object target = endpoint ? (mounted ? MountedEndpoint.class : Endpoint.class)
                 : (mounted ? new MountedCombined() : new Combined());
         var fixture = async ? TestFixture.createAsync(builder, target) : TestFixture.create(builder, target);
@@ -165,7 +174,17 @@ class WebConsumerFilterTest {
             if (async) message.expectWebResponses("echo").expectNoErrors();
             else message.expectResult(WebResponse.builder().payload("echo").build()).expectNoErrors();
             assertTrue(probe.session.get().isOpen());
+            fixture.whenExecuting(fc -> probe.response.set(probe.session.get()
+                    .sendRequest(new ReplyRequest(), Duration.ofSeconds(30)).toCompletableFuture())).expectNoErrors();
+            assertNotNull(probe.request.get());
+            oneWaySocket(fixture, async, handled, socket(WS_MESSAGE, "/unmatched-response-path").toBuilder()
+                    .payload(SocketResponse.success(probe.request.get().getRequestId(), "reply")).build());
+            assertEquals("reply", probe.response.get().get(5, TimeUnit.SECONDS),
+                         "session-correlated responses must survive a different request path");
             oneWaySocket(fixture, async, handled, socket(WS_PONG, root + "/socket"));
+            if (endpoint) {
+                oneWaySocket(fixture, async, handled, socket(WS_PONG, "/unmatched-pong-path"));
+            }
             oneWaySocket(fixture, async, handled, socket(WS_CLOSE, "/unmatched-close-path"));
             assertFalse(probe.session.get().isOpen(), "an unmatched close must still clean up the session");
             fixture.whenGet(root + "/deep/spa/path").expectWebResult(r -> r.getStatus() == 200).expectNoErrors();
@@ -174,8 +193,15 @@ class WebConsumerFilterTest {
             }
             if (async) {
                 var filter = configuration.get().getConsumerBlueprint().getFilter();
-                assertFalse(filter.routeRestricted());
+                assertTrue(filter.routeRestricted());
                 assertTrue(filter.compile().test(request(WS_CLOSE, "/unmatched-close-path")));
+                assertTrue(filter.compile().test(request(WS_MESSAGE, "/unmatched-response-path")));
+                assertEquals(endpoint, filter.compile().test(request(WS_PONG, "/unmatched-pong-path")));
+                assertFalse(filter.compile().test(request(POST, root + "/index.html")));
+                if (mounted) {
+                    assertFalse(filter.compile().test(request(GET, "/outside")));
+                    assertFalse(filter.compile().test(request(OPTIONS, "/outside")));
+                }
             }
         }
     }
@@ -202,10 +228,10 @@ class WebConsumerFilterTest {
 
     private static FluxzeroBuilder builder(AtomicReference<ConsumerConfiguration> configuration) {
         return DefaultFluxzero.builder().disableShutdownHook().disableKeepalive().disableTrackingMetrics()
-                .addBatchInterceptor((consumer, tracker) -> {
+                .addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> {
                     configuration.set(tracker.getConfiguration());
                     return consumer;
-                }, WEBREQUEST);
+                }), WEBREQUEST);
     }
 
     private static WebRequest socket(String method, String url) {
@@ -245,7 +271,12 @@ class WebConsumerFilterTest {
     }
     @Path("/site") @ServeStatic(resourcePath = "classpath:/web/static")
     static class MountedCombined extends Combined {}
-    static class SessionProbe { final AtomicReference<SocketSession> session = new AtomicReference<>(); }
+    static class SessionProbe {
+        final AtomicReference<SocketSession> session = new AtomicReference<>();
+        final AtomicReference<SocketRequest> request = new AtomicReference<>();
+        final AtomicReference<CompletableFuture<String>> response = new AtomicReference<>();
+    }
+    record ReplyRequest() implements Request<String> {}
     @SocketEndpoint(aliveCheck = @SocketEndpoint.AliveCheck(false))
     @ServeStatic(resourcePath = "classpath:/web/static")
     static class Endpoint extends Combined {}

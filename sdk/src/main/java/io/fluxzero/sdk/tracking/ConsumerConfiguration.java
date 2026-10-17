@@ -282,6 +282,10 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
      * These interceptors are ordered within the consumer using {@link io.fluxzero.sdk.common.Order @Order}. When a
      * tracker is started with a {@link io.fluxzero.sdk.Fluxzero} instance, the ordered consumer interceptors wrap the
      * globally configured batch interceptors for that message type.
+     * Unknown interceptors keep server-side consumer selection unrestricted. Use
+     * {@link BatchInterceptor#describeConsumerFilter(io.fluxzero.common.api.tracking.ConsumerFilter)} to describe
+     * required inputs, or {@link BatchInterceptor#preservingConsumerFilter(BatchInterceptor)} for observers that only
+     * need messages accepted by the downstream handlers.
      */
     @Singular
     List<BatchInterceptor> batchInterceptors;

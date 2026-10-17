@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.web;
 
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.Handler.DelegatingHandler;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -58,6 +59,7 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.WS_OPEN;
 import static io.fluxzero.sdk.web.HttpRequestMethod.WS_PONG;
 import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
 import static io.fluxzero.sdk.web.WebRequest.requireSocketSessionId;
+import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
@@ -233,8 +235,29 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                         .map(p -> new SocketPattern(m, p))).toList();
     }
 
+    private ConsumerFilter consumerFilter(Handler<DeserializingMessage> handler,
+                                          List<ConsumerFilter.RoutePattern> additionalRoutes) {
+        // Extensions may change matching or session semantics without describing those inputs.
+        if (getClass() != WebsocketHandlerDecorator.class) {
+            return null;
+        }
+        ConsumerFilter delegate = handler.getConsumerFilter();
+        return additionalRoutes.isEmpty() ? delegate : ConsumerFilter.union(asList(delegate,
+                ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, null, null, additionalRoutes, List.of())));
+    }
+
     protected Handler<DeserializingMessage> enableHandshake(Handler<DeserializingMessage> handler,
                                                             List<SocketPattern> socketPatterns) {
+        WebRouteMatcher<Object> handshakeRoutes = new WebRouteMatcher<>();
+        socketPatterns.stream().map(SocketPattern::pattern)
+                .filter(pattern -> !WS_HANDSHAKE.equals(pattern.getMethod()))
+                .map(WebPattern::getPath).distinct().forEach(path -> handshakeRoutes.add(
+                        new WebPattern(path, WS_HANDSHAKE, false, false), null));
+        // Local and tracked handler factories share this decorator. A previous factory may own the actual
+        // handshake, while synchronous consumer admission still needs to describe that locally handled input.
+        // Automatic handshake matching inspects only the raw path, independently of the origin.
+        var handshakeFilters = handshakeRoutes.consumerRoutes().stream()
+                .map(route -> WebRequestRoute.patternForAnyOrigin(WS_HANDSHAKE, route.valueRegex())).toList();
         socketPatterns.stream().map(SocketPattern::pattern).filter(p -> WS_HANDSHAKE.equals(p.getMethod()))
                 .map(WebPattern::getPath).distinct().forEach(websocketPaths::add);
         var pathsRequiringHandshake = socketPatterns.stream().map(SocketPattern::pattern).map(WebPattern::getPath)
@@ -263,6 +286,11 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                     });
             Class<?> targetClass = handler.getTargetClass();
             handler = new DelegatingHandler<DeserializingMessage>(handler) {
+                @Override
+                public ConsumerFilter getConsumerFilter() {
+                    return consumerFilter(delegate, handshakeFilters);
+                }
+
                 @Override
                 public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                     return delegate.getInvoker(message)
@@ -294,6 +322,18 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
                            && getWebRequestContext(message).matchesAny(pathsRequiringHandshake);
                 }
             };
+        } else if (!handshakeFilters.isEmpty()) {
+            handler = new DelegatingHandler<DeserializingMessage>(handler) {
+                @Override
+                public ConsumerFilter getConsumerFilter() {
+                    return consumerFilter(delegate, handshakeFilters);
+                }
+
+                @Override
+                public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
+                    return delegate.getInvoker(message);
+                }
+            };
         }
         return handler;
     }
@@ -318,6 +358,11 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
     protected Handler<DeserializingMessage> useSessionUser(Handler<DeserializingMessage> handler) {
         return new DelegatingHandler<>(handler) {
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                return consumerFilter(delegate, List.of());
+            }
+
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 return delegate.getInvoker(withSessionUser(message));
@@ -347,6 +392,12 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
     protected Handler<DeserializingMessage> handleRequest(Handler<DeserializingMessage> handler) {
         return new DelegatingHandler<DeserializingMessage>(handler) {
             @Override
+            public ConsumerFilter getConsumerFilter() {
+                // Responses complete pending requests by session/request id, even when their path differs.
+                return consumerFilter(delegate, List.of(WebRequestRoute.anyRoute(WS_MESSAGE)));
+            }
+
+            @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 if (!matches(message)) {
                     return delegate.getInvoker(message);
@@ -366,6 +417,11 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
     protected Handler<DeserializingMessage> closeOnError(Handler<DeserializingMessage> handler) {
         return new DelegatingHandler<DeserializingMessage>(handler) {
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                return consumerFilter(delegate, List.of());
+            }
+
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 if (!matches(message)) {
@@ -404,6 +460,12 @@ public class WebsocketHandlerDecorator implements HandlerDecorator, ParameterRes
 
     protected Handler<DeserializingMessage> cleanUpOnClose(Handler<DeserializingMessage> handler) {
         return new DelegatingHandler<DeserializingMessage>(handler) {
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                // Cleanup is correlated by session id, not by the current route table.
+                return consumerFilter(delegate, List.of(WebRequestRoute.anyRoute(WS_CLOSE)));
+            }
+
             @Override
             public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
                 if (!matches(message)) {

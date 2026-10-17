@@ -44,7 +44,6 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -243,11 +242,8 @@ public class DefaultTracker implements Runnable, Registration {
                                                                        MessageType messageType,
                                                                        Fluxzero fluxzero) {
         ConsumerConfiguration orderedConfig = config.ordered();
-        List<BatchInterceptor> result = new ArrayList<>();
-        result.add(new FluxzeroInterceptor(fluxzero));
-        result.addAll(orderedConfig.getBatchInterceptors());
-        result.addAll(fluxzero.configuration().batchInterceptors().getOrDefault(messageType, List.of()));
-        return orderedConfig.toBuilder().clearBatchInterceptors().batchInterceptors(result).build();
+        return orderedConfig.toBuilder().clearBatchInterceptors()
+                .batchInterceptors(BatchInterceptor.effectiveInterceptors(orderedConfig, messageType, fluxzero)).build();
     }
 
     @Override

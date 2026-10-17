@@ -80,6 +80,13 @@ public class DisableMetrics implements HandlerInterceptor, BatchInterceptor, Dis
     }
 
     @Override
+    public io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+            io.fluxzero.common.api.tracking.ConsumerFilter downstream) {
+        return getClass() == DisableMetrics.class ? downstream
+                : io.fluxzero.common.api.tracking.ConsumerFilter.unrestricted();
+    }
+
+    @Override
     public Function<DeserializingMessage, Object> interceptHandling(Function<DeserializingMessage, Object> function,
                                                                     HandlerInvoker invoker) {
         return m -> runWithAdhocInterceptor(() -> function.apply(m), this, MessageType.METRICS);

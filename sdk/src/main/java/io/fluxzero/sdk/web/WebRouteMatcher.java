@@ -72,7 +72,7 @@ class WebRouteMatcher<T> {
                 result.add(WebRequestRoute.pattern(
                         "HEAD", pattern.getOrigin(), route.path().regex().pattern()));
             }
-            if (pattern.isAutoOptions()) {
+            if (pattern.isAutoOptions() && !HttpRequestMethod.isWebsocket(pattern.getMethod())) {
                 result.add(WebRequestRoute.pattern(
                         "OPTIONS", pattern.getOrigin(), route.path().regex().pattern()));
             }

@@ -70,4 +70,11 @@ public class FluxzeroInterceptor implements BatchInterceptor {
             }
         };
     }
+
+    @Override
+    public io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+            io.fluxzero.common.api.tracking.ConsumerFilter downstream) {
+        return getClass() == FluxzeroInterceptor.class ? downstream
+                : io.fluxzero.common.api.tracking.ConsumerFilter.unrestricted();
+    }
 }

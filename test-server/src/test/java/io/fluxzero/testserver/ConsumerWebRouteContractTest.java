@@ -46,6 +46,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.sdk.web.HttpRequestMethod.*;
+import static io.fluxzero.sdk.tracking.BatchInterceptor.preservingConsumerFilter;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerWebRouteContractTest {
@@ -62,14 +63,14 @@ class ConsumerWebRouteContractTest {
                 .name("web-route-contract").id(UUID.randomUUID().toString())
                 .disableMetrics(true).supportedTransportFormats(List.of(format)).build());
         try (Fluxzero app = DefaultFluxzero.builder().disableShutdownHook().disableKeepalive().disableTrackingMetrics()
-                .addBatchInterceptor((consumer, tracker) -> {
+                .addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> {
                     configuration.set(tracker.getConfiguration());
                     return batch -> {
                         consumer.accept(batch);
                         batch.getMessages().forEach(m -> delivered.add(
                                 m.getMetadata().get("method") + " " + m.getMetadata().get("url")));
                     };
-                }, WEBREQUEST).build(client)) {
+                }), WEBREQUEST).build(client)) {
             app.registerHandlers(mounted ? new MountedSite() : new Site());
             assertTrue(configuration.get().getConsumerBlueprint().getFilter().routeRestricted());
             String root = mounted ? "/site" : "";
@@ -84,14 +85,19 @@ class ConsumerWebRouteContractTest {
                     input.toArray(SerializedMessage[]::new)).join();
             assertDelivered(delivered, accepted);
 
-            // Registration must widen an already open filtered read before socket lifecycle input is appended.
+            // Registration must add socket lifecycle inputs to the open read without losing HTTP selection.
             app.registerHandlers(new SocketHandler());
-            assertFalse(configuration.get().getConsumerBlueprint().getFilter().routeRestricted());
+            assertTrue(configuration.get().getConsumerBlueprint().getFilter().routeRestricted());
             var frames = List.of(message(WS_HANDSHAKE, "/socket"), message(WS_OPEN, "/socket"),
                     message(WS_MESSAGE, "/socket"), message(WS_PONG, "/socket"),
                     message(WS_CLOSE, "/unmatched-close-path"));
+            var socketInput = new ArrayList<SerializedMessage>();
+            socketInput.add(message(POST, root + "/index.html"));
+            if (mounted) socketInput.add(message(GET, "/outside"));
+            socketInput.add(message(WS_HANDSHAKE, "/elsewhere"));
+            socketInput.addAll(frames);
             app.client().getGatewayClient(WEBREQUEST).append(Guarantee.STORED,
-                    frames.toArray(SerializedMessage[]::new)).join();
+                    socketInput.toArray(SerializedMessage[]::new)).join();
             assertDelivered(delivered, frames);
         } finally {
             client.shutDown();

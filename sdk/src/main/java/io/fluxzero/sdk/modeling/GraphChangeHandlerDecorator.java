@@ -24,6 +24,7 @@ import io.fluxzero.common.api.modeling.ModelChangeTarget;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -78,6 +79,12 @@ public final class GraphChangeHandlerDecorator {
             return handler;
         }
         return new Handler.DelegatingHandler<>(handler) {
+            @Override
+            public ConsumerFilter getConsumerFilter() {
+                // Graph argument expansion retains the original payload and the delegate's annotation filters.
+                return delegate.getConsumerFilter();
+            }
+
             @Override
             public Optional<HandlerInvoker> getInvoker(
                     DeserializingMessage message) {

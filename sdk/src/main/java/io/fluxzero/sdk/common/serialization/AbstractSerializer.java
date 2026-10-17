@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static io.fluxzero.common.ObjectUtils.forceThrow;
 import static io.fluxzero.common.reflection.GenericTypeResolver.parameterize;
 import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
 import static io.fluxzero.sdk.common.ClientUtils.getRevisionNumber;
@@ -439,14 +440,6 @@ public abstract class AbstractSerializer<I> implements Serializer {
         List<ConsumerFilter.PayloadType> bypass = new ArrayList<>();
         bypass.addAll(handlers.upcastInputs());
         migrations.forEach(input -> addConsumerTypeNames(bypass, input.name(), input.revision()));
-        synchronized (typeAliasMonitor) {
-            typeAliases.keySet().forEach(type -> {
-                addConsumerTypeNames(bypass, type, null);
-                addConsumerTypeNames(bypass, type + "<", null, true);
-            });
-            packageAliases.keySet().forEach(prefix -> bypass.add(
-                    new ConsumerFilter.PayloadType(prefix + ".", null, true)));
-        }
         List<ConsumerFilter.PayloadType> payloads = null;
         if (handlers.payloadRestricted() && (handlers.format() == null || Objects.equals(format, handlers.format()))) {
             payloads = new ArrayList<>();
@@ -454,9 +447,65 @@ public abstract class AbstractSerializer<I> implements Serializer {
                 addConsumerTypeNames(payloads, input.name(), input.revision(), input.prefix());
             }
         }
+        List<ConsumerFilter.PayloadType> accepted = payloads == null ? null : List.copyOf(payloads);
+        List<ConsumerFilter.PayloadType> migrationInputs = List.copyOf(bypass);
+        synchronized (typeAliasMonitor) {
+            for (String type : typeAliases.keySet()) {
+                String target = pureAliasTarget(type, migrationInputs);
+                if (target == null) {
+                    addConsumerTypeNames(bypass, type, null);
+                } else if (accepted != null) {
+                    for (var input : accepted) {
+                        if (matchesConsumerType(input, target)) {
+                            addConsumerTypeNames(payloads, type, input.revision());
+                        }
+                    }
+                }
+                // Generic signatures are outside the exact, header-only alias proof.
+                addConsumerTypeNames(bypass, type + "<", null, true);
+            }
+            packageAliases.keySet().forEach(prefix -> bypass.add(
+                    new ConsumerFilter.PayloadType(prefix + ".", null, true)));
+        }
         return ConsumerFilter.select(null, 0L, ConsumerFilter.VERSION, format,
                 payloads == null ? null : payloads.stream().distinct().toList(), handlers.routeRestricted() ? handlers.routes() : null,
                 bypass.stream().distinct().toList());
+    }
+
+    private String pureAliasTarget(String source, List<ConsumerFilter.PayloadType> migrations) {
+        if (!packageAliases.isEmpty()) {
+            return null;
+        }
+        String target = source;
+        while (true) {
+            if (target.contains("<") || target.contains("[")
+                || containsConsumerType(migrations, target)) {
+                return null;
+            }
+            String next = typeAliases.get(target);
+            if (next == null || next.equals(target)) {
+                break;
+            }
+            target = next;
+        }
+        Class<?> resolved;
+        try {
+            resolved = ReflectionUtils.loadClassWithoutInitialization(target, ReflectionUtils.class.getClassLoader());
+        } catch (ClassNotFoundException | LinkageError unavailable) {
+            return null;
+        }
+        if (containsConsumerType(migrations, resolved.getName())) {
+            return null;
+        }
+        return resolved.getName();
+    }
+
+    private static boolean matchesConsumerType(ConsumerFilter.PayloadType input, String type) {
+        return input.prefix() ? type.startsWith(input.name()) : type.equals(input.name());
+    }
+
+    private static boolean containsConsumerType(List<ConsumerFilter.PayloadType> inputs, String type) {
+        return inputs.stream().anyMatch(input -> matchesConsumerType(input, type));
     }
 
     private static void addConsumerTypeNames(
@@ -490,11 +539,29 @@ public abstract class AbstractSerializer<I> implements Serializer {
     }
 
     private Registration refreshConsumerFilters(Registration registration) {
-        consumerFilterListeners.forEach(Runnable::run);
+        notifyConsumerFilters();
         return () -> {
             registration.cancel();
-            consumerFilterListeners.forEach(Runnable::run);
+            notifyConsumerFilters();
         };
+    }
+
+    private void notifyConsumerFilters() {
+        Throwable failure = null;
+        for (Runnable listener : consumerFilterListeners) {
+            try {
+                listener.run();
+            } catch (Throwable e) {
+                if (failure == null) {
+                    failure = e;
+                } else if (failure != e) {
+                    failure.addSuppressed(e);
+                }
+            }
+        }
+        if (failure != null) {
+            forceThrow(failure);
+        }
     }
 
     /**

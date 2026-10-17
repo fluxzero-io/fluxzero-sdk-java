@@ -106,6 +106,17 @@ public class StallingBatchInterceptor implements BatchInterceptor {
         };
     }
 
+    /**
+     * Only handler-relevant inputs are needed. Filtering may reduce the batch size and therefore delay reaching
+     * {@code desiredBatchSize}; the existing maximum stalling duration still bounds that delay.
+     */
+    @Override
+    public io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+            io.fluxzero.common.api.tracking.ConsumerFilter downstream) {
+        return getClass() == StallingBatchInterceptor.class ? downstream
+                : io.fluxzero.common.api.tracking.ConsumerFilter.unrestricted();
+    }
+
     protected boolean hasPassedDeadline() {
         return Optional.ofNullable(firstRefusal.get())
                 .filter(f -> !currentTime().isBefore(f.plus(maximumStallingDuration))).isPresent();

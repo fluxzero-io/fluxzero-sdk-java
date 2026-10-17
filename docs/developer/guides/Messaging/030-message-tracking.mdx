@@ -427,7 +427,8 @@ This also preserves nested sealed interfaces, concrete sealed bases, `non-sealed
 A final `@TrackSelf` payload contributes its required type even without a payload parameter; web self-handlers
 keep route-based selection, including automatic OPTIONS. Bean/trigger injection and an additional JSON view do not
 widen a separate typed payload parameter. Standard interceptor/document wrappers preserve selection; unknown
-subclasses, stateful/member routing, socket sessions and graph-change expansion retain conservative broad delivery.
+subclasses and stateful/member routing retain conservative broad delivery. Graph-change wrappers preserve any
+payload boundary already proven by their delegate, including `allowedClasses`.
 Automatic Model commands contribute the payload boundary of their actual command matcher, including commands whose
 `@Apply` is declared on a registered Model. Scheduled commands first match the `ScheduledCommand` wrapper on the
 schedule log, then the dispatched command matches its normal command consumer; the relay accepts every wrapped
@@ -440,11 +441,59 @@ injection within an existing entity context keep their own resolution path. An a
 payload restriction, but another required payload parameter or `allowedClasses` can still narrow the handler.
 Runtime does not inspect aggregate metadata for this selection.
 Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
-HEAD/OPTIONS, including static mount/fallback routes. Socket consumers stay broad to preserve handshake,
-pong and close cleanup even on unmatched paths.
+HEAD/OPTIONS, including static mount/fallback routes. Socket consumers retain known HTTP and implicit handshake
+paths. Session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where the SDK's
+session lookup accepts them; those lifecycle methods do not make unrelated HTTP methods/routes eligible. Automatic
+OPTIONS is derived from HTTP routes only. Missing routes remain eligible for legacy inputs.
 Unknown/custom metadata widens delivery rather than risk excluding a relevant message. Handlers still
 perform dispatch and authorization. Registering a new handler or migration updates future delivery; use replay when
 previously skipped messages need processing.
+Exact class aliases that only rename the serialized type follow the target payload/revision selection and retain
+route restrictions. Unknown or generic targets, package aliases and aliases involving a caster keep conservative
+delivery. Upcaster inputs remain eligible because an upcaster can change the final payload type or web route.
+Caster batches register atomically: a conflict leaves the chain unchanged. A failed filter-refresh listener does not
+prevent other consumers or peers from refreshing; the registration still reports the activation failure. Handle that
+failure before relying on the changed registration. A refresh failure is not a transaction rollback: the local
+registration may already be active while a remote peer failed to update. Recover or rebuild the affected tracking
+lifecycle before treating that registration as usable.
+
+Hand-written `TrackingClient.read` calls without a `ConsumerBlueprint` remain unfiltered by handler metadata, even
+when an earlier read on that consumer/tracker carried a blueprint. `readFromIndex` remains a direct log read. Existing
+explicit type, target, segment and cursor rules still apply. The unspecified SDK wait now defaults to fifteen minutes
+on a supporting peer (sixty seconds on an older peer); set `maxWaitDuration` explicitly when the old wait is required.
+
+Batch interceptors run before deserialization and can change the inputs that reach handlers. Unknown interceptors
+therefore keep consumer delivery broad. Built-in interceptors that preserve selection retain filtering. For an
+observer that safely tolerates the omission of irrelevant messages, opt in explicitly:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    builder.addBatchInterceptor(BatchInterceptor.preservingConsumerFilter((next, tracker) -> batch -> {
+        recordDeliveredCount(batch.getSize());
+        next.accept(batch);
+    }), MessageType.EVENT);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    builder.addBatchInterceptor(BatchInterceptor.preservingConsumerFilter { next, _ ->
+        java.util.function.Consumer { batch ->
+            recordDeliveredCount(batch.size)
+            next.accept(batch)
+        }
+    }, MessageType.EVENT)
+    ```
+  </TabItem>
+</Tabs>
+
+This declaration must not hide input transformations that can turn an otherwise excluded message into a handled one,
+or processing that requires excluded messages. For such transformations, keep the conservative default or implement
+`describeConsumerFilter` with a complete input projection. Composition follows the actual interceptor order. The
+synchronous fixture uses this same admission contract; async tests exercise the actual batch transformation.
+Filtering can also make `StallingBatchInterceptor` reach its desired batch size later; its existing maximum stalling
+duration still bounds the delay.
+
 
 Web requests carry an optional message-level `route`, separate from the body's `Data.type`. Its value is the method,
 space, and origin plus raw path (for example `GET /orders/a%2Fb`), without query or fragment. SDK gateways refresh it

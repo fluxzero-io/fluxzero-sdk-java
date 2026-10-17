@@ -26,6 +26,9 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+
+import static io.fluxzero.common.ObjectUtils.forceThrow;
 
 /**
  * Lifecycle-bound projection of the effective handlers assigned to one consumer. The same contract can later be
@@ -36,14 +39,25 @@ public final class ConsumerBlueprint implements AutoCloseable {
     private final Serializer serializer;
     private final Supplier<ConsumerFilter> handlers;
     private final LongSupplier revisions;
+    private final UnaryOperator<ConsumerFilter> inputProjection;
     private final List<Consumer<ConsumerFilter>> listeners = new CopyOnWriteArrayList<>();
     private final Registration serializerRegistration;
     private volatile Projection projection;
 
     public ConsumerBlueprint(Serializer serializer, Supplier<ConsumerFilter> handlers, LongSupplier revisions) {
+        this(serializer, handlers, revisions, UnaryOperator.identity());
+    }
+
+    /**
+     * Projects the serializer's required inputs through an upstream serialized-message transformation, such as a
+     * batch interceptor chain. A null projection result means unknown selection and retains broad delivery.
+     */
+    public ConsumerBlueprint(Serializer serializer, Supplier<ConsumerFilter> handlers, LongSupplier revisions,
+                             UnaryOperator<ConsumerFilter> inputProjection) {
         this.serializer = serializer;
         this.handlers = handlers;
         this.revisions = revisions;
+        this.inputProjection = java.util.Objects.requireNonNull(inputProjection);
         this.serializerRegistration = serializer.observeConsumerFilters(this::refresh);
         refresh();
     }
@@ -60,16 +74,34 @@ public final class ConsumerBlueprint implements AutoCloseable {
 
     private record Projection(ConsumerFilter filter, Predicate<SerializedMessage> predicate) {}
 
-    /** Publishes a new projection after registration changes; listeners establish the remote activation boundary. */
+    /**
+     * Publishes a new projection after registration changes; listeners establish the remote activation boundary.
+     * Every listener is notified even when another fails. Activation failures remain visible to the caller.
+     */
     public void refresh() {
         ConsumerFilter current;
         synchronized (this) {
-            current = serializer.describeConsumerFilter(handlers.get());
+            current = inputProjection.apply(serializer.describeConsumerFilter(handlers.get()));
+            if (current == null) {
+                current = ConsumerFilter.unrestricted();
+            }
             current = current.forRevision(subscriptionId, revisions.getAsLong(), current.format(), current.upcastInputs());
             projection = new Projection(current, current.compile());
         }
+        Throwable failure = null;
         for (Consumer<ConsumerFilter> listener : listeners) {
-            listener.accept(current);
+            try {
+                listener.accept(current);
+            } catch (Throwable e) {
+                if (failure == null) {
+                    failure = e;
+                } else if (failure != e) {
+                    failure.addSuppressed(e);
+                }
+            }
+        }
+        if (failure != null) {
+            forceThrow(failure);
         }
     }
 

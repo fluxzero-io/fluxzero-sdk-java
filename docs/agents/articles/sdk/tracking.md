@@ -91,6 +91,16 @@ Automatic Model command handlers expose their actual payload matcher boundary, f
 Model-owned `@Apply` methods. Scheduled commands select the `ScheduledCommand` envelope on SCHEDULE, then apply
 ordinary COMMAND selection after relay; do not narrow the relay by locally registered inner command types.
 Local automatic handling issues no server Read. These rules apply equally to Java and Kotlin.
+Unknown batch interceptors can transform serialized inputs and therefore widen admission. Built-in selection-preserving
+interceptors keep filtering. Wrap observational lambdas with `BatchInterceptor.preservingConsumerFilter(interceptor)`
+only when omitting rejected inputs is safe and the interceptor cannot turn one into a handled message. Alternatively
+provide a complete `describeConsumerFilter(downstream)` input projection. Composition preserves actual order, after
+serializer projection. Sync fixtures use the same admission rules; async fixtures execute batch transformations.
+Caster registration batches are atomic on conflicts. All filter-refresh listeners are attempted even when one fails;
+registration/cancellation still reports activation errors, with later errors suppressed. Do not ignore those errors.
+Hand-written reads without a blueprint retain broad delivery, including after a filtered read on the same tracker;
+`readFromIndex` is a direct log read. Explicit traditional filters/cursors remain. The unspecified SDK idle wait is
+now fifteen minutes on capable peers and sixty seconds on old/off peers; choose an explicit wait when required.
 All persistent legacy aggregate roots require `@Aggregate`; unannotated loads or newly created roots fail.
 Implicit legacy aggregate-value arguments require `@Aggregate` on their declared type, including inherited markers.
 Such an argument does not constrain payload selection; another required payload argument or `allowedClasses` can.
@@ -98,11 +108,12 @@ An unannotated bare value is a payload argument. Runtime does not inspect aggreg
 Payload/revision facts include upcaster inputs and aliases, conservatively widened for dynamic transformations,
 custom extensions, arrays and open supertypes. Web filters reuse compiled route patterns and automatic HEAD/OPTIONS.
 Web selection uses the actual composed package/class/method/property paths, absolute origins and automatic
-HEAD/OPTIONS, including static mount/fallback routes. Socket consumers stay broad to preserve handshake,
-pong and close cleanup even on unmatched paths.
+HEAD/OPTIONS, including static mount/fallback routes. Socket consumers preserve known HTTP and handshake paths;
+session-correlated websocket replies, pongs and cleanup remain eligible on unmatched paths where session lookup can
+handle them. This only widens the necessary websocket methods. Websocket methods do not imply automatic OPTIONS.
 Unknown metadata/formats remain eligible. Standard document/interceptor wrappers preserve selection; subclasses
-that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Stateful/member,
-socket-session and graph-change expansion currently retain broad delivery. Runtime uses the Common implementation; Test Server/local tracking match.
+that can widen invocation remain unrestricted unless they explicitly supply conservative metadata. Stateful/member routing remains broad. Graph-change expansion preserves a proven delegate payload boundary
+(e.g. `allowedClasses`); graph-only handlers remain broad. Runtime uses the Common implementation; Test Server/local tracking match.
 `SerializedMessage.route` is optional and independent of body `Data.type`. Web producers project method + space +
 origin/raw path after their final serialized interceptors, including proxy chunks and socket frames. Query and fragment
 are excluded; encoded separators, plus signs and Unicode are not decoded. Runtime filtering never reads metadata or
@@ -147,3 +158,8 @@ consumer's blueprint do not keep that consumer pending, including when an older 
 Set `fluxzero.tracking.consumerFiltering=false` when a test also needs to await batch interceptors for handler-irrelevant
 inputs. Disabling filtering retains the previous batch-acknowledgement wait. Pending selection uses the original
 serialized envelope and owning namespace, including schedules registered before their consumer.
+
+A failed filter refresh still notifies all remaining consumers and peers, then reports the original failure. Local
+registration may already be active; this is not atomic remote activation. Recover the affected tracking lifecycle
+before relying on it. Filtering can delay a stalling interceptor reaching its desired size, within its existing
+maximum stalling duration.

@@ -51,3 +51,11 @@ combines alias and registered-name resolution; `upcastType` alone only handles a
 
 Verify exact and package renames, overlapping packages, nested polymorphic values, typed metadata, and a historical
 type that needs both a revision upcaster and an alias. Do not introduce an upcaster solely to rewrite a compatible FQN.
+
+## Consumer filtering
+
+Exact aliases with a proven loadable target preserve payload/revision and route constraints. Alias chains are
+projected back to all historical inputs without initializing target classes. Package aliases, generics, arrays,
+unresolved targets and aliases involving a caster remain conservatively eligible. Registering or removing an alias
+refreshes active consumer filters; an already advanced read position requires explicit replay. See
+[message tracking](../tracking.md) for custom serializer and interceptor boundaries.

@@ -2803,6 +2803,12 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         @Override
+        public io.fluxzero.common.api.tracking.ConsumerFilter describeConsumerFilter(
+                io.fluxzero.common.api.tracking.ConsumerFilter downstream) {
+            return downstream;
+        }
+
+        @Override
         public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
             return delegate.intercept(consumer, tracker);
         }

@@ -30,6 +30,7 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry;
 import io.fluxzero.sdk.registry.ConsumerBlueprint;
 import io.fluxzero.sdk.scheduling.Schedule;
+import io.fluxzero.sdk.tracking.BatchInterceptor;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.DefaultTracking.PreparedHandler;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
@@ -79,10 +80,12 @@ final class SynchronousConsumers {
                 .computeIfAbsent(type, ignored -> new ArrayList<>()).add(group));
         if (Boolean.TRUE.equals(configuration.getConsumerFiltering())) {
             if (group.blueprint == null) {
+                var interceptors = BatchInterceptor.join(
+                        BatchInterceptor.effectiveInterceptors(configuration, type, fluxzero));
                 group.blueprint = new ConsumerBlueprint(fluxzero.serializer(),
                         () -> ConsumerFilter.union(group.handlers.stream().map(PreparedHandler::handler)
                                                            .map(Handler::getConsumerFilter).toList()),
-                        revisions::incrementAndGet);
+                        revisions::incrementAndGet, interceptors::describeConsumerFilter);
             } else {
                 group.blueprint.refresh();
             }

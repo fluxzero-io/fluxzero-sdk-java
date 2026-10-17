@@ -19,13 +19,17 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.tracking.WebSocketTracker;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
+import io.fluxzero.sdk.registry.ConsumerBlueprint;
 import io.fluxzero.sdk.tracking.Consumer;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.web.HandleGet;
 import org.eclipse.jetty.server.ServerConnector;
@@ -33,18 +37,74 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.sdk.tracking.BatchInterceptor.preservingConsumerFilter;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerBlueprintContractTest {
+    @ParameterizedTest
+    @EnumSource(WebSocketTransportFormat.class)
+    void manualReadsRemainUnfilteredAfterTheSameTrackerUsedABlueprint(WebSocketTransportFormat format)
+            throws Exception {
+        List<WebSocketTracker> reads = new CopyOnWriteArrayList<>();
+        var server = TestServer.startServer(0, reads::add);
+        int port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
+        var client = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost:" + port).namespace(UUID.randomUUID().toString())
+                .name("manual-read-contract").id(UUID.randomUUID().toString()).disableMetrics(true)
+                .supportedTransportFormats(List.of(format)).build()
+                .withTrackingConfig(EVENT, WebSocketClient.TrackingClientConfig.builder().sessions(1).build()));
+        try (var blueprint = new ConsumerBlueprint(new JacksonSerializer(), () -> ConsumerFilter.select(
+                null, 0L, ConsumerFilter.VERSION, Data.JSON_FORMAT,
+                List.of(new ConsumerFilter.PayloadType("Accepted", null)), null, List.of()),
+                new AtomicLong()::incrementAndGet)) {
+            var tracking = client.getTrackingClient(EVENT);
+            var manual = ConsumerConfiguration.builder().name("manual-consumer")
+                    .maxWaitDuration(Duration.ZERO).clientControlledIndex(true).build();
+            client.getGatewayClient(EVENT).append(Guarantee.STORED,
+                    event("Accepted", 0), event("PreviouslyExcluded", 0)).join();
+            var all = tracking.readFromIndex(0L, 10);
+            assertEquals(List.of("Accepted", "PreviouslyExcluded"),
+                    all.stream().map(SerializedMessage::getType).toList());
+
+            var filtered = tracking.read("manual-tracker", 0L,
+                    manual.toBuilder().consumerBlueprint(blueprint).build()).get(10, TimeUnit.SECONDS);
+            assertEquals(List.of(all.getFirst()), filtered.getMessages());
+            assertEquals(all.getLast().getIndex(), filtered.getLastIndex());
+
+            var continued = tracking.read("manual-tracker", all.getFirst().getIndex(), manual)
+                    .get(10, TimeUnit.SECONDS);
+            assertEquals(List.of(all.getLast()), continued.getMessages());
+            var rewound = tracking.read("manual-tracker", 0L, manual).get(10, TimeUnit.SECONDS);
+            assertEquals(all, rewound.getMessages());
+            assertEquals(all, tracking.readFromIndex(0L, 10));
+            assertEquals(List.of(all.getLast()), tracking.readFromIndex(all.getLast().getIndex(), 10));
+
+            assertEquals(3, reads.size());
+            assertNotNull(reads.getFirst().getConsumerFilter());
+            assertTrue(reads.subList(1, reads.size()).stream().allMatch(read -> read.getConsumerFilter() == null));
+            assertEquals(1, reads.stream().map(WebSocketTracker::getSessionId).distinct().count());
+            assertTrue(reads.stream().allMatch(read -> "manual-consumer".equals(read.getConsumerName())
+                                                      && "manual-tracker".equals(read.getTrackerId())));
+        } finally {
+            try {
+                client.shutDown();
+            } finally {
+                server.stop();
+            }
+        }
+    }
+
     @ParameterizedTest
     @EnumSource(WebSocketTransportFormat.class)
     void filtersBeforeTransportAndRefreshesOpenReadsForNewHandlersAndUpcasters(WebSocketTransportFormat format)
@@ -65,10 +125,10 @@ class ConsumerBlueprintContractTest {
                 .supportedTransportFormats(List.of(format)).build()
                 .withTrackingConfig(EVENT, WebSocketClient.TrackingClientConfig.builder().sessions(2).build()));
         try (Fluxzero app = DefaultFluxzero.builder().disableShutdownHook().disableKeepalive().disableTrackingMetrics()
-                .addBatchInterceptor((consumer, tracker) -> batch -> {
+                .addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> batch -> {
                     delivered.addAll(batch.getMessages());
                     consumer.accept(batch);
-                }, EVENT, WEBREQUEST).build(client)) {
+                }), EVENT, WEBREQUEST).build(client)) {
             var first = new FirstHandler();
             app.registerHandlers(first);
             // Partitioning and multiple sessions exercise the effective-consumer scope of the server cache.

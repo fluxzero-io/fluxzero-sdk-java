@@ -339,6 +339,9 @@ public class ClientUtils {
      * @return the configured order value, or {@code 0} if no order annotation is present
      */
     public static int orderOf(Object component) {
+        if (component instanceof io.fluxzero.sdk.tracking.BatchInterceptor.FilterPreserving preserving) {
+            return orderOf(preserving.delegate());
+        }
         return computeOrder(component.getClass());
     }
 

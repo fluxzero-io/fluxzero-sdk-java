@@ -17,6 +17,7 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
+import io.fluxzero.common.api.tracking.ConsumerFilter;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
@@ -106,6 +107,17 @@ public class SocketEndpointHandler implements Handler<DeserializingMessage> {
         this.wrapperMatcher = wrapperMatcher;
         this.repository = repositoryProvider.getRepository(SocketEndpointWrapper.class);
         this.associations = new HandlerAssociations(targetClass, parameterResolvers, methodAnnotationProvider);
+    }
+
+    @Override
+    public ConsumerFilter getConsumerFilter() {
+        if (getClass() != SocketEndpointHandler.class || targetMatcher.getClass() != WebHandlerMatcher.class
+            || wrapperMatcher.getClass() != WebHandlerMatcher.class) {
+            return null;
+        }
+        // Existing sessions use the wrapper's lifecycle routes even when no target method matches their URL.
+        return ConsumerFilter.union(List.of(((WebHandlerMatcher) targetMatcher).getConsumerFilter(),
+                                            ((WebHandlerMatcher) wrapperMatcher).getConsumerFilter()));
     }
 
     @Override

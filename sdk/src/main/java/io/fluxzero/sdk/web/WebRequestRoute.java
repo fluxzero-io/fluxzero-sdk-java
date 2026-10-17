@@ -74,4 +74,14 @@ public final class WebRequestRoute {
                         + Pattern.quote(origin == null ? "" : origin);
         return new ConsumerFilter.RoutePattern(prefix, pathRegex);
     }
+
+    /** Matches the same raw path with any producer-side origin, as used by automatic socket handshakes. */
+    static ConsumerFilter.RoutePattern patternForAnyOrigin(String method, String pathRegex) {
+        return new ConsumerFilter.RoutePattern(Pattern.quote(method + " ") + "(?:[^/]+://[^/]+)?", pathRegex);
+    }
+
+    /** Session-correlated socket inputs are not restricted by their URL. */
+    static ConsumerFilter.RoutePattern anyRoute(String method) {
+        return new ConsumerFilter.RoutePattern(Pattern.quote(method + " "), "(?s).*");
+    }
 }

@@ -79,6 +79,11 @@ If only the fully qualified type or package name changed and the JSON structure 
 This method is applied before deserialization. The object is transformed as needed so your code always receives the
 current version.
 
+Registering a batch of upcasters or downcasters is atomic: if any declaration conflicts, none of that batch becomes
+active. Consumer filtering retains historical upcaster inputs because a caster can change the resulting payload
+type or web route. Exact aliases without such transformations can retain narrower selection; see
+[message tracking](/docs/guides/messaging/message-tracking#consumer-filtering-and-idle-reads).
+
 <Aside type="note">
 Upcasters operate on top-level serialized objects (payloads, documents, snapshots, key-value entries), not on nested
 types in isolation. If a nested model change affects multiple top-level payload/document types, add upcasters (and new

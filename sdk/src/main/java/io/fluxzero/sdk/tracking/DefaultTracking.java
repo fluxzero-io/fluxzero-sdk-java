@@ -384,10 +384,12 @@ public class DefaultTracking implements Tracking {
         if (Boolean.TRUE.equals(configuration.getConsumerFiltering())) {
             var blueprint = consumerBlueprints.get(configuration);
             if (blueprint == null) {
+                var interceptors = BatchInterceptor.join(
+                        BatchInterceptor.effectiveInterceptors(configuration, messageType, fluxzero));
                 blueprint = new ConsumerBlueprint(serializer,
                         () -> ConsumerFilter.union(
                                 activeHandlers.stream().map(Handler::getConsumerFilter).toList()),
-                        blueprintRevisions::incrementAndGet);
+                        blueprintRevisions::incrementAndGet, interceptors::describeConsumerFilter);
                 consumerBlueprints.put(configuration, blueprint);
             } else {
                 blueprint.refresh();

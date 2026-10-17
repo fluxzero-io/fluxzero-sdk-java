@@ -53,6 +53,7 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.SCHEDULE;
 import static io.fluxzero.common.MessageType.WEBREQUEST;
+import static io.fluxzero.sdk.tracking.BatchInterceptor.preservingConsumerFilter;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsumerBlueprintTest {
@@ -138,10 +139,10 @@ class ConsumerBlueprintTest {
         Instant deadline = start.plusSeconds(60);
         AtomicReference<ConsumerConfiguration> configuration = new AtomicReference<>();
         var handler = new ScheduledHandler();
-        var builder = DefaultFluxzero.builder().addBatchInterceptor((consumer, tracker) -> {
+        var builder = DefaultFluxzero.builder().addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> {
             configuration.set(tracker.getConfiguration());
             return consumer;
-        }, SCHEDULE);
+        }), SCHEDULE);
         var fixture = async ? TestFixture.createAsync(builder, handler) : TestFixture.create(builder, handler);
         var command = new ScheduledPayload("due");
         fixture.atFixedTime(start).givenScheduledCommands(new Schedule(command, "due", deadline))
@@ -177,10 +178,10 @@ class ConsumerBlueprintTest {
         List<SerializedMessage> delivered = new CopyOnWriteArrayList<>();
         var notification = new CreatedNotificationHandler();
         var fixture = io.fluxzero.sdk.test.TestFixture.createAsync(DefaultFluxzero.builder()
-                .addBatchInterceptor((consumer, tracker) -> batch -> {
+                .addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> batch -> {
                     delivered.addAll(batch.getMessages());
                     consumer.accept(batch);
-                }, EVENT), new CreatedHandler(), notification);
+                }), EVENT), new CreatedHandler(), notification);
         fixture.givenEvents(new Ignored()).whenEvent(new Created("fixture")).expectNoErrors()
                 .expectTrue(ignored -> notification.result.isDone());
         assertEquals(List.of(Created.class.getName()), delivered.stream().map(SerializedMessage::getType).toList());
@@ -345,13 +346,13 @@ class ConsumerBlueprintTest {
     private static Fluxzero application(List<SerializedMessage> delivered,
                                          AtomicReference<ConsumerConfiguration> configuration, MessageType type) {
         return DefaultFluxzero.builder().disableShutdownHook().disableKeepalive().disableTrackingMetrics()
-                .addBatchInterceptor((consumer, tracker) -> {
+                .addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> {
                     configuration.set(tracker.getConfiguration());
                     return batch -> {
                         delivered.addAll(batch.getMessages());
                         consumer.accept(batch);
                     };
-                }, type).build(io.fluxzero.sdk.configuration.client.LocalClient.newInstance());
+                }), type).build(io.fluxzero.sdk.configuration.client.LocalClient.newInstance());
     }
 
     private static SerializedMessage raw(String type, int revision, Metadata metadata) {

@@ -32,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.sdk.tracking.BatchInterceptor.preservingConsumerFilter;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SealedConsumerBlueprintTest {
@@ -84,13 +85,13 @@ class SealedConsumerBlueprintTest {
     private static Fluxzero application(List<SerializedMessage> delivered,
                                        AtomicReference<ConsumerConfiguration> configuration) {
         return DefaultFluxzero.builder().disableShutdownHook().disableKeepalive().disableTrackingMetrics()
-                .addBatchInterceptor((consumer, tracker) -> {
+                .addBatchInterceptor(preservingConsumerFilter((consumer, tracker) -> {
                     configuration.set(tracker.getConfiguration());
                     return batch -> {
                         delivered.addAll(batch.getMessages());
                         consumer.accept(batch);
                     };
-                }, EVENT).build(LocalClient.newInstance());
+                }), EVENT).build(LocalClient.newInstance());
     }
 
     sealed interface Event permits Branch, OtherBranch, Choice {}
